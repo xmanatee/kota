@@ -13,3 +13,5 @@ the repo.
 - Keep docs, data files, and local `AGENTS.md` files aligned with reality.
 - Native CLI agents receive read-only Git metadata. Workflow runtime owns index
   staging and commits; agents must not write Git metadata directly.
+
+@docs/STANDARDS.md

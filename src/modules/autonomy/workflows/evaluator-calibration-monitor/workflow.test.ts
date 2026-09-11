@@ -55,7 +55,7 @@ function seedCalibration(
     taskFinalState: null,
     sourceRevision: "1111111111111111111111111111111111111111",
     sourceFilesChanged: ["src/core/a.ts"],
-    criticPromptHash: getCriticPromptHash(),
+    criticPromptHash: getCriticPromptHash(join(runsDir, "../..")),
   };
   writeFileSync(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),

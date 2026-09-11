@@ -36,9 +36,9 @@ vi.mock("node:child_process", async () => {
   };
 });
 
-import "../claude-agent-harness/index.js";
-import "./index.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { codexAgentHarness } from "./adapter.js";
 import { CODEX_AGENT_HARNESS_NAME } from "./index.js";
 
 function mockCodexProcess(): { stdinText: () => string } {
@@ -179,3 +179,7 @@ describe("autonomy agent step on codex", () => {
     );
   });
 });
+
+let releaseHarness: () => void;
+beforeEach(() => { releaseHarness = registerAgentHarness(codexAgentHarness); });
+afterEach(() => releaseHarness());

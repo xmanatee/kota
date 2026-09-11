@@ -261,6 +261,7 @@ export function verifyRunPostReconcileInvariant(
   return invariant({
     workspaceRoot: input.workspaceDir,
     repoRoot: context.scope.root,
+    runEvidence: context.runEvidence,
     stateDir,
     runId: context.run.id,
     readState,

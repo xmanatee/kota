@@ -5,7 +5,7 @@
  * Modules register a hook via ctx.registerPreSendHook(name, fn). On every
  * send, loop-send.ts calls runPreSendHooks() in registration order. Each
  * hook may return a PreSendResult with optional fields that the loop
- * applies: `modifiedFiles` feed the verify tracker, `assistantText` and
+ * applies: `assistantText` and
  * `userFollowup` append to the context, and `lastResult` becomes the
  * returned text for the turn.
  *
@@ -40,7 +40,6 @@ export type PreSendResult = {
   lastResult?: string;
   assistantText?: string;
   userFollowup?: string;
-  modifiedFiles?: readonly string[];
 };
 
 export type PreSendHook = (ctx: PreSendContext) => Promise<PreSendResult | null>;

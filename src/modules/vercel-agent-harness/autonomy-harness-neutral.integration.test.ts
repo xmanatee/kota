@@ -46,9 +46,9 @@ vi.mock("@ai-sdk/openai", () => ({
   }),
 }));
 
-import "../claude-agent-harness/index.js";
-import "./index.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { vercelAgentHarness } from "./adapter.js";
 import { VERCEL_AGENT_HARNESS_NAME } from "./index.js";
 
 function makeDefinition(): WorkflowDefinition {
@@ -159,3 +159,7 @@ describe("autonomy agent step on vercel", () => {
     });
   });
 });
+
+let releaseHarness: () => void;
+beforeEach(() => { releaseHarness = registerAgentHarness(vercelAgentHarness); });
+afterEach(() => releaseHarness());

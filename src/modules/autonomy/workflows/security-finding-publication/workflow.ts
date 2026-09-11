@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { createSecurityFindingTasksOperation } from "../security-review/blocking-operations.js";
 import { securityFindingPublicationRequested } from "../security-review/events.js";
@@ -23,8 +24,7 @@ const workflow: WorkflowDefinitionInput = {
       ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, { ...state, pending });
     }
   },
-  integration: {
-    validationCommand: ["pnpm", "validate-tasks"],
+  integration: taskQueueIntegrationPolicy({
     postReconcile: ({ repoRoot, trigger, readState }) => {
       const { taskId } = requestSchema.parse(trigger.payload);
       const state = decodeSecurityReviewState(readState(SECURITY_REVIEW_STATE_KEY).value);
@@ -36,7 +36,7 @@ const workflow: WorkflowDefinitionInput = {
         return { satisfied: false, reason: String(error) };
       }
     },
-  },
+  }),
   description: "Publish pending confirmed security variants while holding their task resource.",
   triggers: [{ event: securityFindingPublicationRequested.name, queueMode: "all" }],
   resources: ({ trigger }) => [SECURITY_REVIEW_RESOURCE, `task:${requestSchema.parse(trigger.payload).taskId}`],

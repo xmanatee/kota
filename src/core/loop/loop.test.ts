@@ -10,16 +10,9 @@ import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 const {
   mockStreamMessage,
   mockExecuteToolCalls,
-  mockVerifyTracker,
 } = vi.hoisted(() => ({
   mockStreamMessage: vi.fn(),
   mockExecuteToolCalls: vi.fn(),
-  mockVerifyTracker: {
-    getState: vi.fn(() => ""),
-    recordEdit: vi.fn(),
-    checkShellCommand: vi.fn(),
-    tick: vi.fn(),
-  },
 }));
 
 // --- Module mocks ---
@@ -65,19 +58,6 @@ vi.mock("#core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/loop/verify-tracker.js")>();
-  return {
-    ...actual,
-    VerifyTracker: class MockVerifyTracker {
-      getState = mockVerifyTracker.getState;
-      recordEdit = mockVerifyTracker.recordEdit;
-      checkShellCommand = mockVerifyTracker.checkShellCommand;
-      tick = mockVerifyTracker.tick;
-    },
-    detectVerifyCommands: vi.fn(() => []),
-  };
-});
 vi.mock("#core/modules/bundled-module-discovery.js", () => ({
   discoverBundledModules: vi.fn(async () => []),
 }));
@@ -366,181 +346,6 @@ describe("AgentSession", () => {
     });
   });
 
-  describe("verify tracking", () => {
-    it("records file_edit", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "file_edit", input: { path: "/src/main.ts" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("edited"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ok" }]));
-
-      await session.send("edit");
-
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/main.ts");
-    });
-
-    it("records file_write", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "file_write", input: { path: "/new.ts" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("written"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ok" }]));
-
-      await session.send("create");
-
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/new.ts");
-    });
-
-    it("records each file in multi_edit", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([
-            {
-              id: "tu_1",
-              name: "multi_edit",
-              input: { edits: [{ file_path: "/a.ts" }, { file_path: "/b.ts" }] },
-            },
-          ]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ok" }]));
-
-      await session.send("batch");
-
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/a.ts");
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/b.ts");
-    });
-
-    it("does not check shell commands when result is error", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "shell", input: { command: "npm test" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{ id: "tu_1", content: "FAIL", is_error: true }]),
-      );
-
-      await session.send("test");
-
-      expect(mockVerifyTracker.checkShellCommand).not.toHaveBeenCalled();
-    });
-
-    it("records files from find_replace result", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{
-          id: "tu_1",
-          content: "Replaced 3 occurrence(s) in 2 file(s):\n  /src/a.ts: 2 replacement(s)\n  /src/b.ts: 1 replacement(s)",
-        }]),
-      );
-
-      await session.send("rename");
-
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/a.ts");
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/b.ts");
-    });
-
-    it("records files from delegate execute result", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "execute", task: "fix" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{
-          id: "tu_1",
-          content: "execute: 3/15 turns | tools: file_edit\nFixed the bug\n\n--- Modified files (2) ---\n  - /src/main.ts\n  - /src/util.ts",
-        }]),
-      );
-
-      await session.send("delegate fix");
-
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/main.ts");
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("/src/util.ts");
-    });
-
-    it("does NOT record delegate explore (no modified files)", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "explore", task: "research" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{
-          id: "tu_1",
-          content: "explore: 3/10 turns | tools: file_read, grep\nFound the relevant code.",
-        }]),
-      );
-
-      await session.send("research");
-
-      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
-    });
-
-    it("does NOT record find_replace dry run", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new", dry_run: true } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{
-          id: "tu_1",
-          content: "Dry run — 3 match(es) in 2 file(s):\n  /src/a.ts: 2 match(es)\n  /src/b.ts: 1 match(es)",
-        }]),
-      );
-
-      await session.send("preview");
-
-      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
-    });
-
-    it("does NOT record edit when tool result is an error", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "file_edit", input: { path: "/bad.ts" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("failed"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([{ id: "tu_1", content: "not found", is_error: true }]),
-      );
-
-      await session.send("edit");
-
-      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
-    });
-
-    it("ticks after each tool round", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("found"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "m" }]));
-
-      await session.send("search");
-
-      expect(mockVerifyTracker.tick).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe("failure tracking", () => {
     it("injects guidance after 5 diverse failures", async () => {
       session = new AgentSession({ autonomyMode: "autonomous" });
@@ -584,7 +389,6 @@ describe("AgentSession", () => {
         lastResult: "pre-send output",
         assistantText: "hook completed",
         userFollowup: "verify the changes",
-        modifiedFiles: ["file.ts"],
       });
       registerPreSendHook("test-owner", "test-hook", hook);
 
@@ -595,7 +399,6 @@ describe("AgentSession", () => {
 
       expect(hook).toHaveBeenCalledTimes(1);
       expect(result).toBe("verified");
-      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("file.ts");
     });
 
     it("skips applying result when hook returns null", async () => {
@@ -609,7 +412,6 @@ describe("AgentSession", () => {
 
       expect(hook).toHaveBeenCalledTimes(1);
       expect(result).toBe("direct");
-      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
     });
   });
 

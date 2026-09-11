@@ -1,7 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
-    "includes": ["src/**/*.ts", "clients/mobile/src/daemon/**/*.ts"]
+    "includes": [
+      "src/**/*.ts",
+      "clients/mobile/src/daemon/**/*.ts"
+    ]
   },
   "linter": {
     "enabled": true,
@@ -56,7 +59,9 @@
   },
   "overrides": [
     {
-      "includes": ["src/core/**/*.ts"],
+      "includes": [
+        "src/core/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -68,8 +73,70 @@
                 },
                 "patterns": [
                   {
-                    "group": ["@anthropic-ai/sdk/*"],
+                    "group": [
+                      "@anthropic-ai/sdk/*"
+                    ],
                     "message": "Core owns provider-neutral contracts; Anthropic translation belongs in its adapter module."
+                  },
+                  {
+                    "group": [
+                      "#modules/**"
+                    ],
+                    "message": "Core depends on neutral contracts; product modules belong at the composition boundary."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/core/*/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@anthropic-ai/sdk",
+                      "@anthropic-ai/sdk/**",
+                      "#modules/**",
+                      "../../modules/**"
+                    ],
+                    "message": "Core imports neutral contracts; capabilities and providers belong in modules."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/core/*/*/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@anthropic-ai/sdk",
+                      "@anthropic-ai/sdk/**",
+                      "#modules/**",
+                      "../../../modules/**"
+                    ],
+                    "message": "Core imports neutral contracts; capabilities and providers belong in modules."
                   }
                 ]
               }
@@ -104,7 +171,9 @@
       }
     },
     {
-      "includes": ["clients/mobile/src/daemon/**/*.ts"],
+      "includes": [
+        "clients/mobile/src/daemon/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "recommended": false

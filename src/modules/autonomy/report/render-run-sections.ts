@@ -1,4 +1,4 @@
-import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
+import type { ReviewOutcomeReport } from "#modules/autonomy/review-outcomes.js";
 import {
   blank,
   line,
@@ -92,79 +92,15 @@ function formatBuilderCostRow(row: {
   return `${String(row.commits).padStart(3)}   ${formatBuilderCost(row.totalCostUsd).padStart(8)}   measured ${row.measuredCostRuns} unavailable ${row.unavailableCostRuns} unknown ${row.unknownCostRuns}`;
 }
 
-export function renderReviewScrutiny(report: ReviewScrutinyReport): RenderNode[] {
+export function renderReviewOutcome(report: ReviewOutcomeReport): RenderNode[] {
   if (report.totalReviews === 0 && report.unsupportedArtifacts === 0) {
     return [line(span("(no reviewer artifacts)", "muted"))];
   }
-  const lines: RenderNode[] = [
-    line(
-      plain("Reviews: "),
-      span(String(report.totalReviews), "accent"),
-      plain("   Approval-like: "),
-      span(String(report.approvalLikeDecisions), "accent"),
-      plain("   Thin acceptances: "),
-      span(String(report.thinAcceptances), report.thinAcceptances > 0 ? "warn" : "accent"),
-      plain("   Absent metrics: "),
-      span(String(report.absentMetricCount), report.absentMetricCount > 0 ? "warn" : "accent"),
-      plain("   Unsupported: "),
-      span(String(report.unsupportedArtifacts), report.unsupportedArtifacts > 0 ? "warn" : "accent"),
-    ),
-    blank(),
-    line(span("By surface", "muted", true)),
+  return [
+    line(plain(`Reviews: ${report.totalReviews}   Approval-like: ${report.approvalLikeDecisions}   Unreadable artifacts: ${report.unsupportedArtifacts}`)),
+    ...report.bySurface.filter((row) => row.reviews > 0 || row.unsupportedArtifacts > 0)
+      .map((row) => line(plain(`  ${row.surface}: ${row.reviews} reviews, ${row.approvalLikeDecisions} approval-like, ${row.unsupportedArtifacts} unreadable`))),
   ];
-  for (const row of report.bySurface) {
-    if (
-      row.reviews === 0 &&
-      row.approvalLikeDecisions === 0 &&
-      row.thinAcceptances === 0 &&
-      row.absentMetricCount === 0 &&
-      row.unsupportedArtifacts === 0
-    ) {
-      continue;
-    }
-    lines.push(line(plain(
-      `  ${row.surface.padEnd(17)} ${String(row.reviews).padStart(3)} reviews   ${String(row.approvalLikeDecisions).padStart(3)} approval-like   ${String(row.thinAcceptances).padStart(3)} thin   ${String(row.absentMetricCount).padStart(3)} absent   ${String(row.unsupportedArtifacts).padStart(3)} unsupported`,
-    )));
-  }
-  if (report.absentMetricRefs.length > 0) {
-    lines.push(blank());
-    lines.push(line(span("Absent metric refs", "muted", true)));
-    for (const ref of report.absentMetricRefs.slice(0, 8)) {
-      const target = ref.pr
-        ? `${ref.pr.repo}#${ref.pr.number}`
-        : ref.taskId ?? ref.artifact;
-      lines.push(line(
-        plain("  "),
-        span(ref.surface.padEnd(17), "warn"),
-        plain(" "),
-        plain(ref.runId),
-        plain(" "),
-        span(target, "muted"),
-        plain(" "),
-        span(ref.metrics.join(","), "muted"),
-      ));
-    }
-  }
-  if (report.thinAcceptanceRefs.length > 0) {
-    lines.push(blank());
-    lines.push(line(span("Thin acceptance refs", "muted", true)));
-    for (const ref of report.thinAcceptanceRefs.slice(0, 8)) {
-      const target = ref.pr
-        ? `${ref.pr.repo}#${ref.pr.number}`
-        : ref.taskId ?? ref.artifact;
-      lines.push(line(
-        plain("  "),
-        span(ref.surface.padEnd(17), "warn"),
-        plain(" "),
-        span(ref.decision.padEnd(18), "warn"),
-        plain(" "),
-        plain(ref.runId),
-        plain(" "),
-        span(target, "muted"),
-      ));
-    }
-  }
-  return lines;
 }
 
 export function renderTrajectoryDiagnostics(

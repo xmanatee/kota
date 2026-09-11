@@ -6,6 +6,7 @@ import {
   type RepoTaskMutationValue,
   repoTaskMutationResources,
 } from "./repo-task-mutation-boundary.js";
+import { taskQueueIntegrationPolicy } from "./task-integration-policy.js";
 
 function decodeMutationResult(value: unknown): RepoTaskMutationValue {
   if (
@@ -34,7 +35,7 @@ const repoTaskMutationWorkflow: WorkflowDefinitionInput = {
   name: "repo-task-mutation",
   description: "Apply one repository task mutation through the shared writer runtime.",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   resources: ({ scopeRoot, trigger }) => [
     ...new Set(
       repoTaskMutationResources(

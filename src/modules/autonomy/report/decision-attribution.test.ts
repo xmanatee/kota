@@ -108,7 +108,6 @@ describe("buildDecisionAttributionReport", () => {
       taskById: tasks,
       reviewRecords: [
         {
-          schemaVersion: 2,
           surface: "critic",
           runId: "run-owner-product",
           workflow: "builder",
@@ -116,21 +115,14 @@ describe("buildDecisionAttributionReport", () => {
           artifact: "critic-review.json",
           taskId: ownerProduct.id,
           decision: "pass",
-          signals: { issueCount: 0, warningCount: 0, reviewBodyLength: 20 },
-          absentMetrics: [],
-          thinAcceptance: false,
         },
         {
-          schemaVersion: 2,
           surface: "critic",
           runId: "run-failed-tests",
           workflow: "builder",
           generatedAt: NOW,
           artifact: "critic-review.json",
           decision: "fail",
-          signals: { issueCount: 1, warningCount: 0, reviewBodyLength: 20 },
-          absentMetrics: [],
-          thinAcceptance: false,
         },
       ],
       ownerInterventions: ownerInterventions([

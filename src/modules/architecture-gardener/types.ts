@@ -30,13 +30,15 @@ export type ArchitectureObservation = {
   readonly timestamp: string;
 };
 
-export type CandidateDisposition = "admitted" | "proposed" | "no-action" | "covered" | "suppressed";
+export type CandidateDisposition = "admitted" | "proposed" | "no-action" | "covered" | "suppressed" | "deferred";
 
 export type StoredDispositionRecord = {
   readonly targetScope: string;
   readonly disposition: CandidateDisposition;
   readonly reason: string;
   readonly decidedAt: string;
+  /** Absent when no relevant revisit condition has yet been assessed. */
+  readonly revisit?: { readonly reason: string; readonly observationIds: readonly string[] };
   readonly taskId: string | null;
 };
 

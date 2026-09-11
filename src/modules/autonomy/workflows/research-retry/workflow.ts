@@ -8,6 +8,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy, taskQueueValidationCommand } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   inspectResearchRetryCandidatesOperation,
   markResearchRetryAttemptOperation,
@@ -80,7 +81,7 @@ const researchRetryShadowReview = createResearchRetryShadowReviewStep({
 const researchRetryWorkflow: WorkflowDefinitionInput = {
   name: "research-retry",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   description:
     "Re-attempt inaccessible sources in blocked research tasks using the browser module's authenticated / rendered tools, then update task state honestly.",
   tags: ["monitored"],
@@ -108,8 +109,8 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
             run: async (ctx) =>
               workflowCommandOutput(
                 await ctx.runCommand({
-                  command: "pnpm",
-                  args: ["run", "validate-tasks"],
+                  command: taskQueueValidationCommand[0],
+                  args: taskQueueValidationCommand.slice(1),
                   cwd: ctx.workspaceRoot,
                 }),
               ),

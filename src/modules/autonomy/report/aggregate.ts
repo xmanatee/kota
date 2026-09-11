@@ -7,7 +7,7 @@
  * autonomy agents.
  */
 
-import { collectReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
+import { collectReviewOutcomeReport } from "#modules/autonomy/review-outcomes.js";
 import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
@@ -118,13 +118,9 @@ export function aggregateAutonomyReport(
     ),
     [],
   );
-  const reviewScrutiny = collectReviewScrutinyReport({
+  const reviewOutcomes = collectReviewOutcomeReport({
     runsDir: input.runsDir,
     runs,
-  });
-  const priorReviewScrutiny = collectReviewScrutinyReport({
-    runsDir: input.runsDir,
-    runs: priorRuns,
   });
   const ownerInterventions = buildOwnerInterventionReport({
     workspaceRoot: input.workspaceRoot,
@@ -158,7 +154,6 @@ export function aggregateAutonomyReport(
     runs: reportRuns,
     tasks: allTasks,
     windowEndMs: input.windowEndMs,
-    reviewScrutiny,
     postCompletionFollowUps,
   });
 
@@ -175,14 +170,14 @@ export function aggregateAutonomyReport(
       runs,
       runsDir: input.runsDir,
       taskById,
-      reviewRecords: reviewScrutiny.records,
+      reviewRecords: reviewOutcomes.records,
       ownerInterventions,
     }),
     diffSummaryConsistency: buildDiffSummaryConsistencyReport({
       runs,
       runsDir: input.runsDir,
     }),
-    reviewScrutiny,
+    reviewOutcomes,
     shadowSemanticReviews: buildShadowSemanticReviewReport({
       runs,
       runsDir: input.runsDir,
@@ -206,8 +201,6 @@ export function aggregateAutonomyReport(
       runsDir: input.runsDir,
       windowStartMs,
       windowEndMs: input.windowEndMs,
-      reviewScrutiny,
-      priorReviewScrutiny,
       postCompletionFollowUps,
       priorPostCompletionFollowUps,
       postCompletionFollowUpLinks,

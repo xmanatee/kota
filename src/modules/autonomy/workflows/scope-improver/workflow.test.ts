@@ -80,7 +80,6 @@ describe("scope-improver semantic boundaries", () => {
       name: "scope-improvement-actions",
       repository: "write",
       triggers: [expect.objectContaining({ event: "workflow.triggered" })],
-      integration: { validationCommand: ["pnpm", "validate-tasks"] },
     });
   });
 

@@ -47,7 +47,7 @@ function initializeLargeQueueRepo(scopeRoot: string): void {
       "utf8",
     );
   }
-  execFileSync("git", ["add", ".gitignore"], { cwd: scopeRoot });
+  execFileSync("git", ["add", ".gitignore", "data"], { cwd: scopeRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture"], {
     cwd: scopeRoot,
   });

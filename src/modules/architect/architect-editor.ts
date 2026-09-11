@@ -8,7 +8,6 @@ import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { isRetryable } from "#core/model/streaming.js";
-import { extractModifiedFiles } from "#core/tools/delegate-format.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
 import { createFailureTracker, detectReplanTrigger, invokeReplanner, recordStep } from "./replan.js";
 import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
@@ -42,7 +41,6 @@ export type EditorOptions = {
 
 export type EditorResult = {
   text: string;
-  modifiedFiles: string[];
   replans?: number;
 };
 
@@ -58,7 +56,6 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
     { role: "user", content: plan },
   ];
   let lastText = "";
-  const modifiedFiles = new Set<string>();
   let completedNaturally = false;
   const tracker = createFailureTracker();
 
@@ -136,16 +133,6 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
     const filtered = results.filter((r): r is NonNullable<typeof r> => r !== null);
 
-    for (const block of toolBlocks) {
-      if (block.type !== "tool_use") continue;
-      const res = filtered.find((r) => r.tool_use_id === block.id);
-      if (res && !res.is_error) {
-        for (const f of extractModifiedFiles(block.name, block.input as Record<string, unknown>, res.content)) {
-          modifiedFiles.add(f);
-        }
-      }
-    }
-
     // Record steps for failure tracking
     for (const res of filtered) {
       recordStep(tracker, {
@@ -199,7 +186,6 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
   return {
     text: lastText,
-    modifiedFiles: [...modifiedFiles],
     ...(tracker.replanCount > 0 && { replans: tracker.replanCount }),
   };
 }

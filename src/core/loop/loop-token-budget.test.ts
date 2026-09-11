@@ -11,16 +11,9 @@ import { BufferTransport } from "./transport.js";
 const {
   mockStreamMessage,
   mockExecuteToolCalls,
-  mockVerifyTracker,
 } = vi.hoisted(() => ({
   mockStreamMessage: vi.fn(),
   mockExecuteToolCalls: vi.fn(),
-  mockVerifyTracker: {
-    getState: vi.fn(() => ""),
-    recordEdit: vi.fn(),
-    checkShellCommand: vi.fn(),
-    tick: vi.fn(),
-  },
 }));
 
 vi.mock("#core/model/model-client.js", () => ({
@@ -74,19 +67,6 @@ vi.mock("#core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/loop/verify-tracker.js")>();
-  return {
-    ...actual,
-    VerifyTracker: class MockVerifyTracker {
-      getState = mockVerifyTracker.getState;
-      recordEdit = mockVerifyTracker.recordEdit;
-      checkShellCommand = mockVerifyTracker.checkShellCommand;
-      tick = mockVerifyTracker.tick;
-    },
-    detectVerifyCommands: vi.fn(() => []),
-  };
-});
 vi.mock("#core/modules/bundled-module-discovery.js", () => ({
   discoverBundledModules: vi.fn(async () => []),
 }));

@@ -82,7 +82,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         recoveryAction: "",
         rationale: "The repeated static capability failure needs one builder repair.",
         taskTitle: "Repair passive Codex workflow compatibility",
-        taskSummary: "Keep incompatible native harness contracts out of dispatch.",
+        taskDesiredOutcome: "Keep incompatible native harness contracts out of dispatch.",
         taskPriority: "p1",
         taskHowWeWillKnow:
           "A production-shaped lifecycle fixture reaches a typed clear without another AI review.",

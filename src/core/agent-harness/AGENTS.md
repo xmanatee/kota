@@ -6,8 +6,6 @@ the protocol and registry.
 
 ## Protocol
 
-- `AgentHarness.run(options, writer?)` takes neutral options and returns a typed
-  result (text, tokens, turns, subtype, isError, sessionId).
 - A harness must not silently coerce unsupported options. If an adapter cannot
   honor a requested option (for example a tools list against a text-only
   harness), it should fail loudly at the boundary.
@@ -17,7 +15,6 @@ the protocol and registry.
   shapes; adapters that want to wrap the text in a native envelope do the
   wrapping inside the adapter. `AgentSystemPrompt = string` is the contract
   every adapter consumes.
-- The optional `writer` streams text to operators across every harness.
 - Neutral options carry tool risk, live scope policy, commit/daemon guards, and
   injection defense (`scopePolicy`, `getScopePolicySnapshot`, `canUseTool`, MCP
   and tool lists). KOTA-routable loops must honor them; other adapters declare
@@ -56,51 +53,24 @@ the protocol and registry.
   leave staging, rebase continuation, commits, and publication runtime-owned.
 - Runtime Probes and production proofs use the fail-closed contained-workspace sandbox; never add an unsandboxed launcher.
 
-## Owner-questions capability
+## Capability admission
 
-Owner questions are a protocol capability, not a provider field.
+Adapters declare supported owner questions, message streams, multi-turn loops,
+tool control, lifecycle hooks and unsupported run options. `runAgentHarness`
+rejects incompatible requests before hooks or launch. Capability snapshots derive
+from declarations, never harness-name catalogs. Readiness probes stay host-local;
+definition validation stays host-independent. An unattended preclaim requires
+proof of renewable access.
 
-- `AgentHarnessRunOptions.askOwner` is the neutral request; adapters expose the
-  `ask_owner` tool through their native mechanism.
-- `askOwnerToolName` declares support. `runAgentHarness` rejects `askOwner`
-  before `run()` when the adapter declares `null`.
-- `runWithAskOwnerSource` provides per-run attribution.
+Native adapters name one machine-authority owner. Runtime protects authority
+paths, including aliases, before sandbox selection; overlapping grants cannot
+widen them. Hosted loops refresh scope policy per call; native loops abort on
+stricter revisions. Login-locator projections never carry tokens.
 
-## Capability flags
-
-- `emitsAgentMessageStream` — adapters without a `KotaAgentMessage` stream
-  reject `onMessage` at the boundary.
-- `toolControl: "kota" | "native"` — `"kota"` adapters receive neutral tool
-  controls. Native adapters own their CLI loop, so routing omits named-tool
-  lists and callbacks. The shared runtime requires each adapter to name one
-  machine-authority owner and projects scope into that boundary. Provider
-  egress belongs to the trusted CLI process; stricter live revisions abort it.
-  Machine-authority directory and operator-token protections enter the shared
-  runtime context before sandbox-owner selection, including resolved path
-  aliases. Native permission profiles must preserve them over overlapping grants
-  without granting reads to otherwise unauthorized paths.
-- `supportsMultiTurn` — single-shot runners set `false`, so the REPL rejects
-  them instead of silently downgrading.
-- `readiness` — adapter-owned local runtime/auth, optional peer, unsupported-
-  option, and exact model/effort preflight. Launch rejects required failures;
-  definition validation stays host-independent and probes stay host-local. An
-  `unattended` preclaim fails when current access cannot prove renewal.
-- `resolveIsolatedHostAuthEnv` — optional non-secret login-locator projection
-  when trusted host runners replace `HOME`; tokens remain outside this contract.
-- `unsupportedRunOptions` is enforced before hooks or launch and mirrored in
-  readiness. Native CLIs without KOTA's tool gate declare `canUseTool`,
-  `allowedTools`, and `disallowedTools`; they still honor scope write policy
-  through `scopeNativeCliScope` and the shared native sandbox.
-- `routeKotaToolControlOptions` preserves effective scope policy for fail-closed
-  native preflight. Hosted loops refresh policy per call; launched native loops
-  abort on stricter revisions.
-- `capability-snapshot.ts` derives capability/readiness artifacts from
-  declarations, never harness-name catalogs.
-
-`modelRouting` opts an adapter into provider/model matrix admission. Native
-adapters declare their provider; ModelClient adapters retain provider-qualified
-model ids. The provider owner resolves these declarations and calls the
-adapter's model validator before launch; absence cannot establish compatibility.
+`modelRouting` opts adapters into provider-owned matrix admission. Native routes
+receive native model ids; ModelClient routes retain provider qualification.
+The provider owner resolves declarations and invokes model validation before
+launch. Missing declarations cannot establish compatibility.
 
 ## Registry and selection
 

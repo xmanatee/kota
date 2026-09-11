@@ -6,14 +6,8 @@ import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-int
 import {
   buildReport,
   MS_PER_DAY,
-  PRIOR_START,
   postReport,
-  reviewRecord,
-  reviewRecords,
-  reviewReport,
-  reviewRuns,
   run,
-  slice,
   task,
   WINDOW_START,
 } from "./quality-stratification.test-helpers.js";
@@ -30,70 +24,6 @@ describe("quality stratification", () => {
 
   afterEach(() => {
     rmSync(workspaceRoot, { recursive: true, force: true });
-  });
-
-  it("keeps pooled review trends separate from workflow composition shifts", () => {
-    const tasks = [task("task-a", "open"), task("task-b", "open")];
-    const runs = [
-      ...reviewRuns("prior-a", "builder-a", "harness-a", 10, PRIOR_START + MS_PER_DAY),
-      ...reviewRuns("prior-b", "builder-b", "harness-b", 1, PRIOR_START + MS_PER_DAY),
-      ...reviewRuns("current-a", "builder-a", "harness-a", 10, WINDOW_START + MS_PER_DAY),
-      ...reviewRuns("current-b", "builder-b", "harness-b", 10, WINDOW_START + MS_PER_DAY),
-    ];
-    const priorRecords = [
-      ...reviewRecords("prior-a", "builder-a", "task-a", 10, 1),
-      ...reviewRecords("prior-b", "builder-b", "task-b", 1, 1),
-    ];
-    const currentRecords = [
-      ...reviewRecords("current-a", "builder-a", "task-a", 10, 1),
-      ...reviewRecords("current-b", "builder-b", "task-b", 10, 9),
-    ];
-
-    const report = buildReport(runsDir, {
-      tasks,
-      runs,
-      reviewScrutiny: reviewReport(currentRecords),
-      priorReviewScrutiny: reviewReport(priorRecords),
-    });
-
-    const aggregate = report.aggregates.find((row) => row.signal === "review-scrutiny");
-    expect(aggregate?.rateDelta).toBeGreaterThan(0);
-    expect(slice(report, "review-scrutiny", "workflow", "builder-a")?.rateDelta).toBe(0);
-    expect(slice(report, "review-scrutiny", "workflow", "builder-b")?.rateDelta).toBeLessThan(0);
-    expect(report.compositionShifts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          signal: "review-scrutiny",
-          dimension: "workflow",
-          value: "builder-b",
-        }),
-      ]),
-    );
-  });
-
-  it("keeps isolated slice regressions visible when pooled review rate is flat", () => {
-    const tasks = [task("task-a", "open"), task("task-b", "open")];
-    const runs = [
-      ...reviewRuns("prior-a", "builder-a", "harness-a", 3, PRIOR_START + MS_PER_DAY),
-      ...reviewRuns("prior-b", "builder-b", "harness-b", 3, PRIOR_START + MS_PER_DAY),
-      ...reviewRuns("current-a", "builder-a", "harness-a", 3, WINDOW_START + MS_PER_DAY),
-      ...reviewRuns("current-b", "builder-b", "harness-b", 3, WINDOW_START + MS_PER_DAY),
-    ];
-    const report = buildReport(runsDir, {
-      tasks,
-      runs,
-      reviewScrutiny: reviewReport([
-        ...reviewRecords("current-a", "builder-a", "task-a", 3, 3),
-        ...reviewRecords("current-b", "builder-b", "task-b", 3, 0),
-      ]),
-      priorReviewScrutiny: reviewReport([
-        ...reviewRecords("prior-a", "builder-a", "task-a", 3, 0),
-        ...reviewRecords("prior-b", "builder-b", "task-b", 3, 3),
-      ]),
-    });
-
-    expect(report.aggregates.find((row) => row.signal === "review-scrutiny")?.rateDelta).toBe(0);
-    expect(slice(report, "review-scrutiny", "workflow", "builder-a")?.rateDelta).toBe(1);
   });
 
   it("stratifies follow-up signals while keeping missing metadata explicit", () => {
@@ -117,17 +47,13 @@ describe("quality stratification", () => {
           "task-followed",
         ),
       ],
-      reviewScrutiny: reviewReport([
-        reviewRecord("missing-review", "critic", "builder", true, undefined),
-      ]),
       postCompletionFollowUps: postReport("task-followed", "task-repair", ["security"]),
     });
 
     expect(report.aggregates.find((row) => row.signal === "post-completion-follow-up")?.current.numeratorCount).toBe(1);
     expect(report.missingDimensions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ signal: "review-scrutiny", dimension: "harness", count: 1 }),
-        expect.objectContaining({ signal: "review-scrutiny", dimension: "taskPriority", count: 1 }),
+        expect.objectContaining({ signal: "post-completion-follow-up", dimension: "changedArea", count: 1 }),
       ]),
     );
   });
@@ -147,9 +73,6 @@ describe("quality stratification", () => {
     const report = buildReport(runsDir, {
       tasks: [task("task-safe", "done", "sk-test-secret in task body")],
       runs: [unsafeRun],
-      reviewScrutiny: reviewReport([
-        reviewRecord("unsafe-run", "critic", "builder", true, "task-safe"),
-      ]),
     });
 
     const json = JSON.stringify(report);

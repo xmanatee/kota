@@ -6,10 +6,10 @@ import { RESTART_EXIT_CODE } from "#core/daemon/index.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
+  commitFixtureFiles,
   makeDaemon,
   mockedExecuteWithAgentSDK,
   scopeRoot,
-  wait,
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon restart recovery", () => {
@@ -18,6 +18,7 @@ describe("Daemon restart recovery", () => {
       join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
+    commitFixtureFiles();
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "",
       streamedText: "",
@@ -50,7 +51,7 @@ describe("Daemon restart recovery", () => {
     const previousExitCode = process.exitCode;
     try {
       const startPromise = daemon.start();
-      await wait(120);
+      await expect.poll(() => daemon.getDashboardSnapshot().completedRuns, { timeout: 5_000 }).toBeGreaterThanOrEqual(1);
 
       const snapshot = daemon.getDashboardSnapshot();
       expect(snapshot.completedRuns).toBeGreaterThanOrEqual(1);
@@ -131,7 +132,7 @@ describe("Daemon restart recovery", () => {
         idleIntervalMs: 50,
       });
       const secondStart = secondDaemon.start();
-      await wait(200);
+      await expect.poll(() => secondDaemon.getDashboardSnapshot().lastCompletedWorkflow, { timeout: 5_000 }).toBe("improver");
 
       expect(secondDaemon.getDashboardSnapshot().lastCompletedWorkflow).toBe("improver");
 

@@ -37,9 +37,9 @@ vi.mock("@google/genai", () => ({
   },
 }));
 
-import "../claude-agent-harness/index.js";
-import "./index.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { geminiAgentHarness } from "./adapter.js";
 import { GEMINI_AGENT_HARNESS_NAME } from "./index.js";
 
 function makeStream(chunks: ReadonlyArray<Record<string, unknown>>) {
@@ -157,3 +157,7 @@ describe("autonomy agent step on gemini", () => {
     expect(callArgs.config.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
   });
 });
+
+let releaseHarness: () => void;
+beforeEach(() => { releaseHarness = registerAgentHarness(geminiAgentHarness); });
+afterEach(() => releaseHarness());

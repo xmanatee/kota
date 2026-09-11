@@ -1258,7 +1258,6 @@
         },
         "quotaGuard": {
           "additionalProperties": false,
-          "description": "Pause new workflows at a declining weekly account-quota reserve.",
           "properties": {
             "enabled": {
               "type": "boolean"
@@ -1297,6 +1296,654 @@
               "policy": {
                 "additionalProperties": false,
                 "properties": {
+                  "after": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "allowChildWidening": {
+                            "items": {
+                              "enum": [
+                                "autonomy",
+                                "writes",
+                                "channels",
+                                "setup",
+                                "ownerConfirmation",
+                                "retention",
+                                "modules",
+                                "externalEffects"
+                              ],
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "autonomy": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "defaultMode": {
+                                "enum": [
+                                  "passive",
+                                  "supervised",
+                                  "autonomous"
+                                ],
+                                "type": "string"
+                              },
+                              "maxMode": {
+                                "enum": [
+                                  "passive",
+                                  "supervised",
+                                  "autonomous"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channels": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "allowedChannels": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "blockedSources": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "ignoredSources": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "mode": {
+                                "enum": [
+                                  "blocked",
+                                  "allow-list",
+                                  "allow-all"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "externalEffects": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "networkDestructive": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "networkRead": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "networkWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "modules": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "defaultAvailability": {
+                                "enum": [
+                                  "enabled",
+                                  "setup-required",
+                                  "disabled"
+                                ],
+                                "type": "string"
+                              },
+                              "overrides": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "availability": {
+                                      "enum": [
+                                        "enabled",
+                                        "setup-required",
+                                        "disabled"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "moduleName": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "moduleName",
+                                    "availability"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "ownerConfirmation": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "destructive": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "externalWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "localWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "retention": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "retain",
+                                    "type": "string"
+                                  },
+                                  "redaction": {
+                                    "enum": [
+                                      "full",
+                                      "sensitive-fields",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "redaction"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "maxAgeDays": {
+                                    "type": "number"
+                                  },
+                                  "mode": {
+                                    "const": "expire-after-days",
+                                    "type": "string"
+                                  },
+                                  "redaction": {
+                                    "enum": [
+                                      "full",
+                                      "sensitive-fields",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "maxAgeDays",
+                                  "redaction"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "scopeId": {
+                            "description": "Stable opaque scope identity. Re-exported as-is by the daemon scope registry, where deterministic directory-scope derivation and the file-backed registry live.",
+                            "type": "string"
+                          },
+                          "setup": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "visibility": {
+                                "enum": [
+                                  "hidden",
+                                  "metadata",
+                                  "full"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "writes": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "none",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "scope-directory",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "paths",
+                                    "type": "string"
+                                  },
+                                  "paths": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "paths"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "unrestricted",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "scopeId",
+                          "reason"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "before": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "allowChildWidening": {
+                            "items": {
+                              "enum": [
+                                "autonomy",
+                                "writes",
+                                "channels",
+                                "setup",
+                                "ownerConfirmation",
+                                "retention",
+                                "modules",
+                                "externalEffects"
+                              ],
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "autonomy": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "defaultMode": {
+                                "enum": [
+                                  "passive",
+                                  "supervised",
+                                  "autonomous"
+                                ],
+                                "type": "string"
+                              },
+                              "maxMode": {
+                                "enum": [
+                                  "passive",
+                                  "supervised",
+                                  "autonomous"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channels": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "allowedChannels": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "blockedSources": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "ignoredSources": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "mode": {
+                                "enum": [
+                                  "blocked",
+                                  "allow-list",
+                                  "allow-all"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "externalEffects": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "networkDestructive": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "networkRead": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "networkWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "modules": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "defaultAvailability": {
+                                "enum": [
+                                  "enabled",
+                                  "setup-required",
+                                  "disabled"
+                                ],
+                                "type": "string"
+                              },
+                              "overrides": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "availability": {
+                                      "enum": [
+                                        "enabled",
+                                        "setup-required",
+                                        "disabled"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "moduleName": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "moduleName",
+                                    "availability"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "ownerConfirmation": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "destructive": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "externalWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              },
+                              "localWrite": {
+                                "enum": [
+                                  "allow",
+                                  "confirm",
+                                  "deny"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "retention": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "retain",
+                                    "type": "string"
+                                  },
+                                  "redaction": {
+                                    "enum": [
+                                      "full",
+                                      "sensitive-fields",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "redaction"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "maxAgeDays": {
+                                    "type": "number"
+                                  },
+                                  "mode": {
+                                    "const": "expire-after-days",
+                                    "type": "string"
+                                  },
+                                  "redaction": {
+                                    "enum": [
+                                      "full",
+                                      "sensitive-fields",
+                                      "none"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "maxAgeDays",
+                                  "redaction"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "scopeId": {
+                            "description": "Stable opaque scope identity. Re-exported as-is by the daemon scope registry, where deterministic directory-scope derivation and the file-backed registry live.",
+                            "type": "string"
+                          },
+                          "setup": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "visibility": {
+                                "enum": [
+                                  "hidden",
+                                  "metadata",
+                                  "full"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "writes": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "none",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "scope-directory",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "paths",
+                                    "type": "string"
+                                  },
+                                  "paths": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "paths"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "mode": {
+                                    "const": "unrestricted",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "mode"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "scopeId",
+                          "reason"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "compensatable": {
+                    "type": "boolean"
+                  },
+                  "compensationOf": {
+                    "type": "string"
+                  },
                   "dangerousWideningAreas": {
                     "items": {
                       "enum": [

@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, vi } from "vitest";
+import { expect, onTestFinished, vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -9,6 +9,7 @@ import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { DaemonConfig } from "./daemon.js";
@@ -109,7 +110,7 @@ async function postJson(
 
 export async function createDaemonSession(port: number): Promise<string> {
   const res = await postJson(port, "/sessions", { autonomy_mode: "autonomous" });
-  expect(res.status).toBe(201);
+  expect(res.status, await res.clone().text()).toBe(201);
   const body = await res.json() as { session_id: string };
   return body.session_id;
 }
@@ -120,7 +121,7 @@ export async function chat(
   message: string,
 ): Promise<SseEvent[]> {
   const res = await postJson(port, `/sessions/${sessionId}/chat`, { message });
-  expect(res.status).toBe(200);
+  expect(res.status, await res.clone().text()).toBe(200);
   return parseSse(await res.text());
 }
 
@@ -139,7 +140,7 @@ export async function reloadConfig(
 }> {
   vi.mocked(loadConfig).mockReturnValue(nextConfig);
   const res = await fetchWithToken(port, "/reload", { method: "POST" });
-  expect(res.status).toBe(200);
+  expect(res.status, await res.clone().text()).toBe(200);
   return await res.json();
 }
 
@@ -148,7 +149,7 @@ export async function getSessionSnapshot(
   sessionId: string,
 ): Promise<GuardrailsSnapshot> {
   const res = await fetchWithToken(port, "/status");
-  expect(res.status).toBe(200);
+  expect(res.status, await res.clone().text()).toBe(200);
   const body = await res.json() as {
     sessions: Array<{
       id: string;
@@ -177,6 +178,8 @@ export async function startDaemonWithLiveSessionReload(
 ): Promise<StartedDaemon> {
   const scopeRoot = mkdtempSync(join(tmpdir(), "kota-live-session-reload-"));
   const stateDir = join(scopeRoot, ".kota");
+  const runState = new RunStateDatabase(stateDir);
+  onTestFinished(() => runState.close());
   const workflowRuntime = {
     getState: vi.fn(() => ({
       activeRuns: [],
@@ -202,6 +205,7 @@ export async function startDaemonWithLiveSessionReload(
       displayName: "test-scope",
     },
     workflowRuntime,
+    runState,
     runStore: {} as WorkflowRunStore,
   } as unknown as ScopeRuntime;
   const scopeRuntimes = {

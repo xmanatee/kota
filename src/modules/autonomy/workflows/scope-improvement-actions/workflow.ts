@@ -14,7 +14,7 @@ import type {
   ScopeImprovementInputs,
   ScopeImprovementRecommendation,
 } from "#modules/autonomy/workflows/scope-improver/scope-improvement-types.js";
-import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 
 type ScopeImprovementActionRequest = {
   sourceRunId: string;
@@ -155,28 +155,6 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) => applyRecommendations.outputRequired(ctx).requiresCommit,
-  validate: (raw) => {
-    const result = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (result.ok !== true) throw new Error(`expected ok: true, got ${String(result.ok)}`);
-    return result;
-  },
-  run: async (ctx) => {
-    await ctx.runBlocking(taskQueueValidationOperation, {
-      workspaceRoot: ctx.workspaceRoot,
-    });
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const returnActions = typedCodeStep<ScopeImprovementActionResult>({
   id: "return-actions",
   type: "code",
@@ -189,7 +167,7 @@ const workflow: WorkflowDefinitionInput = {
   description:
     "Apply scope-improvement task proposals through the shared repository writer runtime.",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   resources: ({ trigger }) => {
     const request = decodeRequest(trigger.payload);
     return request.recommendations.map((recommendation) =>
@@ -213,7 +191,6 @@ const workflow: WorkflowDefinitionInput = {
     inspectRequest,
     applyRecommendations,
     writeCommitMessage,
-    validateChanges,
     returnActions,
   ],
 };

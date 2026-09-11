@@ -29,7 +29,7 @@ function plan(): DecompositionPlan {
     constraints: ["Do not weaken the authorization boundary."],
     howWeWillKnow: ["Revoked access is denied at the owning public boundary."],
   };
-  return {
+  return { action: "replace",
     rationale: "Separate authority revision from harness cancellation.",
     subtasks: [
       { ...base, title: "Resolve current authority at hosted tool boundaries", dependsOn: [] },

@@ -14,7 +14,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Decision attribution");
     expect(text).toContain("Diff-summary consistency");
     expect(text).toContain("Owner interventions");
-    expect(text).toContain("Review scrutiny");
+    expect(text).toContain("Review outcomes");
     expect(text).toContain("Trajectory diagnostics");
     expect(text).toContain("Process discipline");
     expect(text).toContain("Post-completion follow-ups");

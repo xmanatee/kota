@@ -139,7 +139,7 @@ describe("task and discovery blocking operations", () => {
             taskPath: decompositionTask.path,
             taskMarkdown: decompositionTask.content,
           },
-          plan: {
+          plan: { action: "replace",
             rationale: "Create one independently verifiable worker-boundary slice.",
             subtasks: [
               {

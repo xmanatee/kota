@@ -63,52 +63,6 @@ capability, repeat, verification, cost, or eval configuration/resource evidence
 keeps a comparison incompatible. These artifacts never authorize promotion;
 eval-harness owns regression and consistency gates.
 
-## Artifact Shape
-
-Per harness run the module writes:
-
-- `prompt.txt` — the exact prompt handed to the adapter.
-- `trace.txt` — tail of everything the adapter streamed through
-  `AgentHarnessWriter`.
-- `trace-summary.md` — operator-facing digest (harness, model, turns, cost,
-  verification verdict, changed files) plus the adapter capability boundary
-  before streamed text.
-- `trajectory.json` — ordered `KotaAgentMessage` frames captured through
-  `AgentHarnessRunOptions.onMessage` when the harness declares
-  `emitsAgentMessageStream: true`, or an explicit unsupported record when it
-  does not.
-- `trajectory-summary.md` — concise action/observation sequence for tool
-  calls, tool results, status frames, and final result frames; oversized tool
-  results are bounded with an explicit truncation marker.
-- `trajectory-diagnostics.json` — deterministic advisory process-quality
-  warnings from the shared core `KotaAgentMessage` diagnostics helper, such
-  as missing post-edit verification, blind failing-command retries, edits
-  after a passing verification, and missing frames from a streaming-capable
-  harness.
-- `context-retrieval-diagnostics.json` — deterministic advisory diagnostics,
-  written only for scenarios or stages that declare `contextRetrieval`
-  targets, showing whether search/read/navigation actions reached expected
-  files or globs before the first implementation edit.
-- `diff.patch` — `git diff --no-index` output against the scenario's
-  `initial/` tree.
-- `verification.json` — command, timeout, exit status, and tail of combined
-  stdout/stderr.
-- `run-meta.json` — structured record including any adapter error and the full
-  `AgentHarness` capability snapshot observed before the run: tool-control
-  mode, owner-question tool name, message-stream support, supported hook kinds,
-  unsupported neutral run options, and optional local readiness data.
-
-Staged scenarios additionally write `stages/<stage-id>/` directories with the
-same per-stage prompt, trace, trajectory, diff, verifier, and run-meta files.
-The top-level harness directory keeps the final diff plus a compact staged
-summary in `run-meta.json`; `parity.json` carries the same per-stage status for
-side-by-side comparison.
-
-The top-level `parity.json` keeps compact capability, trajectory, and optional
-context-retrieval metadata beside each harness outcome, including warning
-counts and artifact paths, so side-by-side comparison does not require opening
-every child run directory.
-
 ## Scenario Portfolio
 
 Keep the smallest representative set that distinguishes materially different

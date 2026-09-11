@@ -5,6 +5,7 @@ import {
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_TIER,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   recordEmptyScan,
   refreshReviewInput,
@@ -41,7 +42,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
   // Keep the existing native writer isolation contract while non-writer
   // database confinement remains separately tracked. Agents still deny all writes.
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   resources: () => [SECURITY_REVIEW_RESOURCE],
   description:
     "Scan KOTA for security-sensitive candidates, investigate a bounded batch, revalidate findings, and stage confirmed repair families for resource-aware task publication.",

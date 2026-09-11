@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
-import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
+import type { WorkflowFinalizationContext, WorkflowPostReconcileInvariant } from "#core/workflow/types.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssueProjection,
@@ -26,6 +26,7 @@ import {
   verifyDeterministicRecovery,
 } from "./deterministic-recovery.js";
 import type { IssueDisposition } from "./issue-disposition.js";
+import { selectIssueForProjection } from "./issue-selection.js";
 
 export const IMPROVER_DISPOSITION_ARTIFACT = "improver-disposition.json";
 export function finalizeImproverDisposition(ctx: WorkflowFinalizationContext): void {
@@ -221,3 +222,36 @@ export function publishImproverDisposition(args: {
     ),
   };
 }
+
+export const verifyImproverDispositionAfterReconcile: WorkflowPostReconcileInvariant = (input) => {
+  input.signal.throwIfAborted();
+  const projection = decodeAutonomyIssueProjection(
+    input.readState<AutonomyIssueProjection>(
+      AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    ).value,
+  );
+  const artifact = readImproverDispositionArtifact(
+    input.stateDir,
+    input.runId,
+  );
+  if (artifact === null) {
+    if (input.head === input.baseHead && !selectIssueForProjection({
+      trigger: input.trigger,
+      projection,
+    }).eligible) {
+      return { satisfied: true };
+    }
+    return {
+      satisfied: false,
+      reason: `Improver disposition artifact for ${input.runId} is missing`,
+    };
+  }
+  return isImproverDispositionCurrent(projection, artifact.applied)
+    ? { satisfied: true }
+    : {
+        satisfied: false,
+        reason:
+          `Autonomy issue ${artifact.applied.issueKey} revision ` +
+          `${artifact.applied.semanticRevision} changed after disposition review`,
+      };
+};

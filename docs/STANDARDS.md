@@ -1,234 +1,122 @@
 # Standards
 
-## Repository Surfaces
+## Sources of Truth
 
-- `docs/` is for durable, cross-cutting reference docs.
-- `data/inbox/` is for quick captures, rough ideas, and owner notes.
-- `data/tasks/*.md` is the normalized active work queue; terminal task history
-  lives under `data/tasks/archive/`. Active task state is only `open` or
-  `blocked`; an active builder run is the transient in-progress projection.
-- Local `AGENTS.md` files explain directory purpose and boundaries.
-- Git history, `.kota/runs/`, and terminal task records in
-  `data/tasks/archive/` are the historical record. Do not add parallel
-  changelog, audit, or lesson surfaces.
-- Runtime state belongs under `.kota/`. Do not add sibling runtime directories
-  such as `runs/` or `kota/` at the repo root.
+- `docs/` holds durable cross-cutting conventions. Scoped `AGENTS.md` files
+  specialize ownership and decisions without repeating inherited guidance.
+- `data/inbox/` holds rough captures. `data/tasks/` holds active outcome contracts;
+  terminal tasks live in `data/tasks/archive/`. Task status is `open` or `blocked`;
+  runtime ownership supplies the transient in-progress state.
+- Git history, terminal task records and `.kota/runs/` hold historical evidence.
+  Operational state belongs under `.kota/`; do not add parallel runtime, audit,
+  changelog, lesson or backlog surfaces.
+- Keep documentation current, concise and close to its owner. Explain decisions
+  that code cannot communicate; omit function inventories, schema copies,
+  migration notes and repeated implementation details. Prune obsolete guidance
+  with the behavior it described.
+- Prompts describe role and task intent. Durable conventions belong here or in
+  scoped guidance; runtime mechanisms belong in typed contracts and code.
+- Separate tutorials, how-to guidance, reference and explanation. Use typed
+  schemas and links rather than copied catalogs. Distill research into decisions.
 
-## Documentation
+## Architecture and Workflow Ownership
 
-- Keep docs concise, high-level, and current.
-- Do not duplicate code, tests, prompts, or other docs unless duplication changes decisions.
-- Prefer one clear source of truth per topic.
-- Update docs only when a high-level decision, boundary, or operator guideline changes.
-- Do not list functions, methods, file inventories, or directory contents in docs. Agents can discover those from the code.
-- Do not include migration notes, changelog entries, or transitional guidance in durable docs. Once a migration is complete, remove the notes.
-- Documentation should cover what cannot be easily inferred from reading the code: vision, conventions, methodology, guidelines derived from experience, and architectural decisions.
-- Scope documentation as close to its subject as possible. Prefer a local `AGENTS.md` over a global doc for directory-specific guidance.
-- Documentation should not compensate for unclear code. If behavior can be made
-  obvious through names, types, layout, or tests, improve those instead of
-  adding explanatory text.
-- Use Diátaxis as the documentation lens: tutorials, how-to guides, reference,
-  and explanation are different jobs and should not be blended.
-- Use FAIR, W3C Data on the Web Best Practices, and SKOS as data-organization
-  lenses: make facts findable, explicitly linked, interoperable through typed
-  schemas, and reusable without copying them into parallel prose catalogs.
-- Distill external best practices into local decisions. Do not keep external
-  link catalogs in durable docs unless the links themselves are the maintained
-  product surface.
+[Architecture](ARCHITECTURE.md) owns the runtime lifecycle, publication and
+recovery contracts. Workflows declare semantic work through those shared owners.
 
-## Prompts
+- Trace maintained consumers before choosing a design. Share actual common
+  behavior, preserve necessary variation, migrate callers and remove replaced
+  paths and redundant proofs together. Patch size is secondary to clarity.
+  Keep single-use logic local. Leaving code unchanged is valid when it serves the goal.
+- Types, classes and protocols express contracts, not an OOP/SOLID checklist.
+  A new design does not require an additional planning agent or workflow.
+- Core owns neutral runtime contracts; modules own swappable capabilities and
+  vendor adapters. Package imports (`#core/*`, `#modules/*`, `#root/*`) cross trees;
+  relative imports serve local siblings. Use the existing source/build resolution.
+- Author repository content with normal editors. Task/inbox APIs are convenience
+  adapters. Validate the complete changeset before publication, not intermediate
+  keystrokes. Runtime claims, approvals and external effects remain controlled.
 
-- Keep prompts concise and role-local.
-- A prompt should explain what that agent or workflow is trying to do, not restate nearby architecture docs or task policy.
-- Durable conventions and boundaries belong in local `AGENTS.md` files by default, not repeated across several prompts.
-- If the same guidance appears in both a prompt and a nearby `AGENTS.md`, keep the durable version and trim the prompt.
+## Engineering and Review Decisions
 
-## Workflow Execution
+- Validate untrusted values at their owner boundary and use precise types inside.
+  Distinct states use discriminated unions and exhaustive handling. Absence,
+  normalization and fallback require explicit domain meaning; malformed internal
+  protocols fail visibly. Do not hide legitimate zero, false or empty values.
+- Encode stable invariants in types, schemas, decoders, generators, registries,
+  package boundaries or runtime policy. Tests exercise those mechanisms; tests
+  do not make an implementation conform. Prefer naturally testable interfaces
+  over test-only production flags, branches or hooks.
+- Review fulfillment, ownership/maintainability, safety/honesty and proof
+  sufficiency. Block concrete unmet outcomes, incorrect or unsafe behavior,
+  duplicated authority, unmigrated consumers, dishonest claims or insufficient
+  proof. Formatting belongs to tooling; optional improvements and equally valid
+  designs do not block acceptance. Clean approval needs no invented warning.
+- A task describes a coherent consumer outcome and observable acceptance.
+  Builders discover implementation steps. A failed run warrants diagnosis;
+  decomposition needs useful conceptual seams and must preserve owner intent.
+- Prefer owner-visible product outcomes to internal meta-work. Fix confusing
+  client, CLI, setup, approval or blocked-work journeys before adding mechanisms,
+  unless safety or a runtime-stopping failure takes precedence. Inspect the real
+  operator journey through a transcript, screenshot, runtime probe or equivalent
+  evidence; unit tests alone cannot establish product acceptance.
+- Improve wasteful ownership, admission and repair behavior before adding hard
+  daily spend caps. Do not optimize healthy mechanisms at the expense of clarity,
+  capability or quality. Runtime, workflow and core-loop changes warrant broader
+  failure and recovery verification than routine edits.
+- Use pnpm. Dependency-install safeguards belong in pnpm-workspace.yaml with
+  narrow, justified exceptions.
 
-- Declare `repository: "none" | "read" | "write"` on every workflow. Writers
-  also declare integration validation; use logical resource keys for domain
-  work that must be exclusive.
-- Treat `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, and
-  `IntegrationQueue` as the shared ownership chain. Workflows define semantic
-  steps, not private queues, claims, worktrees, leases, process registries,
-  port allocators, commits, merge gates, or restart recovery.
-- Keep mutable operational and scope state in the revisioned
-  `RunStateDatabase` API. `WorkflowRunStore` owns retained run evidence only;
-  runtime summaries are projections from SQLite and current in-memory timers.
-  Offline readers must receive the canonical state root explicitly and open it
-  read-only; schema migration and obsolete-state disposal belong to daemon
-  startup, never inspection or standalone execution.
-- Keep Git publication runtime-owned. AI may repair reported conflicts or
-  validation failures inside the supplied sandbox and write scope, while the
-  runtime retains staging, rebase, commit, no-progress, cancellation, and
-  publication authority.
-- Author repository content with normal editors and file tools. Validate the
-  completed change before publication, not intermediate keystrokes. Task and
-  inbox APIs are optional remote/convenience adapters, not mandatory authoring
-  protocols; runtime claims, approvals, and external effects remain controlled.
-- Finalize local bookkeeping with the original run's synchronous success hook.
-  State and events commit together; local file effects must be idempotent for
-  recovery. Separate workflows are for distinct work or external effects, not
-  merely another envelope around completion.
+## Verification
 
-## Engineering Rules
+Select proof by the changed behavior and owner. Each retained mechanism has a
+consumer, production owner, public stimulus, observable oracle, distinct failure
+it detects and execution cadence. These are engineering questions, not mandatory
+per-change paperwork, source keywords, artifact shapes or test quotas.
 
-- Use `pnpm` for package scripts, dependency installation, and one-off package
-  execution. Do not use `npm` unless the task explicitly concerns npm
-  compatibility.
-- Repo-level dependency install safeguards live in `pnpm-workspace.yaml`; keep
-  package-manager policy exceptions narrow, named, and justified there.
-- Trace consumers and ownership first, then choose the simplest cohesive final
-  system. Share actual common behavior, preserve necessary variation, migrate
-  callers, and delete the replaced path and redundant proofs in the same change.
-  Patch size is secondary to clarity and maintainability. Keep single-use logic
-  local unless a real boundary benefits from extraction; intentional no-change
-  is valid when the existing design already serves the outcome.
-- Use strict types and standard tools for stable invariants, and agent judgment
-  for design choices. Classes, schemas, and protocols are means, not an OOP or
-  SOLID checklist. A new design does not require an extra planning agent.
-- Prefer strict typed protocols. Do not add nullable fields, optional fields,
-  defaults, fallbacks, compatibility shims, or dual paths unless absence is a
-  real domain state and the behavior is explicit at the boundary.
-- Fail loudly on malformed internal protocol data. Silent coercion belongs only
-  at external I/O boundaries, and only when the normalized result is explicit.
-- Do not add test-only production flags, hooks, or override parameters just to make tests easier.
-- Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
-- Encode contracts at the narrowest authoritative layer. Use types for internal
-  structure, schemas and decoders for untrusted data, package boundaries for
-  visibility, generators for language projections, and runtime policy for
-  admission or resource rules. Tests prove the behavior of those mechanisms;
-  they are not the mechanism that makes an implementation conform.
-- A shared contract suite applies only to implementations that explicitly
-  declare that contract or capability. Give the suite semantic examples that
-  every declared implementation must satisfy, and keep implementation-specific
-  behavior in the owning component. Do not make every implementation inherit a
-  growing universal checklist.
-- Test configuration consumers, not copies of configuration data. Schema and
-  validator tests should exercise accepted and rejected shapes; resolution and
-  integration tests should exercise precedence, propagation, no-fallback
-  behavior, and observable effects. Inspect literal registries directly unless
-  a generated projection is being compared with its canonical source.
-- Give each behavior one owning test layer. Prefer a focused unit test for pure
-  decisions, a component test for one real boundary such as SQLite, Git, or a
-  child process, and a small end-to-end test only for a distinct product
-  journey that crosses several boundaries.
-- Assert public outcomes and durable invariants, not private phases, helper
-  call counts, source text, filenames, or constructor placement. Structural
-  source scans are appropriate only for security boundaries that cannot be
-  expressed through types, runtime behavior, or package visibility.
-- Treat fixtures as representative inputs, boundary recordings, or authored
-  semantic examples. Do not turn copied catalogs, file trees, private object
-  shapes, or byte-identical source mirrors into product contracts. Generate
-  structural cross-language bindings from one source and author only the
-  semantic examples that generation cannot express.
-- Test doubles may replace slow or external ports such as clocks, networks,
-  credentials, and subprocess launchers. They must not reimplement workflow,
-  module, transport, persistence, or lifecycle semantics. Exercise those
-  semantics through the production host with controlled ports.
-- Keep integration suites intentionally small. A new integration scenario must
-  identify the failure mode it uniquely catches; remove the replaced scenario
-  or implementation-specific suite in the same change.
-- Test generic parameters once over representative values. Do not duplicate a
-  concurrency, retry, or capacity scenario for each configured number.
-- Test workflow execution through durable outcomes and owner boundaries:
-  admission, resource ownership, capacity, pause/resume, child waits, sandbox
-  lifecycle, process/effect recovery, validation, and serialized publication.
-  Do not pin private phases, file layouts, or retired queue mechanics.
-- Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
-- Owner-visible product quality outranks internal meta-work. When CLI, client,
-  daemon status, approvals, owner requests, setup, or blocked-work visibility
-  is materially confusing, fix that operator path before adding repair loops,
-  micro-optimizations, or test-only hardening, unless the competing work is a
-  safety issue or a runtime-stopping failure.
-- Prefer clear discoverable surfaces over injected context summaries. If an
-  agent can gather context itself, do not precompute and force-feed it.
-- Validate stable invariants in code; leave judgment-heavy review to agents with
-  clear traces and useful tools. Do not replace agent judgment with brittle
-  one-off evidence files or mandatory process rituals.
-- Prefer internal package imports (`#core/*`, `#modules/*`, `#root/*`) for
-  cross-tree imports. Keep `./` relative imports only for same-directory or
-  tightly local siblings.
-- Those package imports resolve to `src/` in source-mode dev/test runtime and
-  to `dist/` in built runtime. Do not add parallel alias systems.
-- Do not throttle core autonomous workflows with hard daily spend caps by
-  default. If autonomy is wasteful, fix the queue, prompts, validation, repair
-  flow, or operator controls before capping the workflows themselves.
-- Treat runtime, workflow, and core-loop changes as high-risk and verify them more thoroughly than routine edits.
-- Product-facing client and operator work is complete only when the real
-  operator journey is inspectable through a rendered transcript, screenshot,
-  runtime probe, or equivalent artifact. Passing unit tests alone does not
-  prove that a CLI, Mac, Web, channel, setup, or daemon-control path improved.
+- Use types for internal structure, decoders for boundary rejection, generators
+  for binding consistency and registries for single registration ownership.
+  Biome enforces declared dependency restrictions; lint and typechecking do not
+  prove the entire dependency graph acyclic. Omit new tests when an authoritative
+  mechanism already establishes the behavior.
+- Give behavior one owning test layer: a focused test for a pure decision, a
+  component test for a real persistence/process boundary, and a small integration
+  journey for a consequential interaction between owners. New integration cases
+  identify their distinct failure and retire the replaced scenarios together.
+- Assert public outcomes, not private phases, source spelling, constructors,
+  filenames or configuration catalogs. Configuration tests exercise rejection,
+  precedence, propagation and effects. Generated projections may be compared
+  directly with their canonical source. Source scans are reserved for security
+  boundaries that types, visibility or runtime behavior cannot express.
+- Fixtures are representative inputs, recordings or semantic examples. Doubles
+  may replace external ports such as clocks, networks and subprocess launchers;
+  they must not reimplement workflow, lifecycle, storage or transport semantics.
+  Shared contract suites apply only to implementations declaring that capability.
+  Keep implementation-specific behavior with its owner and exercise generic
+  retry/capacity decisions over representative values rather than every setting.
+- Live evaluations measure model-dependent outcomes with calibrated scorers.
+  Select them deliberately for model/prompt decisions. Deterministic harness
+  behavior belongs to owner verification; fixtures do not prescribe one valid
+  implementation, reasoning trace or test name.
 
-## Verification Admission Model
+The configured portfolios in `vitest.config.ts` have explicit, non-overlapping
+membership. `pnpm check:fast` is the deterministic static gate. Select affected
+owner, protocol, resilience, integration or CLI tests for behavioral feedback.
+`pnpm test:eval` runs live evaluations; `pnpm test:preset-parity` runs live CLI smoke. `pnpm check` adds the production
+build and all deterministic partitions for broad/high-risk or release confidence;
+ordinary tests and checks exclude live model evaluation.
 
-Every verification mechanism admitted or retained in KOTA must satisfy the
-six-dimension admission model:
+Build and test native clients when their source or shared contracts change.
+Changed-file selection needs judgment about schema, configuration and transitive
+runtime effects. Keep security and restart scenarios with their owning portfolio.
 
-1. **Consumer**: Who relies on the behavior (human operator, API client, protocol peer, autonomous agent, runtime kernel).
-2. **Production Owner**: The single cohesive subsystem or module that owns the domain behavior.
-3. **Public Stimulus**: The public API call, CLI command, wire message, or typed event that invokes the behavior.
-4. **Observable Oracle**: The observable return value, persisted state mutation, emitted event, wire response, or process effect that proves success.
-5. **Distinct Failure**: The concrete, distinct defect or regression caught that no existing structural mechanism catches.
-6. **Cadence**: The dedicated, non-overlapping validation portfolio that executes the check.
+[VERIFICATION_BASELINE.md](VERIFICATION_BASELINE.md) retains the bounded reduction
+migration's frozen evidence. It does not define steady-state policy or require
+future changes to meet a LOC-reduction target.
 
-### Alternative Proof Mechanisms
+## Scoped Guidance
 
-Tests are not the sole proof mechanism. Treat the following architectural mechanisms as primary alternative proofs:
-
-- **Strict Types**: Eliminates null, undefined, invalid variant, and missing field errors at compile time.
-- **Schemas & Decoders**: Validates and normalizes untrusted boundary inputs with explicit rejection.
-- **Generators**: Structural cross-language bindings eliminate manual wire parsing and model sync boilerplate.
-- **Registries & Immutability**: Single-point capability and tool registration prevents duplicate or mismatched runtime handlers.
-- **Static Inspection**: Biome linting and project references catch architectural violations and module cycle risks.
-- **Runtime Probes & Journeys**: Proves real operator experiences and CLI/UI workflows without artificial test mocks.
-
-Review guidance explicitly permits **omitting new tests when an architectural mechanism already proves the behavior**. Remove mechanical demands for coverage percentages, test counts, artifact presence, or source scans.
-
-The verification reduction baseline and disposition record remain in
-[VERIFICATION_BASELINE.md](VERIFICATION_BASELINE.md); bounded cleanups do not
-reset that baseline.
-
-## Validation Cadence
-
-Validation is selected from the behavior and owner affected by a change. These
-portfolios have explicit membership and no accidental overlap.
-
-| Cadence | Command | Scope & Membership | Purpose |
-| --- | --- | --- | --- |
-| deterministic fast | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. | Fast deterministic static gate. |
-| owner behavior | `pnpm test:owner` | `src/**/*.test.ts` (excluding CLI, integration, protocol, resilience) | Exercise the decisions and observable behavior owned by the changed component. |
-| protocol | `pnpm test:protocol` | MCP client/server protocol, OAuth endpoint/redirect policy, ACP wire formats | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
-| resilience | `pnpm test:resilience` | `foreign-module-resilient.test.ts`, `module-error-resilience.integration.test.ts` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
-| component integration | `pnpm test:integration` | `src/**/*.integration.test.ts` (excluding CLI, resilience) | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
-| evaluation | `pnpm test:eval` | Explicit live fixture execution; configured weekly cadence uses the same runner. | Measure model-dependent capability with calibrated outcome scorers. Model cost and resource evidence are reported per run; deterministic harness checks belong to owner behavior. |
-| CLI | `pnpm test:cli` | `src/cli.test.ts` | Exercise CLI subcommands, argument parsing, and terminal interface commands. |
-| broad confidence | `pnpm check` | Full build + all non-overlapping deterministic test partitions | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
-
-Live evaluation is excluded from `pnpm test` and `pnpm check`; select it deliberately for model or prompt decisions.
-
-Tests without an explicit cadence stay with their behavior owner. Security and
-restart scenarios stay beside that owner; protocol and resilience scenarios
-use their explicit projects and do not need parallel global copies. Vitest's
-changed-file selection is useful feedback, but changes to
-schemas, configuration, generated data, or runtime reach still require
-engineering judgment about affected owners.
-
-The production TypeScript build excludes repository tests, internal test
-support, and eval fixture projects. A separate test TypeScript project keeps
-those sources type-safe. Generated-binding freshness runs as part of the owner
-build; each native client builds and tests only when its own source or a shared
-generated contract changes.
-
-## AGENTS.md Files
-
-- Every meaningful repo directory should have a local `AGENTS.md`.
-- Each file should explain what belongs in the directory, its role in the system, and any important boundaries.
-- Avoid implementation detail, file-by-file inventories, or repeated content from nearby docs.
-- Aim for short files (~100 lines or less). When a file outgrows that, split detail into narrower-scope `AGENTS.md` files at child directories rather than expanding the parent.
-- When two or three reasonable patterns exist for a recurring decision, name the choice and pick one as the default. Record rejected alternatives only when their rejection is load-bearing.
-- Pair prohibitions with the canonical alternative ("don't X; use Y"). A bare "don't" without an alternative pushes agents into exploration.
-
-## Maintenance
-
-- Any agent or contributor may update these docs when structure or priorities change.
+Add local AGENTS guidance only where ownership, authority or recurring decisions
+differ from the parent. Delete repetition and discoverable facts. Split only for distinct ownership.
+Explain recurring defaults and their reasons. Name the canonical alternative
+when prohibiting a pattern.

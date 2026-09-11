@@ -6,7 +6,7 @@ import type {
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import { isOperatorEvidencePath } from "#modules/autonomy/product-evidence.js";
-import type { ReviewScrutinyRecord } from "#modules/autonomy/review-scrutiny.js";
+import type { ReviewOutcomeRecord } from "#modules/autonomy/review-outcomes.js";
 import type { AutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
@@ -22,7 +22,7 @@ export function hardSuccessSignalsForRun(args: {
   run: WorkflowRunMetadata;
   task: RepoTaskFullRecord | null;
   delivery: AutonomyRunDeliveryEvidence | null;
-  reviewRecords: readonly ReviewScrutinyRecord[];
+  reviewRecords: readonly ReviewOutcomeRecord[];
   ownerRecords: OwnerInterventionReport["records"];
   productEvidenceRefs: readonly string[];
 }): DecisionHardSuccessSignal[] {
@@ -61,7 +61,7 @@ export function hardSuccessSignalsForRun(args: {
 export function troubleSignalsForRun(args: {
   run: WorkflowRunMetadata;
   task: RepoTaskFullRecord | null;
-  reviewRecords: readonly ReviewScrutinyRecord[];
+  reviewRecords: readonly ReviewOutcomeRecord[];
   ownerRecords: OwnerInterventionReport["records"];
   hardSuccessSignals: readonly DecisionHardSuccessSignal[];
   productEvidenceRefs: readonly string[];

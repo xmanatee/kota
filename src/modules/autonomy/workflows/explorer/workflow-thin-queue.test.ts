@@ -40,6 +40,12 @@ describe("explorer workflow thin queue gating", () => {
       "",
       `# ${id}`,
       "",
+      "## Desired Outcome",
+      "Operators can find the source of a failed workflow from its status view.",
+      "",
+      "## Acceptance",
+      "The failed status links to the retained error evidence for that run.",
+      "",
     ].join("\n"));
   }
 

@@ -1,13 +1,14 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { vi } from "vitest";
+import { onTestFinished, vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { ModuleSummary } from "#core/modules/module-types.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -76,6 +77,7 @@ export function makeReloadSubject(
     getDefinitionCount: vi.fn(() => 3),
   };
   const scopeRoot = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
+  onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
   const pbus = new ScopedEventBus(bus, "test-scope");
   const runtime = {
     scope: {
@@ -153,6 +155,12 @@ export function mockModuleMetadata(): void {
 export function makeWorkflowRunSubject(
   metadata: WorkflowRunMetadata,
 ): ReturnType<typeof buildDaemonHandle> {
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-daemon-run-test-"));
+  const runState = new RunStateDatabase(join(scopeRoot, ".kota"));
+  onTestFinished(() => {
+    runState.close();
+    rmSync(scopeRoot, { recursive: true, force: true });
+  });
   const bus = new EventBus();
   const runStore = {
     getRun: vi.fn((id: string) => (id === metadata.id ? metadata : null)),
@@ -160,9 +168,10 @@ export function makeWorkflowRunSubject(
   const runtime = {
     scope: {
       scopeId: "test-scope",
-      scopeRoot: mkdtempSync(join(tmpdir(), "kota-daemon-run-test-")),
+      scopeRoot,
     },
     runStore,
+    runState,
     workflowRuntime: {
       getDefinitionCount: vi.fn(() => 0),
     },

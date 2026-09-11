@@ -1,5 +1,4 @@
 export const QUALITY_SIGNALS = [
-  "review-scrutiny",
   "post-completion-follow-up",
 ] as const;
 
@@ -25,13 +24,6 @@ export const QUALITY_STRATIFICATION_DIMENSIONS_BY_SIGNAL: Record<
   QualitySignal,
   QualityStratificationDimension[]
 > = {
-  "review-scrutiny": [
-    "workflow",
-    "reviewSurface",
-    "harness",
-    "taskPriority",
-    "changedArea",
-  ],
   "post-completion-follow-up": [
     "workflow",
     "harness",

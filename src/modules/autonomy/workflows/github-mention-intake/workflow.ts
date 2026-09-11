@@ -5,6 +5,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { inboundSignalWorkflowTargeted } from "#modules/inbound-signals/events.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   assessMentionTrigger,
   type GithubMentionIntakeAssessment,
@@ -78,27 +79,6 @@ const writeCommitMessage = typedCodeStep<{ written: boolean; path: string }>({
   },
 });
 
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: stepSucceeded("write-commit-message"),
-  validate: (raw) => {
-    const object = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (object.ok !== true) {
-      throw new Error(`expected ok: true, got ${String(object.ok)}`);
-    }
-    return object;
-  },
-  run: async (ctx) => {
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const prepareComment = typedCodeStep<PreparedIntakeComment>({
   id: "prepare-comment",
   type: "code",
@@ -108,7 +88,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
     if (!assessment?.commentEligible) return false;
     if (assessment.decision === "needs_detail") return true;
     const task = createTask.output(ctx);
-    return Boolean(task && (task.kind === "existing" || stepSucceeded("validate-changes")(ctx)));
+    return Boolean(task && (task.kind === "existing" || stepSucceeded("write-commit-message")(ctx)));
   },
   run: (ctx) => {
     const assessment = assessMentionIntake.outputRequired(ctx);
@@ -146,7 +126,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
 const githubMentionIntakeWorkflow: WorkflowDefinitionInput = {
   name: "github-mention-intake",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   description: "Capture trusted GitHub implementation mentions into repo-local task intake.",
   tags: ["monitored"],
   triggers: [{ event: inboundSignalWorkflowTargeted }],
@@ -154,7 +134,6 @@ const githubMentionIntakeWorkflow: WorkflowDefinitionInput = {
     assessMentionIntake,
     createTask,
     writeCommitMessage,
-    validateChanges,
     prepareComment,
     {
       id: "emit-intake-comment-requested",

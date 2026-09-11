@@ -16,7 +16,6 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import { collectProgressReviewGitEvidence } from "./progress-review/git-evidence.js";
 import {
   collectProgressReviewEvidenceOperation,
@@ -226,10 +225,7 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };
-    const artifactPath = writeProgressReviewArtifact(ctx.workflow.runDirPath, artifact, {
-      runId: ctx.workflow.runId,
-      workflow: ctx.workflow.name,
-    });
+    const artifactPath = writeProgressReviewArtifact(ctx.workflow.runDirPath, artifact);
     return { written: true, path: artifactPath };
   },
 });
@@ -249,27 +245,5 @@ export const writeCommitMessage = typedCodeStep<{ written: boolean }>({
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
     writeFileSync(join(ctx.workflow.runDirPath, "commit-message.txt"), `${lines.join("\n")}\n`);
     return { written: true };
-  },
-});
-
-export const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
-    return obj;
-  },
-  run: async (ctx) => {
-    await ctx.runBlocking(taskQueueValidationOperation, {
-      workspaceRoot: ctx.workspaceRoot,
-    });
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
   },
 });

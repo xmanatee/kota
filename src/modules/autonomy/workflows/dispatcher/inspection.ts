@@ -65,7 +65,7 @@ export function inspectDispatcherStateInWorker(
     }
   }
   // Repository-free observers still reflect scope policy, but cannot publish work from editor files.
-  const published = !builderEnabled && input.securityReviewGitEvidence.currentHead.kind === "unavailable"
+  const published = input.securityReviewGitEvidence.currentHead.kind === "unavailable"
     ? null : readPublishedRepoTaskQueue(input.workspaceRoot);
   const queue: RepoWorkSupply = published ? inspectRepoWorkSupply(input.workSupplyInput, published) : {
     ...summarizeRepoTaskQueue([], 0, ""),

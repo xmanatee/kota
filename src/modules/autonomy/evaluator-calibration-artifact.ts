@@ -9,10 +9,12 @@ import type {
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import {
+  listFullRepoTasks,
   REPO_TASKS_DIR,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { type CriticVerdict, getCriticPromptHash } from "./critic.js";
+import { CRITIC_REVIEW_ARTIFACT, decodeCriticVerdict } from "./critic-verdict.js";
 import {
   CRITIC_CHECK_ID,
   EVALUATOR_CALIBRATION_ARTIFACT,
@@ -29,28 +31,13 @@ export type CalibrationCriticVerdict = CriticVerdict & {
 export function readCalibrationCriticVerdict(
   runDir: string,
 ): CalibrationCriticVerdict | null {
-  const path = join(runDir, "critic-review.json");
+  const path = join(runDir, CRITIC_REVIEW_ARTIFACT);
   if (!existsSync(path)) return null;
   const parsed = readOptionalJsonFile<KotaJsonValue>(path);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error(`Invalid critic verdict payload in ${path}`);
   }
-  if (
-    parsed.verdict !== "pass" &&
-    parsed.verdict !== "pass_with_warnings" &&
-    parsed.verdict !== "fail"
-  ) {
-    throw new Error(`Invalid critic verdict in ${path}: ${String(parsed.verdict)}`);
-  }
-  if (
-    !Array.isArray(parsed.critical_issues) ||
-    !parsed.critical_issues.every((issue) => typeof issue === "string") ||
-    !Array.isArray(parsed.warnings) ||
-    !parsed.warnings.every((warning) => typeof warning === "string") ||
-    typeof parsed.summary !== "string"
-  ) {
-    throw new Error(`Invalid critic verdict payload in ${path}`);
-  }
+  const verdict = decodeCriticVerdict(parsed);
   if (
     parsed.reviewerPromptHash !== undefined &&
     typeof parsed.reviewerPromptHash !== "string"
@@ -58,10 +45,7 @@ export function readCalibrationCriticVerdict(
     throw new Error(`Invalid critic reviewerPromptHash in ${path}`);
   }
   return {
-    verdict: parsed.verdict,
-    critical_issues: parsed.critical_issues,
-    warnings: parsed.warnings,
-    summary: parsed.summary,
+    ...verdict,
     reviewerPromptHash: parsed.reviewerPromptHash ?? null,
   };
 }
@@ -87,19 +71,7 @@ export function findCalibrationTaskFinalState(
   workspaceRoot: string,
   taskId: string,
 ): RepoTaskState | null {
-  const states: RepoTaskState[] = [
-    "done",
-    "dropped",
-    "blocked",
-    "open",
-    "open",
-    "open",
-  ];
-  for (const state of states) {
-    const candidate = join(workspaceRoot, TASK_PATH_PREFIX, state, `${taskId}.md`);
-    if (existsSync(candidate)) return state;
-  }
-  return null;
+  return listFullRepoTasks(workspaceRoot).find((task) => task.id === taskId)?.state ?? null;
 }
 
 export type WriteCalibrationArtifactOptions = {
@@ -196,7 +168,7 @@ export function writeCalibrationArtifact(
     criticPromptHash:
       options.criticPromptHash ??
       criticVerdict?.reviewerPromptHash ??
-      getCriticPromptHash(),
+      getCriticPromptHash(ctx.scopeRoot),
   };
 
   writeJsonFileAtomic(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), artifact);

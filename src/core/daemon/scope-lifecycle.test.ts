@@ -203,6 +203,11 @@ describe("ScopeLifecycleService", () => {
     });
     restorePendingWorkflowBuffers();
 
+    const suspendedWorkflow = runtime.workflowRuntime.getDefinitions().find((definition) => definition.name === "pending-scope-work");
+    if (!suspendedWorkflow) throw new Error("Missing pending scope workflow");
+    for (const runId of ["run-restored-await", "run-restored-timed-await"]) {
+      runtime.runStore.createRun(suspendedWorkflow, { event: "test.pending-scope-work", schemaRef: null, payload: {} }, runId);
+    }
     const awaitRunDir = join(runtime.runStore.runsDir, "run-restored-await");
     writeSuspension(awaitRunDir, {
       runId: "run-restored-await",

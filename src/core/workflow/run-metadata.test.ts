@@ -135,7 +135,7 @@ describe("workflow run metadata normalization", () => {
 		expect(result.kind).toBe("migrated");
 		if (result.kind === "migrated") {
 			expect(result.metadata.usage).toEqual({
-				tokens: { state: "complete", inputTokens: 100, outputTokens: 11 },
+				tokens: { state: "partial", inputTokens: 100, outputTokens: 11 },
 				cost: { state: "complete", usd: 0.25 },
 			});
 			expect(result.metadata.steps[0]?.usage).toEqual({

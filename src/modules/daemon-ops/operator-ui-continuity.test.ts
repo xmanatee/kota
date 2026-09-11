@@ -210,8 +210,9 @@ describe("operator continuity UI surface", () => {
       width: 120,
     });
     expect(failedRendered).toContain("failed");
-    expect(failedRendered).toContain(
+    expect(failed.reviewArtifacts[0]?.route?.path).toBe(
       "/api/workflow/runs/2026-06-25T09-00-00-000Z-builder-failed/artifacts",
     );
+    expect(failedRendered).toContain("Open artifacts");
   });
 });

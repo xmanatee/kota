@@ -225,12 +225,6 @@ describe("agy-canary command", () => {
         }),
       };
     });
-    const updateBody = vi.fn(async () => ({
-      ok: true as const,
-      id: "task-investigate-agy-canary-finding-review-timeout",
-      state: "open" as const,
-      content: "updated",
-    }));
     const ctx = {
       cwd: root,
       config: { defaultAgentHarness: "thin" },
@@ -360,7 +354,6 @@ describe("agy-canary command", () => {
               "---\nstatus: open\npriority: p1\n---\n\n# Work\n\nFollow the documented example.\n",
           })),
           create,
-          updateBody,
         },
       },
     } as unknown as ModuleContext;
@@ -421,10 +414,9 @@ describe("agy-canary command", () => {
     });
     expect(runOneShot).toHaveBeenCalledOnce();
     expect(create).toHaveBeenCalledOnce();
-    expect(updateBody).toHaveBeenCalledWith(
-      "task-investigate-agy-canary-finding-review-timeout",
-      expect.stringContaining("Canary evidence"),
-    );
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      body: expect.stringContaining("Canary evidence"),
+    }));
     const contextPath = join(
       root,
       ".kota/runs/canary-1/agy-continuous-canary/six-hour",

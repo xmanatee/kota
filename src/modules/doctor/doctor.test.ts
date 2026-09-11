@@ -402,34 +402,9 @@ describe("kota doctor — offline path", () => {
     expect(broken?.status).toBe("fail");
   });
 
-  it("warns about unexpected module state and stray runtime directories", async () => {
-    mkdirSync(join(scopeRoot, ".kota", "extensions", "tool-cache"), { recursive: true });
-    mkdirSync(join(scopeRoot, "runs"), { recursive: true });
-    mkdirSync(join(scopeRoot, "kota"), { recursive: true });
 
-    const results = await runDoctorChecks(scopeRoot);
-    expect(results.find((r) => r.label === "Disk: stray .kota/extensions/")?.status).toBe("warn");
-    expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
-    expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
-  });
 
-  it("warns about stale run-insight knowledge files", async () => {
-    mkdirSync(join(scopeRoot, ".kota", "data"), { recursive: true });
-    writeFileSync(
-      join(scopeRoot, ".kota", "data", "stale.md"),
-      "---\nid: stale\ntitle: Stale\ntype: run-insight\nstatus: active\n---\n\nRun summary\n",
-    );
-    writeFileSync(
-      join(scopeRoot, ".kota", "data", "note.md"),
-      "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
-    );
 
-    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
-    const stale = results.find((r) => r.label === "Disk: stale run-insight data");
-    expect(stale?.status).toBe("warn");
-    expect(stale?.detail).toContain("1 file");
-    expect(stale?.detail).toContain("kota doctor --fix");
-  });
 });
 
 describe("kota doctor --fix", () => {
@@ -498,23 +473,16 @@ describe("kota doctor --fix", () => {
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
   });
 
-  it("removes stray root runs/ and kota/ directories", () => {
+  it("preserves repository directories regardless of names that resemble runtime state", () => {
     mkdirSync(join(scopeRoot, "runs", "some-run"), { recursive: true });
     mkdirSync(join(scopeRoot, "kota", "runs", "some-run"), { recursive: true });
     const repairs = runDoctorFixes(scopeRoot);
-    const runsRepair = repairs.find((r) => r.item === "Stray directory: runs/");
-    const kotaRepair = repairs.find((r) => r.item === "Stray directory: kota/");
-    expect(runsRepair?.action).toBe("repaired");
-    expect(kotaRepair?.action).toBe("repaired");
-    expect(existsSync(join(scopeRoot, "runs"))).toBe(false);
-    expect(existsSync(join(scopeRoot, "kota"))).toBe(false);
+    expect(repairs.every((repair) => !repair.item.startsWith("Stray directory:"))).toBe(true);
+    expect(existsSync(join(scopeRoot, "runs", "some-run"))).toBe(true);
+    expect(existsSync(join(scopeRoot, "kota", "runs", "some-run"))).toBe(true);
   });
 
-  it("does not report stray directories when they do not exist", () => {
-    const repairs = runDoctorFixes(scopeRoot);
-    const strayRepairs = repairs.filter((r) => r.item.startsWith("Stray directory:"));
-    expect(strayRepairs).toHaveLength(0);
-  });
+
 
   it("preserves daemon-state.json because daemon-control.json owns liveness", () => {
     const stateFile = join(scopeRoot, ".kota", "daemon-state.json");
@@ -530,7 +498,7 @@ describe("kota doctor --fix", () => {
     expect(existsSync(stateFile)).toBe(true);
   });
 
-  it("removes only stale run-insight knowledge files", () => {
+  it("preserves stored knowledge regardless of historical record types", () => {
     const dataDir = join(scopeRoot, ".kota", "data");
     const staleFile = join(dataDir, "stale.md");
     const noteFile = join(dataDir, "note.md");
@@ -545,10 +513,8 @@ describe("kota doctor --fix", () => {
     );
 
     const repairs = runDoctorFixes(scopeRoot);
-    const stale = repairs.find((r) => r.item === "Stale run-insight knowledge files");
-    expect(stale?.action).toBe("repaired");
-    expect(stale?.detail).toContain("Removed 1 file");
-    expect(existsSync(staleFile)).toBe(false);
+    expect(repairs.every((repair) => !repair.item.includes("run-insight"))).toBe(true);
+    expect(existsSync(staleFile)).toBe(true);
     expect(existsSync(noteFile)).toBe(true);
   });
 

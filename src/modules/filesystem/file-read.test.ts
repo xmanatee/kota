@@ -8,15 +8,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { truncateToolResult } from "#core/loop/context.js";
 import { runFileRead } from "./file-read.js";
 
-const TEST_DIR = join(process.cwd(), ".test-file-read");
-
-beforeAll(() => {
-  mkdirSync(TEST_DIR, { recursive: true });
-});
+const TEST_DIR = mkdtempSync(join(tmpdir(), "kota-file-read-"));
 
 afterAll(() => {
   rmSync(TEST_DIR, { recursive: true, force: true });

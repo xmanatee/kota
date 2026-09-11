@@ -37,6 +37,7 @@ function makeContext(
 ): WorkflowStepContext {
   return {
     workspaceRoot,
+    scopeRoot: workspaceRoot,
     workflow: {
       name: "builder",
       runId: "run-critic-preflight",

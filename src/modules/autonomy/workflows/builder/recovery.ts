@@ -29,7 +29,7 @@ export async function builderRecoveryRevision(input: Pick<WorkflowTriggerAdmissi
   const evidence = recoveryEvidenceOutcomes(collection, { id: task.taskId, body: source?.content ?? "" });
   return createHash("sha256").update(JSON.stringify({
     taskDigest: task.taskDigest,
-    critic: getCriticPromptHash(),
+    critic: getCriticPromptHash(input.scopeRoot),
     issues: issues.issues.filter((issue) => issue.links.taskIds.includes(task.taskId))
       .map((issue) => [issue.issueKey, issue.semanticRevision]).sort(),
     evidence,
@@ -56,7 +56,7 @@ export const assessBuilderRecovery: WorkflowRecoveryResolver = async (input) => 
       const review = z.object({ reviewerPromptHash: z.string().regex(/^[a-f0-9]{12}$/) }).safeParse(
         readOptionalJsonFile(join(input.scopeRoot, ".kota", "runtime", allocationName(input.runId), "agent", "critic-review.json")),
       );
-      changedReview = review.success && review.data.reviewerPromptHash !== getCriticPromptHash();
+      changedReview = review.success && review.data.reviewerPromptHash !== getCriticPromptHash(input.scopeRoot);
     } catch { /* Unavailable historical evidence cannot establish a relevant change. */ }
   }
   // An older run without an attributable baseline may reconcile a changed task,

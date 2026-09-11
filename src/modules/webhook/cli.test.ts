@@ -1,5 +1,6 @@
 import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { acquireConfigSlice } from "#core/config/config-slice.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   captureOutput,
@@ -12,6 +13,7 @@ import {
   workflowDef,
   writeScopeConfig,
 } from "./cli-test-support.js";
+import { webhookConfigSlice } from "./config-slice.js";
 
 describe("kota webhook list", () => {
   let scopeRoot: string;
@@ -202,3 +204,7 @@ describe("kota webhook secret remove", () => {
     expect(out).toContain("No webhook secret configured");
   });
 });
+
+let releaseConfigSlice: () => void;
+beforeEach(() => { releaseConfigSlice = acquireConfigSlice(webhookConfigSlice, "webhook"); });
+afterEach(() => releaseConfigSlice());

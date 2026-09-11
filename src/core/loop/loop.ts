@@ -32,7 +32,6 @@ import { runSend } from "./loop-send.js";
 import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionState, SessionStateMachine } from "./session-state.js";
 import { BufferTransport, type ProxyTransport, type Transport } from "./transport.js";
-import type { VerifyTracker } from "./verify-tracker.js";
 
 export type LoopOptions = {
   /**
@@ -108,7 +107,6 @@ export class AgentSession implements AgentLoopState {
   verbose!: boolean;
   sessionPath: string | undefined;
   thinkingConfig: KotaThinkingConfig | undefined;
-  verifyTracker!: VerifyTracker;
   mcpManager: McpManager | null = null;
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;

@@ -214,8 +214,8 @@ describe("operator shared UI surfaces", () => {
       type: "string",
       format: "path",
     });
-    expect(add?.parameters?.schema.properties.initialAutomationMode).toMatchObject({
-      default: "passive",
+    expect(add?.parameters?.schema.properties.improvementPosture).toMatchObject({
+      default: "observe",
     });
     expect(add?.parameters?.schema.properties.writes).toMatchObject({ default: "none" });
     expect(surface.actions.find((action) => action.actionId === "scope.remove")?.confirmation)
@@ -231,7 +231,7 @@ describe("operator shared UI surfaces", () => {
       blockers: [],
       choices: {
         trust: true,
-        initialAutomationMode: "autonomous",
+        improvementPosture: "build",
         writes: { mode: "scope-directory" },
       },
     } as never;
@@ -266,13 +266,13 @@ describe("operator shared UI surfaces", () => {
       {
         directoryRoot: "/daemon/external",
         trusted: true,
-        initialAutomationMode: "autonomous",
+        improvementPosture: "build",
         writes: "scope-directory",
       },
     );
     expect(planOnboarding).toHaveBeenCalledWith("/daemon/external", {
       trust: true,
-      initialAutomationMode: "autonomous",
+      improvementPosture: "build",
       writes: { mode: "scope-directory" },
     });
     expect(applyOnboarding).toHaveBeenCalledWith(plan, "confirm-dangerous");
@@ -312,7 +312,7 @@ describe("operator shared UI surfaces", () => {
       {
         directoryRoot: "/daemon/external",
         trusted: "yes",
-        initialAutomationMode: "passive",
+        improvementPosture: "observe",
         writes: "none",
       },
     );
@@ -339,6 +339,7 @@ describe("operator shared UI surfaces", () => {
             registered: false,
             hostingState: null,
             trust: null,
+            existing: { kotaState: false, scopeConfig: false, taskQueue: false, inbox: false, guidance: [] },
             setup: [{
               moduleName: "github",
               requirementId: "token",
@@ -440,7 +441,7 @@ describe("operator shared UI surfaces", () => {
       blockers: [],
       choices: {
         trust: false,
-        initialAutomationMode: "passive",
+        improvementPosture: "observe",
         writes: { mode: "none" },
       },
     } as never;
@@ -505,7 +506,7 @@ describe("operator shared UI surfaces", () => {
         scopeId: surface.scopeId,
         parameters: {
           directoryRoot: "/external",
-          initialAutomationMode: "passive",
+          improvementPosture: "observe",
           writes: "none",
         },
       },
@@ -521,7 +522,7 @@ describe("operator shared UI surfaces", () => {
 
   it.each([
     ["trusted", "yes", "expected boolean, got string"],
-    ["initialAutomationMode", "reckless", "expected one of"],
+    ["improvementPosture", "reckless", "expected one of"],
     ["writes", "anywhere", "expected one of"],
   ])("rejects malformed Add Scope %s before dispatch", async (
     field: string,
@@ -551,7 +552,7 @@ describe("operator shared UI surfaces", () => {
         parameters: {
           directoryRoot: "/external",
           trusted: false,
-          initialAutomationMode: "passive",
+          improvementPosture: "observe",
           writes: "none",
           [field]: value,
         },

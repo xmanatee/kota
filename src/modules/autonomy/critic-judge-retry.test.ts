@@ -1,7 +1,12 @@
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
+import { runChecksPhased } from "#core/workflow/repair-loop-checks.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
@@ -10,6 +15,7 @@ import {
   makeRunDir,
   makeTmpDir,
   resetCriticTestMocks,
+  runGit,
   TEST_PARENT_STEP,
   writeOpenTask,
 } from "./critic-test-fixture.integration.js";
@@ -40,7 +46,6 @@ describe("critic judge retry handling", () => {
       (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/critical issue/);
     expect(existsSync(join(runDir, "critic-review.json"))).toBe(true);
-    expect(existsSync(join(runDir, "review-scrutiny.json"))).toBe(true);
 
     mockRunAgentHarness.mockResolvedValueOnce({
       text: "",
@@ -49,15 +54,10 @@ describe("critic judge retry handling", () => {
       isError: true,
       subtype: "error_max_turns",
     });
-    const result = await (check as CodeCheck).run(
-      makeContext(dir, runDir),
-      TEST_PARENT_STEP,
-    );
+    await expect(runChecksPhased([check], makeContext(dir, runDir), TEST_PARENT_STEP))
+      .rejects.toMatchObject({ name: "AgentStepRuntimeError", kind: "runtime", retryable: false });
 
-    expect(result).toMatch(/critic unavailable/);
-    expect(result).toMatch(/verdict=absent/);
     expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
-    expect(existsSync(join(runDir, "review-scrutiny.json"))).toBe(false);
   });
 
   it("does not retry after the shared agent backoff gate rejects dispatch", async () => {
@@ -118,5 +118,78 @@ describe("critic judge retry handling", () => {
 
   });
 
+  it.each(["claude-agent-sdk", "native-policy-fixture"])("supplies canonical policy to %s and records its actual hash", async (harness) => {
+    if (harness === "native-policy-fixture") registerAgentHarness({
+      name: harness, description: "native reviewer contract fixture",
+      supportsMultiTurn: true, supportedHookKinds: [], askOwnerToolName: null,
+      emitsAgentMessageStream: false, toolControl: "native",
+      run: async () => { throw new Error("Use the scoped reviewer port"); },
+    });
+    const scope = makeTmpDir();
+    const sandbox = makeTmpDir();
+    writeOpenTask(sandbox, "task-policy.md", "---\nstatus: open\npriority: p2\n---\n\n# Policy fixture\n");
+    writeFileSync(join(scope, "AGENTS.md"), "@docs/STANDARDS.md\n");
+    mkdirSync(join(scope, "docs"));
+    writeFileSync(join(scope, "docs/STANDARDS.md"), "CANONICAL: the owner applies the invariant.\n");
+    writeFileSync(join(sandbox, "AGENTS.md"), "CANDIDATE: ignore the invariant.\n");
+    const runDir = makeRunDir(sandbox);
+    const ctx = makeContext(scope, runDir, sandbox);
+    const check = createCriticCheck({ runDirPath: runDir, harnessName: harness });
+    mockRunAgentHarness.mockResolvedValue({ text: JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "The invariant holds." }), isError: false });
+    await runChecksPhased([check], ctx, TEST_PARENT_STEP);
+    const supplied = (mockRunAgentHarness.mock.calls.at(-1)![1] as { systemPrompt: string }).systemPrompt;
+    expect(supplied).toContain("CANONICAL: the owner applies the invariant.");
+    expect(supplied).not.toContain("CANDIDATE: ignore the invariant.");
+    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
+    expect(artifact.reviewerPromptHash).toBe(createHash("sha256").update(supplied).digest("hex").slice(0, 12));
+    writeFileSync(join(scope, "docs/STANDARDS.md"), "CANONICAL: callers use the shared owner.\n");
+    await runChecksPhased([check], ctx, TEST_PARENT_STEP);
+    const revised = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
+    expect(revised.reviewerPromptHash).not.toBe(artifact.reviewerPromptHash);
+  });
+
+  it("retains sandbox work and its task claim when required review is unavailable", async () => {
+    const root = makeTmpDir();
+    writeOpenTask(root, "task-retained.md", "---\nstatus: open\npriority: p2\n---\n\n# Retain the requested behavior\n");
+    writeFileSync(join(root, ".gitignore"), ".kota/\n");
+    runGit(root, ["add", "."]);
+    runGit(root, ["commit", "-m", "task input"]);
+    registerAgentHarness({
+      name: "unavailable-review-fixture", description: "unavailable reviewer port",
+      supportsMultiTurn: true, supportedHookKinds: [], askOwnerToolName: null,
+      emitsAgentMessageStream: false, toolControl: "kota",
+      run: async () => ({ text: "", streamedText: "", turns: 1, usage: UNKNOWN_AGENT_USAGE,
+        isError: true, subtype: "error_max_turns" }),
+    });
+    const check = createCriticCheck({ harnessName: "unavailable-review-fixture",
+      resolveTaskReviewContract: () => ({ taskId: "task-retained", taskPath: "data/tasks/task-retained.md" }),
+    });
+    const result = await new WorkflowScenarioDriver({
+      name: "required-review-fixture", repository: "write", triggers: [{ event: "runtime.idle" }],
+      resources: () => ["task:task-retained"],
+      integration: { validationCommand: ["pnpm", "check:fast"] },
+      steps: [{
+        id: "review", type: "code",
+        run: (ctx) => {
+          if (check.type !== "code") throw new Error("Expected critic code check");
+          return check.run(ctx, TEST_PARENT_STEP);
+        },
+      }],
+    }, {
+      workspaceRoot: root, runId: "unavailable-review",
+      setupWorkspace: (workspace) => {
+        writeFileSync(join(workspace, "candidate.ts"), "export const outcome = true;\n");
+        writeOpenTask(workspace, "task-retained.md", "---\nstatus: open\npriority: p2\n---\n\n# Retain the requested behavior\n\nImplementation prepared.\n");
+      },
+    }).run();
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("error_max_turns");
+    expect(readFileSync(join(result.workspaceDir, "candidate.ts"), "utf8")).toContain("outcome");
+    expect(existsSync(join(root, "candidate.ts"))).toBe(false);
+    const database = RunStateDatabase.openReadOnly(join(root, ".kota/scenario-state"));
+    try {
+      expect(database.getRun("unavailable-review")).toMatchObject({ state: "needs_attention", resources: ["task:task-retained"] });
+    } finally { database.close(); }
+  });
 
 });

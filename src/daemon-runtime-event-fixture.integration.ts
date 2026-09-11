@@ -15,7 +15,7 @@ import type {
 const FIXTURE_TIME = "2026-08-14T09:00:00.000Z";
 
 export const AUTONOMY_SOURCE_EVENT_NAMES = [
-  "workflow.step.completed",
+  "eval-harness.regression.detected",
   "owner.question.changed",
   "workflow.dead-letter.changed",
   "workflow.interrupted.alert",
@@ -63,8 +63,6 @@ export function createRuntimeSourceFixture(args: {
   const scopeRoot = scope.scope.scopeRoot;
   const pbus = new ScopedEventBus(bus, scopeId);
   const interruptionRunId = `builder-interrupted-${tag}`;
-  const reviewPaths: string[] = [];
-  const trajectoryPaths: string[] = [];
   let ownerQuestionPath: string | null = null;
 
   return {
@@ -88,75 +86,14 @@ export function createRuntimeSourceFixture(args: {
         },
       });
     },
-    emitReview(): void {
-      const reviewRunId = `review-${tag}-${reviewPaths.length + 1}`;
-      const reviewPath = join(scopeRoot, ".kota", "runs", reviewRunId, "review-scrutiny.json");
-      reviewPaths.push(reviewPath);
-      mkdirSync(join(reviewPath, ".."), { recursive: true });
-      writeFileSync(reviewPath, JSON.stringify({
-        runId: reviewRunId,
-        workflow: "builder",
-        surface: "critic",
-        taskId: `task-${tag}`,
-        thinAcceptance: true,
-        generatedAt: FIXTURE_TIME,
-      }), "utf-8");
-      pbus.emit("workflow.step.completed", {
-        workflow: "builder",
-        runId: reviewRunId,
-        stepId: "critic",
-        stepType: "code",
-        status: "success",
-        durationMs: 100,
-        runDir: `.kota/runs/${reviewRunId}`,
-        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      });
-    },
-    emitTrajectory(): void {
-      const trajectoryRunId = `trajectory-${tag}-${trajectoryPaths.length + 1}`;
-      const trajectoryPath = join(scopeRoot, ".kota", "runs", trajectoryRunId, "steps", "build.trajectory-diagnostics.json");
-      trajectoryPaths.push(trajectoryPath);
-      mkdirSync(join(trajectoryPath, ".."), { recursive: true });
-      writeFileSync(trajectoryPath, JSON.stringify({
-        version: 1,
-        status: "supported",
-        emitsAgentMessageStream: true,
-        counts: {
-          warningCount: 1,
-          unsupportedTrajectoryCount: 0,
-          missingStreamingFramesCount: 0,
-          missingFinalVerificationAfterEditCount: 1,
-          repeatedIdenticalFailingCommandCount: 0,
-          editAfterSuccessfulVerificationCount: 0,
-          longPreambleWithoutTaskTouchCount: 0,
-        },
-        diagnostics: [{
-          code: "missing_final_verification_after_edit",
-          severity: "warning",
-          summary: `${tag} missed final verification.`,
-          frameIndexes: [3],
-          details: ["lastEditFrame=3"],
-        }],
-      }), "utf-8");
-      pbus.emit("workflow.step.completed", {
-        workflow: "builder",
-        runId: trajectoryRunId,
-        stepId: "build",
-        stepType: "agent",
-        status: "success",
-        durationMs: 100,
-        runDir: `.kota/runs/${trajectoryRunId}`,
-        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-        trajectoryDiagnostics: {
-          artifactPath: `.kota/runs/${trajectoryRunId}/steps/build.trajectory-diagnostics.json`,
-          warningCount: 1,
-          unsupportedTrajectoryCount: 0,
-          missingStreamingFramesCount: 0,
-          missingFinalVerificationAfterEditCount: 1,
-          repeatedIdenticalFailingCommandCount: 0,
-          editAfterSuccessfulVerificationCount: 0,
-          longPreambleWithoutTaskTouchCount: 0,
-        },
+    emitRegression(): void {
+      pbus.emit("eval-harness.regression.detected", {
+        baseline: { fixtureCount: 1, repeatCount: 3, passAtK: 1, passHatK: 1 },
+        candidate: { fixtureCount: 1, repeatCount: 3, passAtK: 0, passHatK: 0 },
+        noiseBandPercentagePoints: 5, dropPercentagePoints: 100,
+        hostClass: `fixture-${tag}`,
+        reason: `${tag} held-out behavior regressed`,
+        runArtifactBaseDir: `.kota/runs/eval-${tag}`,
       });
     },
     emitOwnerAnswer(): void {
@@ -214,8 +151,6 @@ export function createRuntimeSourceFixture(args: {
         join(scopeRoot, ".kota", "dead-letter-queue", "items.json"),
         ownerQuestionPath,
         join(scope.runStore.runsDir, interruptionRunId, "metadata.json"),
-        ...reviewPaths,
-        ...trajectoryPaths,
       ];
       return { projection: JSON.stringify(scope.runState.readScopeStateValue(scopeId, AUTONOMY_ISSUE_PROJECTION_STATE_KEY)), ...Object.fromEntries(paths.map((path) => [
         path.slice(scopeRoot.length + 1),

@@ -31,7 +31,6 @@ import type {
   DoctorRepairResult,
   DoctorRunResult,
 } from "./client.js";
-import { listStaleRunInsightFiles } from "./doctor-fixes.js";
 import {
   checkPresetHarnessReadiness,
   extractPresetReadiness,
@@ -86,34 +85,6 @@ function checkDisk(scopeRoot: string): CheckResult[] {
     results.push(pass("Disk: .kota/modules/", "Present"));
   } else {
     results.push(warn("Disk: .kota/modules/", "Missing — run `kota doctor --fix` to create canonical module state"));
-  }
-
-  const unexpectedKotaSubdirs = ["extensions"];
-  for (const sub of unexpectedKotaSubdirs) {
-    const subPath = join(kotaDir, sub);
-    if (existsSync(subPath)) {
-      results.push(warn(`Disk: stray .kota/${sub}/`, `Remove this directory — it is no longer used`));
-    }
-  }
-
-  for (const strayDir of ["runs", "kota"]) {
-    const strayPath = join(scopeRoot, strayDir);
-    if (existsSync(strayPath)) {
-      results.push(
-        warn(
-          `Disk: stray ${strayDir}/`,
-          `Unexpected runtime artifact directory outside .kota/: ${strayPath}`,
-        ),
-      );
-    }
-  }
-
-  const staleRunInsightFiles = listStaleRunInsightFiles(scopeRoot);
-  if (staleRunInsightFiles.length > 0) {
-    results.push(warn(
-      "Disk: stale run-insight data",
-      `${staleRunInsightFiles.length} file(s) in .kota/data/ repeat git history and .kota/runs; run \`kota doctor --fix\` to remove them`,
-    ));
   }
 
   return results;

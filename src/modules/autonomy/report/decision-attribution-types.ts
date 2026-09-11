@@ -1,5 +1,5 @@
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { ReviewScrutinyRecord } from "#modules/autonomy/review-scrutiny.js";
+import type { ReviewOutcomeRecord } from "#modules/autonomy/review-outcomes.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { OwnerInterventionReport } from "./owner-interventions.js";
 
@@ -71,6 +71,6 @@ export type DecisionAttributionReportInput = {
   runs: readonly WorkflowRunMetadata[];
   runsDir: string;
   taskById: ReadonlyMap<string, RepoTaskFullRecord>;
-  reviewRecords: readonly ReviewScrutinyRecord[];
+  reviewRecords: readonly ReviewOutcomeRecord[];
   ownerInterventions: OwnerInterventionReport;
 };

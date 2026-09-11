@@ -48,6 +48,11 @@ function scopedActionBundle(): UiSurfaceBundle {
             namespace: "workflow",
             method: "retryRun",
           },
+          parameters: {
+            fields: [{ id: "runId", label: "Run id", input: "text", required: true }],
+            schema: { type: "object", required: ["runId"], additionalProperties: false,
+              properties: { runId: { type: "string" } } },
+          },
           result: resultSpec("Workflow retry queued."),
         }),
         action({
@@ -157,7 +162,7 @@ describe("daemon UI action scope", () => {
       surfaceId: "operator-control",
       actionId: "workflow.launch",
       scopeId: "scope-b",
-      parameters: { workflow: "builder" },
+      parameters: { name: "builder" },
       confirmed: true,
     })).resolves.toEqual({ ok: true, message: "Workflow queued." });
 
@@ -220,7 +225,7 @@ describe("daemon UI action scope", () => {
         kind: "request",
         method: "POST",
         path: "/workflow/trigger?scopeId=scope-b",
-        body: { workflow: "builder" },
+        body: { name: "builder" },
       },
     ]);
   });

@@ -24,8 +24,7 @@ import {
 } from "#modules/autonomy/generated-work-owner-question.js";
 import {
   type AppliedDisposition,
-  publishImproverDisposition,
-} from "./disposition-publication.js";
+  publishImproverDisposition,verifyImproverDispositionAfterReconcile, } from "./disposition-publication.js";
 import improverWorkflow, { agent } from "./workflow.js";
 
 const OBSERVED_DISPOSITION = {
@@ -33,7 +32,7 @@ const OBSERVED_DISPOSITION = {
   recoveryAction: "" as const,
   rationale: "Evidence is diagnostic and does not justify implementation work yet.",
   taskTitle: "",
-  taskSummary: "",
+  taskDesiredOutcome: "",
   taskPriority: "p2" as const,
   taskHowWeWillKnow: "",
   ownerQuestion: "",
@@ -46,7 +45,7 @@ const TASK_DISPOSITION = {
   action: "create-task" as const,
   rationale: "The stable failure needs a builder-owned repair.",
   taskTitle: "Repair the stable builder fixture failure",
-  taskSummary: "Route the fixture failure through the normal builder lifecycle.",
+  taskDesiredOutcome: "Route the fixture failure through the normal builder lifecycle.",
   taskHowWeWillKnow: "The failure no longer recurs at the owning boundary.",
 };
 
@@ -223,7 +222,7 @@ describe("improver issue disposition workflow", () => {
     expect(repeated.status, repeated.error).toBe("success");
     expect(repeated.steps["select-issue"].output).toMatchObject({ eligible: false });
     expect(repeated.steps["review-issue"].status).toBe("skipped");
-    const invariant = improverWorkflow.integration!.postReconcile!;
+    const invariant = verifyImproverDispositionAfterReconcile;
     const input = {
       workspaceRoot,
       repoRoot: workspaceRoot,
@@ -343,8 +342,7 @@ describe("improver issue disposition workflow", () => {
       existsSync(join(workspaceRoot, "data", "tasks", `${taskId}.md`)),
     ).toBe(true);
     expect(projection.issues[0]?.links.taskIds).toEqual([]);
-    const invariant = improverWorkflow.integration?.postReconcile;
-    if (!invariant) throw new Error("missing improver post-reconcile invariant");
+    const invariant = verifyImproverDispositionAfterReconcile;
     const invariantInput = {
       workspaceRoot,
       repoRoot: workspaceRoot,

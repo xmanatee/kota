@@ -39,23 +39,10 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   Validate mode values before issuing the HTTP call. Do not embed mode-change
   flow into any other subcommand (e.g. approval resolution) — mode is a
   session-level control.
-- The `daemonOps` `KotaClient` namespace (`client.daemonOps.status()`,
-  `pid()`, `stop()`, `reload()`) is also owned end-to-end by this module.
-  The local handler (`localClient` in `index.ts` backed by
-  `daemon-ops-operations.ts`) reads `.kota/daemon-control.json` to
-  distinguish "not running" from "stale/unverified control file"; local stop
-  authenticates `/status` and confirms the published pid before signaling. The daemon-side
-  handler (`buildDaemonOpsDaemonHandler` in `daemon-client-handlers.ts`, contributed through
-  the same `daemonClient(link)` factory alongside `sessions`) routes
-  `status()`/`pid()` through `GET /status` and `reload()` through
-  `POST /reload`. Both client arms stop the daemon by signaling the published
-  pid and waiting for process exit, so the supervised child exits and lets the
-  supervisor return. Lifecycle CLI subcommands that accept `--scope-root`
-  resolve the target scope after command parsing and then select that
-  scope's control file/transport. The non-namespace direct methods
-  `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
-  consume the helpers in `src/core/server/daemon-client.ts` because they
-  bridge `kota serve` ⇄ daemon and are not part of the namespace contract.
+- Local lifecycle operations authenticate the published control identity and
+  confirm its pid before signaling. Both client arms stop the supervised child
+  and wait for exit. Resolve an explicit target scope after command parsing,
+  before selecting its control file or transport.
 
 ## Directory Scopes
 
@@ -122,24 +109,5 @@ Do not reinvent selection per command.
   of the counts row and a fully-zero queue suppresses the section entirely,
   so the heading never introduces a row that looks blank.
 
-## Peer CLI Reference
-
-A short, decision-focused comparison of how peer CLIs present daemon-style
-state. Used to inform layout choices here, not to mirror them.
-
-- `k9s` and `lazygit` use full-screen panes with persistent focus areas. KOTA
-  intentionally does not adopt that model: the dashboard renders into a
-  single scrolling region so daemon-mode log capture and interactive mode
-  share the same presentation pipeline.
-- `htop` separates static metrics (header) from streaming process rows with
-  a clear visual break. KOTA mirrors this with a static stat grid above and
-  an `Activity ─────` separator before the captured log buffer.
-- Claude Code, Codex CLI, `gemini-cli`, and Antigravity CLI favor minimal chrome: a header
-  line with identity and a streaming body. KOTA adopts the same restraint:
-  one header line (`KOTA Daemon  pid …  up …  status`) with no surrounding
-  box, then a compact stat grid, then activity. No nested frames.
-- `pi-mono`'s terminal UI splits status from activity with a labeled rule
-  rather than a continuous border; KOTA uses the same pattern.
-- Color is reserved for state changes (running/stopping/stopped, paused yes,
-  active-run dot). Counts and labels stay plain so width math is reliable
-  and non-TTY fallback degrades cleanly.
+Color marks state changes; counts and labels stay plain so terminal width
+calculation and non-TTY output remain reliable.

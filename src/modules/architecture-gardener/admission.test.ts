@@ -25,7 +25,15 @@ describe("gardener evidence admission", () => {
     const first = evaluate([structural, friction]);
     expect(first.admitted).toBe(true);
     expect(evaluate([friction, structural], first.cohort).admitted).toBe(false);
-    expect(evaluate([structural, { ...friction, fingerprint: "delivery-v2" }], first.cohort).admitted).toBe(true);
+    expect(evaluate([structural, { ...friction, fingerprint: "delivery-v2" }], first.cohort).admitted).toBe(false);
+    expect(evaluate([structural, friction, metric], first.cohort).admitted).toBe(false);
+    expect(evaluate([structural, friction, { ...metric, fingerprint: "line-count-changed" }], first.cohort).admitted).toBe(false);
+    const relevant = { targetScope: "repo", observations: [structural, friction], previousCohort: undefined,
+      explicitRequest: false, followUpFingerprints: [], reviewedTaskEvidence: [], relevantObservationIds: [friction.id] };
+    const settled = evaluateAdmission(relevant);
+    expect(evaluateAdmission({ ...relevant, observations: [], previousCohort: settled.cohort }).admitted).toBe(true);
+    expect(evaluateAdmission({ ...relevant, previousCohort: settled.cohort,
+      observations: [structural, { ...friction, fingerprint: "delivery-v2" }] }).admitted).toBe(true);
   });
 
   it("admits an empty explicit investigation once without certifying an improvement", () => {

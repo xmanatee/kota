@@ -8,16 +8,12 @@ import {
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
-  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-  type AutonomyIssueProjection,
-  decodeAutonomyIssueProjection,
-} from "#modules/autonomy/autonomy-issue-projection.js";
-import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { applyDispositionOperation } from "./apply-disposition.js";
 import {
   type ImproverWorktreeInspection,
@@ -28,14 +24,13 @@ import {
   finalizeImproverDisposition,
   IMPROVER_DISPOSITION_ARTIFACT,
   type ImproverDispositionArtifact,
-  isImproverDispositionCurrent,
-  readImproverDispositionArtifact,
+  verifyImproverDispositionAfterReconcile,
 } from "./disposition-publication.js";
 import {
   decodeIssueDisposition,
   issueDispositionOutputSchema,
 } from "./issue-disposition.js";
-import { selectIssue, selectIssueForProjection } from "./issue-selection.js";
+import { selectIssue } from "./issue-selection.js";
 
 export const agent: AgentDef = {
   name: "improver",
@@ -100,24 +95,6 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) =>
-    applyDisposition.output(ctx) !== undefined &&
-    (applyDisposition.output(ctx)?.materialized.touchedTaskQueue !== true ||
-      writeCommitMessage.output(ctx) !== undefined),
-  validate: (raw) => expectStructuredOutput<{ ok: true }>(raw, ["ok"]),
-  run: async (ctx) => {
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const writeDispositionArtifact = typedCodeStep<{ written: true }>({
   id: "write-disposition-artifact",
   type: "code",
@@ -145,41 +122,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
   tags: ["systemic-observer"],
   repository: "write",
   finalize: finalizeImproverDisposition,
-  integration: {
-    validationCommand: ["pnpm", "validate-tasks"],
-    postReconcile: (input) => {
-      input.signal.throwIfAborted();
-      const projection = decodeAutonomyIssueProjection(
-        input.readState<AutonomyIssueProjection>(
-          AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-        ).value,
-      );
-      const artifact = readImproverDispositionArtifact(
-        input.stateDir,
-        input.runId,
-      );
-      if (artifact === null) {
-        if (input.head === input.baseHead && !selectIssueForProjection({
-          trigger: input.trigger,
-          projection,
-        }).eligible) {
-          return { satisfied: true };
-        }
-        return {
-          satisfied: false,
-          reason: `Improver disposition artifact for ${input.runId} is missing`,
-        };
-      }
-      return isImproverDispositionCurrent(projection, artifact.applied)
-        ? { satisfied: true }
-        : {
-            satisfied: false,
-            reason:
-              `Autonomy issue ${artifact.applied.issueKey} revision ` +
-              `${artifact.applied.semanticRevision} changed after disposition review`,
-          };
-    },
-  },
+  integration: taskQueueIntegrationPolicy({ postReconcile: verifyImproverDispositionAfterReconcile }),
   description:
     "Disposition one new or materially revised durable autonomy issue and route implementation through generated work.",
   defaultAutonomyMode: "autonomous",
@@ -204,7 +147,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
     applyDisposition,
     writeCommitMessage,
-    validateChanges,
     writeDispositionArtifact,
   ],
 };

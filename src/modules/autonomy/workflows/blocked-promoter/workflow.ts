@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { reviewBlockedEvidence } from "./evidence-review.js";
 import { verifyBlockedContracts } from "./integration.js";
 import { displayedOwnerAnswers } from "./owner-decision-authorization.js";
@@ -110,33 +111,12 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const object = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (object.ok !== true) {
-      throw new Error(`expected ok: true, got ${String(object.ok)}`);
-    }
-    return object;
-  },
-  run: async (ctx) => {
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const blockedPromoterWorkflow: WorkflowDefinitionInput = {
   name: "blocked-promoter",
   repository: "write",
   resources: ({ scopeRoot, admittedResources }) => admittedResources ??
     listBlockedTasksWithPreconditions(scopeRoot).map((task) => `task:${task.id}`),
-  integration: { validationCommand: ["pnpm", "validate-tasks"], postReconcile: verifyBlockedContracts },
+  integration: taskQueueIntegrationPolicy({ postReconcile: verifyBlockedContracts }),
   description:
     "Collect and review blocked evidence, promote satisfied preconditions, and reconcile owner decisions.",
   tags: ["monitored"],
@@ -163,7 +143,6 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
     instructOperatorCapture,
     writeBlockerActions,
     writeCommitMessage,
-    validateChanges,
     {
       id: "emit-owner-decision-requested",
       type: "emit",
@@ -189,7 +168,7 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
       id: "emit-promoted",
       type: "emit",
       when: (ctx) =>
-        validateChanges.output(ctx)?.ok === true &&
+        writeCommitMessage.output(ctx)?.written === true &&
         (promoteDeterministic.output(ctx)?.promotions ?? []).length +
           (promoteAfterApproval.output(ctx)?.promotions ?? []).length +
           (reviewBlockedEvidence.output(ctx)?.reviews.filter((review) => review.promoted).length ?? 0) >
@@ -211,7 +190,7 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
       id: "emit-operator-capture-instructed",
       type: "emit",
       when: (ctx) =>
-        validateChanges.output(ctx)?.ok === true &&
+        writeCommitMessage.output(ctx)?.written === true &&
         (instructOperatorCapture.output(ctx)?.instructions ?? []).length > 0,
       event: "autonomy.blocked.operator-capture-instructed",
       payload: (ctx) => ({

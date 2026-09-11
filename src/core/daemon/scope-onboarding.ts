@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { ModuleSetupStatusResponse } from "#core/modules/setup-requirements.js";
 import type { ScopeAuthorityOperatorAction } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
@@ -437,7 +438,7 @@ export class ScopeOnboardingService {
     const projected = this.#update(reconciled, {
       readiness: await this.#readiness(reconciled, true),
     });
-    if (!this.#tails.has(operationIdInput)) this.#store.write(projected);
+    if (projected !== operation && !this.#tails.has(operationIdInput)) this.#store.write(projected);
     return projected;
   }
 
@@ -1402,7 +1403,7 @@ export class ScopeOnboardingService {
       }
     }
     next = this.#update(next, { readiness });
-    this.#store.write(next);
+    if (next !== operation) this.#store.write(next);
     return next;
   }
 
@@ -1429,22 +1430,15 @@ export class ScopeOnboardingService {
     operation: ScopeOnboardingOperation,
     fields: Partial<Omit<ScopeOnboardingOperation, "schema" | "operationId" | "provenance">>,
   ): ScopeOnboardingOperation {
-    const next = {
-      ...operation,
-      ...fields,
-      provenance: {
-        ...operation.provenance,
-        lastUpdatedAt: this.#now().toISOString(),
-      },
-    };
-    if (
-      fields.readiness !== undefined ||
-      next.state === "succeeded" ||
-      next.state === "cancelled"
-    ) {
-      return next;
+    const next = { ...operation, ...fields };
+    if (fields.readiness === undefined && next.state !== "succeeded" && next.state !== "cancelled") {
+      next.readiness = this.#checkpointReadiness(next);
     }
-    return { ...next, readiness: this.#checkpointReadiness(next) };
+    if (isDeepStrictEqual(next, operation)) return operation;
+    return {
+      ...next,
+      provenance: { ...operation.provenance, lastUpdatedAt: this.#now().toISOString() },
+    };
   }
 
   #checkpointReadiness(operation: ScopeOnboardingOperation): ScopeOnboardingReadiness {

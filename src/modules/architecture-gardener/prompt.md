@@ -28,7 +28,10 @@ a false positive, insufficient evidence, or a verified completed simplification;
 explain which applies. For `propose`, name the observed problem, maintained
 consumers, alternatives, migration and retirement, unverified expected benefit,
 and the strongest proportionate preservation and simplification proof a builder
-needs. Use a stable mechanismKey for the same outcome across request surfaces.
+needs. Use a stable mechanismKey for the same outcome across request surfaces and
+choose priority from demonstrated urgency. In `revisit`, explain what could change
+the decision and select only observation IDs whose changes would matter.
+Structural changes and linked implementation outcomes remain independently visible.
 Do not claim a measured improvement, preserved invariants or an accepted Pareto
 result from an unimplemented proposal. A task count or deletion quota is not a goal.
 

@@ -74,6 +74,12 @@ function stderr(): TerminalTransport {
 }
 
 let stdoutRenderer: TerminalTransport | null = null;
+const harnessWriter = {
+  write(text: string): boolean {
+    writeStdout(text);
+    return true;
+  },
+};
 function stdout(): TerminalTransport {
   if (!stdoutRenderer) stdoutRenderer = new TerminalTransport({ stream: process.stdout });
   return stdoutRenderer;
@@ -349,6 +355,7 @@ program
             abortController,
           },
           conversation: conversationOptions,
+          writer: harnessWriter,
         }),
       );
       if (!result.streamedText && result.text) writeStdout(result.text);
@@ -484,7 +491,7 @@ async function checkPipeMode() {
               process.cwd(),
               process.cwd(),
             ),
-          }),
+          }, harnessWriter),
         );
         if (!result.streamedText && result.text) writeStdout(result.text);
         stdout().write(blank());

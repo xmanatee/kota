@@ -33,7 +33,7 @@ export function decideJudgeResponse(input: {
     const classification = classifyAgentRuntimeFailure({ message: response.text, subtype: response.subtype });
     return classification?.retryable && attempt < maxAttempts
       ? { kind: "retry", error, formatReminder: false, emptyOutputFailures: 0 }
-      : { kind: "reject", error };
+      : { kind: "reject", error: new AgentStepRuntimeError(error.message, classification?.kind ?? "runtime", false) };
   }
   const emptyOutputFailures = isEmptyAgentOutputSubtype(response.subtype)
     ? input.emptyOutputFailures + 1 : 0;
@@ -51,5 +51,5 @@ export function decideJudgeResponse(input: {
   );
   return attempt < maxAttempts
     ? { kind: "retry", error, formatReminder: true, emptyOutputFailures }
-    : { kind: "reject", error };
+    : { kind: "reject", error: new AgentStepRuntimeError(error.message, "output_contract", false) };
 }

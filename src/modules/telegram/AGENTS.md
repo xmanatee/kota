@@ -79,7 +79,7 @@ notification forwarding.
   vendor API directly; absence of a registered provider surfaces as an
   explicit failure, not a silent drop.
 - Prefix-configured Telegram updates emit `inbound.signal.received` with
-  scope scope, Telegram source metadata, and chat trust. Supported update
+  scope identity, Telegram source metadata, and chat trust. Supported update
   kinds include text, media captions, transcribed voice/audio, edited messages,
   reactions, generic callbacks, and chat membership/status updates. True
   online presence and message deletion signals are not exposed to bots, so the
@@ -102,47 +102,9 @@ notification forwarding.
 - Does not add provider-local automation planning for chat messages; configured
   updates enter the shared inbound-signals dispatcher.
 
-## Operator Deployment
-
-Run KOTA as a Telegram-channeled personal assistant by running the daemon
-alongside a transcription provider. One process owns the daemon, both
-Telegram channels, the scheduler, and all workflows — there is no second
-process to supervise.
-
-Required environment:
-
-- `TELEGRAM_BOT_TOKEN` — BotFather-issued token for the bot account.
-- `TELEGRAM_ALERT_CHAT_ID` — chat id that receives notification events
-  and is allowed to issue `/status`.
-
-Model selection is KOTA config. Docker deploys derive it in
-`deploy/telegram-assistant/entrypoint.sh` from `KOTA_MODEL` and provider
-credentials, or use an explicit preset.
-
-Autonomy mode is mandatory — the interactive channel refuses to start without
-one. Set it through `modules.telegram.defaultAutonomyMode` (or the shared
-`serve.defaultAutonomyMode`). Restrict interactive sessions via
-`modules.telegram.allowedChatIds`; empty or unset allows any chat.
-
-Owner-question escalations flow through `OwnerQuestionQueue` from inline
-buttons (`telegram-inline`), chat replies to the delivered question
-(`telegram-reply`), and the `kota owner-question` CLI (`http`/CLI). The first
-resolution wins; stale or unrelated replies fall through to the interactive
-session. The chat allowlist applies to replies like ordinary messages.
-
-Voice input requires a transcription provider. Install a module that
-registers one under service type `"transcription"`; missing providers
-produce a user-visible failure message rather than a silent drop.
-
-Start the server-side stack by running `kota daemon` with the telegram
-module loaded. The daemon brings up the `telegram-status` declaration and
-the `telegram-interactive` poller automatically when the required env vars
-are present. `telegram-status` must not call `getUpdates`; Telegram cancels
-older long polls when more than one consumer uses the same bot token.
-
-A reproducible Linux deploy artifact lives in `deploy/telegram-assistant/`.
-It packages docker-compose and systemd paths behind `install.sh` and
-`rollback.sh`; keep `deploy-artifact.test.ts` aligned with that contract.
+Owner-question escalations share the core queue: the first resolution wins;
+stale or unrelated replies fall through to the interactive session. The chat
+allowlist applies to replies as it does to ordinary messages.
 
 ## Verification ownership
 

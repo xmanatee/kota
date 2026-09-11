@@ -26,7 +26,7 @@ export function inspectEvaluatorCalibrationInWorker(input: {
   scopeRoot: string;
 }): EvaluatorCalibrationInspection {
   const config = resolveCalibrationGateConfig();
-  const criticPromptHash = getCriticPromptHash();
+  const criticPromptHash = getCriticPromptHash(input.scopeRoot);
   const aggregate = aggregateCalibration(
     join(input.stateDir, "runs"),
     {

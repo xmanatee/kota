@@ -1,5 +1,5 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { TransactionalRunState } from "./run-context.js";
+import type { RunEvidenceReader, TransactionalRunState } from "./run-context.js";
 import type { RepositoryAccess } from "./run-sandbox.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
@@ -103,10 +103,12 @@ export type WorkflowPostReconcileInvariantInput = Readonly<{
   workspaceRoot: string;
   /** Clean canonical repository at `canonicalHead`. */
   repoRoot: string;
-  /** Canonical durable runtime-state directory for this scope. */
+  /** Canonical scope artifact directory. */
   stateDir: string;
   /** Durable identity of the writer whose publication is being guarded. */
   runId: string;
+  /** Fresh scope-filtered ownership observations from the runtime. */
+  runEvidence?: RunEvidenceReader;
   /** Read the latest canonical scope state without using the run's snapshot. */
   readState: <T = unknown>(key: string) => Readonly<{
     revision: number;
@@ -130,7 +132,7 @@ export type WorkflowPostReconcileInvariant = (
 
 export type WorkflowResourceInput = {
   scopeRoot: string;
-  /** Canonical durable runtime-state directory for this scope. */
+  /** Canonical scope artifact directory. */
   stateDir: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;

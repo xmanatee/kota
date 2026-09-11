@@ -1,43 +1,6 @@
-/**
- * Cross-preset operator-shaped runtime parity gate.
- *
- * Boots `node dist/cli.js` under each preset returned by the shipped registry
- * and runs a deterministic single-turn scenario, the smallest
- * operator-visible end-to-end probe that proves the preset switch actually
- * propagates from the CLI flag through harness resolution to the model id
- * the adapter sends. Pairs with `src/preset-parity-model-sweep.test.ts`,
- * which is the stand-alone fast-feedback unit test of the same invariant
- * without paying for a CLI spawn or a real provider call.
- *
- * Per-preset preflight behavior:
- *   - Each preset records the shared harness-readiness object: auth
- *     alternatives, local runtime probe, selected model/effort availability,
- *     adapter kind, and unsupported neutral-option boundaries.
- *   - When auth, required local runtime, and the selected model/effort are
- *     ready, the scenario runs:
- *     `node dist/cli.js -p "Reply with the single word OK"` with
- *     `KOTA_PRESET=<id>` and the full env passed through.
- *   - When any required readiness is missing, both the preflight
- *     assertion and the scenario test loud-skip via `it.skipIf`; the skip
- *     title names the actionable reason and `preflight.json` preserves the
- *     structured readiness payload for diagnosis.
- *
- * Run-artifact layout (per task contract): every preset's recordings land
- * under `.kota/runs/<run-id>/preset-parity/<preset-id>/`:
- *   - `preflight.json` — auth/runtime/model readiness snapshot, missing list,
- *     decision, and structured per-preset readiness.
- *   - `transcript.txt` — full stdout + stderr from the spawned CLI.
- *   - `result.json` — exit code, observed model id banner, response text.
- * The directory is the postmortem evidence the task asks for.
- *
- * Constraints honored:
- *   - No `--harness` flipping. Preset selection is via `KOTA_PRESET`, not
- *     by overriding the harness — that is the whole point of the gate.
- *   - No silent skip on flaky network. A preset whose authEnv is satisfied
- *     but whose scenario fails on a transient provider error retries once
- *     and then surfaces the failure.
- *   - No cost figures fed back into autonomy. This test prints cost only
- *     in operator-facing artifacts, never as an input to a scenario step.
+/** Explicit live CLI smoke across configured presets; invoked by test:preset-parity.
+ * Provider readiness and responses are environment-dependent and belong outside
+ * deterministic checks. Preserve per-preset transcripts for operator inspection.
  */
 import {
   type ChildProcess,
@@ -46,13 +9,11 @@ import {
 import {
   existsSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  afterAll,
   beforeAll,
   describe,
   expect,
@@ -334,70 +295,8 @@ beforeAll(() => {
       "  transcript.txt — stdout/stderr tail of the spawned CLI.",
       "  result.json    — exit code, banner model id, response text.",
       "",
-      "Operator transcripts to capture for the task's Acceptance Evidence:",
-      "  1. All shipped presets passing on a host where every authEnv/login state is set.",
-      "  2. One env var unset → that preset's preflight.json carries decision=preflight-failure",
-      "     while the other two pass.",
-      "",
     ].join("\n"),
   );
-});
-
-afterAll(() => {
-  // Tests intentionally leave the run directory in place; the artifacts are
-  // the evidence. The repo's `.gitignore` excludes `.kota/runs/` so the
-  // working tree is unaffected.
-});
-
-describe("preset-parity gate — per-preset preflight", () => {
-  for (const preset of listShippedPresets()) {
-    // Record the preflight artifact unconditionally so the cross-preset
-    // sweep below sees the per-preset decision even when the assertion
-    // skips. The artifact's `message` field carries the same single-line
-    // "preset X requires Y" wording the CLI doctor emits.
-    const artifact = recordPreflight(preset);
-    const missingLabel = artifact.missing.length > 0
-      ? artifact.missing.join(" or ")
-      : !artifact.readiness.auth.ready
-        ? artifact.readiness.auth.summary
-      : artifact.readiness.adapter.localRuntime.status !== "ready"
-        ? artifact.readiness.adapter.localRuntime.summary
-        : artifact.readiness.adapter.modelEffort !== undefined &&
-            artifact.readiness.adapter.modelEffort.status !== "ready"
-          ? artifact.readiness.adapter.modelEffort.summary
-        : null;
-    const skip = artifact.decision === "preflight-failure";
-    const titleSuffix = skip
-      ? ` — SKIPPED (preset "${preset.id}" not ready: ${missingLabel}; preflight.json recorded preflight-failure)`
-      : "";
-    const authExpectation = preset.authEnv.length === 0
-      ? "harness-managed auth is accepted"
-      : `at least one of ${preset.authEnv.join(" or ")} is set`;
-    it.skipIf(skip)(
-      `preset=${preset.id}: ${authExpectation}${titleSuffix}`,
-      () => {
-        expect(artifact.decision).toBe("scenario-runnable");
-        expect(artifact.missing).toEqual([]);
-      },
-    );
-  }
-});
-
-describe("preset-parity gate — dynamic selection contract", () => {
-  it("passes each selection-aware harness its active preset model and effort", () => {
-    const observed: NonNullable<
-      PresetHarnessReadiness["adapter"]["modelEffort"]
-    >[] = [];
-    for (const preset of listShippedPresets()) {
-      const selection = collectPresetHarnessReadiness(preset).adapter.modelEffort;
-      if (selection === undefined) continue;
-      observed.push(selection);
-      expect(selection.model).toBe(preset.defaultModel);
-      expect(selection.effort).toBe(preset.defaultEffort);
-      expect(selection.adapterModel.length).toBeGreaterThan(0);
-    }
-    expect(observed.length).toBeGreaterThan(0);
-  });
 });
 
 describe("preset-parity gate — single-turn scenario (boot + first response)", () => {
@@ -410,7 +309,7 @@ describe("preset-parity gate — single-turn scenario (boot + first response)", 
     const runner = skipReason ? it.skip : it;
     const scenarioTimeoutMs = preset.authEnv.length > 0 ? 120_000 : 30_000;
     runner(
-      `preset=${preset.id}: \`KOTA_PRESET=${preset.id} kota -p "Reply with OK"\` emits a banner naming the preset's defaultModel${
+      `preset=${preset.id}: \`KOTA_PRESET=${preset.id} kota run "Reply with OK"\` emits a banner naming the preset's defaultModel${
         skipReason ? ` — SKIPPED (${skipReason})` : ""
       }`,
       async () => {
@@ -448,49 +347,3 @@ describe("preset-parity gate — single-turn scenario (boot + first response)", 
   }
 });
 
-describe("preset-parity gate — model-id sweep across recorded scenarios", () => {
-  it("every recorded banner-model-id matches its active preset's defaultModel (or the preset's preflight-failure was recorded)", () => {
-    const offenders: { presetId: string; banner: string; expected: string }[] = [];
-    const skipped: string[] = [];
-    for (const preset of listShippedPresets()) {
-      const dir = presetRunDir(preset.id);
-      const preflightPath = join(dir, "preflight.json");
-      const resultPath = join(dir, "result.json");
-      if (!existsSync(preflightPath)) {
-        // The preflight test owns the per-preset existence assertion; this
-        // sweep is the cross-cutting summary that runs after both blocks.
-        continue;
-      }
-      const preflight: PreflightArtifact = JSON.parse(
-        readFileSync(preflightPath, "utf-8"),
-      );
-      if (preflight.decision === "preflight-failure") {
-        skipped.push(preset.id);
-        continue;
-      }
-      if (!existsSync(resultPath)) continue;
-      const scenario = JSON.parse(readFileSync(resultPath, "utf-8")) as {
-        bannerModelId: string | null;
-      };
-      if (
-        scenario.bannerModelId !== null &&
-        scenario.bannerModelId !== preset.defaultModel
-      ) {
-        offenders.push({
-          presetId: preset.id,
-          banner: scenario.bannerModelId,
-          expected: preset.defaultModel,
-        });
-      }
-    }
-    expect(
-      offenders,
-      `Banner model ids drifted from active preset defaults:\n${offenders
-        .map(
-          (o) =>
-            `  ${o.presetId}: banner=${o.banner} expected=${o.expected}`,
-        )
-        .join("\n")}\n\nSkipped (preflight failure): ${skipped.join(", ") || "<none>"}`,
-    ).toEqual([]);
-  });
-});

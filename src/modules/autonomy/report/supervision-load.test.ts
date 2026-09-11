@@ -42,7 +42,6 @@ describe("buildSupervisionLoadReport", () => {
       runs: [],
       tasks,
       windowEndMs: NOW,
-      reviewScrutiny: emptyAutonomyReportData.reviewScrutiny,
       postCompletionFollowUps: emptyAutonomyReportData.postCompletionFollowUps,
     });
 
@@ -62,7 +61,6 @@ describe("buildSupervisionLoadReport", () => {
       openDeadLetters: 0,
       attentionItems: 0,
       postCompletionFollowUps: 0,
-      reviewEvidenceGaps: 0,
     });
   });
 
@@ -100,7 +98,6 @@ describe("buildSupervisionLoadReport", () => {
       runs,
       tasks,
       windowEndMs: NOW,
-      reviewScrutiny: emptyAutonomyReportData.reviewScrutiny,
       postCompletionFollowUps: emptyAutonomyReportData.postCompletionFollowUps,
     });
 
@@ -161,7 +158,6 @@ describe("buildSupervisionLoadReport", () => {
       runs: [run],
       tasks: [task],
       windowEndMs: NOW,
-      reviewScrutiny: emptyAutonomyReportData.reviewScrutiny,
       postCompletionFollowUps: emptyAutonomyReportData.postCompletionFollowUps,
     });
 
@@ -181,34 +177,6 @@ describe("buildSupervisionLoadReport", () => {
     );
   });
 
-  it("weights review evidence gaps as supervision pressure", () => {
-    createKnownStores(workspaceRoot);
-    const tasks = [
-      writeTask(workspaceRoot, "open", "task-active", "p1"),
-      writeTask(workspaceRoot, "open", "task-open", "p2"),
-    ];
-
-    const report = buildSupervisionLoadReport({
-      workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      runsDir,
-      runs: [],
-      tasks,
-      windowEndMs: NOW,
-      reviewScrutiny: {
-        ...emptyAutonomyReportData.reviewScrutiny,
-        thinAcceptances: 1,
-        absentMetricCount: 1,
-        unsupportedArtifacts: 1,
-      },
-      postCompletionFollowUps: emptyAutonomyReportData.postCompletionFollowUps,
-    });
-
-    expect(report.counts.reviewEvidenceGaps).toBe(3);
-    expect(report.score.knownScore).toBe(3);
-    expect(report.status).toBe("busy");
-  });
-
   it("renders missing and unreadable stores as unknown evidence instead of zero load", () => {
     writeTask(workspaceRoot, "open", "task-active", "p1");
     mkdirSync(join(workspaceRoot, ".kota", "approvals"), { recursive: true });
@@ -225,7 +193,6 @@ describe("buildSupervisionLoadReport", () => {
       runs: [],
       tasks: [],
       windowEndMs: NOW,
-      reviewScrutiny: emptyAutonomyReportData.reviewScrutiny,
       postCompletionFollowUps: emptyAutonomyReportData.postCompletionFollowUps,
     });
 

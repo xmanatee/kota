@@ -110,23 +110,10 @@ describe("writeProgressReviewArtifact", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("writes progress-review and review-scrutiny artifacts", () => {
-    const artifactPath = writeProgressReviewArtifact(dir, makeArtifact(), {
-      runId: "progress-run",
-      workflow: "progress-reviewer",
-    });
+  it("writes the original progress review artifact", () => {
+    const artifactPath = writeProgressReviewArtifact(dir, makeArtifact());
 
     expect(existsSync(artifactPath)).toBe(true);
-    const scrutiny = JSON.parse(
-      readFileSync(join(dir, "review-scrutiny.json"), "utf8"),
-    );
-    expect(scrutiny).toMatchObject({
-      runId: "progress-run",
-      workflow: "progress-reviewer",
-      surface: "progress-reviewer",
-      decision: "on-track",
-      thinAcceptance: true,
-      absentMetrics: ["warningCount", "citedFileLineCount"],
-    });
+    expect(JSON.parse(readFileSync(artifactPath, "utf8"))).toEqual(makeArtifact());
   });
 });

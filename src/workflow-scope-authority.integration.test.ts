@@ -62,7 +62,10 @@ describe("workflow machine-authority isolation", () => {
     await expect(context.runTool(TOOL_NAME, {
       path: authorityConfigPath,
       content: "project-controlled\n",
-    })).rejects.toThrow(/operator-owned machine authority cannot be changed/);
+    })).resolves.toMatchObject({
+      is_error: true,
+      content: expect.stringContaining("operator-owned machine authority cannot be changed"),
+    });
     expect(readFileSync(authorityConfigPath, "utf8")).toBe("operator-owned\n");
   });
 });

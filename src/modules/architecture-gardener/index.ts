@@ -1,4 +1,5 @@
 import type { KotaModule } from "#core/modules/module-types.js";
+import { kotaRuntimeAssetRoot } from "#core/util/kota-install-paths.js";
 import { buildArchitectureGardenerCommand } from "./cli-command.js";
 import { architectureReviewRequested } from "./events.js";
 import {
@@ -21,7 +22,7 @@ const architectureGardenerModule: KotaModule = {
     architectureReviewRequested,
   ],
   agents: [agent],
-  workflows: [architectureGardenerWorkflow],
+  workflows: [{ ...architectureGardenerWorkflow, moduleRoot: kotaRuntimeAssetRoot }],
   commands: (ctx) => [buildArchitectureGardenerCommand(ctx)],
   controlRoutes: (ctx) => buildGardenerControlRoutes(ctx),
   uiSurfaces: (ctx) => [buildArchitectureGardenerUiSurfaceSource(ctx)],

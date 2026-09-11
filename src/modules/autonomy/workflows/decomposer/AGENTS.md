@@ -1,6 +1,8 @@
 # Decomposer Workflow
 
-Decomposer rescopes a failed builder task after timeout or exhausted repair.
+Decomposer diagnoses failed builder scope after timeout or exhausted repair.
+A coherent task may remain unchanged; replacement requires independently useful
+outcomes and approval before any mutation.
 
 - It triggers only from a failed builder completion and reads the canonical run
   metadata and immutable builder trigger contract from `.kota/runs/<run-id>`.
@@ -14,7 +16,7 @@ Decomposer rescopes a failed builder task after timeout or exhausted repair.
   `RunLifecycle` supplies the sandbox and `IntegrationQueue` publishes the
   result only after the failed builder's source task contract still matches
   the canonical snapshot used for the final rebase.
-- Planning and review agents are read-only. Review compares the plan with the
+- Planning and review agents are read-only. Only replacement plans reach review, which compares them with the
   exact screened task markdown before mutation.
 - `apply-decomposition` is the only semantic mutation path. It uses repo-tasks
   operations to create dependency-linked open tasks, annotate the original,

@@ -18,8 +18,6 @@ const HARD_CORRECTIVE_REASONS = new Set<PostCompletionCorrectiveReason>([
   "regression",
   "ci-build-failure",
   "security",
-  "review-scrutiny",
-  "trajectory-diagnostic",
   "workflow-failure",
   "missing-evidence",
 ]);
@@ -81,12 +79,6 @@ export function classifyCorrectiveReasons(
   }
   if (/\b(security|secret|credential|permission|sandbox|injection|approval|destructive)\b/.test(text)) {
     reasons.push("security");
-  }
-  if (/\b(review-scrutiny|thin acceptance|thin approval|semantic-gate)\b/.test(text)) {
-    reasons.push("review-scrutiny");
-  }
-  if (/\btrajectory-diagnostic|trajectory diagnostics\b/.test(text)) {
-    reasons.push("trajectory-diagnostic");
   }
   if (/\bworkflow-failure|workflow failure|consecutive failures\b/.test(text)) {
     reasons.push("workflow-failure");

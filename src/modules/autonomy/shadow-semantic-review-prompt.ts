@@ -5,7 +5,7 @@ import {
   objectArray,
   stringArray,
   stringValue,
-} from "./review-scrutiny-types.js";
+} from "./review-outcomes-types.js";
 import type {
   ShadowSemanticReviewerDeclaration,
   ShadowSemanticReviewerResponse,

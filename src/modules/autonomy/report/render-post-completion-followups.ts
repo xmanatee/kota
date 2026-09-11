@@ -79,8 +79,6 @@ function reasonRole(
     case "security":
     case "missing-evidence":
       return "error";
-    case "review-scrutiny":
-    case "trajectory-diagnostic":
     case "workflow-failure":
       return "warn";
     case "operator-report":

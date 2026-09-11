@@ -43,7 +43,6 @@ import { getAgentLoopTokenBudget, setAgentLoopTokenBudget } from "./loop-token-b
 import { loadScopeContext } from "./scope-context.js";
 import { SessionStateMachine } from "./session-state.js";
 import { NullTransport, ProxyTransport } from "./transport.js";
-import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
 
 export function initAgentSession(
   state: AgentLoopState,
@@ -204,7 +203,6 @@ export function initAgentSession(
   state.historyProvider = options.historyProvider;
   state.historySource = options.historySource ?? "user";
 
-  state.verifyTracker = new VerifyTracker(detectVerifyCommands(scopeRoot));
 
   if (state.ownsModuleRuntime) {
     state.moduleLoader.setCwd(scopeRoot);

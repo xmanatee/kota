@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   defineWorkflowBlockingOperation,
   type WorkflowBlockingOperationContext,
@@ -58,45 +56,3 @@ export const criticReviewInspectionOperation =
     CriticReviewInspectionInput,
     CriticReviewInspectionResult
   >(import.meta.url, "inspectCriticReviewInWorker");
-
-export type ImproverSemanticInspectionInput = {
-  workspaceRoot: string;
-  runDirPath: string;
-};
-
-export type ImproverSemanticInspectionResult =
-  | { status: "no-changes" }
-  | {
-      status: "open";
-      changedFiles: string;
-      diffStat: string;
-      diffContent: string;
-      commitMessage: string;
-    };
-
-export function inspectImproverSemanticReviewInWorker(
-  input: ImproverSemanticInspectionInput,
-): ImproverSemanticInspectionResult {
-  const changedFiles = getWorkflowChangedFiles(input.workspaceRoot);
-  if (!changedFiles.trim()) return { status: "no-changes" };
-
-  const diffStat = getWorkflowDiffStat(input.workspaceRoot);
-  const diffContent = getWorkflowDiffContent(input.workspaceRoot);
-  const commitMessagePath = join(input.runDirPath, "commit-message.txt");
-  const commitMessage = existsSync(commitMessagePath)
-    ? readFileSync(commitMessagePath, "utf8").trim()
-    : "(no commit message found)";
-  return {
-    status: "open",
-    changedFiles,
-    diffStat,
-    diffContent,
-    commitMessage,
-  };
-}
-
-export const improverSemanticInspectionOperation =
-  defineWorkflowBlockingOperation<
-    ImproverSemanticInspectionInput,
-    ImproverSemanticInspectionResult
-  >(import.meta.url, "inspectImproverSemanticReviewInWorker");

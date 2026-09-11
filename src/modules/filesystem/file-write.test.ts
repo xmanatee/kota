@@ -1,14 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { checkFreshness, recordRead } from "#core/file-tracking/file-tracker.js";
 import { runFileWrite } from "./file-write.js";
 
-const TEST_DIR = join(process.cwd(), ".test-file-write");
-
-beforeAll(() => {
-  mkdirSync(TEST_DIR, { recursive: true });
-});
+const TEST_DIR = mkdtempSync(join(tmpdir(), "kota-file-write-"));
 
 afterAll(() => {
   rmSync(TEST_DIR, { recursive: true, force: true });

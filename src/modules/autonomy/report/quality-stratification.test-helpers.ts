@@ -1,9 +1,5 @@
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type {
-  ReviewScrutinyRecord,
-  ReviewScrutinyReport,
-} from "#modules/autonomy/review-scrutiny.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import { buildQualityStratificationReport } from "./quality-stratification.js";
@@ -18,8 +14,6 @@ export function buildReport(
   overrides: {
     tasks: RepoTaskFullRecord[];
     runs: WorkflowRunMetadata[];
-    reviewScrutiny?: ReviewScrutinyReport;
-    priorReviewScrutiny?: ReviewScrutinyReport;
     postCompletionFollowUps?: PostCompletionFollowUpReport;
     priorPostCompletionFollowUps?: PostCompletionFollowUpReport;
   },
@@ -30,8 +24,6 @@ export function buildReport(
     runsDir,
     windowStartMs: WINDOW_START,
     windowEndMs: NOW,
-    reviewScrutiny: overrides.reviewScrutiny ?? reviewReport([]),
-    priorReviewScrutiny: overrides.priorReviewScrutiny ?? reviewReport([]),
     postCompletionFollowUps: overrides.postCompletionFollowUps ?? emptyPostReport(),
     priorPostCompletionFollowUps: overrides.priorPostCompletionFollowUps ?? emptyPostReport(),
   });
@@ -95,67 +87,6 @@ export function run(
         harness,
       },
     ],
-  };
-}
-
-export function reviewRuns(
-  prefix: string,
-  workflow: string,
-  harness: string,
-  count: number,
-  startedMs: number,
-): WorkflowRunMetadata[] {
-  return Array.from({ length: count }, (_, index) =>
-    run(`${prefix}-${index}`, workflow, startedMs + index, harness)
-  );
-}
-
-export function reviewRecords(
-  prefix: string,
-  workflow: string,
-  taskId: string,
-  count: number,
-  thinCount: number,
-): ReviewScrutinyRecord[] {
-  return Array.from({ length: count }, (_, index) =>
-    reviewRecord(`${prefix}-${index}`, "critic", workflow, index < thinCount, taskId)
-  );
-}
-
-export function reviewRecord(
-  runId: string,
-  surface: ReviewScrutinyRecord["surface"],
-  workflow: string,
-  thinAcceptance: boolean,
-  taskId: string | undefined,
-): ReviewScrutinyRecord {
-  return {
-    schemaVersion: 2,
-    surface,
-    runId,
-    workflow,
-    generatedAt: new Date(NOW).toISOString(),
-    artifact: "critic-review.json",
-    taskId,
-    decision: "pass",
-    signals: {},
-    absentMetrics: [],
-    thinAcceptance,
-  };
-}
-
-export function reviewReport(records: ReviewScrutinyRecord[]): ReviewScrutinyReport {
-  return {
-    totalReviews: records.length,
-    approvalLikeDecisions: records.length,
-    thinAcceptances: records.filter((record) => record.thinAcceptance).length,
-    absentMetricCount: 0,
-    unsupportedArtifacts: 0,
-    bySurface: [],
-    thinAcceptanceRefs: [],
-    absentMetricRefs: [],
-    records,
-    unsupported: [],
   };
 }
 

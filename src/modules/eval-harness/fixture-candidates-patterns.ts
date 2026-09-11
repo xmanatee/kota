@@ -113,34 +113,6 @@ function trajectoryDiagnosticSignals(
   });
 }
 
-function hasThinAcceptance(value: JsonValue | undefined): boolean {
-  if (Array.isArray(value)) return value.some(hasThinAcceptance);
-  if (!isJsonObject(value)) return false;
-  if (value.thinAcceptance === true) return true;
-  const thinAcceptances = numberFromJson(value.thinAcceptances);
-  if (thinAcceptances !== null && thinAcceptances > 0) return true;
-  if (asArray(value.thinAcceptanceRefs).length > 0) return true;
-  return Object.values(value).some(hasThinAcceptance);
-}
-
-function reviewScrutinySignal(
-  metadata: RunMetadata,
-  relativePath: string,
-  value: JsonValue,
-): RunPatternSignal | null {
-  if (!/review-scrutiny\.json$/.test(relativePath) && !hasThinAcceptance(value)) {
-    return null;
-  }
-  if (!hasThinAcceptance(value)) return null;
-  return {
-    kind: "review-scrutiny-thin-acceptance",
-    signature: ["review-scrutiny", metadata.workflow, relativePath].join(":"),
-    title: `Review-scrutiny thin acceptance in ${metadata.workflow}`,
-    summary: `Review-scrutiny evidence in ${relativePath} records a thin acceptance.`,
-    evidencePaths: [runArtifactPath(metadata, relativePath)],
-    suggestedEvaluator: "artifact-schema-check",
-  };
-}
 
 function hasRepairFailure(value: JsonValue | undefined): boolean {
   if (Array.isArray(value)) return value.some(hasRepairFailure);
@@ -233,8 +205,6 @@ export function collectPatternSignals(
       for (const signal of trajectoryDiagnosticSignals(metadata, relativePath, value)) {
         pushPatternSignal(signals, signal);
       }
-      const scrutinySignal = reviewScrutinySignal(metadata, relativePath, value);
-      if (scrutinySignal !== null) pushPatternSignal(signals, scrutinySignal);
     } catch {
     }
   }

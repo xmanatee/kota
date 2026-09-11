@@ -79,7 +79,7 @@ it("admits scoped API/CLI requests, investigates once, and rejects unknown scope
       expect(options.cwd).not.toBe(other);
       expect(options.agentWriteScope).toBe("deny-all");
       expect(options.prompt).toContain("inspect-evidence");
-      const decision = { action: "no-action", rationale: "The selected scope has no implementations to consolidate.", evidenceRefs: ["src/ (absent in selected scope)"], existingTaskId: null, proposal: null };
+      const decision = { revisit: { reason: "Revisit when the observed boundary changes", observationIds: [] }, action: "no-action", rationale: "The selected scope has no implementations to consolidate.", evidenceRefs: ["src/ (absent in selected scope)"], existingTaskId: null, proposal: null };
       const text = `\`\`\`json\n${JSON.stringify(decision)}\n\`\`\``;
       return { text, streamedText: text, turns: 1, isError: false,
         usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } } };

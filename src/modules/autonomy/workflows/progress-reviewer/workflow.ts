@@ -4,6 +4,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   automaticProgressReviewRequested,
   progressReviewRequested,
@@ -25,7 +26,6 @@ import {
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
   recordReviewRejection,
-  validateChanges,
   writeArtifact,
   writeCommitMessage,
 } from "./workflow-steps.js";
@@ -33,7 +33,7 @@ import {
 const progressReviewerWorkflow: WorkflowDefinitionInput = {
   name: "progress-reviewer",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   finalize: finalizeProgressReview,
   description:
     "Review coalesced cross-run outcomes and follow systemic interventions through integration and later evidence.",
@@ -80,8 +80,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     applyActions,
     writeArtifact,
     writeCommitMessage,
-    validateChanges,
-    {
+      {
       id: "emit-attention",
       type: "emit",
       when: (ctx) => {

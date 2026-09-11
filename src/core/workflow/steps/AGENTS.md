@@ -133,7 +133,7 @@ status, Node error codes, and narrow SDK-specific text markers). See
 `classifyAgentRuntimeFailure` for the full signal table. Do not add broad
 fuzzy string matches to the classifier. The same classifier governs autonomy
 agent judges; see `src/modules/autonomy/AGENTS.md` for the judge-wrapper rule
-that protects repair loops from runaway-judge throws.
+that separates unavailable review from rejected repository behavior.
 
 The workflow harness runner applies this classifier to every workflow-owned
 agent call. A classified provider result activates `AgentBackoffManager`

@@ -31,7 +31,6 @@ export function fixtureCandidateFingerprint(args: {
 
 const PATTERN_PRIORITY: readonly RunPatternSignal["kind"][] = [
   "recurring-trajectory-warning",
-  "review-scrutiny-thin-acceptance",
   "repair-loop-failure",
   "workflow-schema-validation-failure",
   "terminal-trace",
@@ -91,8 +90,6 @@ export function preservationRationale(pattern: FixtureCandidatePattern): string 
   switch (pattern.kind) {
     case "recurring-trajectory-warning":
       return `Preserve the ${pattern.occurrenceCount > 1 ? "recurring " : ""}trajectory warning as a regression target before changing harness, reviewer, or workflow behavior.`;
-    case "review-scrutiny-thin-acceptance":
-      return "Preserve a reviewer thin-acceptance case so future reviewer or critic changes prove stronger evidence requirements.";
     case "repair-loop-failure":
       return "Preserve the repair-loop failure as a regression target for deterministic repair checks and workflow execution behavior.";
     case "workflow-schema-validation-failure":

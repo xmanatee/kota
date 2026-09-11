@@ -1,13 +1,7 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  buildCriticReviewScrutinyRecord,
-  runIdFromRunDir,
-  writeReviewScrutinyRecord,
-} from "./review-scrutiny.js";
-import {
-  REVIEW_SCRUTINY_ARTIFACT,
-} from "./review-scrutiny-types.js";
+
+export const CRITIC_REVIEW_ARTIFACT = "critic-review.json";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -16,30 +10,28 @@ export type CriticVerdict = {
   summary: string;
 };
 
-export function clearCriticOutcomeArtifacts(runDir: string): void {
-  // A repair loop can invoke the critic more than once. These artifacts
-  // represent only the final invocation, so clear the prior outcome before
+export function clearCriticOutcomeArtifact(runDir: string): void {
+  // A repair loop can invoke the critic more than once. The artifact
+  // represents only the final invocation, so clear the prior outcome before
   // starting another judge attempt.
-  rmSync(join(runDir, "critic-review.json"), { force: true });
-  rmSync(join(runDir, REVIEW_SCRUTINY_ARTIFACT), { force: true });
+  rmSync(join(runDir, CRITIC_REVIEW_ARTIFACT), { force: true });
 }
 
-type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
-type JsonObject = { [key: string]: JsonValue | undefined };
+type JsonObject = Record<string, unknown>;
 
-function isJsonObject(value: JsonValue): value is JsonObject {
+function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isCriticVerdictValue(value: JsonValue | undefined): value is CriticVerdict["verdict"] {
+function isCriticVerdictValue(value: unknown): value is CriticVerdict["verdict"] {
   return value === "pass" || value === "fail" || value === "pass_with_warnings";
 }
 
-function isString(value: JsonValue | undefined): value is string {
+function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function readStringArray(value: JsonValue | undefined): string[] {
+function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value) || !value.every(isString)) {
     throw new Error("Critic issue and warning fields must be string arrays");
   }
@@ -48,7 +40,7 @@ function readStringArray(value: JsonValue | undefined): string[] {
 
 function tryParseJsonObject(text: string): JsonObject | undefined {
   try {
-    const parsed: JsonValue = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
     return isJsonObject(parsed) ? parsed : undefined;
   } catch {
     return undefined;
@@ -73,7 +65,7 @@ export function parseVerdict(text: string): CriticVerdict {
   const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: JsonObject | undefined;
   try {
-    const parsedJson: JsonValue = JSON.parse(stripped);
+    const parsedJson: unknown = JSON.parse(stripped);
     parsed = isJsonObject(parsedJson) ? parsedJson : undefined;
   } catch {
     parsed = extractJson(text);
@@ -84,86 +76,51 @@ export function parseVerdict(text: string): CriticVerdict {
     );
   }
 
+  return decodeCriticVerdict(parsed);
+}
+
+/** Shared boundary for live output and persisted review evidence. */
+export function decodeCriticVerdict(parsed: unknown): CriticVerdict {
+  if (!isJsonObject(parsed)) throw new Error("Invalid critic verdict payload");
   if (!isCriticVerdictValue(parsed.verdict)) {
-    throw new Error(`Invalid verdict: ${parsed.verdict}`);
+    throw new Error(`Invalid critic verdict: ${String(parsed.verdict)}`);
   }
   if (typeof parsed.summary !== "string") throw new Error("Critic summary must be a string");
+  const criticalIssues = readStringArray(parsed.critical_issues);
+  const warnings = readStringArray(parsed.warnings);
+  if ((parsed.verdict === "fail") !== (criticalIssues.length > 0)) {
+    throw new Error("A failed verdict requires critical issues; an accepted verdict cannot contain them");
+  }
+  if ((parsed.verdict === "pass" && warnings.length > 0) ||
+      (parsed.verdict === "pass_with_warnings" && warnings.length === 0)) {
+    throw new Error("Warning disposition must agree with the reported warnings");
+  }
   return {
     verdict: parsed.verdict,
-    critical_issues: readStringArray(parsed.critical_issues),
-    warnings: readStringArray(parsed.warnings),
+    critical_issues: criticalIssues,
+    warnings,
     summary: parsed.summary,
   };
 }
 
 export function handleVerdict(
-  rawVerdict: CriticVerdict,
-  runDir?: string,
-  artifactName = "critic-review.json",
-  context?: {
-    runId?: string;
-    workflow?: string;
-    generatedAt?: string;
-    reviewerPromptHash?: string;
-    taskId?: string;
-    /** Keep agent-generated reviewer prose discoverable without preloading it into a repair prompt. */
-    failureDetailMode?: "inline" | "artifact-reference";
-  },
+  verdict: CriticVerdict & { reviewerPromptHash: string },
+  runDir: string,
 ): string {
-  const verdict = rawVerdict;
-  // Always persist the verdict so live-run calibration tracking can read it
-  // back later; operators inspecting a run that passed cleanly no longer need
-  // to infer the verdict from the step's repair-iteration output. Repeat
-  // critic invocations within one run overwrite the file so it reflects the
-  // final verdict.
-  if (runDir) {
-    const generatedAt = context?.generatedAt ?? new Date().toISOString();
-    writeFileSync(
-      join(runDir, artifactName),
-      JSON.stringify(
-        {
-          ...verdict,
-          generatedAt,
-          ...(context?.reviewerPromptHash
-            ? { reviewerPromptHash: context.reviewerPromptHash }
-            : {}),
-        },
-        null,
-        2,
-      ),
-    );
-    writeReviewScrutinyRecord(
-      runDir,
-      buildCriticReviewScrutinyRecord({
-        runId: context?.runId ?? runIdFromRunDir(runDir),
-        workflow: context?.workflow ?? "unknown",
-        generatedAt,
-        artifact: artifactName,
-        reviewerPromptHash: context?.reviewerPromptHash,
-        taskId: context?.taskId,
-        verdict,
-      }),
-    );
-  }
-
+  // Keep the final verdict at its existing evidence owner, including a rejected review.
+  const artifactPath = join(runDir, CRITIC_REVIEW_ARTIFACT);
+  writeFileSync(artifactPath, JSON.stringify({ ...verdict, generatedAt: new Date().toISOString() }, null, 2));
   if (verdict.verdict === "fail") {
-    if (runDir && context?.failureDetailMode === "artifact-reference") {
-      throw new Error(
-        `Critic found ${verdict.critical_issues.length} critical issue(s). ` +
-          `Review ${join(runDir, artifactName)} for the complete actionable evidence.`,
-      );
-    }
+    // Reviewer prose remains inspectable without preloading it into a repair prompt.
     throw new Error(
-      `Critic found ${verdict.critical_issues.length} critical issue(s):\n` +
-        verdict.critical_issues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n") +
-        (verdict.summary ? `\n\nSummary: ${verdict.summary}` : ""),
+      `Critic found ${verdict.critical_issues.length} critical issue(s). ` +
+      `Review ${artifactPath} for the complete actionable evidence.`,
     );
   }
-
   const parts = [`OK: critic verdict — ${verdict.verdict}`];
   if (verdict.summary) parts.push(verdict.summary);
   if (verdict.warnings.length > 0) {
-    parts.push(`(${verdict.warnings.length} warning(s) recorded in ${artifactName})`);
+    parts.push(`(${verdict.warnings.length} warning(s) recorded in ${CRITIC_REVIEW_ARTIFACT})`);
   }
   return parts.join(". ");
 }

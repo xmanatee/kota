@@ -12,6 +12,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import {
   EXPLORATION_REFRESH_MS,
@@ -96,7 +97,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   repository: "write",
   resources: () => ["autonomy:exploration"],
-  integration: { validationCommand },
+  integration: taskQueueIntegrationPolicy({ validationCommand }),
   finalize: finalizeExplorer,
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",

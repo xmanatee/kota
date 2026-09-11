@@ -15,6 +15,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy, taskQueueValidationCommand } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   type InboxSorterAssessment,
   inspectInboxSorterStateOperation,
@@ -102,7 +103,7 @@ const inboxSorterShadowReview = createShadowSemanticReviewStep({
 const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy(),
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],
@@ -127,8 +128,8 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
             run: async (ctx) =>
               workflowCommandOutput(
                 await ctx.runCommand({
-                  command: "pnpm",
-                  args: ["run", "validate-tasks"],
+                  command: taskQueueValidationCommand[0],
+                  args: taskQueueValidationCommand.slice(1),
                   cwd: ctx.workspaceRoot,
                 }),
               ),

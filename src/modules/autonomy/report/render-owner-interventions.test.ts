@@ -92,7 +92,7 @@ describe("renderOwnerInterventions", () => {
     const interventionSection = section(
       text,
       "Owner interventions",
-      "Review scrutiny",
+      "Review outcomes",
     );
     expect(interventionSection).toContain("owner-question:q1");
     expect(interventionSection).not.toContain("repair task");

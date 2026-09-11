@@ -274,11 +274,11 @@ describe("WorkflowRunStore cost aggregation", () => {
     const completed = run.finish({ status: "success", durationMs: 200 });
     expect(completed.usage).toEqual({
       tokens: { state: "partial", inputTokens: 100, outputTokens: 20 },
-      cost: { state: "unknown" },
+      cost: { state: "partial", usd: 0.03 },
     });
   });
 
-  it("preserves unavailable cost instead of representing it as zero", () => {
+  it("preserves known cost as partial when another provider cannot report cost", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeAgentStepResult("s1", { content: "ok" }, {
       tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
@@ -289,7 +289,7 @@ describe("WorkflowRunStore cost aggregation", () => {
 
     expect(completed.usage).toEqual({
       tokens: { state: "complete", inputTokens: 140, outputTokens: 28 },
-      cost: { state: "unavailable", reason: "provider-does-not-report" },
+      cost: { state: "partial", usd: 0.05 },
     });
   });
 });

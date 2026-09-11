@@ -8,8 +8,10 @@ implementation to builders through the existing publication transaction.
   apparent unused symbols require caller and dynamic-entrypoint investigation;
   diagnostic counts never create tasks, impose quotas or veto a change.
 - Automatic observations run after builder delivery and durable issue changes.
-  Admit the agent only for changed structural plus delivery-friction evidence,
-  an explicit scoped request, or a linked implementation's terminal evidence.
+  Initial automatic investigation needs structural evidence and delivery friction.
+  Settled decisions reopen for changed structural evidence, selected observations,
+  or linked implementation outcomes. Unselected size metrics and unrelated task
+  completions do not readmit investigation; explicit scoped requests still apply.
   Unchanged cohorts suppress review across request surfaces and restart. Shared
   runtime resources and transactional state own serialization and publication.
   Scoped cohorts resolve module names and repository paths against all affected
@@ -23,13 +25,17 @@ implementation to builders through the existing publication transaction.
 - Apply Standards to preservation evidence at authoritative consumer boundaries.
   Retain distinct public-behavior and security checks while retiring proofs made
   redundant by the replacement.
-- Reuse active task ownership, including blocked and retained builders. Never
-  mutate an existing task to recycle a suggestion. Follow linked completed tasks
+- Defer proposals against active tasks, including blocked and retained builders.
+  Reopen terminal work only for justified new evidence, explicit priority, and
+  available runtime ownership. Follow linked completed tasks
   through migrated callers, retired paths, proportionate proof and the actual
   simpler result; tasks and run artifacts remain the evidence record.
 - The investigator inherits the active preset and has deny-all repository write
   scope. Only deterministic task materialization writes in the runtime sandbox.
-  No second planner/critic pass is added to ordinary builder runs.
+  Record the materializer’s actual result; proposed intent alone is not publication.
+  Retain staged proposal effects and reconcile owner questions in the shared
+  success finalizer after integration. Task publication owns resource checks;
+  gardener owns evidence admission and active-task deferral.
 - CLI/API requests use normal daemon workflow dispatch with canonical scope
   identity. Read surfaces select the requested scope; never silently read a
   different directory or manufacture success when the daemon is unavailable.

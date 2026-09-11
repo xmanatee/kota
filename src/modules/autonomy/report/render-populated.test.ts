@@ -116,7 +116,7 @@ describe("renderAutonomyReport with populated data", () => {
       postCompletionFollowUps: {
         totalCorrectiveFollowUps: 1,
         linkedCompletedTaskCount: 1,
-        byReason: [{ reason: "review-scrutiny", count: 1 }],
+        byReason: [{ reason: "regression", count: 1 }],
         completedTaskIds: ["task-review-parent"],
         activeFollowUpTaskIds: ["task-review-follow-up"],
         links: [
@@ -124,9 +124,9 @@ describe("renderAutonomyReport with populated data", () => {
             completedTaskId: "task-review-parent",
             completedTaskTitle: "Review parent",
             activeFollowUpTaskId: "task-review-follow-up",
-            activeFollowUpTitle: "Repair review-scrutiny pattern",
+            activeFollowUpTitle: "Repair regression pattern",
             activeFollowUpState: "open",
-            reasons: ["review-scrutiny"],
+            reasons: ["regression"],
             matchedRefs: ["task:task-review-parent"],
             sourceRunIds: [],
             sourceCommitRefs: [],

@@ -71,7 +71,10 @@ describe("Daemon runtime state", () => {
     scheduler.add("Test reminder", new Date(Date.now() - 1000));
 
     const startPromise = daemon.start();
-    await wait(300);
+    await expect.poll(
+      () => new Scheduler(scopeRoot, stateDir).list().filter((item) => item.status === "fired").length,
+      { timeout: 5_000 },
+    ).toBeGreaterThanOrEqual(1);
 
     await daemon.stop();
     await startPromise;

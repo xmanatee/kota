@@ -12,6 +12,7 @@ import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-
 import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
+import { writeRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -166,12 +167,14 @@ describe("writeCalibrationArtifact", () => {
     writeFileSync(
       join(runDir, "critic-review.json"),
       JSON.stringify({
-        verdict: "pass",
+        verdict: "pass_with_warnings",
         critical_issues: [],
         warnings: ["style nit"],
         summary: "ok",
       }),
     );
+
+    writeRepoTaskFile(root, join(root, "data/tasks/archive/task-1.md"), "---\nstatus: done\npriority: p2\n---\n\n# Calibration task\n\nCompleted the consumer outcome.\n");
 
     const ctx = makeStepContext({
       runDir,
@@ -200,12 +203,13 @@ describe("writeCalibrationArtifact", () => {
     const artifact = writeCalibrationArtifact(ctx, {
       criticVerdictRunDir: runDir,
     });
-    expect(artifact.verdict).toBe("pass");
+    expect(artifact.verdict).toBe("pass_with_warnings");
     expect(artifact.warningCount).toBe(1);
     expect(artifact.repairIterations).toBe(2);
     expect(artifact.finalIterationFailures).toEqual([]);
     expect(artifact.criticFailureCount).toBe(1);
     expect(artifact.taskId).toBe("task-1");
+    expect(artifact.taskFinalState).toBe("done");
     expect(artifact.sourceRevision).toBeNull();
     expect(artifact.sourceFilesChanged).toEqual([]);
   });
@@ -526,14 +530,14 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.verdict).toBe("absent");
   });
 
-  it("fails loudly when the current critic verdict payload is invalid", () => {
+  it.each(["maybe", "pass"])("rejects invalid or contradictory persisted verdict %s", (verdict) => {
     const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
     mkdirSync(agentRunDir, { recursive: true });
     writeFileSync(
       join(agentRunDir, "critic-review.json"),
       JSON.stringify({
-        verdict: "maybe",
-        critical_issues: [],
+        verdict,
+        critical_issues: ["The required behavior is missing."],
         warnings: [],
         summary: "Malformed internal protocol data must not become absent.",
       }),
@@ -549,7 +553,7 @@ describe("writeCalibrationArtifact", () => {
       writeCalibrationArtifact(ctx, {
         criticVerdictRunDir: agentRunDir,
       }),
-    ).toThrow(/Invalid critic verdict/);
+    ).toThrow(/Invalid critic verdict|accepted verdict cannot/);
   });
 
   it.each([null, false, 0, ""])(

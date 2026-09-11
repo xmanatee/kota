@@ -18,7 +18,7 @@ const issueDispositionSchema = z.object({
   recoveryAction: z.enum(ISSUE_RECOVERY_ACTIONS),
   rationale: z.string().min(1),
   taskTitle: z.string(),
-  taskSummary: z.string(),
+  taskDesiredOutcome: z.string(),
   taskPriority: z.enum(["p0", "p1", "p2", "p3"]),
   taskHowWeWillKnow: z.string(),
   ownerQuestion: z.string(),
@@ -29,7 +29,7 @@ const issueDispositionSchema = z.object({
   if (value.action === "create-task") {
     for (const [field, text] of [
       ["taskTitle", value.taskTitle],
-      ["taskSummary", value.taskSummary],
+      ["taskDesiredOutcome", value.taskDesiredOutcome],
       ["taskHowWeWillKnow", value.taskHowWeWillKnow],
     ] as const) {
       if (!text.trim()) {
@@ -88,32 +88,4 @@ export function decodeIssueDisposition(
   return issueDispositionSchema.parse(value);
 }
 
-export const issueDispositionOutputSchema = {
-  type: "object",
-  required: [
-    "action",
-    "recoveryAction",
-    "rationale",
-    "taskTitle",
-    "taskSummary",
-    "taskPriority",
-    "taskHowWeWillKnow",
-    "ownerQuestion",
-    "ownerReason",
-    "proposedAnswers",
-  ],
-  additionalProperties: false,
-  properties: {
-    action: { type: "string", enum: [...ISSUE_DISPOSITION_ACTIONS] },
-    recoveryAction: { type: "string", enum: [...ISSUE_RECOVERY_ACTIONS] },
-    rationale: { type: "string" },
-    taskTitle: { type: "string" },
-    taskSummary: { type: "string" },
-    taskPriority: { type: "string", enum: ["p0", "p1", "p2", "p3"] },
-    taskHowWeWillKnow: { type: "string" },
-    ownerQuestion: { type: "string" },
-    ownerReason: { type: "string" },
-    proposedAnswers: { type: "array", items: { type: "string" } },
-    duplicateOfIssueKey: { type: "string" },
-  },
-} satisfies JsonSchemaObject;
+export const issueDispositionOutputSchema = z.toJSONSchema(issueDispositionSchema) as JsonSchemaObject;

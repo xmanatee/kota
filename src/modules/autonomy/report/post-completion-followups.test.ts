@@ -81,7 +81,7 @@ describe("post-completion corrective follow-up report", () => {
       body:
         "## Problem\n\nThis lifecycle diagnostic compares existing surfaces.\n\n" +
         "## Source / Intent\n\nLocal overlap check:\n\n" +
-        "- `task-completed-parent` already covers review-scrutiny at completion time.\n\n" +
+        "- `task-completed-parent` already covers review-outcomes at completion time.\n\n" +
         "The nonduplicative gap is a new report metric.\n",
     });
     writeTask(workspaceRoot, "blocked", "task-operator-capture-follow-up", {

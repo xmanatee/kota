@@ -1302,6 +1302,7 @@ describe("workflow validation", () => {
       {
         defaultAgentHarness: "claude-agent-sdk",
         modelTiers: { capable: "gpt-5.6-sol" },
+        defaultAgentEffort: "xhigh",
       },
     );
 

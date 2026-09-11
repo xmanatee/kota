@@ -30,6 +30,7 @@ registerAgentHarness(claudeAgentHarness);
 export const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 export let scopeRoot = "";
 export let stateDir = "";
+const daemons: Daemon[] = [];
 
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,7 +60,7 @@ export function commitFixtureFiles(targetScopeRoot = scopeRoot): void {
 }
 
 export function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
-  return new Daemon({
+  const daemon = new Daemon({
     scopeRoot,
     model: "claude-sonnet-4-6",
     verbose: false,
@@ -69,6 +70,8 @@ export function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
     config: { defaultAgentHarness: "claude-agent-sdk" },
     ...overrides,
   });
+  daemons.push(daemon);
+  return daemon;
 }
 
 beforeEach(() => {
@@ -86,7 +89,8 @@ beforeEach(() => {
   mockedExecuteWithAgentSDK.mockReset();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  for (const daemon of daemons.splice(0)) await daemon.stop();
   resetEventBus();
   resetScheduler();
   rmSync(scopeRoot, { recursive: true, force: true });

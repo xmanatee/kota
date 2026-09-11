@@ -42,6 +42,10 @@ describe("improver deterministic recovery", () => {
       })],
     }).projection.issues[0]!;
 
+    for (const path of ["runs", "kota", ".kota/data"]) mkdirSync(join(scopeRoot, path), { recursive: true });
+    writeFileSync(join(scopeRoot, "runs", "owned.txt"), "Project data");
+    writeFileSync(join(scopeRoot, "kota", "owned.txt"), "Project source");
+    writeFileSync(join(scopeRoot, ".kota/data", "history.md"), "---\ntype: run-insight\n---\nRetained evidence\n");
     const result = executeDeterministicRecovery({
       scopeRoot,
       issue,
@@ -50,7 +54,10 @@ describe("improver deterministic recovery", () => {
 
     expect(result.repairs.some((repair) => repair.action === "repaired")).toBe(true);
     expect(result.verification.every((repair) => repair.action === "skipped")).toBe(true);
-    expect(existsSync(join(scopeRoot, ".kota", "modules"))).toBe(true);
+    expect(existsSync(join(scopeRoot, ".kota", "modules"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "runs", "owned.txt"))).toBe(true);
+    expect(existsSync(join(scopeRoot, "kota", "owned.txt"))).toBe(true);
+    expect(existsSync(join(scopeRoot, ".kota/data", "history.md"))).toBe(true);
 
     const resumed = executeDeterministicRecovery({
       scopeRoot,

@@ -5,7 +5,7 @@ const base = {
   recoveryAction: "",
   rationale: "Current evidence does not justify new implementation work.",
   taskTitle: "",
-  taskSummary: "",
+  taskDesiredOutcome: "",
   taskPriority: "p2",
   taskHowWeWillKnow: "",
   ownerQuestion: "",

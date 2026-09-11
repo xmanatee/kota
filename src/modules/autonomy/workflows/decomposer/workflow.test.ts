@@ -9,6 +9,8 @@ import {
   WorkflowScenarioDriver,
   type WorkflowScenarioOptions,
 } from "#core/workflow/testing/index.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { verifyDecomposerTaskContractAfterReconcile } from "./assessment.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 import decomposerWorkflow, { agent } from "./workflow.js";
 import {
@@ -24,7 +26,7 @@ import {
 
 const roots: string[] = [];
 
-const DECOMPOSITION_PLAN: DecompositionPlan = {
+const DECOMPOSITION_PLAN: DecompositionPlan = { action: "replace",
   rationale: "Separate the failed task into one independently actionable slice.",
   subtasks: [
     {
@@ -117,6 +119,16 @@ afterEach(() => {
 });
 
 describe("decomposer workflow", () => {
+  it("keeps a coherent task without replacement or review after an execution failure", async () => {
+    const fixture = failureFixture("step-timeout");
+    const before = listFullRepoTasks(fixture.workspaceRoot);
+    const result = await runFixture(fixture, {
+      decompose: { action: "keep", rationale: "The outcome is coherent; reviewer infrastructure caused the failure." },
+    });
+    expect(result.status).toBe("success");
+    expect(listFullRepoTasks(fixture.workspaceRoot)).toEqual(before);
+  });
+
   it("keeps both reasoning steps read-only and exposes the plan to review", () => {
     expect(agent.writeScope).toBe("deny-all");
     const steps = decomposerWorkflow.steps.filter(
@@ -175,8 +187,7 @@ describe("decomposer workflow", () => {
 
   it("rechecks the failed builder's source contract after reconciliation", () => {
     const fixture = failureFixture("step-timeout");
-    const invariant = decomposerWorkflow.integration?.postReconcile;
-    if (!invariant) throw new Error("missing decomposer post-reconcile invariant");
+    const invariant = verifyDecomposerTaskContractAfterReconcile;
     const input = {
       workspaceRoot: fixture.workspaceRoot,
       repoRoot: fixture.workspaceRoot,

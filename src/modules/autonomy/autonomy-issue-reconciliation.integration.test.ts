@@ -358,7 +358,7 @@ describe("autonomy issue restart reconciliation", () => {
         recoveryAction: "",
         rationale: "The duplicate consumer remains unresolved and needs one repair owner.",
         taskTitle: "Repair Telegram duplicate polling consumer",
-        taskSummary: "Remove the duplicate Telegram polling owner.",
+        taskDesiredOutcome: "Remove the duplicate Telegram polling owner.",
         taskPriority: "p0",
         taskHowWeWillKnow: "The poll loop emits a matching recovered observation.",
         ownerQuestion: "",

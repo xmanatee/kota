@@ -2,8 +2,10 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { acquireConfigSlice } from "#core/config/config-slice.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { webhookConfigSlice } from "./config-slice.js";
 import {
   generateWebhookSecret,
   listWebhooks,
@@ -201,3 +203,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
     expect(JSON.stringify(result)).not.toContain("supersecret");
   });
 });
+
+let releaseConfigSlice: () => void;
+beforeEach(() => { releaseConfigSlice = acquireConfigSlice(webhookConfigSlice, "webhook"); });
+afterEach(() => releaseConfigSlice());

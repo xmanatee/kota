@@ -1,5 +1,4 @@
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ReportPriority } from "./aggregate-types.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
@@ -36,7 +35,6 @@ export type SupervisionLoadCounts = {
   openDeadLetters: number | null;
   attentionItems: number | null;
   postCompletionFollowUps: number;
-  reviewEvidenceGaps: number;
 };
 
 export type SupervisionLoadWeights = {
@@ -99,7 +97,6 @@ export type BuildSupervisionLoadReportInput = {
   runs: readonly WorkflowRunMetadata[];
   tasks: readonly RepoTaskFullRecord[];
   windowEndMs: number;
-  reviewScrutiny: ReviewScrutinyReport;
   postCompletionFollowUps: PostCompletionFollowUpReport;
 };
 
@@ -156,7 +153,6 @@ export const DEFAULT_SUPERVISION_LOAD_THRESHOLDS: SupervisionLoadThresholds = {
     openDeadLetters: 2,
     attentionItems: 1,
     postCompletionFollowUps: 1,
-    reviewEvidenceGaps: 1,
   },
 };
 

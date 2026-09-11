@@ -85,6 +85,7 @@ export class EventBus {
   private handlers = new Map<string, Set<BusEventHandler<never>>>();
   private middlewares: EmitMiddleware[] = [];
   private emitFailureHandlers: EventEmitFailureHandler[] = [];
+  private reportingEmitFailure = false;
 
   /** Subscribe to a typed event. Returns an unsubscribe function. */
   on<K extends keyof BusEvents>(
@@ -302,8 +303,27 @@ export class EventBus {
   }
 
   private notifyEmitFailure(failure: EventEmitFailure): void {
-    for (const handler of this.emitFailureHandlers.slice()) {
-      handler(failure);
+    // Failure observers may emit events themselves (for example a DLQ update).
+    // Their failures propagate to this notification, never recursively report.
+    if (this.reportingEmitFailure) return;
+    this.reportingEmitFailure = true;
+    const errors: unknown[] = [];
+    try {
+      for (const handler of this.emitFailureHandlers.slice()) {
+        try {
+          handler(failure);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+    } finally {
+      this.reportingEmitFailure = false;
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(
+        [failure.error, ...errors],
+        `Event "${failure.event}" failed and failure reporting also failed: ${failure.error.message}`,
+      );
     }
   }
 

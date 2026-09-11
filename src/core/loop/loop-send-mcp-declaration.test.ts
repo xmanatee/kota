@@ -79,12 +79,6 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     transport: new BufferTransport(),
     defaultTransportProxy: undefined,
     showCost: false,
-    verifyTracker: {
-      getState: () => "",
-      recordEdit: vi.fn(),
-      checkShellCommand: vi.fn(),
-      tick: vi.fn(),
-    } as never,
     mcpManager,
     mcpInputResolver: undefined,
     mcpAuthorizationResolver: undefined,

@@ -1,70 +1,50 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  unlinkSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import type { DoctorRepairResult } from "./client.js";
 
-function isStaleRunInsightFile(path: string): boolean {
-  const raw = readFileSync(path, "utf-8");
-  if (!raw.startsWith("---\n")) return false;
-  const end = raw.indexOf("\n---", 4);
-  return end !== -1 && /^type:\s*run-insight\s*$/m.test(raw.slice(4, end));
-}
-
-export function listStaleRunInsightFiles(scopeRoot: string): string[] {
-  const dataDir = join(scopeRoot, ".kota", "data");
-  if (!existsSync(dataDir)) return [];
-  const files: string[] = [];
-  for (const entry of readdirSync(dataDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-    const path = join(dataDir, entry.name);
-    if (isStaleRunInsightFile(path)) files.push(path);
-  }
-  return files;
-}
-
-export function runDoctorFixes(scopeRoot: string): DoctorRepairResult[] {
-  const results: DoctorRepairResult[] = [];
-  const kotaDir = join(scopeRoot, ".kota");
-  const lockFile = join(kotaDir, "daemon-control.json");
-
+export function repairStaleDaemonControl(scopeRoot: string): DoctorRepairResult {
+  const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
   if (existsSync(lockFile)) {
     try {
       const addr = JSON.parse(readFileSync(lockFile, "utf-8")) as { pid?: number };
-      if (typeof addr.pid === "number" && !isProcessAlive(addr.pid)) {
+      const pid = addr.pid;
+      if (typeof pid !== "number" || !Number.isSafeInteger(pid) || pid <= 0) {
+        return { item: "Daemon lock file (.kota/daemon-control.json)", action: "manual", detail: "Control file has no valid process identity" };
+      }
+      if (!isProcessAlive(pid)) {
         unlinkSync(lockFile);
-        results.push({
+        return {
           item: "Daemon lock file (.kota/daemon-control.json)",
           action: "repaired",
           detail: `Removed stale lock file (pid ${addr.pid} not alive)`,
-        });
+        };
       } else {
-        results.push({
+        return {
           item: "Daemon lock file (.kota/daemon-control.json)",
           action: "skipped",
           detail: "Daemon process is alive",
-        });
+        };
       }
-    } catch {
-      results.push({
+    } catch (error) {
+      return {
         item: "Daemon lock file (.kota/daemon-control.json)",
         action: "manual",
-        detail: "Could not parse lock file — inspect and remove manually if stale",
-      });
+        detail: `Could not repair control file: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
   } else {
-    results.push({
+    return {
       item: "Daemon lock file (.kota/daemon-control.json)",
       action: "skipped",
       detail: "No lock file present",
-    });
+    };
   }
+}
+
+export function runDoctorFixes(scopeRoot: string): DoctorRepairResult[] {
+  const results = [repairStaleDaemonControl(scopeRoot)];
+  const kotaDir = join(scopeRoot, ".kota");
 
   for (const dir of [kotaDir, join(kotaDir, "runs"), join(kotaDir, "modules")]) {
     if (existsSync(dir)) {
@@ -83,33 +63,5 @@ export function runDoctorFixes(scopeRoot: string): DoctorRepairResult[] {
     }
   }
 
-  for (const strayDir of ["runs", "kota"]) {
-    const strayPath = join(scopeRoot, strayDir);
-    if (!existsSync(strayPath)) continue;
-    try {
-      rmSync(strayPath, { recursive: true, force: true });
-      results.push({
-        item: `Stray directory: ${strayDir}/`,
-        action: "repaired",
-        detail: "Removed stray runtime directory outside .kota/",
-      });
-    } catch (err) {
-      results.push({
-        item: `Stray directory: ${strayDir}/`,
-        action: "manual",
-        detail: `Could not remove: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
-  }
-
-  const staleRunInsightFiles = listStaleRunInsightFiles(scopeRoot);
-  if (staleRunInsightFiles.length > 0) {
-    for (const file of staleRunInsightFiles) unlinkSync(file);
-    results.push({
-      item: "Stale run-insight knowledge files",
-      action: "repaired",
-      detail: `Removed ${staleRunInsightFiles.length} file(s) from .kota/data/`,
-    });
-  }
   return results;
 }

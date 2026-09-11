@@ -359,6 +359,25 @@ describe("EventBus", () => {
   });
 
   describe("handler errors", () => {
+    it("contains failure-reporting reentry and preserves both errors for the caller", () => {
+      const bus = new EventBus();
+      const dispatchError = new Error("journal unavailable");
+      bus.addEmitMiddleware(() => { throw dispatchError; });
+      const report = vi.fn(() => bus.emit("failure.recorded", {}));
+      const otherObserver = vi.fn();
+      bus.addEmitFailureHandler(report);
+      bus.addEmitFailureHandler(otherObserver);
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let caught: unknown;
+        try { bus.emit("work.requested", {}); } catch (error) { caught = error; }
+        expect(caught).toBeInstanceOf(AggregateError);
+        expect((caught as AggregateError).errors).toEqual([dispatchError, dispatchError]);
+      }
+      expect(report).toHaveBeenCalledTimes(2);
+      expect(otherObserver).toHaveBeenCalledTimes(2);
+    });
+
     it("runs every subscriber before propagating a synchronous handler error", () => {
       const bus = new EventBus();
       const h1 = vi.fn(() => {

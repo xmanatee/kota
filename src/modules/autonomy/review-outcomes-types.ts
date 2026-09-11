@@ -1,9 +1,6 @@
-export const REVIEW_SCRUTINY_ARTIFACT = "review-scrutiny.json";
-export const REVIEW_SCRUTINY_SCHEMA_VERSION = 2;
 
-export const CRITIC_REVIEW_ARTIFACT = "critic-review.json";
+// Retained runs may contain verdicts from the retired improver gate.
 export const SEMANTIC_GATE_REVIEW_ARTIFACT = "semantic-gate-review.json";
-export const PROGRESS_REVIEW_ARTIFACT = "progress-review.json";
 
 export type ReviewSurface =
   | "critic"
@@ -29,21 +26,7 @@ export type ReviewDecision =
   | "approve"
   | "request-changes";
 
-export const REVIEW_SCRUTINY_METRICS = [
-  "evidenceIdCount",
-  "findingCount",
-  "issueCount",
-  "warningCount",
-  "followUpTaskCount",
-  "reviewBodyLength",
-  "citedFileLineCount",
-] as const;
-
-export type ReviewScrutinyMetric = (typeof REVIEW_SCRUTINY_METRICS)[number];
-export type ReviewScrutinySignals = Partial<Record<ReviewScrutinyMetric, number>>;
-
-export type ReviewScrutinyRecord = {
-  schemaVersion: typeof REVIEW_SCRUTINY_SCHEMA_VERSION;
+export type ReviewOutcomeRecord = {
   surface: ReviewSurface;
   runId: string;
   workflow: string;
@@ -53,52 +36,27 @@ export type ReviewScrutinyRecord = {
   taskId?: string;
   pr?: { repo: string; number: number };
   decision: ReviewDecision;
-  signals: ReviewScrutinySignals;
-  absentMetrics: ReviewScrutinyMetric[];
-  thinAcceptance: boolean;
 };
 
-export type ReviewScrutinyUnsupportedArtifact = {
+export type ReviewOutcomeUnsupportedArtifact = {
   runId: string;
   workflow: string;
   artifact: string;
   reason: string;
 };
 
-export type ReviewScrutinyReport = {
+export type ReviewOutcomeReport = {
   totalReviews: number;
   approvalLikeDecisions: number;
-  thinAcceptances: number;
-  absentMetricCount: number;
   unsupportedArtifacts: number;
   bySurface: {
     surface: ReviewSurface;
     reviews: number;
     approvalLikeDecisions: number;
-    thinAcceptances: number;
-    absentMetricCount: number;
     unsupportedArtifacts: number;
   }[];
-  thinAcceptanceRefs: {
-    runId: string;
-    workflow: string;
-    surface: ReviewSurface;
-    decision: ReviewDecision;
-    artifact: string;
-    taskId?: string;
-    pr?: { repo: string; number: number };
-  }[];
-  absentMetricRefs: {
-    runId: string;
-    workflow: string;
-    surface: ReviewSurface;
-    artifact: string;
-    metrics: ReviewScrutinyMetric[];
-    taskId?: string;
-    pr?: { repo: string; number: number };
-  }[];
-  records: ReviewScrutinyRecord[];
-  unsupported: ReviewScrutinyUnsupportedArtifact[];
+  records: ReviewOutcomeRecord[];
+  unsupported: ReviewOutcomeUnsupportedArtifact[];
 };
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;

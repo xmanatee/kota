@@ -202,7 +202,6 @@ describe("kota report CLI supervision load", () => {
       openDeadLetters: null,
       attentionItems: 0,
       postCompletionFollowUps: 0,
-      reviewEvidenceGaps: 0,
     });
     expect(parsed.supervisionLoad.thresholds).toMatchObject({
       busyAt: 3,

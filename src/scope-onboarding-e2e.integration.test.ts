@@ -405,8 +405,8 @@ function productionSourceMatches(pattern: string): string[] {
   }
 }
 
-async function waitFor<T>(read: () => Promise<T> | T, accept: (value: T) => boolean): Promise<T> {
-  const deadline = Date.now() + 30_000;
+async function waitFor<T>(read: () => Promise<T> | T, accept: (value: T) => boolean, timeoutMs = 30_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
   let last = await read();
   while (!accept(last) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 40));
@@ -860,6 +860,8 @@ describe("self-service external scope onboarding acceptance", () => {
     await waitFor(
       async () => ({ entered: builderEntered, status: await running.client.forScope(codeScopeId).workflow.status() }),
       (result) => result.entered,
+      // Idle dispatch has a 30-second cooldown; allow time for inspection and admission afterward.
+      60_000,
     );
     const activeCodeStatus = await running.client.forScope(codeScopeId).workflow.status();
     expect(activeCodeStatus.activeRuns).toEqual(expect.arrayContaining([

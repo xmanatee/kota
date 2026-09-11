@@ -19,7 +19,6 @@ export type FixtureCandidateDisposition =
 
 export type FixtureCandidatePatternKind =
   | "recurring-trajectory-warning"
-  | "review-scrutiny-thin-acceptance"
   | "repair-loop-failure"
   | "workflow-schema-validation-failure"
   | "terminal-trace";

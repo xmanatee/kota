@@ -106,7 +106,7 @@ describe("production dead-letter routing replay", () => {
         recoveryAction: "",
         rationale: "The passive Codex capability failure needs one builder repair.",
         taskTitle: "Repair passive Codex workflow compatibility",
-        taskSummary: "Reject the incompatible native harness contract before dispatch.",
+        taskDesiredOutcome: "Reject the incompatible native harness contract before dispatch.",
         taskPriority: "p1",
         taskHowWeWillKnow:
           "The captured production incident reaches one typed clear without another AI review.",

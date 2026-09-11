@@ -1,6 +1,6 @@
 # KOTA Verification Baseline and Exhaustive Disposition Manifest
 
-This document establishes the frozen baseline, the single admission model, non-overlapping validation portfolios, and the exhaustive disposition manifest for every test family and large test/support file in the KOTA repository.
+This document retains the frozen verification-reduction baseline and disposition evidence. Current engineering policy and validation cadence belong to [Standards](STANDARDS.md).
 
 ---
 
@@ -17,49 +17,6 @@ The baseline is frozen using the reproducible counting recipe `python3 scripts/c
   - `generated_daemon_client_bindings`: 24 files, 2,867 LOC
   - `generated_schemas`: 3 files, 6,438 LOC
   - **Total Exclusions**: 223 files, 20,872 LOC
-
----
-
-## 2. Verification Admission Model
-
-Every verification mechanism admitted or retained in KOTA must satisfy the 6-dimension admission model:
-
-1. **Consumer**: Who relies on the behavior (e.g., human operator, API client, protocol peer, autonomous agent, runtime kernel).
-2. **Production Owner**: The single subsystem or module that owns the domain behavior.
-3. **Public Stimulus**: The public API call, CLI command, wire message, or typed event that invokes the behavior.
-4. **Observable Oracle**: The observable result, persisted state mutation, emitted event, wire response, or process effect that proves success.
-5. **Distinct Failure**: The concrete, distinct defect or regression caught that no existing structural mechanism catches.
-6. **Cadence**: The dedicated, non-overlapping validation portfolio that runs the check.
-
-### Alternative Proof Mechanisms
-
-Tests are not the sole proof mechanism. The following architectural mechanisms are primary alternatives:
-
-- **Strict Types**: Eliminates entire classes of null, undefined, invalid variant, and missing field errors at compile time.
-- **Schemas & Decoders**: Validates and normalizes untrusted boundary inputs with clear rejection messages.
-- **Generators**: Structural cross-language bindings (e.g. Swift/TypeScript clients from daemon routes) eliminate manual transport boilerplate.
-- **Registries & Immutability**: Single-point capability and tool registration prevents duplicate or mismatched runtime handlers.
-- **Static Inspection**: Biome linting and project references catch architectural violations and module cycle risks.
-- **Runtime Probes & Journeys**: Proves real operator experiences and CLI/UI workflows without artificial test mocks.
-
-> **Policy**: When an architectural mechanism (type, schema, generator, or invariant) proves a behavior, **no new test is required**.
-
----
-
-## 3. Validation Cadence Portfolios
-
-Validation portfolios have **explicit membership and no accidental overlap**:
-
-| Cadence Portfolio | Command | Scope & Membership | Purpose |
-| :--- | :--- | :--- | :--- |
-| **deterministic fast** | `pnpm check:fast` | `pnpm typecheck && pnpm lint && pnpm validate-tasks` | Typechecking production and test sources, Biome linting, and task queue integrity. |
-| **owner behavior** | `pnpm test:owner` | `src/**/*.test.ts` (excluding CLI, eval, integration, protocol, resilience) | Fast, isolated unit and component behavior owned by individual modules or core subsystems. |
-| **protocol** | `pnpm test:protocol` | MCP client/server protocol, OAuth endpoint/redirect policy, ACP wire formats | Wire compatibility, framing, JSON-RPC, SSE, OAuth, and external interoperability. |
-| **resilience** | `pnpm test:resilience` | `foreign-module-resilient.test.ts`, `module-error-resilience.integration.test.ts` | Process crash/hang recovery, restart limits, and failure isolation. |
-| **component integration** | `pnpm test:integration` | `src/**/*.integration.test.ts` (excluding CLI, resilience) | Multi-subsystem integration, SQLite persistence, and runtime host boundaries. |
-| **evaluation** | `pnpm test:eval` | `src/modules/eval-harness/**/*.test.ts` | Eval-harness behavior and replay-backed workflow smoke fixtures without live LLM calls. |
-| **CLI** | `pnpm test:cli` | `src/cli.test.ts`, `src/module-cli-commands.integration.test.ts` | CLI subcommands, argument parsing, interactive mode, and daemon client execution. |
-| **broad confidence / release** | `pnpm check` | Full build + all non-overlapping test partitions | Release validation, CI gates, and high-risk runtime changes. |
 
 ---
 

@@ -48,10 +48,6 @@ export function buildSupervisionLoadReport(
     attentionRecords,
     postCompletionFollowUps:
       input.postCompletionFollowUps.totalCorrectiveFollowUps,
-    reviewEvidenceGaps:
-      input.reviewScrutiny.thinAcceptances +
-      input.reviewScrutiny.absentMetricCount +
-      input.reviewScrutiny.unsupportedArtifacts,
   });
 
   const evidence = [
@@ -98,7 +94,6 @@ function buildCounts(input: {
     ReturnType<typeof readSupervisionLoadStores>["attentionItems"]["items"]
   > | null;
   postCompletionFollowUps: number;
-  reviewEvidenceGaps: number;
 }): SupervisionLoadCounts {
   return {
     activeRuns: input.activeRunCount,
@@ -113,6 +108,5 @@ function buildCounts(input: {
       null,
     attentionItems: input.attentionRecords?.length ?? null,
     postCompletionFollowUps: input.postCompletionFollowUps,
-    reviewEvidenceGaps: input.reviewEvidenceGaps,
   };
 }

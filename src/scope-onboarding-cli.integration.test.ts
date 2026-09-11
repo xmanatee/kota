@@ -127,7 +127,7 @@ describe("built CLI external scope onboarding journey", () => {
       inspection: {
         scopeId: deriveDirectoryScopeId(targetRoot),
         registered: true,
-        hostingState: "hosted",
+        hostingState: "inactive",
         existing: {
           kotaState: true,
           scopeConfig: false,

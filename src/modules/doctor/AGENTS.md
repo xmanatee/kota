@@ -1,6 +1,9 @@
 # Doctor Module
 
-Owns the `kota doctor` CLI health check surface.
+Owns health diagnostics and explicit local repairs through the doctor client,
+CLI and control routes. Every surface calls the same domain operations.
 
-- No tools, routes, or workflows — only a CLI command contributed via `commands`.
-- Imports from core as needed.
+Incident recovery calls the specific repair for its verified condition. General
+maintenance composes those repairs and restores missing runtime directories.
+Repository content and historical records remain with their owning data lifecycle;
+doctor does not infer disposal authority from names or record types.

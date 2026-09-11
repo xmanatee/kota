@@ -81,7 +81,6 @@ function countEntries(report: SupervisionLoadReport): KVEntry[] {
     countEntry("open dead letters", report.counts.openDeadLetters),
     countEntry("attention items", report.counts.attentionItems),
     countEntry("post-completion follow-ups", report.counts.postCompletionFollowUps),
-    countEntry("review evidence gaps", report.counts.reviewEvidenceGaps),
   ];
 }
 

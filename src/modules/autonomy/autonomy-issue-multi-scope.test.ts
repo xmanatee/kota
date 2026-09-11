@@ -73,7 +73,7 @@ describe("multi-scope autonomy issue source routing", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("keeps interleaved review, owner, DLQ, and interruption evidence in its owning scope", () => {
+  it("keeps owner, DLQ, and interruption evidence while ignoring diagnostic artifacts in its owning scope", () => {
     emitReview(runtimeA, "task-a");
     emitReview(runtimeB, "task-b");
     emitTrajectory(runtimeA);
@@ -118,15 +118,12 @@ describe("multi-scope autonomy issue source routing", () => {
 
     expect(signals.filter((signal) => signal.scopeId === "scope-a")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
-        expect.objectContaining({ scopeId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
         expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
       ]),
     );
     expect(signals.filter((signal) => signal.scopeId === "scope-b")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "builder" }) }),
-        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "critic" }) }),
         expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ kind: "owner-question" }) }),
         expect.objectContaining({ scopeId: "scope-b", labels: expect.arrayContaining(["interrupted-run"]) }),
       ]),
@@ -142,18 +139,7 @@ describe("multi-scope autonomy issue source routing", () => {
     applyScopeSignals(runtimeA, scopeASignals);
     applyScopeSignals(runtimeB, scopeBSignals);
 
-    expect(scopeASignals.some((signal) =>
-      signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
-    )).toBe(true);
-    expect(scopeASignals.some((signal) =>
-      signal.dedupeKey === "review-scrutiny:critic:builder:task-b"
-    )).toBe(false);
-    expect(scopeBSignals.some((signal) =>
-      signal.dedupeKey === "review-scrutiny:critic:builder:task-b"
-    )).toBe(true);
-    expect(scopeBSignals.some((signal) =>
-      signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
-    )).toBe(false);
+    expect(signals.some((signal) => signal.labels.includes("trajectory") || signal.source.id === "critic")).toBe(false);
     const projectBBeforeForeignEvent = readAutonomyIssueProjection(projectB, join(projectB, ".kota"));
     const signalCountBeforeForeignEvent = signals.length;
     emitReview(runtimeA, "task-a-followup");
@@ -162,11 +148,13 @@ describe("multi-scope autonomy issue source routing", () => {
   });
 
   it("rejects an unknown scope without touching either scope", () => {
-    expect(() => bus.emit("workflow.step.completed", {
+    expect(() => bus.emit("eval-harness.regression.detected", {
       scopeId: "unknown-scope",
       workflow: "builder",
       runId: "unknown-run",
-      stepId: "critic",
+      hostClass: "test",
+      reason: "held-out behavior regressed",
+      runArtifactBaseDir: ".kota/runs/unknown-run",
       stepType: "code",
       status: "success",
       durationMs: 1,

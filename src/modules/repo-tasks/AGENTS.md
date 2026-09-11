@@ -16,7 +16,10 @@ projections.
   builder workflow runs and is never persisted in task frontmatter or paths.
 - Task and inbox Markdown are authored directly, including multi-file changes.
   Domain operations are conveniences for deterministic callers and remote UI,
-  not an authoring protocol. Validate the completed change at publication.
+  not an authoring protocol. The shared task integration policy runs the installed
+  task validator and checks changed task identities against current runtime
+  ownership at publication. Workflows compose their own semantic invariants;
+  task-editing agents may use the same validator for repair feedback.
 - Task enumeration and reads use the same descriptor-anchored boundary. It
   rejects linked parents and non-regular entries and returns verified content
   snapshots for semantic dispatch and mutation rechecks.

@@ -9,7 +9,6 @@ import {
   mockedExecuteWithAgentSDK,
   scopeRoot,
   stateDir,
-  wait,
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon failure and lifecycle", () => {
@@ -108,8 +107,7 @@ describe("Daemon failure and lifecycle", () => {
     });
 
     const startPromise = daemon.start();
-    await wait(80);
-    expect(captured.signal).toBeDefined();
+    await expect.poll(() => captured.signal, { timeout: 5_000 }).toBeDefined();
 
     process.emit("SIGINT", "SIGINT");
     await startPromise;
@@ -152,7 +150,7 @@ describe("Daemon failure and lifecycle", () => {
       ],
     });
     const startPromise = daemon.start();
-    await wait(80);
+    await expect.poll(() => daemon.getDashboardSnapshot().completedRuns, { timeout: 5_000 }).toBeGreaterThanOrEqual(1);
     const workflowSnapshot = daemon.getDashboardSnapshot();
     await daemon.stop();
     await startPromise;
@@ -200,12 +198,12 @@ describe("Daemon failure and lifecycle", () => {
       ],
     });
     const firstStart = daemon.start();
-    await wait(50);
+    await expect.poll(() => daemon.getDashboardSnapshot().completedRuns, { timeout: 5_000 }).toBe(1);
     await daemon.stop();
     await firstStart;
 
     const secondStart = daemon.start();
-    await wait(50);
+    await expect.poll(() => daemon.getDashboardSnapshot().completedRuns, { timeout: 5_000 }).toBe(2);
     await daemon.stop();
     await secondStart;
 

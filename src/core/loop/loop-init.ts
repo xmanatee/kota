@@ -28,7 +28,6 @@ import type { CostTracker } from "./cost.js";
 import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionStateMachine } from "./session-state.js";
 import type { ProxyTransport, Transport } from "./transport.js";
-import type { VerifyTracker } from "./verify-tracker.js";
 
 /** Internal state interface used to access AgentSession fields from extracted functions. */
 export interface AgentLoopState {
@@ -60,7 +59,6 @@ export interface AgentLoopState {
   defaultTransportProxy: ProxyTransport | undefined;
   /** Operator-visible cost summary flag; forwarded to the module-owned CLI transport. */
   showCost: boolean;
-  verifyTracker: VerifyTracker;
   mcpManager: McpManager | null;
   mcpInputResolver: McpInputResolver | undefined;
   mcpAuthorizationResolver: McpAuthorizationResolver | undefined;

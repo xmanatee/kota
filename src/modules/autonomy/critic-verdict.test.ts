@@ -13,7 +13,6 @@ import {
   TEST_PARENT_STEP,
   writeOpenTask,
 } from "./critic-test-fixture.integration.js";
-import { getImproverSemanticGatePromptHash } from "./improver-semantic-gate.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
 
@@ -104,10 +103,9 @@ describe("critic verdict handling", () => {
           critical_issues: [issue],
           warnings: [],
           summary: "Detailed remediation evidence is available.",
+          reviewerPromptHash: "review-policy",
         },
         runDir,
-        "critic-review.json",
-        { failureDetailMode: "artifact-reference" },
       );
     } catch (error) {
       thrownMessage = error instanceof Error ? error.message : String(error);
@@ -142,22 +140,7 @@ describe("critic verdict handling", () => {
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact.verdict).toBe("pass_with_warnings");
     expect(artifact.warnings).toHaveLength(1);
-    expect(artifact.reviewerPromptHash).toBe(getCriticPromptHash());
-    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
-    expect(scrutiny).toMatchObject({
-      surface: "critic",
-      workflow: "builder",
-      taskId: "task-baz",
-      reviewerPromptHash: getCriticPromptHash(),
-      decision: "pass_with_warnings",
-      thinAcceptance: false,
-      signals: { warningCount: 1 },
-      absentMetrics: [
-        "evidenceIdCount",
-        "findingCount",
-        "followUpTaskCount",
-      ],
-    });
+    expect(artifact.reviewerPromptHash).toBe(getCriticPromptHash(dir));
   });
 
   it("preserves a clean accepted verdict without manufacturing a warning", async () => {
@@ -183,92 +166,7 @@ describe("critic verdict handling", () => {
       critical_issues: [],
       warnings: [],
       summary: "All required work is complete.",
-      reviewerPromptHash: getCriticPromptHash(),
-    });
-    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
-    expect(scrutiny).toMatchObject({
-      surface: "critic",
-      workflow: "builder",
-      taskId: "task-thin",
-      reviewerPromptHash: getCriticPromptHash(),
-      decision: "pass",
-      thinAcceptance: true,
-      signals: {
-        warningCount: 0,
-        citedFileLineCount: 0,
-      },
-    });
-  });
-
-  it("does not turn semantic-gate acceptance into a citation warning", () => {
-    const dir = makeTmpDir();
-    const runDir = makeRunDir(dir);
-    const result = handleVerdict(
-      {
-        verdict: "pass",
-        critical_issues: [],
-        warnings: [],
-        summary: "The improver change is useful.",
-      },
-      runDir,
-      "semantic-gate-review.json",
-      {
-        runId: "test-run",
-        workflow: "improver",
-        reviewerPromptHash: getImproverSemanticGatePromptHash(),
-      },
-    );
-
-    expect(result).toMatch(/verdict — pass/);
-    const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
-    expect(artifact.warnings).toEqual([]);
-
-    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
-    expect(scrutiny).toMatchObject({
-      surface: "semantic-gate",
-      workflow: "improver",
-      reviewerPromptHash: getImproverSemanticGatePromptHash(),
-      decision: "pass",
-      thinAcceptance: true,
-      signals: {
-        warningCount: 0,
-        citedFileLineCount: 0,
-      },
-    });
-  });
-
-  it("writes citation-backed clean passes as non-thin review scrutiny", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-cited.md", "---\nstatus: open\npriority: p2\n---\n\n# Do cited\n\nDo cited.");
-    const runDir = makeRunDir(dir);
-    setApiResponse({
-      verdict: "pass",
-      critical_issues: [],
-      warnings: [],
-      summary: "Done When criteria are covered by src/modules/autonomy/critic.ts:98.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/pass/);
-
-    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
-    expect(scrutiny).toMatchObject({
-      surface: "critic",
-      workflow: "builder",
-      taskId: "task-cited",
-      reviewerPromptHash: getCriticPromptHash(),
-      decision: "pass",
-      thinAcceptance: false,
-      signals: {
-        warningCount: 0,
-        citedFileLineCount: 1,
-      },
-      absentMetrics: [
-        "evidenceIdCount",
-        "findingCount",
-        "followUpTaskCount",
-      ],
+      reviewerPromptHash: getCriticPromptHash(dir),
     });
   });
 });

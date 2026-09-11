@@ -23,8 +23,7 @@ import { writeRunArtifact } from "#modules/eval-harness/runner-artifact.js";
 import { assessBuilderRecovery, builderRecoveryRevision } from "./recovery.js";
 import {
   inspectBuilderTaskTarget,
-  listBuilderTaskDispatches,
-} from "./task-contract.js";
+  listBuilderTaskDispatches,verifyBuilderTaskContractAfterReconcile, } from "./task-contract.js";
 import builderWorkflow from "./workflow.js";
 
 const roots: string[] = [];
@@ -125,6 +124,7 @@ describe("targeted builder contract", () => {
   it("retains unchanged failures and reconciles a changed canonical contract without changing task identity", async () => {
     const root = project();
     writeTask(root, "open");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
@@ -137,6 +137,7 @@ describe("targeted builder contract", () => {
     try {
       expect((await assessBuilderRecovery(input))).toMatchObject({ resume: false });
       writeTask(root, "open", "Clarified acceptance; preserve the original goal");
+      publish(root);
       const revised = (await assessBuilderRecovery(input));
       expect(revised).toMatchObject({ resume: true, trigger: { payload: { taskId: payload.taskId } } });
       if (!revised.resume) throw new Error("expected changed contract recovery");
@@ -154,6 +155,7 @@ describe("targeted builder contract", () => {
   it("recovers on task-linked execution and capability exports while restraining observation churn", async () => {
     const root = project();
     writeTask(root, "open", "Requires Linux boundary results; existing cohort .kota/eval-runs/linux-boundary");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
@@ -231,6 +233,7 @@ describe("targeted builder contract", () => {
   it("ignores relocated eval attempts but retains source, isolation and result changes", async () => {
     const root = project();
     writeTask(root, "open", "Requires evidence from .kota/eval-runs/boundary");
+    publish(root);
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
@@ -303,6 +306,7 @@ describe("targeted builder contract", () => {
   it("keeps the event loop responsive while recovery reads unrelated history", async () => {
     const root = project();
     writeTask(root, "open");
+    publish(root);
     const dir = join(root, ".kota/runs/unrelated");
     mkdirSync(dir, { recursive: true });
     for (let i = 0; i < 100; i++) {
@@ -331,8 +335,7 @@ describe("targeted builder contract", () => {
     writeTask(workspace, "open", "retained notes");
     publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
-    const invariant = builderWorkflow.integration?.postReconcile;
-    if (!invariant) throw new Error("missing builder post-reconcile invariant");
+    const invariant = verifyBuilderTaskContractAfterReconcile;
     const input = {
       workspaceRoot: workspace,
       repoRoot: root,

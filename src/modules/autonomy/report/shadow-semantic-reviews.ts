@@ -9,7 +9,7 @@ import {
   objectArray,
   stringArray,
   stringValue,
-} from "#modules/autonomy/review-scrutiny-types.js";
+} from "#modules/autonomy/review-outcomes-types.js";
 import {
   SHADOW_SEMANTIC_REVIEW_ARTIFACT_TYPE,
   SHADOW_SEMANTIC_REVIEW_DIR,

@@ -178,10 +178,7 @@ describe("fixture candidate proposals", () => {
     seedRun(workspaceRoot, "run-review", {
       commands: ["pnpm test fixture-candidates"],
       artifacts: {
-        "review-scrutiny.json": {
-          thinAcceptances: 1,
-          thinAcceptanceRefs: [{ runId: "run-review", workflow: "builder", surface: "critic" }],
-        },
+        "review-scrutiny.json": { thinAcceptance: true },
       },
     });
     seedRun(workspaceRoot, "run-repair", {
@@ -220,7 +217,7 @@ describe("fixture candidate proposals", () => {
       kind: "recurring-trajectory-warning",
       occurrenceCount: 2,
     });
-    expect(byRun.get("run-review")?.failurePattern.kind).toBe("review-scrutiny-thin-acceptance");
+    expect(byRun.get("run-review")?.failurePattern.kind).toBe("terminal-trace");
     expect(byRun.get("run-repair")?.failurePattern.kind).toBe("repair-loop-failure");
     expect(byRun.get("run-validation")?.failurePattern.kind).toBe("workflow-schema-validation-failure");
   });

@@ -4,7 +4,7 @@ import {
   classifyDaemonControlFileForAudit,
 } from "#modules/autonomy/workflows/runtime-health-auditor/daemon-control-health.js";
 import type { DoctorRepairResult } from "#modules/doctor/client.js";
-import { runDoctorFixes } from "#modules/doctor/doctor-fixes.js";
+import { repairStaleDaemonControl } from "#modules/doctor/doctor-fixes.js";
 
 export const IMPROVER_RECOVERY_ACTIONS = ["doctor.fix"] as const;
 export type ImproverRecoveryAction = (typeof IMPROVER_RECOVERY_ACTIONS)[number];
@@ -51,13 +51,13 @@ export function executeDeterministicRecovery(args: {
       `Recovery action ${args.action} is not allowlisted for ${args.issue.rootCauseKey}`,
     );
   }
-  const repairs = runDoctorFixes(args.scopeRoot);
+  const repairs = [repairStaleDaemonControl(args.scopeRoot)];
   const failed = repairs.find((repair) => repair.action === "manual");
   if (failed) {
     throw new Error(`Doctor recovery requires manual action: ${failed.item}`);
   }
   const repaired = repairs.some((repair) => repair.action === "repaired");
-  const verification = repaired ? runDoctorFixes(args.scopeRoot) : repairs;
+  const verification = repaired ? [repairStaleDaemonControl(args.scopeRoot)] : repairs;
   const unstable = verification.find((repair) => repair.action !== "skipped");
   if (unstable) {
     throw new Error(`Doctor recovery verification did not settle: ${unstable.item}`);

@@ -18,12 +18,11 @@ This workflow is the single AI decision path for durable autonomy issues.
   attention item.
 - Inspect the linked evidence, current owner, implementation, and related queue
   work before acting. Prefer one existing owner over parallel repair tasks.
-- Do not treat a static metric, trajectory heuristic, or review-shape score as
-  sufficient evidence of a repair need.
 - Do not replay AI review without a new decision-request transition.
 - `doctor.fix` is the sole deterministic recovery action. Its allowlist and
-  idempotent settled-state verification run before disposition publication;
-  arbitrary code changes remain builder-owned tasks.
+  idempotent settled-state verification target only the cited stale daemon
+  control record through the doctor repair owner; general maintenance is a
+  separate operator action. Source changes remain builder-owned tasks.
 - Exhausted investigation retries publish the issue's durable `attention`
   disposition. A terminal run by itself is never an owner.
 - Investigation backoff is a future-eligible durable improver run. Completion

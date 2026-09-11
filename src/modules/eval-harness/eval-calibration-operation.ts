@@ -29,7 +29,7 @@ export function runEvalCalibration(
   const aggregate = aggregateCalibration(runsDir, {
     windowMs: windowDays * DAY_MS,
     followUpWindowMs: followUpDays * DAY_MS,
-    criticPromptHash: getCriticPromptHash(),
+    criticPromptHash: getCriticPromptHash(workspaceRoot),
     ...(options.runsDir === undefined
       ? { authority: { stateDir, scopeRoot: workspaceRoot } }
       : {}),

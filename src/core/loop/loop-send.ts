@@ -21,7 +21,6 @@ import {
 import { runPreSendHooks } from "./pre-send-hooks.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
-import { processToolResults } from "./verify-tracker.js";
 
 const MAX_ITERATIONS = 200;
 function throwIfAborted(signal: AbortSignal): void {
@@ -87,9 +86,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     });
     throwIfAborted(signal);
     for (const result of preSendResults) {
-      if (result.modifiedFiles) {
-        for (const f of result.modifiedFiles) state.verifyTracker.recordEdit(f);
-      }
       if (result.assistantText) state.context.addAssistantText(result.assistantText);
       if (result.userFollowup) state.context.addUserMessage(result.userFollowup);
       if (result.lastResult !== undefined) lastResult = result.lastResult;
@@ -147,7 +143,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       const telemetrySummary = getToolTelemetry().getSummary();
       const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
       const toolGuidance = formatResolvedToolGuidance(activeTools);
-      const dynamicState = toolGuidance + state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
+      const dynamicState = toolGuidance + state.context.getDynamicState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }
@@ -274,8 +270,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       });
       throwIfAborted(signal);
       state.context.addToolResults(validResults);
-
-      processToolResults(state.verifyTracker, toolBlocks, validResults);
 
       if (state.sessionPath) state.context.save(state.sessionPath);
       saveToHistoryImpl(state);

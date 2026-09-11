@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
-import { handleVerdict, parseVerdict } from "./critic-verdict.js";
+import { parseVerdict } from "./critic-verdict.js";
 import { decideJudgeResponse } from "./judge-response.js";
 
 const verdict = { verdict: "pass", critical_issues: [], warnings: [], summary: "The requested behavior is present." } as const;
@@ -46,7 +46,11 @@ describe("judge response decisions", () => {
   });
 
   it("never converts a fail verdict with no listed issues into success", () => {
-    const failed = parseVerdict(JSON.stringify({ ...verdict, verdict: "fail" }));
-    expect(() => handleVerdict(failed)).toThrow(/critical issue/);
+    expect(() => parseVerdict(JSON.stringify({ ...verdict, verdict: "fail" }))).toThrow(/critical issues/);
   });
+  it("rejects a pass with critical issues and an inconsistent warning disposition", () => {
+    expect(() => parseVerdict(JSON.stringify({ ...verdict, critical_issues: ["The API returns incorrect results"] }))).toThrow();
+    expect(() => parseVerdict(JSON.stringify({ ...verdict, verdict: "pass_with_warnings" }))).toThrow();
+  });
+
 });

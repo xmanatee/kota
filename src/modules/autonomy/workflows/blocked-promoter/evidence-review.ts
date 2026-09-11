@@ -6,7 +6,7 @@ import { projectEvidenceObject } from "#core/evidence/policy.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { typedCodeStep, type WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
-import { invokeAgentJudge, resolveAgentJudgeRunContract } from "#modules/autonomy/agent-judge.js";
+import { invokeAgentJudge, resolveAgentJudgePolicy, resolveAgentJudgeRunContract } from "#modules/autonomy/agent-judge.js";
 import { extractTaskProbe, runTaskProbe, verifyTaskProbeProvenance } from "#modules/autonomy/task-probe.js";
 import { getUnfinishedTaskDependencies, moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { collectBlockedEvidenceOperation, evidenceDigest } from "./evidence.js";
@@ -69,6 +69,7 @@ async function probeSourceRevision(ctx: Pick<ReviewContext, "workspaceRoot" | "r
 }
 
 export async function reviewBlockedTasks(ctx: ReviewContext): Promise<BlockedEvidenceReview> {
+    const reviewerPolicyHash = resolveAgentJudgePolicy(SYSTEM_PROMPT, ctx.scopeRoot).hash;
     const reviews: BlockedEvidenceReview["reviews"] = [];
     const authority = ctx.runEvidence;
     if (!authority) throw new Error("Scoped run evidence is unavailable");
@@ -98,7 +99,7 @@ export async function reviewBlockedTasks(ctx: ReviewContext): Promise<BlockedEvi
           .sort((a, b) => a.path.localeCompare(b.path)),
         unavailable: [...evidence.unavailable].sort(),
       }, provenance, sourceRevision, capability: capability?.status === "available"
-        ? { status: capability.status, kind: capability.kind } : capability, reviewer: SYSTEM_PROMPT });
+        ? { status: capability.status, kind: capability.kind } : capability, reviewer: reviewerPolicyHash });
       const key = `autonomy:blocked-review:${task.id}`;
       const snapshot = ctx.state.read(key);
       if (snapshot.value !== null && typeof snapshot.value === "object" &&
@@ -124,7 +125,7 @@ export async function reviewBlockedTasks(ctx: ReviewContext): Promise<BlockedEvi
 ` +
           "Read the relevant outcomes and provenance before deciding. Export presence is not acceptance.",
           ctx.workspaceRoot, judgeConfig(ctx.agentRuntime),
-          ctx.runAgentHarness, ctx.signal,
+          ctx.runAgentHarness, ctx.scopeRoot, ctx.signal,
         );
         promoted = verdict.verdict !== "fail" && verdict.critical_issues.length === 0;
         reason = verdict.summary;

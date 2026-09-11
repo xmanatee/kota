@@ -15,6 +15,7 @@ import {
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   builderHarnessPreflightStep,
   inspectTargetTaskStep,
@@ -43,10 +44,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
   tags: ["monitored"],
   defaultAutonomyMode: "autonomous",
   repository: "write",
-  integration: {
+  integration: taskQueueIntegrationPolicy({
     validationCommand: ["pnpm", "check:fast"],
     postReconcile: verifyBuilderTaskContractAfterReconcile,
-  },
+  }),
   resources: builderTaskResources,
   recovery: assessBuilderRecovery,
   inputSchema: {

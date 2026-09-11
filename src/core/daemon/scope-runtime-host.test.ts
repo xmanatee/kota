@@ -60,7 +60,7 @@ describe("ScopeRuntimeHost", () => {
     const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot }] });
     const runtimes = createTestRuntimeRegistry(registry, bus, stateDir);
     const runtime = runtimes.getDefault();
-    runtime.scheduler.addEventTrigger("prepared fixture", "test.scope-runtime-prepared");
+    runtime.scheduler.addEventTrigger("prepared fixture", "test.scope-runtime-prepared", { repeat: true });
     let scheduleFireCount = 0;
     const host = new ScopeRuntimeHost({
       bus,

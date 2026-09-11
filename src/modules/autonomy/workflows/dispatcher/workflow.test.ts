@@ -155,7 +155,7 @@ describe("dispatcher workflow", () => {
     db.close();
   }
 
-  it("runs the ongoing semantic observer without a Git repository", async () => {
+  it.each(["passive", "autonomous"] as const)("keeps %s scopes without Git observable without dispatching repository work", async (mode) => {
     expect(dispatcherWorkflow.repository).toBe("none");
     const directoryRoot = mkdtempSync(join(tmpdir(), "kota-dispatcher-observe-"));
     try {
@@ -163,8 +163,8 @@ describe("dispatcher workflow", () => {
       const scopePolicySnapshot = scopePolicySnapshotForTest(directoryRoot, [{
         scopeId,
         reason: "Repository-free observe posture.",
-        autonomy: { defaultMode: "passive", maxMode: "passive" },
-        writes: { mode: "none" },
+        autonomy: { defaultMode: mode, maxMode: mode },
+        writes: mode === "passive" ? { mode: "none" } : { mode: "scope-directory" },
       }]);
       writeFileSync(join(directoryRoot, "AGENTS.md"), "# Scope\n\n- Initial guidance.\n");
       const initial = computeScopeContentFingerprint(
@@ -191,15 +191,20 @@ describe("dispatcher workflow", () => {
 
       expect(result.error).toBeUndefined();
       expect(result.status, result.error).toBe("success");
-      expect(result.emitted).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          event: scopeImprovementChanged.name,
-          payload: expect.objectContaining({
-            automatic: true,
-            boundary: "content-policy-changed",
+      expect(result.emitted.some((event) => event.event === "autonomy.queue.available")).toBe(false);
+      if (mode === "passive") {
+        expect(result.emitted).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            event: scopeImprovementChanged.name,
+            payload: expect.objectContaining({ automatic: true, boundary: "content-policy-changed" }),
           }),
-        }),
-      ]));
+        ]));
+      } else {
+        expect(result.emitted).toEqual([]);
+        expect(dispatcherDecision(result)).toMatchObject({
+          scopeBoundary: { shouldEmit: false, reason: expect.stringContaining("Git is unavailable") },
+        });
+      }
     } finally {
       rmSync(directoryRoot, { recursive: true, force: true });
     }

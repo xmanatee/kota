@@ -8,13 +8,14 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { formatAuthError, parseIntOption, shouldLaunchDefaultOperatorConsole } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -528,5 +529,44 @@ describe("history resume validation", () => {
     expect(exitCode).toBe(0);
     expect(stderr).toContain("Resume cwd override");
     expect(stderr).toContain(`Scope: ${callerDir}`);
+  });
+});
+
+
+describe("one-shot harness output", () => {
+  it.each(["run", "pipe"] as const)("prints streamed and final-only responses exactly once in %s mode", (mode) => {
+    const scopeRoot = realpathSync(mkdtempSync(join(tmpdir(), "kota-cli-output-")));
+    onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+    const fixtureHome = join(scopeRoot, "home");
+    mkdirSync(join(fixtureHome, ".kota"), { recursive: true });
+    writeFileSync(join(fixtureHome, ".kota", "config.json"), JSON.stringify({
+      trustedScopes: [scopeRoot], defaultAgentHarness: "cli-output-fixture",
+    }));
+    const moduleRoot = join(scopeRoot, ".kota", "modules", "cli-output-fixture");
+    mkdirSync(moduleRoot, { recursive: true });
+    writeFileSync(join(moduleRoot, "index.mjs"), `export default {
+      name: "cli-output-fixture", version: "1.0.0",
+      agentHarnesses: [{
+        name: "cli-output-fixture", description: "Controlled output port",
+        supportsMultiTurn: false, supportedHookKinds: [], askOwnerToolName: null,
+        emitsAgentMessageStream: false, toolControl: "kota",
+        run: async (options, writer) => {
+          const text = "Visible response";
+          const streamed = options.prompt === "stream";
+          if (streamed) writer?.write(text);
+          return { text, streamedText: streamed ? text : "", turns: 1, isError: false,
+            usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } } };
+        },
+      }],
+    };`);
+    for (const response of ["stream", "final"]) {
+      const result = runFull(mode === "run" ? ["run", response, "--no-history"] : [], {
+        cwd: scopeRoot,
+        input: mode === "pipe" ? response : undefined,
+        env: { HOME: fixtureHome, KOTA_SCOPE_ROOT: scopeRoot, KOTA_PRESET: "" },
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe("Visible response");
+    }
   });
 });

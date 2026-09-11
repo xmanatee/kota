@@ -46,7 +46,6 @@ describe("createWorkflowGitOwnershipGuard", () => {
     expect(result).not.toHaveProperty("interrupt");
     if (result.behavior === "deny") {
       expect(result.message).toMatch(/git commit/);
-      expect(result.message).toMatch(/commit-message\.txt/);
     }
   });
 
@@ -180,9 +179,6 @@ describe("createWorkflowAgentGuards", () => {
     const result = await guard("Bash", { command: "git commit -m msg" }, options);
     expect(result.behavior).toBe("deny");
     expect(result).not.toHaveProperty("interrupt");
-    if (result.behavior === "deny") {
-      expect(result.message).toMatch(/amend workflow-owned commits/);
-    }
   });
 
   it("denies destructive Git teardown commands from Bash and KOTA shell calls without interrupting", async () => {

@@ -13,7 +13,6 @@ import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.
 import { applyAutonomyIssueObservations, buildAutonomyIssueObservation, emptyAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   criticReviewInspectionOperation,
-  improverSemanticInspectionOperation,
 } from "#modules/autonomy/review-input-operations.js";
 import { shadowSemanticReviewTargetOperation } from "#modules/autonomy/shadow-semantic-review-targets.js";
 import { promoteSatisfiedBlockedTasksOperation } from "#modules/autonomy/workflows/blocked-promoter/blocking-operations.js";
@@ -55,9 +54,7 @@ describe("autonomy workflow blocking review and task operations", () => {
         stdio: "ignore",
       });
 
-      const reviewRunDir = join(workspaceRoot, ".kota", "runs", "review-boundary");
       mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
-      mkdirSync(reviewRunDir, { recursive: true });
       writeFileSync(
         join(workspaceRoot, "data", "tasks", "task-review-boundary.md"),
         "---\nstatus: open\npriority: p2\n---\n\n# Review boundary\n\n## Done When\n\n- Review stays responsive.\n",
@@ -69,10 +66,6 @@ describe("autonomy workflow blocking review and task operations", () => {
       const criticInspection = await runWorkflowBlockingOperation(
         criticReviewInspectionOperation,
         { reviewDir: workspaceRoot, taskMutationStatus: "" },
-      );
-      const semanticInspection = await runWorkflowBlockingOperation(
-        improverSemanticInspectionOperation,
-        { workspaceRoot, runDirPath: reviewRunDir },
       );
       const shadowTargets = await runWorkflowBlockingOperation(
         shadowSemanticReviewTargetOperation,
@@ -184,10 +177,6 @@ describe("autonomy workflow blocking review and task operations", () => {
         status: "open",
         target: { path: "data/tasks/task-review-boundary.md" },
       });
-      expect(semanticInspection).toMatchObject({
-        status: "open",
-        changedFiles: "data/tasks/task-review-boundary.md",
-      });
       expect(shadowTargets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ path: "git:workflow-mutation-files" }),
@@ -226,7 +215,7 @@ describe("autonomy workflow blocking review and task operations", () => {
         workspaceRoot, scopeRoot: workspaceRoot, issue, workflowRunId: "disposition-boundary",
         disposition: decodeIssueDisposition({
           action: "create-task", recoveryAction: "", rationale: "The missed output requires a repair.",
-          taskTitle: "Restore the required worker output", taskSummary: "Completed workers omit the required output.",
+          taskTitle: "Restore the required worker output", taskDesiredOutcome: "Completed workers omit the required output.",
           taskPriority: "p1", taskHowWeWillKnow: "A completed worker returns the required output.",
           ownerQuestion: "", ownerReason: "", proposedAnswers: [],
         }),

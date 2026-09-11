@@ -1,5 +1,5 @@
 import type { AgentUsageCost } from "#core/agent-harness/usage.js";
-import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
+import type { ReviewOutcomeReport } from "#modules/autonomy/review-outcomes.js";
 import type {
   TrajectoryDiagnosticPattern,
 } from "#modules/autonomy/trajectory-diagnostic-escalation.js";
@@ -182,7 +182,7 @@ export type AutonomyReportData = {
   builder: BuilderBreakdown;
   decisionAttribution: DecisionAttributionReport;
   diffSummaryConsistency: DiffSummaryConsistencyReport;
-  reviewScrutiny: ReviewScrutinyReport;
+  reviewOutcomes: ReviewOutcomeReport;
   shadowSemanticReviews: ShadowSemanticReviewReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   processDiscipline: ProcessDisciplineReport;

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
@@ -6,16 +7,18 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import { AUTONOMY_ISSUE_PROJECTION_STATE_KEY, type AutonomyIssueProjection, decodeAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
+import { createGeneratedWorkQuestionQueue } from "#modules/autonomy/generated-work-owner-question.js";
+import { canPublishGeneratedWorkOwnerEffects, finalizeGeneratedWorkOwnerEffects } from "#modules/autonomy/generated-work-proposal.js";
 import { improvementHandoffRequested, improvementHandoffSchema } from "#modules/autonomy/improvement-handoff.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_AGENT_HANG_TIMEOUT_MS, AUTONOMY_AGENT_TIER, stepSucceeded } from "#modules/autonomy/shared.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { type AdmissionEvaluation, evaluateAdmission } from "./admission.js";
 import { decodeGardenerDecision, gardenerDecisionOutputSchema } from "./decision.js";
 import { architectureReviewRequested } from "./events.js";
 import { computeFingerprint } from "./fingerprint.js";
 import { emptyGardenerRunState, GARDENER_STATE_KEY } from "./gardener-state.js";
-import { stageGardenerTask } from "./gardener-task.js";
+import { readHeldTaskIds, stageGardenerTask } from "./gardener-task.js";
 import { collectObservationsOperation, deliveryObservations, normalizeObservationTarget, observationsForTarget } from "./observations.js";
 import type { ArchitectureGardenerRunState, ArchitectureObservation } from "./types.js";
 
@@ -59,6 +62,10 @@ function decodeInvestigation(raw: unknown, input: InvestigationInput) {
     evidenceAssessment: evidenceAssessmentSchema.optional(),
   }).passthrough().parse(raw);
   const decision = decodeGardenerDecision(decisionRaw);
+  const observed = new Set(input.observations.map((observation) => observation.id));
+  if (decision.revisit.observationIds.some((id) => !observed.has(id))) {
+    throw new Error("Revisit conditions must select observations from this investigation");
+  }
   if (!input.handoff) return evidenceAssessment ? { ...decision, evidenceAssessment } : decision;
   if (!evidenceAssessment) throw new Error("Investigation must assess every handoff reference, including unavailable evidence");
   const allowed = new Set([
@@ -95,10 +102,16 @@ const inspect = typedCodeStep<InvestigationInput>({
       ? normalizeObservationTarget(payload.targetScope) : "repo";
     const relevant = observationsForTarget(observations, targetScope);
     const tasks = listFullRepoTasks(ctx.workspaceRoot);
-    const linkedIds = new Set(state.linkedTaskIds);
+    const linkedIds = new Set(targetScope === "repo"
+      ? state.linkedTaskIds
+      : [state.dispositions[targetScope]?.taskId].filter((id): id is string => typeof id === "string"));
     const linked = tasks.filter((task) => linkedIds.has(task.id));
+    const heldTaskIds = readHeldTaskIds(ctx.runEvidence, ctx.workflow.runId);
     const terminalTaskEvidence = linked.filter((task) => task.state === "done" || task.state === "dropped")
-      .map((task) => computeFingerprint({ id: task.id, state: task.state, body: task.body }));
+      .map((task) => computeFingerprint({
+        id: task.id, state: task.state, body: task.body,
+        held: heldTaskIds?.includes(task.id) ?? null,
+      }));
     return {
       handoff,
       terminalTaskEvidence,
@@ -107,7 +120,8 @@ const inspect = typedCodeStep<InvestigationInput>({
       admission: evaluateAdmission({ targetScope, observations: relevant, explicitRequest,
         // Publication suppresses unchanged handoffs and defers active topics.
         // Delivered counterevidence must reach the investigator even without an AST delta.
-        previousCohort: handoff ? undefined : state.reviewedCohorts[targetScope],
+        previousCohort: handoff || !state.dispositions[targetScope]?.revisit ? undefined : state.reviewedCohorts[targetScope],
+        relevantObservationIds: state.dispositions[targetScope]?.revisit?.observationIds,
         followUpFingerprints: terminalTaskEvidence,
         reviewedTaskEvidence: state.reviewedTaskEvidence,
       }),
@@ -118,9 +132,12 @@ const inspect = typedCodeStep<InvestigationInput>({
 const apply = typedCodeStep<ReturnType<typeof stageGardenerTask>>({
   id: "apply-decision", type: "code", when: stepSucceeded("investigate"),
   validate: (raw) => expectStructuredOutput<ReturnType<typeof stageGardenerTask>>(raw, ["taskId", "proposalKey", "touchedTaskQueue"]),
-  run: (ctx) => stageGardenerTask({ workspaceRoot: ctx.workspaceRoot, runId: ctx.workflow.runId,
-    topicKey: inspect.outputRequired(ctx).handoff?.topicKey,
-    decision: decodeInvestigation(ctx.stepOutputs.investigate, inspect.outputRequired(ctx)) }),
+  run: (ctx) => {
+    const heldTaskIds = readHeldTaskIds(ctx.runEvidence, ctx.workflow.runId);
+    return stageGardenerTask({ workspaceRoot: ctx.workspaceRoot, runId: ctx.workflow.runId, heldTaskIds,
+      topicKey: inspect.outputRequired(ctx).handoff?.topicKey,
+      decision: decodeInvestigation(ctx.stepOutputs.investigate, inspect.outputRequired(ctx)) });
+  },
 });
 
 const finish = typedCodeStep<{ recorded: true }>({
@@ -131,14 +148,17 @@ const finish = typedCodeStep<{ recorded: true }>({
     const decision = input.admission.admitted ? decodeInvestigation(ctx.stepOutputs.investigate, input) : null;
     const staged = apply.output(ctx) ?? null;
     if (staged?.touchedTaskQueue) {
-      await ctx.runBlocking(taskQueueValidationOperation, { workspaceRoot: ctx.workspaceRoot });
       await mkdir(ctx.workflow.runDirPath, { recursive: true });
       await writeFile(join(ctx.workflow.runDirPath, "commit-message.txt"), `architecture-gardener: propose ${staged.taskId}\n`);
     }
     if (decision) {
       const snapshot = ctx.state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY);
       const current = snapshot.value ?? emptyGardenerRunState();
-      const { targetScope, cohort } = input.admission;
+      const { targetScope } = input.admission;
+      const { cohort } = evaluateAdmission({ targetScope, observations: input.observations,
+        explicitRequest: false, previousCohort: undefined,
+        relevantObservationIds: decision.revisit.observationIds,
+        followUpFingerprints: input.terminalTaskEvidence, reviewedTaskEvidence: current.reviewedTaskEvidence });
       const now = new Date().toISOString();
       ctx.state.compareAndSet(GARDENER_STATE_KEY, snapshot.revision, {
         ...current, updatedAt: now, lastRunId: ctx.workflow.runId,
@@ -146,7 +166,8 @@ const finish = typedCodeStep<{ recorded: true }>({
         linkedTaskIds: [...new Set([...current.linkedTaskIds, ...(staged?.taskId ? [staged.taskId] : [])])],
         reviewedCohorts: { ...current.reviewedCohorts, [targetScope]: cohort },
         dispositions: { ...current.dispositions, [targetScope]: {
-          targetScope, disposition: decision.action === "propose" ? "proposed" : decision.action,
+          targetScope, disposition: staged?.disposition ?? decision.action,
+          revisit: decision.revisit,
           reason: decision.rationale, decidedAt: now,
           taskId: staged?.taskId ?? current.dispositions[targetScope]?.taskId ?? null,
         } },
@@ -161,9 +182,36 @@ const finish = typedCodeStep<{ recorded: true }>({
 
 const architectureGardenerWorkflow: WorkflowDefinitionInput = {
   name: "architecture-gardener", repository: "write",
+  finalize: (ctx) => {
+    const raw = ctx.stepOutputs["apply-decision"];
+    if (raw === undefined) return;
+    const staged = expectStructuredOutput<ReturnType<typeof stageGardenerTask>>(raw, ["proposal", "disposition"]);
+    if (staged.disposition !== "proposed" || staged.proposal === null) return;
+    if (canPublishGeneratedWorkOwnerEffects({ workspaceRoot: ctx.scopeRoot, proposal: staged.proposal, fresh: true })) {
+      finalizeGeneratedWorkOwnerEffects({ workspaceRoot: ctx.scopeRoot, proposal: staged.proposal,
+        ownerQuestionQueue: createGeneratedWorkQuestionQueue(ctx.scopeRoot) });
+    }
+  },
   tags: ["systemic-observer"],
   resources: () => [GARDENER_STATE_KEY],
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: taskQueueIntegrationPolicy({
+    postReconcile: (input) => {
+      const { staged } = z.object({
+        staged: z.object({
+          touchedTaskQueue: z.boolean(),
+          taskId: z.string().nullable(),
+        }).nullable(),
+      }).parse(JSON.parse(readFileSync(
+        join(input.stateDir, "runs", input.runId, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8",
+      )));
+      if (!staged?.touchedTaskQueue || !staged.taskId) return { satisfied: true };
+      const canonicalTask = listFullRepoTasks(input.repoRoot).find((task) => task.id === staged.taskId);
+      if (canonicalTask?.state === "open" || canonicalTask?.state === "blocked") {
+        return { satisfied: false, reason: "Gardener target became active before publication" };
+      }
+      return { satisfied: true };
+    },
+  }),
   description: "Investigate changed architecture and delivery evidence, then propose implementation work or justify no action.",
   defaultAutonomyMode: "autonomous",
   triggers: [

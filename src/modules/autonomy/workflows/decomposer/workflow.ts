@@ -6,13 +6,13 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   assessFailure,
   decomposerTaskResources,
@@ -33,7 +33,7 @@ import {
 
 export const agent: AgentDef = {
   name: "decomposer",
-  role: "Rescope builder tasks that exhausted execution without progress.",
+  role: "Diagnose failed builder work and keep coherent tasks or propose justified replacement outcomes.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   writeScope: "deny-all",
@@ -84,6 +84,8 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
   validate: (raw) =>
     expectStructuredOutput<AppliedDecomposition>(raw, ["taskId", "subtaskIds"]),
   run: (ctx) => {
+    const plan = decodeDecompositionPlan(ctx.stepOutputs.decompose);
+    if (plan.action !== "replace") throw new Error("A keep decision cannot mutate tasks");
     const assessment = assessFailure.outputRequired(ctx);
     if (!assessment.shouldDecompose) {
       throw new Error("Cannot apply decomposition without an active target");
@@ -92,40 +94,17 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
       workspaceRoot: ctx.workspaceRoot,
       stateDir: ctx.stateDir,
       assessment,
-      plan: decodeDecompositionPlan(ctx.stepOutputs.decompose),
+      plan,
     });
-  },
-});
-
-const validateDecomposition = typedCodeStep<{
-  taskQueue: string;
-}>({
-  id: "validate-decomposition",
-  type: "code",
-  when: stepSucceeded("apply-decomposition"),
-  validate: (raw) =>
-    expectStructuredOutput(raw, ["taskQueue"]),
-  run: async (ctx) => {
-    const taskQueue = workflowCommandOutput(
-      await ctx.runCommand({
-        command: "pnpm",
-        args: ["run", "validate-tasks"],
-        cwd: ctx.workspaceRoot,
-      }),
-    );
-    return { taskQueue };
   },
 });
 
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
   repository: "write",
-  integration: {
-    validationCommand: ["pnpm", "validate-tasks"],
-    postReconcile: verifyDecomposerTaskContractAfterReconcile,
-  },
+  integration: taskQueueIntegrationPolicy({ postReconcile: verifyDecomposerTaskContractAfterReconcile }),
   resources: decomposerTaskResources,
-  description: "Rescope builder tasks after timeout or exhausted repair.",
+  description: "Assess failed builder scope; replace it only when independent outcomes justify doing so.",
   tags: ["monitored"],
   // Capable-tier presets may resolve to a native CLI harness. Both reasoning
   // agents remain read-only through AgentDef deny-all plus whole-step mutation
@@ -169,12 +148,12 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: decompositionReviewOutputSchema,
       validate: decodeDecompositionReview,
-      when: stepSucceeded("decompose"),
+      when: (ctx) => ctx.stepResults.decompose?.status === "success" &&
+        decodeDecompositionPlan(ctx.stepOutputs.decompose).action === "replace",
     },
     requireDecompositionApproval,
     writeCommitMessage,
     applyDecomposition,
-    validateDecomposition,
   ],
 };
 

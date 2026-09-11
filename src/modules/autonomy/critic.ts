@@ -1,17 +1,15 @@
-import { createHash } from "node:crypto";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   type AgentJudgeConfig,
   invokeAgentJudge,
-  isJudgeRunawayError,
-  judgeUnavailableResult,
+  resolveAgentJudgePolicy,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import {
-  clearCriticOutcomeArtifacts,
+  clearCriticOutcomeArtifact,
   handleVerdict,
 } from "./critic-verdict.js";
 import {
@@ -28,8 +26,6 @@ import {
 export type { AgentJudgeConfig } from "./agent-judge.js";
 export {
   invokeAgentJudge,
-  isJudgeRunawayError,
-  judgeUnavailableResult,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
 export type { CriticVerdict } from "./critic-verdict.js";
@@ -91,8 +87,8 @@ Example:
  * verdicts produced under different guidance. 12 hex chars (48 bits) is
  * sufficient to distinguish prompt versions.
  */
-export function getCriticPromptHash(): string {
-  return createHash("sha256").update(CRITIC_SYSTEM_PROMPT).digest("hex").slice(0, 12);
+export function getCriticPromptHash(scopeRoot: string): string {
+  return resolveAgentJudgePolicy(CRITIC_SYSTEM_PROMPT, scopeRoot).hash;
 }
 
 type CriticBaseConfig = Omit<AgentJudgeConfig, "harness" | "model" | "effort">;
@@ -123,10 +119,6 @@ function resolveCriticJudgeConfig(
   };
 }
 
-function taskIdFromReviewTargetPath(path: string): string | undefined {
-  return path.match(/(?:^|\/)(task-[^/]+)\.md$/)?.[1];
-}
-
 export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairCheck {
   /*
    * Force a specific harness/model only in direct fixtures. Production checks
@@ -142,6 +134,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
       const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
+      clearCriticOutcomeArtifact(runDir);
       const durableEvidenceDir = options?.runDirPath !== undefined
         ? runDir
         : resolveDurableOperatorEvidenceDir(reviewDir, runDir);
@@ -187,13 +180,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         changedFiles,
         hasRuntimeProbeResult: probeResult !== null,
       });
-      const taskId = taskIdFromReviewTargetPath(target.path);
-      const verdictContext = {
-        runId: ctx.workflow.runId,
-        workflow: ctx.workflow.name,
-        reviewerPromptHash: getCriticPromptHash(),
-        taskId,
-      };
 
       const builderSummary = ctx.stepResults.build?.output;
       const builderSummaryText =
@@ -226,7 +212,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         operatorEvidenceRefs.length > 0
           ? `Available operator evidence refs: ${operatorEvidenceRefs.join(", ")}`
           : "Available operator evidence refs: none found. Decide whether the actual outcome needs operator-visible proof; do not infer that from metadata or keywords.",
-        "You have a 20-turn budget. Budget it for judgment, not exploration: the diff, task, and step JSON outputs are almost always enough. Do not open `steps/*.events.jsonl` — it is a raw per-tool event stream, routinely 1–3 MB, and burns the budget without adding signal. Reach for it only if nothing else explains a concrete gap you already suspect.",
         "",
         "## Useful run artifact globs",
         `${runDir}/metadata.json`,
@@ -242,34 +227,15 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         diffContent,
       ].join("\n");
 
-      let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
-      clearCriticOutcomeArtifacts(runDir);
-      try {
-        response = await invokeAgentJudge(
-          userMessage,
-          reviewDir,
-          resolvedConfig,
-          ctx.runAgentHarness,
-          ctx.signal,
-        );
-      } catch (err) {
-        const judgeError = err instanceof Error ? err : new Error(String(err));
-        // Runaway judge (max turns / max tokens) is an evaluator-side
-        // problem the agent cannot fix by editing code. Returning a
-        // warning lets the build proceed on mechanical checks and
-        // prevents repair-loop thrashing. Evidence: run
-        // 2026-04-20T14-30-41-306Z-builder-gb9pnn wasted 3 repair
-        // iterations (~$3.73, ~45 min) on this exact path before the
-        // critic finally returned a verdict on its own.
-        if (isJudgeRunawayError(judgeError)) {
-          return judgeUnavailableResult("critic", judgeError);
-        }
-        throw err;
-      }
-      return handleVerdict(response, runDir, "critic-review.json", {
-        ...verdictContext,
-        failureDetailMode: "artifact-reference",
-      });
+      const response = await invokeAgentJudge(
+        userMessage,
+        reviewDir,
+        resolvedConfig,
+        ctx.runAgentHarness,
+        ctx.scopeRoot,
+        ctx.signal,
+      );
+      return handleVerdict(response, runDir);
     },
   };
 }

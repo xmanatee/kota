@@ -30,7 +30,7 @@ import { renderQueueBalance } from "./render-queue.js";
 import {
   renderBuilderBreakdown,
   renderExplorerBalance,
-  renderReviewScrutiny,
+  renderReviewOutcome,
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
 import { renderShadowSemanticReviews } from "./render-shadow-semantic-reviews.js";
@@ -70,8 +70,8 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     heading("Owner interventions", 2),
     ...renderOwnerInterventions(data.ownerInterventions),
     blank(),
-    heading("Review scrutiny", 2),
-    ...renderReviewScrutiny(data.reviewScrutiny),
+    heading("Review outcomes", 2),
+    ...renderReviewOutcome(data.reviewOutcomes),
     blank(),
     heading("Shadow semantic reviews", 2),
     ...renderShadowSemanticReviews(data.shadowSemanticReviews),

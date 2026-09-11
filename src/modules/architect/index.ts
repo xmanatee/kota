@@ -43,9 +43,7 @@ const architectModule: KotaModule = {
         lastResult: result.lastResult,
         assistantText: result.summary,
         userFollowup:
-          "The architect/editor has made changes. " +
-          "Verify they are correct: run builds, tests, or type checks as appropriate.",
-        modifiedFiles: result.modifiedFiles,
+          "Assess the architect/editor result against the original task and finish any remaining work.",
       };
     });
 

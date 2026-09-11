@@ -1,6 +1,9 @@
 import {
   existsSync,
+  linkSync,
   lstatSync,
+  mkdirSync,
+  mkdtempSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -8,76 +11,24 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
-import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { writeAnchoredRuntimeProbeArtifact } from "./critic-runtime-probe-artifact-writer.js";
-import {
-  commitOpenTask,
-  makeRunDir,
-  makeTmpDir,
-  writePackageJson,
-} from "./critic-test-fixture.integration.js";
 
 const fixtureRoots: string[] = [];
 
-type ArtifactFixture = {
-  artifactPath: string;
-  externalTarget: string;
-  markerPath: string;
-  workspaceRoot: string;
-  runDir: string;
-  taskContent: string;
-  taskPath: string;
-};
-
-function makeArtifactFixture(program: (fixture: ArtifactFixture) => string): ArtifactFixture {
-  const workspaceRoot = makeTmpDir();
-  const externalDir = makeTmpDir();
-  fixtureRoots.push(workspaceRoot, externalDir);
-  const runDir = makeRunDir(workspaceRoot);
-  const fixture: ArtifactFixture = {
-    artifactPath: join(runDir, "runtime-probe.json"),
-    externalTarget: join(externalDir, "daemon-owned-target.json"),
-    markerPath: join(workspaceRoot, "probe-ran.txt"),
-    workspaceRoot,
-    runDir,
-    taskContent: [
-      "---",
-      "status: open",
-      "priority: p2",
-      "---",
-      "",
-      "# Artifact link probe",
-      "",
-      "## Runtime Probe",
-      "command: pnpm run probe:mutate",
-      "timeoutMs: 5000",
-    ].join("\n"),
-    taskPath: join(workspaceRoot, "data/tasks/task-artifact-link.md"),
-  };
-  writeFileSync(fixture.externalTarget, "ORIGINAL");
-  writePackageJson(workspaceRoot, {
-    "probe:mutate": `node -e ${JSON.stringify(program(fixture))}`,
-  });
-  commitOpenTask(
-    workspaceRoot,
-    "task-artifact-link.md",
-    fixture.taskContent,
-  );
-  return fixture;
+function makeTmpDir(): string {
+  const root = mkdtempSync(join(tmpdir(), "kota-probe-artifact-"));
+  fixtureRoots.push(root);
+  return root;
 }
 
-async function runFixture(fixture: ArtifactFixture): Promise<void> {
-  await runProbeIfDeclared(
-    fixture.taskContent,
-    fixture.taskPath,
-    fixture.workspaceRoot,
-    fixture.runDir,
-    createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),
-    fixture.workspaceRoot,
-  );
+function makeRunDir(root: string): string {
+  const runDir = join(root, ".kota", "runs", "test-run");
+  mkdirSync(runDir, { recursive: true });
+  return runDir;
 }
 
 afterEach(() => {
@@ -92,7 +43,6 @@ describe("Runtime Probe artifact writes", () => {
     const outsideRunDir = makeTmpDir();
     const runDir = makeRunDir(workspaceRoot);
     const relocatedRunDir = `${runDir}-relocated`;
-    fixtureRoots.push(workspaceRoot, outsideRunDir);
     const runStats = lstatSync(runDir);
     const externalTarget = join(outsideRunDir, "daemon-owned-target.json");
     writeFileSync(externalTarget, "ORIGINAL");
@@ -117,74 +67,43 @@ describe("Runtime Probe artifact writes", () => {
     expect(existsSync(join(relocatedRunDir, "runtime-probe.json"))).toBe(false);
   });
 
-  it("rejects a pre-planted artifact symlink after the probe without changing its target", async () => {
-    const fixture = makeArtifactFixture(
-      ({ markerPath }) =>
-        `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "yes")`,
-    );
-    symlinkSync(fixture.externalTarget, fixture.artifactPath);
-
-    await expect(runFixture(fixture)).rejects.toThrow(/must not be a symbolic link/);
-
-    expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
-    expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
-  });
-
-  it("rejects an artifact symlink created by the probe without changing its target", async () => {
-    const fixture = makeArtifactFixture(
-      ({ artifactPath, externalTarget, markerPath }) => [
-        'const fs = require("node:fs")',
-        `fs.symlinkSync(${JSON.stringify(externalTarget)}, ${JSON.stringify(artifactPath)})`,
-        `fs.writeFileSync(${JSON.stringify(markerPath)}, "yes")`,
-      ].join("; "),
-    );
-
-    await expect(runFixture(fixture)).rejects.toThrow(/must not be a symbolic link/);
-
-    expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
-    expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
-  });
-
-  it("rejects a non-regular artifact created by the probe", async () => {
-    const fixture = makeArtifactFixture(
-      ({ artifactPath, markerPath }) => [
-        'const fs = require("node:fs")',
-        `fs.mkdirSync(${JSON.stringify(artifactPath)})`,
-        `fs.writeFileSync(${JSON.stringify(markerPath)}, "yes")`,
-      ].join("; "),
-    );
-
-    await expect(runFixture(fixture)).rejects.toThrow(/must be a regular file/);
-
-    expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
-    expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
-  });
-
-  it("revalidates a probe-created run-directory link against the real workspace root", async () => {
-    const outsideRunDir = makeTmpDir();
-    fixtureRoots.push(outsideRunDir);
-    const fixture = makeArtifactFixture(
-      ({ markerPath, runDir }) => [
-        'const fs = require("node:fs")',
-        `fs.rmSync(${JSON.stringify(runDir)}, { recursive: true })`,
-        `fs.symlinkSync(${JSON.stringify(outsideRunDir)}, ${JSON.stringify(runDir)}, "dir")`,
-        `fs.writeFileSync(${JSON.stringify(markerPath)}, "yes")`,
-      ].join("; "),
-    );
-
-    await expect(runFixture(fixture)).rejects.toThrow(
-      /run directory must be inside the active workspace/,
-    );
-
-    expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
-    expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
-    expect(existsSync(join(outsideRunDir, "runtime-probe.json"))).toBe(false);
-  });
+  it.each(["symlink", "directory", "hardlink", "replaced-file"] as const)(
+    "rejects an artifact replaced with a %s before publication",
+    async (replacement) => {
+      const root = makeTmpDir();
+      const outside = makeTmpDir();
+      const runDir = makeRunDir(root);
+      const artifactPath = join(runDir, "runtime-probe.json");
+      const externalTarget = join(outside, "original.json");
+      writeFileSync(externalTarget, "ORIGINAL");
+      writeFileSync(artifactPath, "PREVIOUS");
+      const expectedArtifactIdentity = lstatSync(artifactPath);
+      const runDirectoryIdentity = lstatSync(runDir);
+      // Retain the old inode so a new file cannot reuse its identity.
+      renameSync(artifactPath, `${artifactPath}.previous`);
+      switch (replacement) {
+        case "symlink": symlinkSync(externalTarget, artifactPath); break;
+        case "directory": mkdirSync(artifactPath); break;
+        case "hardlink": linkSync(externalTarget, artifactPath); break;
+        case "replaced-file": writeFileSync(artifactPath, "REPLACEMENT"); break;
+      }
+      await expect(writeAnchoredRuntimeProbeArtifact({
+        expectedArtifactIdentity,
+        runDirectoryIdentity,
+        runDirectoryPath: runDir,
+        serializedArtifact: '{"status":"passed"}',
+      }, createWorkflowCommandRunner({ cwd: root }))).rejects.toThrow(/Runtime Probe artifact/);
+      expect(readFileSync(externalTarget, "utf8")).toBe("ORIGINAL");
+      expect(readFileSync(`${artifactPath}.previous`, "utf8")).toBe("PREVIOUS");
+      if (replacement === "replaced-file") {
+        expect(readFileSync(artifactPath, "utf8")).toBe("REPLACEMENT");
+      }
+    },
+  );
 
   it("writes a regular artifact through the anchored directory", async () => {
     const workspaceRoot = makeTmpDir();
     const runDir = makeRunDir(workspaceRoot);
-    fixtureRoots.push(workspaceRoot);
     const runStats = lstatSync(runDir);
 
     await writeAnchoredRuntimeProbeArtifact(

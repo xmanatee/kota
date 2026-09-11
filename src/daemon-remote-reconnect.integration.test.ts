@@ -9,6 +9,7 @@ import {
 } from "#core/daemon/approval-queue.js";
 import type { DaemonTimelineEvent } from "#core/daemon/daemon-control.js";
 import { DaemonControlServer } from "#core/daemon/daemon-control.js";
+import { WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE } from "#core/daemon/metrics-source-provider.js";
 import {
   OwnerQuestionQueue,
   resetOwnerQuestionQueue,
@@ -16,6 +17,9 @@ import {
 } from "#core/daemon/owner-question-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
+import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { readWorkflowRunMetadataDurableAuthority } from "#core/workflow/run-operational-projection.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
   clearApprovalExecutionTestTools,
   registerApprovalExecutionTestTools,
@@ -43,11 +47,19 @@ describe("daemon remote-client reconnect contract", () => {
   let scopeRoot: string;
   let originalCwd: string;
   let server: DaemonControlServer | null = null;
+  let runState: RunStateDatabase;
 
   beforeEach(() => {
     originalCwd = process.cwd();
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-remote-reconnect-"));
     process.chdir(scopeRoot);
+    runState = new RunStateDatabase(join(scopeRoot, ".kota"));
+    runState.registerScope({ id: SCOPE_ID, rootPath: scopeRoot, createdAt: STARTED_AT });
+    const epoch = runState.beginDaemonSession(STARTED_AT).epoch;
+    runState.admitRun({ id: RUN_ID, scopeId: SCOPE_ID, workflow: "builder", repository: "none",
+      trigger: { event: "remote.reconnect.test", schemaRef: null, payload: { scopeId: SCOPE_ID } },
+      resources: [], admittedAt: STARTED_AT });
+    runState.startRun(RUN_ID, epoch, STARTED_AT);
     resetApprovalQueue();
     resetOwnerQuestionQueue();
     registerApprovalExecutionTestTools(async () => ({
@@ -64,6 +76,8 @@ describe("daemon remote-client reconnect contract", () => {
     resetApprovalQueue();
     resetOwnerQuestionQueue();
     clearApprovalExecutionTestTools();
+    runState.close();
+    resetProviderRegistry();
     process.chdir(originalCwd);
     rmSync(scopeRoot, { recursive: true, force: true });
   });
@@ -80,7 +94,20 @@ describe("daemon remote-client reconnect contract", () => {
     setApprovalQueueInstance(approvalQueue);
     setOwnerQuestionQueueInstance(ownerQuestionQueue);
 
-    server = new DaemonControlServer(makeRemoteReconnectHandle(bus, scopeRoot), TOKEN, {
+    const handle = makeRemoteReconnectHandle(bus, scopeRoot);
+    initProviderRegistry().register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "reconnect", {
+      getWorkflowMetricCounts: handle.getWorkflowMetricCounts,
+      listSessions: handle.listSessions,
+      getWorkflowLiveStatus: () => {
+        const authority = readWorkflowRunMetadataDurableAuthority({ stateDir: join(scopeRoot, ".kota"), scopeRoot });
+        return { ...handle.getWorkflowLiveStatus(),
+          authorityCriticalRunIds: [...authority.authorityCriticalRunIds],
+          operationallyActiveRunIds: [...authority.operationallyActiveRunIds],
+          terminalRunIds: [...authority.terminalRunIds],
+        };
+      },
+    });
+    server = new DaemonControlServer(handle, TOKEN, {
       controlRoutes: [...approvalControlRoutes(), ...ownerQuestionControlRoutes()],
       routes: workflowRoutes(),
     });

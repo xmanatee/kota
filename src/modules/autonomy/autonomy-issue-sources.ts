@@ -1,7 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import type { TrajectoryDiagnosticsArtifact } from "#core/agent-harness/index.js";
-import type { BusEvents } from "#core/events/event-bus.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { subscribeBuilderInterruptions } from "./autonomy-issue-builder-interruption-source.js";
 import { subscribeDeadLetterChanges } from "./autonomy-issue-dead-letter-source.js";
@@ -14,7 +10,6 @@ import {
 } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueReconciliation } from "./autonomy-issue-reconciliation-source.js";
 import {
-  type AutonomyIssueRuntimeScope,
   resolveAutonomyIssueRuntimeScope,
 } from "./autonomy-issue-runtime-scope.js";
 import {
@@ -23,175 +18,10 @@ import {
   stableToken,
 } from "./autonomy-issue-source-shared.js";
 import { subscribeWorkflowHealth } from "./autonomy-issue-workflow-source.js";
-import {
-  type AutonomyHealthJsonObject,
-  type AutonomyHealthJsonValue,
-  isAutonomyHealthJsonObject,
-} from "./health-signal.js";
-
-type JsonObject = AutonomyHealthJsonObject;
 export type AutonomyIssueSourceContext = Pick<
   ModuleRuntimeContext,
   "events" | "getProvider" | "log"
 >;
-
-function workspacePath(workspaceRoot: string, candidate: string): string | null {
-  const absolute = isAbsolute(candidate)
-    ? resolve(candidate)
-    : resolve(workspaceRoot, candidate);
-  const rel = relative(resolve(workspaceRoot), absolute);
-  if (
-    rel === ".." ||
-    rel.startsWith(`..${sep}`) ||
-    isAbsolute(rel)
-  ) {
-    return null;
-  }
-  return absolute;
-}
-
-function readJson(path: string): AutonomyHealthJsonValue {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as AutonomyHealthJsonValue;
-  } catch {
-    return null;
-  }
-}
-
-function trajectoryArtifact(
-  value: AutonomyHealthJsonValue,
-): TrajectoryDiagnosticsArtifact | null {
-  if (
-    !isAutonomyHealthJsonObject(value) ||
-    value.version !== 1 ||
-    !Array.isArray(value.diagnostics)
-  ) {
-    return null;
-  }
-  return value as TrajectoryDiagnosticsArtifact;
-}
-
-function emitTrajectoryObservations(
-  ctx: AutonomyIssueSourceContext,
-  runtime: AutonomyIssueRuntimeScope,
-  payload: BusEvents["workflow.step.completed"],
-): void {
-  const diagnostics = payload.trajectoryDiagnostics;
-  if (
-    diagnostics === undefined ||
-    typeof diagnostics.artifactPath !== "string"
-  ) return;
-  if (
-    typeof payload.scopeId !== "string" ||
-    typeof payload.workflow !== "string" ||
-    typeof payload.runId !== "string" ||
-    typeof payload.stepId !== "string"
-  ) {
-    return;
-  }
-  const path = workspacePath(runtime.workspaceRoot, diagnostics.artifactPath);
-  if (!path) return;
-  const artifact = trajectoryArtifact(readJson(path));
-  if (!artifact) return;
-  for (const diagnostic of artifact.diagnostics) {
-    if (diagnostic.code === "unsupported_trajectory") continue;
-    emitHealth(ctx, runtime.scopeId, {
-      observation: "present",
-      source: {
-        kind: "workflow-step",
-        id: `${payload.workflow}:${payload.stepId}`,
-        workflow: payload.workflow,
-        stepId: payload.stepId,
-      },
-      severity: "warning",
-      labels: ["trajectory", diagnostic.code.replaceAll("_", "-")],
-      summary: diagnostic.summary,
-      evidenceRefs: [
-        {
-          kind: "artifact",
-          ref: relative(runtime.workspaceRoot, path),
-        },
-      ],
-      actionability: "local-code",
-      dedupeKey:
-        `workflow:${stableToken(payload.workflow)}:trajectory:` +
-        `${stableToken(payload.stepId)}:${stableToken(diagnostic.code)}`,
-      observationCount: 1,
-      createdAt: new Date().toISOString(),
-    });
-  }
-}
-
-function emitReviewScrutinyObservation(
-  ctx: AutonomyIssueSourceContext,
-  runtime: AutonomyIssueRuntimeScope,
-  payload: JsonObject,
-  seen: Set<string>,
-): void {
-  if (
-    typeof payload.scopeId !== "string" ||
-    typeof payload.runDir !== "string"
-  ) {
-    return;
-  }
-  const path = workspacePath(
-    runtime.workspaceRoot,
-    `${payload.runDir}/review-scrutiny.json`,
-  );
-  if (!path) return;
-  const record = readJson(path);
-  if (
-    !isAutonomyHealthJsonObject(record) ||
-    record.thinAcceptance !== true ||
-    typeof record.runId !== "string" ||
-    typeof record.workflow !== "string" ||
-    typeof record.surface !== "string" ||
-    typeof record.generatedAt !== "string"
-  ) {
-    return;
-  }
-  const observationId = [
-    runtime.scopeId,
-    record.runId,
-    record.surface,
-    record.generatedAt,
-  ].join(":");
-  if (seen.has(observationId)) return;
-  seen.add(observationId);
-  const taskKey = typeof record.taskId === "string" ? record.taskId : "unscoped";
-  emitHealth(ctx, runtime.scopeId, {
-    observation: "present",
-    source: {
-      kind: "review",
-      id: record.surface,
-      workflow: record.workflow,
-    },
-    severity: "warning",
-    labels: ["quality", "review-scrutiny", stableToken(record.surface)],
-    summary: `${record.surface} recorded a thin acceptance for ${taskKey}.`,
-    evidenceRefs: [{
-      kind: "artifact",
-      ref: relative(runtime.workspaceRoot, path),
-    }],
-    actionability: "local-code",
-    dedupeKey:
-      `review-scrutiny:${stableToken(record.surface)}:` +
-      `${stableToken(record.workflow)}:${stableToken(taskKey)}`,
-    observationCount: 1,
-    createdAt: record.generatedAt,
-  });
-}
-
-function subscribeStepObservations(ctx: AutonomyIssueSourceContext): void {
-  const seenReviewRecords = new Set<string>();
-  ctx.events.subscribe("workflow.step.completed", (payload) => {
-    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
-    const objectPayload = payload as JsonObject;
-    emitTrajectoryObservations(ctx, runtime, payload);
-    emitReviewScrutinyObservation(ctx, runtime, objectPayload, seenReviewRecords);
-  });
-}
 
 function subscribeEvalRegressions(ctx: AutonomyIssueSourceContext): void {
   ctx.events.subscribe("eval-harness.regression.detected", (payload) => {
@@ -285,7 +115,6 @@ export function subscribeAutonomyIssueSources(ctx: AutonomyIssueSourceContext): 
       requestedAt: payload.startedAt,
     });
   });
-  subscribeStepObservations(ctx);
   subscribeEvalRegressions(ctx);
   subscribeOwnerInterventions(ctx);
   subscribeDeadLetterChanges(ctx);

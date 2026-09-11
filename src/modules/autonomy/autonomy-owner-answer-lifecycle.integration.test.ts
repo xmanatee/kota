@@ -72,7 +72,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           recoveryAction: "",
           rationale: "The recovery policy is an owner decision.",
           taskTitle: "",
-          taskSummary: "",
+          taskDesiredOutcome: "",
           taskPriority: "p1",
           taskHowWeWillKnow: "",
           ownerQuestion: "Should builder preserve the failed run's worktree?",
@@ -84,7 +84,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           recoveryAction: "",
           rationale: "The owner selected worktree preservation.",
           taskTitle: "Preserve failed builder worktrees",
-          taskSummary: "Apply the owner-selected recovery policy through builder.",
+          taskDesiredOutcome: "Apply the owner-selected recovery policy through builder.",
           taskPriority: "p1",
           taskHowWeWillKnow:
             "A lifecycle fixture preserves the worktree after the same failure.",
@@ -199,7 +199,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           expect.objectContaining({
             state: "open",
             body: expect.stringContaining(
-              `Resolve autonomy issue ${firstIssue.issueKey} at semantic revision 2.`,
+              "Apply the owner-selected recovery policy through builder.",
             ),
           }),
         ]);

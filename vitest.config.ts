@@ -29,6 +29,7 @@ const RESILIENCE_TEST_FILES = [
 const TEST_EXCLUDES = [
   "**/node_modules/**",
   "**/dist/**",
+  "src/**/*.live.test.ts",
   "src/modules/eval-harness/fixtures/**/initial/**",
 ];
 const CLI_PROJECT_EXCLUDES = [

@@ -19,7 +19,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
       openDeadLetters: 0,
       attentionItems: 0,
       postCompletionFollowUps: 0,
-      reviewEvidenceGaps: 0,
     },
     score: {
       status: "normal",
@@ -37,7 +36,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
         openDeadLetters: 2,
         attentionItems: 1,
         postCompletionFollowUps: 1,
-        reviewEvidenceGaps: 1,
       },
     },
     evidence: [],
@@ -87,20 +85,16 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     missingData: [],
     examples: [],
   },
-  reviewScrutiny: {
+  reviewOutcomes: {
     totalReviews: 0,
     approvalLikeDecisions: 0,
-    thinAcceptances: 0,
-    absentMetricCount: 0,
     unsupportedArtifacts: 0,
     bySurface: [
-      { surface: "critic", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
-      { surface: "progress-reviewer", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
-      { surface: "pr-reviewer", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
-      { surface: "semantic-gate", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
+      { surface: "critic", reviews: 0, approvalLikeDecisions: 0, unsupportedArtifacts: 0 },
+      { surface: "progress-reviewer", reviews: 0, approvalLikeDecisions: 0, unsupportedArtifacts: 0 },
+      { surface: "pr-reviewer", reviews: 0, approvalLikeDecisions: 0, unsupportedArtifacts: 0 },
+      { surface: "semantic-gate", reviews: 0, approvalLikeDecisions: 0, unsupportedArtifacts: 0 },
     ],
-    thinAcceptanceRefs: [],
-    absentMetricRefs: [],
     records: [],
     unsupported: [],
   },
@@ -163,13 +157,7 @@ export const emptyAutonomyReportData: AutonomyReportData = {
   qualityStratification: {
     weakSampleThreshold: 3,
     aggregates: [
-      {
-        signal: "review-scrutiny",
-        current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
-        prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
-        rateDelta: null,
-        weakEvidence: false,
-      },
+
       {
         signal: "post-completion-follow-up",
         current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },

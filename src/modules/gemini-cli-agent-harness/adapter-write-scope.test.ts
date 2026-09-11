@@ -37,7 +37,6 @@ describe("gemini CLI agent write scope", () => {
           "/repo/.kota/runs/run-1/agent-output",
         ],
         runtimeWritableRoots: [
-          "/repo/data/tasks",
           "/repo/.kota/runs/run-1/agent-output",
         ],
       }),

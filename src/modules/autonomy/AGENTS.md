@@ -18,16 +18,15 @@ before proposing work and follow interventions beyond task creation.
 
 ## Core Decisions
 
-- **Generator/evaluator separation.** Preserve decomposer → builder → critic
-  roles and remove repair-loop checks before collapsing roles.
+- **Decision ownership.** Builders own coherent implementation outcomes; critics
+  judge acceptance. Decomposer diagnoses failed scope and may keep it unchanged.
 - **Outcome evidence.** Evaluators probe behavior, and owner-facing product work
   includes rendered evidence. Critic input is artifacts and repository state,
   never thinking traces or self-reports.
 - **Feedback over proxies.** Operator corrections, task reopens, repeated repair
   loops, integration/publication failures, dead letters, and measured
-  regressions can justify improvement work. Trajectory heuristics, review-shape
-  scores, and static metrics remain diagnostic context and never create work on
-  their own.
+  regressions can justify improvement work. Trajectory heuristics and static metrics remain diagnostic context;
+  only outcome evidence enters issue disposition.
 - **Honest measurement.** Resource allocation is distinct from kill thresholds;
   report profiles, judge repetition, `pass@k`, and `pass^k` explicitly.
 - **Proportional change review.** Judge material workflow, prompt, routing,
@@ -45,8 +44,9 @@ before proposing work and follow interventions beyond task creation.
 - **Repository isolation is runtime-owned.** Workflows declare repository
   access and logical resources. The runtime supplies the isolated `workspaceRoot`
   and canonical `scopeRoot`, then owns integration, recovery, and cleanup.
-  Workflows do not own worktrees, branches, commits, merges, leases, or
-  integration finalizers.
+  Workflows declare domain completion effects through the runtime finalization
+  hook after publication; runtime owns worktrees, branches, commits, merges,
+  leases, and recovery.
 - **Shared autonomy state is runtime-owned.** Issue projections, watermarks,
   and cooldowns publish through `ctx.state` compare-and-set. Offline issue
   inspection reads canonical SQLite state with an explicit scope root and state
@@ -94,7 +94,8 @@ its entries, and tests exercise decision behavior rather than catalog identity.
   outcome; it does not import the core tool directly.
 - Agent judges use the shared retry classifier. Shared backoff admission stops
   their internal retry loop during a classified provider incident. Runaway
-  budget failures warn; unclassified SDK failures reject. Validation and runtime
+  budget failures retain work through runtime recovery; unavailable judges cannot
+  approve publication or request source repair. Validation and runtime
   resolve the same declared agent contract.
 
 Deterministic policy returns typed decisions before workflow effects. Consumers

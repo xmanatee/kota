@@ -84,41 +84,21 @@ describe("daemon runtime scoped autonomy events", () => {
 
       emitWarningFamily({
         scenario,
-        emit: fixtureA.emitReview,
+        emit: fixtureA.emitRegression,
         scopeId: scopeAId,
-        predicate: (signal) => signal.source.kind === "review",
+        predicate: (signal) => signal.labels.includes("eval-regression"),
       });
       emitWarningFamily({
         scenario,
-        emit: fixtureB.emitReview,
+        emit: fixtureB.emitRegression,
         scopeId: scopeBId,
-        predicate: (signal) => signal.source.kind === "review",
+        predicate: (signal) => signal.labels.includes("eval-regression"),
       });
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, stateDir, (key) => key === "review-scrutiny:critic:builder:task-a") &&
-          projectionContains(scopeB, stateDir, (key) => key === "review-scrutiny:critic:builder:task-b"),
-        "review scrutiny did not reach both scoped projections",
-      );
-
-      emitWarningFamily({
-        scenario,
-        emit: fixtureA.emitTrajectory,
-        scopeId: scopeAId,
-        predicate: (signal) => signal.labels.includes("trajectory"),
-      });
-      emitWarningFamily({
-        scenario,
-        emit: fixtureB.emitTrajectory,
-        scopeId: scopeBId,
-        predicate: (signal) => signal.labels.includes("trajectory"),
-      });
-      const trajectoryRoot = "workflow:builder:trajectory:build:missing_final_verification_after_edit";
-      await waitForRuntimeEvidence(
-        () =>
-          projectionContains(scopeRoot, stateDir, (key) => key === trajectoryRoot) &&
-          projectionContains(scopeB, stateDir, (key) => key === trajectoryRoot),
-        "trajectory evidence did not reach both scoped projections",
+          projectionContains(scopeRoot, stateDir, (key) => key === "eval-harness:regression:fixture-a") &&
+          projectionContains(scopeB, stateDir, (key) => key === "eval-harness:regression:fixture-b"),
+        "eval regression did not reach both scoped projections",
       );
 
       emitWarningFamily({
@@ -166,8 +146,8 @@ describe("daemon runtime scoped autonomy events", () => {
       const sourceIssuesB = projectionB.issues.filter(
         (issue) => !baselineIssueKeys.get(scopeBId)!.has(issue.issueKey),
       );
-      expect(sourceIssuesA).toHaveLength(6);
-      expect(sourceIssuesB).toHaveLength(6);
+      expect(sourceIssuesA).toHaveLength(5);
+      expect(sourceIssuesB).toHaveLength(5);
       expect(projectionA.issues.some((issue) => issue.rootCauseKey.includes("task-b"))).toBe(false);
       expect(projectionB.issues.some((issue) => issue.rootCauseKey.includes("task-a"))).toBe(false);
       for (const [scopeId, sourceIssues] of [[scopeAId, sourceIssuesA], [scopeBId, sourceIssuesB]] as const) {
@@ -190,11 +170,11 @@ describe("daemon runtime scoped autonomy events", () => {
           .map((decision) => `${decision.scopeId}:${decision.issueKey}`)
           .filter((key) => !baselineDecisionKeys.has(key)),
       );
-      expect(newDecisionKeys.size).toBe(12);
+      expect(newDecisionKeys.size).toBe(10);
 
       for (const runtime of [runtimeA, runtimeB]) {
         const runs = runtime.runStore.listRuns({ workflow: "autonomy-health-reviewer", limit: 20 });
-        expect(runs).toHaveLength(baselineRunCounts.get(runtime.scope.scopeId)! + 6);
+        expect(runs).toHaveLength(baselineRunCounts.get(runtime.scope.scopeId)! + 5);
         expect(runs.every((run) => run.status === "success")).toBe(true);
         expect(runs.every((run) => existsSync(
           join(runtime.scope.scopeRoot, run.runDir, "autonomy-health-review.json"),
@@ -212,7 +192,7 @@ describe("daemon runtime scoped autonomy events", () => {
           (entry) => entry.payload.kind === "inline" &&
             entry.payload.payload.requestKind === "transition" &&
             issueKeys.has(String(entry.payload.payload.issueKey)),
-        )).toHaveLength(6);
+        )).toHaveLength(5);
       }
 
       const scopeBBeforeForeignEvent = fixtureB.snapshotSourceStores();

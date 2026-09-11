@@ -26,22 +26,9 @@ published in module summaries.
 
 ## Module Context Surfaces
 
-Every hook receives the same context object, but the typed protocol exposes
-fewer capabilities outside `onLoad`:
-
-- `ModuleContext` — the **contribution context** for `tools`,
-  `commands`, `routes`, `controlRoutes`, `localClient`, plus the `workflows`,
-  `channels`, `skills`, and `agents` factories (and any handler closure built
-  from them). Read access, tool invocation, provider lookup, event emit,
-  per-call sessions, and CLI-local `KotaClient` access. No lifecycle registration.
-- `ModuleRuntimeContext` — the **runtime context** for `onLoad`. It adds
-  load-time registration: `registerProvider`, `registerMiddleware`,
-  `registerGroup`, and the loop/harness decoration hooks
-  (`registerCleanupHook`, `registerDynamicStateProvider`, `registerPreSendHook`,
-  `registerHarnessHook`).
-
-Lifecycle registration belongs in `onLoad`; contribution factories may run
-after provider activation. `module-context-capabilities.test.ts` enforces this.
+Contribution factories return declarations. Lifecycle registration belongs in
+`onLoad`, through `ModuleRuntimeContext`; factories receive the narrower
+`ModuleContext` because they may run after provider activation.
 
 Typed module-operation health is scope-bound. Callers supply the authoritative
 operation scope from the request, signal, session, or channel runtime; module

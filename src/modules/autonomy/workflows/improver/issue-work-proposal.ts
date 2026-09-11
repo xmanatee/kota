@@ -15,10 +15,8 @@ function issueTaskBody(
     `- ${ref.kind}: ${ref.ref}${ref.summary ? ` — ${ref.summary}` : ""}`
   );
   return renderRepoTaskIntent({
-    problem: renderGeneratedTaskProse(disposition.taskSummary),
-    desiredOutcome:
-      `Resolve autonomy issue ${issue.issueKey} at semantic revision ` +
-      `${issue.semanticRevision}.`,
+    problem: issue.summaries.map(renderGeneratedTaskProse).join("\n\n"),
+    desiredOutcome: renderGeneratedTaskProse(disposition.taskDesiredOutcome),
     constraints: [
       "- Preserve the stable issue identity and cited provenance.",
       "- Implement through builder; this proposal is not evidence that the issue is fixed.",
@@ -26,8 +24,6 @@ function issueTaskBody(
     howWeWillKnow: renderGeneratedTaskProse(disposition.taskHowWeWillKnow),
     context: [
       `Issue reviewer disposition: ${renderGeneratedTaskProse(disposition.rationale)}`,
-      "",
-      ...issue.summaries.map((summary) => `- ${summary}`),
       "",
       "Evidence:",
       "",
