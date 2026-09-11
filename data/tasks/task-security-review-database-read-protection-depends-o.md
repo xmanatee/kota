@@ -220,3 +220,143 @@ The path above is the existing automated discovery location, not a requirement
 to use one filename or perform manual execution; equivalent runtime exports
 may satisfy review. Strict type verification is now complete. The task remains
 blocked on executed confinement evidence, not dependency installation.
+
+security family: 0d08d683e9a7787d3a4e0da83efee038bb24506b96c6a42898dea41b55935c86
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/agent-harness/native-cli-sandbox.ts
+claim:
+
+> The existing non-writer confidentiality gap remains present. Database read denials are supplied only by writer authorization, which returns undefined without a writer identity. Native launches still receive repository read access, allowing an influenced non-writer agent to read other scopes' persisted workflow data when the shared database lies beneath that repository.
+
+## Desired Outcome
+
+> Resolve the daemon database location from trusted runtime context for every native invocation and deny reads of the database and all SQLite sidecars independently of writer authorization. This closes each variant because the shared sandbox supplies the denials to every native permission owner.
+
+> Retain the existing open repair task and its earlier evidence. Verify the repair with a non-writer invocation against a synthetic multi-scope database, including SQLite sidecars, while preserving intended repository reads. This is unchanged evidence, not a demonstrated reintroduction.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-09T22-54-43-700Z-security-review-nrrakv.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-09T22-54-43-700Z-security-review-nrrakv
+
+security evidence: a4c688747951699c284b5dfafc83f6ff3daf66d5b52b9599e1a3b16b6598c3a8
+evidence identity: native-nonwriter-database-read
+production owner: core/agent-harness/native-cli-sandbox
+violated invariant: daemon-database-read-isolation
+Common repair:
+> Resolve the daemon database location from trusted runtime context for every native invocation and deny reads of the database and all SQLite sidecars independently of writer authorization. This closes each variant because the shared sandbox supplies the denials to every native permission owner.
+Exploit preconditions:
+> An attacker influences a native agent's commands, for example through repository content or prompt injection. The invocation has no writer identity, its readable repository contains the daemon database, and that database holds information from other scopes. Static inspection confirms the conditional permission gap; no protected database was accessed and no native exploit was executed.
+finding id: native-nonwriter-database-read
+candidate id: auth-approval-boundary:src/core/agent-harness/native-cli-sandbox.ts:6
+verdict: confirmed
+rationale:
+
+> Confirmed by static inspection at e16275b484ea81cf015dc5192d5e0ab4e384eef2. native-run-authorization.ts:70 returns undefined without writer identity; database and SQLite sidecar denials are constructed only in its writer branch at lines 132–139. native-cli-sandbox.ts:238 consequently omits those denials, while native-cli-sandbox-roots.ts:150 grants repository reads. Generic protected paths exclude SQLite files, and Codex runtime-home.ts:58 propagates repository access without an independent database denial. CLI invocations can use the canonical repository without writer identity (src/cli.ts:473–478). When that readable repository contains the shared daemon database, attacker-influenced commands can access other scopes' persisted triggers and state; daemon-context-factory.ts:86 and run-state-schema.ts establish shared storage. This does not imply every non-writer invocation is exposed: detached worktrees need the database independently within their readable roots. The existing open task matches the production owner, invariant and common repair: supply trusted database and sidecar denials independently of writer authorization. Evidence is unchanged, not a demonstrated reintroduction.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/workflow/native-run-authorization.ts
+
+line: 70
+
+excerpt:
+
+
+
+> if (identity === null) {
+>     if (env.KOTA_RUN_STATE_DIR || env.KOTA_RUN_AUTHORIZATION) throw new Error(DENIED);
+>     return undefined;
+>   }
+
+Evidence 2:
+
+
+
+path: src/core/agent-harness/native-cli-sandbox.ts
+
+line: 238
+
+excerpt:
+
+
+
+> const readProtectedPaths = [...new Set([
+>       ...tokenPaths,
+>       ...existingProtectedScopePaths(options.cwd),
+>       ...(runAuthorization?.readProtectedPaths ?? []),
+
+Evidence 3:
+
+
+
+path: src/core/tools/protected-scope-paths.ts
+
+line: 13
+
+excerpt:
+
+
+
+> export const PROTECTED_SCOPE_RUNTIME_FILES = [
+>   ".kota/daemon-control.json",
+>   ".kota/secrets.json",
+> ] as const;
+
+Evidence 4:
+
+
+
+path: src/core/agent-harness/native-cli-sandbox-roots.ts
+
+line: 150
+
+excerpt:
+
+
+
+> return [...new Set([
+>     ...platformRoots.filter(existsSync),
+>     cwd,
+>     invocationRoot,
+
+Evidence 5:
+
+
+
+path: src/modules/codex-agent-harness/runtime-home.ts
+
+line: 58
+
+excerpt:
+
+
+
+> for (const path of context.readableRoots) access.set(path, "read");
