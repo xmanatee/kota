@@ -243,7 +243,6 @@
         "src/modules/system/**",
         "src/modules/slack-channel/**",
         "src/modules/telegram/**",
-        "src/modules/tool-retry/**",
         "src/modules/voice/**",
         "src/modules/web/**",
         "src/modules/webhook/**",

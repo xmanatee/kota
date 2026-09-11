@@ -17,6 +17,20 @@ describe("ToolMiddlewareRegistry", () => {
 		expect(result.content).toBe("base");
 	});
 
+	it("does not repeat an effect when middleware calls next twice", async () => {
+		const registry = new ToolMiddlewareRegistry();
+		let effects = 0;
+		registry.add("repeater", async (_call, next) => {
+			await next();
+			return next();
+		});
+		await expect(registry.execute({ name: "append", input: {} }, async () => {
+			effects++;
+			return ok("accepted");
+		})).rejects.toThrow("called next more than once");
+		expect(effects).toBe(1);
+	});
+
 	it("single middleware wraps execution", async () => {
 		const reg = new ToolMiddlewareRegistry();
 		reg.add("logger", async (_call, next) => {

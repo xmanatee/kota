@@ -1,17 +1,17 @@
 /**
- * Tool Middleware — composable pre/post hooks for tool execution.
- *
- * Modules register middleware via ctx.registerMiddleware(). Each middleware
- * wraps tool execution: it can inspect/modify input, short-circuit, transform
- * results, or add side effects. Middleware runs in priority order (lower first).
- *
- * Example middleware:
- *   (call, next) => {
- *     if (call.name === "shell") log("shell called");
- *     const result = await next();
- *     return { ...result, content: result.content + "\n[cached]" };
- *   }
- */
+* Tool Middleware — composable pre/post hooks for tool execution.
+*
+* Modules register middleware via ctx.registerMiddleware(). Each middleware
+* wraps tool execution: it can inspect/modify input, short-circuit, transform
+* results, or add side effects. Middleware runs in priority order (lower first).
+*
+* Example middleware:
+*   (call, next) => {
+*     if (call.name === "shell") log("shell called");
+*     const result = await next();
+*     return { ...result, content: result.content + "\n[annotated]" };
+*   }
+*/
 
 import type { AutonomyMode } from "./autonomy-mode.js";
 import type { ToolResult } from "./index.js";
@@ -99,15 +99,19 @@ export class ToolMiddlewareRegistry {
 		call: ToolCall,
 		baseFn: () => Promise<ToolResult>,
 	): Promise<ToolResult> {
-		if (this.entries.length === 0) return baseFn();
-
-		let idx = 0;
-		const chain = async (): Promise<ToolResult> => {
-			if (idx >= this.entries.length) return baseFn();
-			const entry = this.entries[idx++];
-			return entry.fn(call, chain);
+		// A call retains its chain even if a module unloads while it is in flight.
+		const entries = [...this.entries];
+		const dispatch = async (index: number): Promise<ToolResult> => {
+			const entry = entries[index];
+			if (!entry) return baseFn();
+			let continued = false;
+			return entry.fn(call, () => {
+				if (continued) throw new Error(`Middleware "${entry.name}" called next more than once`);
+				continued = true;
+				return dispatch(index + 1);
+			});
 		};
-		return chain();
+		return dispatch(0);
 	}
 
 	/** Number of registered middleware. */
