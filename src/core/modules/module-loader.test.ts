@@ -55,6 +55,7 @@ import {
   getToolMiddleware,
   resetToolMiddleware,
 } from "#core/tools/tool-middleware.js";
+import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
@@ -2659,7 +2660,10 @@ describe("Module SDK — storage, config, skills", () => {
   });
 });
 
-describe("ctx.callTool — direct tool invocation", () => {
+describe("ctx.callTool — inherited tool invocation", () => {
+  const invoke = <T>(run: () => T): T => withToolCallExecutionOptions({
+    resultLimit: 30000, verbose: false, autonomyMode: "autonomous",
+  }, run);
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
@@ -2687,7 +2691,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("helper_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("helper_tool", {}));
     expect(result.content).toBe("result from helper_tool");
     expect(result.is_error).toBeFalsy();
   });
@@ -2702,9 +2706,9 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("nonexistent_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("nonexistent_tool", {}));
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Unknown tool");
+    expect(result.content).toContain("no registered input schema");
   });
 
   it("returns error when tool runner throws", async () => {
@@ -2732,7 +2736,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("throws_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("throws_tool", {}));
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("boom");
   });
@@ -2757,7 +2761,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("recursive_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("recursive_tool", {}));
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("depth limit exceeded");
   });
@@ -2778,9 +2782,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     });
 
     // Multiple sequential calls should all succeed (depth resets)
-    const r1 = await capturedCtx.callTool("simple_tool", {});
-    const r2 = await capturedCtx.callTool("simple_tool", {});
-    const r3 = await capturedCtx.callTool("simple_tool", {});
+    const r1 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
+    const r2 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
+    const r3 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
     expect(r1.content).toBe("result from simple_tool");
     expect(r2.content).toBe("result from simple_tool");
     expect(r3.content).toBe("result from simple_tool");
@@ -2814,7 +2818,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("echo_tool", { msg: "hello" });
+    const result = await invoke(() => capturedCtx.callTool("echo_tool", { msg: "hello" }));
     expect(result.content).toBe("echo: hello");
   });
 
@@ -2857,11 +2861,11 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("tool_a", {});
+    const result = await invoke(() => capturedCtx.callTool("tool_a", {}));
     expect(result.content).toBe("chained: leaf result");
   });
 
-  it("callTool works from event handlers via captured context", async () => {
+  it("event callbacks without an active executor have no tool authority", async () => {
     const bus = new EventBus();
     const loader = new ModuleLoader({});
     let eventResult: any;
@@ -2885,7 +2889,8 @@ describe("ctx.callTool — direct tool invocation", () => {
     bus.emit("test.trigger", {});
     // Wait for async handler
     await new Promise((r) => setTimeout(r, 10));
-    expect(eventResult?.content).toBe("result from event_target");
+    expect(eventResult?.is_error).toBe(true);
+    expect(eventResult?.content).toContain("active tool execution context");
   });
 
   it("probeHealthChecks collects results from modules with healthCheck", async () => {

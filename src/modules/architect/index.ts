@@ -26,6 +26,7 @@ const architectModule: KotaModule = {
 
     ctx.registerPreSendHook("architect", async (sendCtx) => {
       const result = await runArchitectStep({
+        executeTools: sendCtx.executeTools,
         client: sendCtx.client,
         model: sendCtx.model,
         editorModel: sendCtx.editorModel,

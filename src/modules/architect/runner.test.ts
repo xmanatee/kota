@@ -22,6 +22,7 @@ function makeConfig(
   overrides: Partial<ArchitectStepConfig> = {},
 ): ArchitectStepConfig {
   return {
+    executeTools: vi.fn(),
     client: {} as never,
     model: "claude-test",
     editorModel: "claude-editor",

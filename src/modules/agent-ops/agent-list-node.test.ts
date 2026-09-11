@@ -74,12 +74,12 @@ describe("buildAgentListNode", () => {
   it("builds inspect entries for source paths, policy, module links, and setup readiness", () => {
     const entries = buildAgentInspectEntries({
       ...ROWS[0],
-      skills: ["tool-cache"],
+      skills: ["working-memory"],
       resolvedSkills: [
         {
-          name: "tool-cache",
-          source: "tool-cache",
-          promptPath: "src/modules/tool-cache/tool-cache.md",
+          name: "working-memory",
+          source: "working-memory",
+          promptPath: "src/modules/working-memory/working-memory.md",
         },
       ],
       toolPolicy: { posture: "allow-list", allowed: ["Read"] },
@@ -111,7 +111,7 @@ describe("buildAgentListNode", () => {
         expect.objectContaining({ label: "Source Files" }),
         expect.objectContaining({
           label: "Skills",
-          value: "tool-cache (src/modules/tool-cache/tool-cache.md)",
+          value: "working-memory (src/modules/working-memory/working-memory.md)",
         }),
         expect.objectContaining({ label: "Tool Policy", value: "allow-list" }),
         expect.objectContaining({ label: "Workflows", value: "builder" }),

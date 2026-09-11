@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import { localDestructiveEffect } from "#core/tools/effect.js";
+import { deleteModuleToolEffect, resolveRegisteredToolEffect, setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
 
 const generateContentStreamMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
-const getToolEffectMock = vi.fn();
 const confirmActionMock = vi.fn();
 const enqueueApprovalMock = vi.fn();
 const approvalQueueMock = {
@@ -25,7 +26,7 @@ vi.mock("@google/genai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
-  getToolEffect: (...args: unknown[]) => getToolEffectMock(...args),
+  getToolEffect: (...args: Parameters<typeof resolveRegisteredToolEffect>) => resolveRegisteredToolEffect(...args),
 }));
 
 vi.mock("#core/util/confirm.js", () => ({
@@ -124,19 +125,15 @@ beforeEach(() => {
   generateContentStreamMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
-  getToolEffectMock.mockReset();
   confirmActionMock.mockReset();
   enqueueApprovalMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  getToolEffectMock.mockReturnValue({
-    kind: "destructive",
-    scope: "local-fs",
-    idempotent: false,
-    openWorld: false,
-  });
+  setModuleToolEffect(TEST_TOOL.name, { effect: localDestructiveEffect() });
   confirmActionMock.mockResolvedValue(true);
   enqueueApprovalMock.mockReturnValue({ id: "approval-gemini" });
 });
+
+afterEach(() => deleteModuleToolEffect(TEST_TOOL.name));
 
 describe("geminiAgentHarness — permission policy", () => {
   it("blocks a dangerous tool under a deny policy through the shared runner", async () => {

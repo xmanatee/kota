@@ -1,7 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { evaluateCondition, resolveStepInput } from "#core/manifest/index.js";
-import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { executeNestedTool } from "#core/tools/tool-runner-execution.js";
 
 export const pipeTool: KotaTool = {
 	name: "pipe",
@@ -46,7 +46,6 @@ type PipeStep = {
 
 export async function runPipe(
 	input: Record<string, unknown>,
-	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const steps = input.steps as PipeStep[];
 
@@ -78,7 +77,7 @@ export async function runPipe(
 		const resolved = resolveStepInput(step.input, prevContent, emptyPayload, allOutputs);
 
 		try {
-			const result = await executeTool(step.tool, resolved, context);
+			const result = await executeNestedTool(step.tool, resolved);
 			if (result.is_error) {
 				return {
 					content: `Step ${i + 1}/${steps.length} ("${step.tool}") failed: ${result.content}`,

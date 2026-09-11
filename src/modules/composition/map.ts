@@ -1,6 +1,6 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { executeNestedTool } from "#core/tools/tool-runner-execution.js";
 
 export const mapTool: KotaTool = {
 	name: "map",
@@ -69,7 +69,6 @@ function truncate(text: string, limit: number): string {
 
 export async function runMap(
 	input: Record<string, unknown>,
-	context?: ToolRunnerContext,
 ): Promise<ToolResult> {
 	const toolName = input.tool as string;
 	const items = input.items as Record<string, unknown>[];
@@ -100,10 +99,9 @@ export async function runMap(
 		items,
 		maxConcurrent,
 		async (item, index): Promise<MapItemResult> => {
-			const result = await executeTool(
+			const result = await executeNestedTool(
 				toolName,
 				item as Record<string, unknown>,
-				context,
 			);
 			return {
 				index,

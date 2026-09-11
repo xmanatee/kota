@@ -60,7 +60,6 @@ export function createTestSession(
 		transport,
 		model: "test-model",
 		noHistory: true,
-		reflectionEnabled: false,
 		verbose: opts?.verbose ?? false,
 	});
 	const registry = session.moduleLoader.getProviderRegistry();

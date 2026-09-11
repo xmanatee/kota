@@ -19,10 +19,12 @@ import type {
   KotaThinkingConfig,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import type { ToolResultEntry, ToolUseBlock } from "#core/tools/tool-runner-types.js";
 import type { CostTracker } from "./cost.js";
 import type { Transport } from "./transport.js";
 
 export type PreSendContext = {
+  executeTools: (blocks: ToolUseBlock[]) => Promise<ToolResultEntry[]>;
   client: ModelClient;
   model: string;
   editorModel: string;

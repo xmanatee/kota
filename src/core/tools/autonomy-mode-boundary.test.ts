@@ -231,7 +231,7 @@ describe("session autonomy-mode boundary", () => {
     // it returns text that looks like a mode-change directive, that text
     // joins the conversation context (untrusted content) — it cannot mutate
     // the session's autonomy mode.
-    registerPreSendHook("test-adversary", "adversary-hook", async (ctx) => {
+    registerPreSendHook("adversary-hook", async (ctx) => {
       // Accessing every field proves the hook sees no autonomy-mode handle.
       void ctx.client;
       void ctx.model;

@@ -1,44 +1,28 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { runPipe } from "./pipe.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import { deregisterTool, registerTool, type ToolRunner, type ToolRunnerContext } from "#core/tools/index.js";
+import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
+import { runPipe as executePipe } from "./pipe.js";
 
-const mockState = vi.hoisted(() => ({
-	calls: [] as Array<{
-		name: string;
-		input: Record<string, unknown>;
-		context: unknown;
-	}>,
-}));
-
-vi.mock("#core/tools/index.js", () => {
-	const runners: Record<string, (input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }>> = {
-		echo: async (input) => ({ content: String(input.text ?? "") }),
-		upper: async (input) => ({ content: String(input.text ?? "").toUpperCase() }),
-		concat: async (input) => ({ content: `${input.a ?? ""}|${input.b ?? ""}` }),
-		fail_tool: async () => ({ content: "something went wrong", is_error: true }),
-		throw_tool: async () => { throw new Error("boom"); },
-		json_out: async () => ({ content: JSON.stringify({ name: "alice", score: 42 }) }),
-	};
-	return {
-		executeTool: async (name: string, input: Record<string, unknown>, context?: unknown) => {
-			mockState.calls.push({ name, input, context });
-			const runner = runners[name];
-			if (!runner) return { content: `Unknown tool: ${name}`, is_error: true };
-			return runner(input);
-		},
-	};
+const mockState = { calls: [] as Array<{ name: string; input: Record<string, unknown>; context: unknown }> };
+const runners: Record<string, ToolRunner> = {
+ echo: async input => ({ content: String(input.text ?? "") }),
+ upper: async input => ({ content: String(input.text ?? "").toUpperCase() }),
+ concat: async input => ({ content: `${input.a ?? ""}|${input.b ?? ""}` }),
+ fail_tool: async () => ({ content: "something went wrong", is_error: true }),
+ throw_tool: async () => { throw new Error("boom"); },
+ json_out: async () => ({ content: JSON.stringify({ name: "alice", score: 42 }) }),
+};
+beforeEach(() => {
+ for (const [name, runner] of Object.entries(runners)) registerTool({ name, description: name, input_schema: { type: "object", properties: {}, additionalProperties: true } }, async (input, context) => {
+   mockState.calls.push({name, input, context});
+   return runner(input, context);
+ }, undefined, { effect: readOnlyLocalEffect() });
 });
-
-vi.mock("#core/manifest/index.js", async () => {
-	const actual = await vi.importActual("../../core/manifest/index.js");
-	return {
-		resolveStepInput: actual.resolveStepInput,
-		evaluateCondition: actual.evaluateCondition,
-	};
-});
-
-afterEach(() => {
-	mockState.calls.length = 0;
-});
+afterEach(() => { for (const name of Object.keys(runners)) deregisterTool(name); mockState.calls.length = 0; });
+function runPipe(input: Record<string, unknown>, context?: ToolRunnerContext) {
+ return withToolCallExecutionOptions({ resultLimit: 50_000, verbose: false, autonomyMode: "autonomous", ...context }, () => executePipe(input));
+}
 
 describe("pipe tool", () => {
 	describe("validation", () => {
@@ -100,7 +84,7 @@ describe("pipe tool", () => {
 
 			expect(r.content).toBe("HELLO");
 			expect(mockState.calls).toHaveLength(2);
-			expect(mockState.calls.map((call) => call.context)).toEqual([context, context]);
+			expect(mockState.calls.map((call) => call.context)).toEqual([expect.objectContaining(context), expect.objectContaining(context)]);
 		});
 
 		it("chains three steps", async () => {
@@ -189,7 +173,7 @@ describe("pipe tool", () => {
 				steps: [{ tool: "throw_tool" }],
 			});
 			expect(r.is_error).toBe(true);
-			expect(r.content).toContain("threw");
+			expect(r.content).toContain("failed");
 			expect(r.content).toContain("boom");
 		});
 

@@ -3,10 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { clearCustomTools } from "#core/tools/index.js";
+import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import filesystemModule from "#modules/filesystem/index.js";
 import renderingModule from "#modules/rendering/index.js";
-import { runMap } from "./map.js";
+import { runMap as executeMap } from "./map.js";
+
+function runMap(input: Record<string, unknown>, context?: ToolRunnerContext) {
+  return withToolCallExecutionOptions({ resultLimit: 50_000, verbose: false, autonomyMode: "autonomous", ...context }, () => executeMap(input));
+}
 
 function makeTempDir(suffix: string): string {
 	const dir = join(tmpdir(), `kota-map-${suffix}-${Date.now()}`);
@@ -141,7 +147,7 @@ describe("map tool", () => {
 			});
 			expect(r.is_error).toBeUndefined();
 			expect(r.content).toContain("0 ok, 1 failed");
-			expect(r.content).toContain("Unknown tool");
+			expect(r.content).toContain("no registered input schema");
 		});
 
 		it("preserves item order in results", async () => {

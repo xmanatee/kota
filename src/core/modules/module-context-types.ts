@@ -58,6 +58,7 @@ export type ModuleInspectionContext = {
 };
 
 export type ToolInvocationContext = {
+  /** Invoke inside an active tool call, inheriting its permissions and scope. */
   callTool: (name: string, input: ModuleBoundaryRecord) => Promise<ToolResult>;
   listTools: () => string[];
 };

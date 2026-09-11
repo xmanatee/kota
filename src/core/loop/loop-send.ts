@@ -6,7 +6,7 @@ import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
 import { getAllTools } from "#core/tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "#core/tools/tool-groups.js";
-import { executeToolCalls, FailureTracker } from "#core/tools/tool-runner.js";
+import { executeToolCalls, FailureTracker, type ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
 import { getToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { CONTEXT_WINDOW } from "./context.js";
 import { collectDynamicState } from "./dynamic-state.js";
@@ -71,6 +71,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
     let lastResult = "";
     const preSendResults = await runPreSendHooks({
+      executeTools: (blocks) => executeToolCalls(blocks, toolExecutionOptions(state, signal)),
       client: state.client,
       model: state.model,
       editorModel: state.editorModel,
@@ -217,40 +218,8 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         state.stateMachine.transition("acting", { toolCount: toolBlocks.length });
       }
 
-      const resultLimit = state.context.getToolResultLimit();
-      const scopePolicyAuthority = state.scopePolicyAuthority;
-      const getScopePolicySnapshot = scopePolicyAuthority === undefined
-        ? undefined
-        : () => scopePolicyAuthority.getSnapshot(state.scopeId);
-      const scopePolicy = getScopePolicySnapshot?.().policy;
-      const autonomyMode = scopePolicy
-        ? capScopeAutonomyMode(state.autonomyMode, scopePolicy)
-        : state.autonomyMode;
-      const validResults = await executeToolCalls(toolBlocks, {
-        resultLimit,
-        verbose: state.verbose,
-						autonomyMode,
-		approvalQueue: state.approvalQueue,
-        mcpManager: state.mcpManager ?? undefined,
-        mcpInputResolver: state.mcpInputResolver,
-        transport: state.transport,
-        guardrailsConfig: state.guardrailsConfig,
-        scopePolicy,
-        scopePolicyAuthority,
-        getScopePolicySnapshot,
-        clientApprovalResolver: state.clientApprovalResolver,
-        sessionId: state.sessionId,
-        scopeRoot: state.scopeRoot,
-        cwd: state.scopeRoot,
-        scopeId: state.scopeId,
-        authorityConfigPath: state.authorityConfigPath,
-        messages: state.context.getMessages(),
-        idempotencyStore: state.idempotencyStore,
-        ...(mcpPromptToolDeclarationFingerprints
-          ? { mcpPromptToolDeclarationFingerprints }
-          : {}),
-        signal,
-      });
+      const validResults = await executeToolCalls(toolBlocks,
+        toolExecutionOptions(state, signal, mcpPromptToolDeclarationFingerprints));
       throwIfAborted(signal);
       state.context.addToolResults(validResults);
 
@@ -277,4 +246,44 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
   } finally {
     state.activeAbortControllers.delete(abortController);
   }
+}
+
+function toolExecutionOptions(
+  state: AgentLoopState,
+  signal: AbortSignal,
+  mcpPromptToolDeclarationFingerprints?: ReadonlyMap<string, string>,
+): ToolCallExecutionOptions {
+  const scopePolicyAuthority = state.scopePolicyAuthority;
+  const getScopePolicySnapshot = scopePolicyAuthority === undefined
+    ? undefined
+    : () => scopePolicyAuthority.getSnapshot(state.scopeId);
+  const scopePolicy = getScopePolicySnapshot?.().policy;
+  const autonomyMode = scopePolicy
+    ? capScopeAutonomyMode(state.autonomyMode, scopePolicy)
+    : state.autonomyMode;
+  return {
+    resultLimit: state.context.getToolResultLimit(),
+    verbose: state.verbose,
+    autonomyMode,
+    approvalQueue: state.approvalQueue,
+    mcpManager: state.mcpManager ?? undefined,
+    mcpInputResolver: state.mcpInputResolver,
+    transport: state.transport,
+    guardrailsConfig: state.guardrailsConfig,
+    scopePolicy,
+    scopePolicyAuthority,
+    getScopePolicySnapshot,
+    clientApprovalResolver: state.clientApprovalResolver,
+    sessionId: state.sessionId,
+    scopeRoot: state.scopeRoot,
+    cwd: state.scopeRoot,
+    scopeId: state.scopeId,
+    authorityConfigPath: state.authorityConfigPath,
+    messages: state.context.getMessages(),
+    idempotencyStore: state.idempotencyStore,
+    ...(mcpPromptToolDeclarationFingerprints
+      ? { mcpPromptToolDeclarationFingerprints }
+      : {}),
+    signal,
+  };
 }

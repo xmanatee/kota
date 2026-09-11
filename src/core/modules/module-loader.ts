@@ -18,7 +18,7 @@ import {
 import { discardModuleLoadState, type LifecycleEnv, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import { type LoadAllEnv, loadAllModules, reloadModule } from "./module-loader-bootstrap.js";
 import { assembleDaemonClientHandlers as assembleDaemonClientHandlersImpl } from "./module-loader-clients.js";
-import { createLoaderModuleContext, type ToolCallDepth } from "./module-loader-context.js";
+import { createLoaderModuleContext } from "./module-loader-context.js";
 import {
   checkDependencies,
   checkDuplicateModule,
@@ -84,7 +84,6 @@ export class ModuleLoader {
   private cwd: string;
   private bus: EventBus | null = null;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
-  private toolCallDepth: ToolCallDepth = { value: 0 };
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
@@ -156,7 +155,6 @@ export class ModuleLoader {
         getRegisteredConfigKeys: () => this.getRegisteredConfigKeys(),
         providerRegistry: this.providerRegistry,
       },
-      this.toolCallDepth,
       moduleName,
     );
   }
