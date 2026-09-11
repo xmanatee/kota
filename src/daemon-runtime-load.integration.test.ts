@@ -29,7 +29,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { EventJournal } from "#core/events/event-journal.js";
@@ -80,13 +79,13 @@ describe("daemon runtime module load", () => {
     mkdirSync(stateDir, { recursive: true });
     initializeRuntimeRoutingScope(scopeRoot);
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
   });
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
     rmSync(rootDir, { recursive: true, force: true });
   });

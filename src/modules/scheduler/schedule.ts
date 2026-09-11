@@ -1,15 +1,15 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getScheduler, parseRepeat, parseTime } from "#core/daemon/scheduler.js";
+import { parseRepeat, parseTime, type ReminderCommands } from "#core/daemon/scheduler.js";
 import type { ToolResult } from "#core/tools/index.js";
 
 export const scheduleTool: KotaTool = {
   name: "schedule",
   description:
-    "Set reminders, schedule recurring tasks, or create event-triggered schedules. " +
+    "Set timed, recurring, or event-triggered reminders in a daemon-hosted session. " +
     "Time-based: natural expressions (\"in 30 minutes\", \"tomorrow at 9am\"). " +
     "Event-based: trigger on internal events (\"session.end\", \"workflow.completed\"). " +
     "Events: runtime.idle, workflow.started, workflow.completed, workflow.step.completed, " +
-    "session.start, session.end, schedule.fire, or any custom event name.",
+    "session.start, session.end, or any custom event name.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -17,7 +17,7 @@ export const scheduleTool: KotaTool = {
         type: "string",
         enum: ["add", "on_event", "list", "cancel"],
         description:
-          "'add' for time-based schedules, 'on_event' for event-triggered automations",
+          "'add' for time-based reminders, 'on_event' for event-triggered reminders",
       },
       description: {
         type: "string",
@@ -71,9 +71,9 @@ function formatTime(iso: string): string {
 
 export async function runSchedule(
   input: Record<string, unknown>,
+  scheduler: ReminderCommands,
 ): Promise<ToolResult> {
   const action = input.action as string;
-  const scheduler = getScheduler();
 
   switch (action) {
     case "add": {

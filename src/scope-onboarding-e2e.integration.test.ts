@@ -30,7 +30,6 @@ import {
   type DaemonControlAddress,
   DaemonControlServer,
 } from "#core/daemon/daemon-control.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { scopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
@@ -448,7 +447,7 @@ describe("self-service external scope onboarding acceptance", () => {
   const transcript: CliTranscriptEntry[] = [];
 
   beforeEach(() => {
-    resetScheduler();
+
     events.splice(0);
     transcript.splice(0);
     root = mkdtempSync(join(tmpdir(), "kota-scope-onboarding-e2e-"));
@@ -525,7 +524,7 @@ describe("self-service external scope onboarding acceptance", () => {
     resetActiveKotaClient();
     setTerminalTransport(null);
     setStderrTransport(null);
-    resetScheduler();
+
     if (ttyDescriptor === undefined) delete (process.stdin as { isTTY?: boolean }).isTTY;
     else Object.defineProperty(process.stdin, "isTTY", ttyDescriptor);
     if (priorOperatorTokenPath === undefined) {

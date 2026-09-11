@@ -1,21 +1,18 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { scopeHash } from "./schedule-parser.js";
-import { resetScheduler, Scheduler } from "./scheduler.js";
+import { Scheduler } from "./scheduler.js";
 
 describe("Scheduler", () => {
   let scheduler: Scheduler;
 
   beforeEach(() => {
-    scheduler = new Scheduler("/test", null); // in-memory mode
+    scheduler = new Scheduler(); // in-memory mode
   });
 
   afterEach(() => {
     scheduler.stopTimer();
-    resetScheduler();
+
   });
 
   it("adds and retrieves an item", () => {
@@ -90,22 +87,7 @@ describe("Scheduler", () => {
     expect(scheduler.pending()[0].description).toBe("Future");
   });
 
-  it("getPendingSummary shows overdue and upcoming", () => {
-    const past = new Date(Date.now() - 60_000);
-    const future = new Date(Date.now() + 3_600_000);
-    scheduler.add("Overdue task", past);
-    scheduler.add("Future task", future);
 
-    const summary = scheduler.getPendingSummary();
-    expect(summary).toContain("OVERDUE");
-    expect(summary).toContain("Overdue task");
-    expect(summary).toContain("upcoming");
-    expect(summary).toContain("Future task");
-  });
-
-  it("getPendingSummary returns null when empty", () => {
-    expect(scheduler.getPendingSummary()).toBeNull();
-  });
 
   it("startTimer calls onDue for past items", async () => {
     const past = new Date(Date.now() - 60_000);
@@ -318,20 +300,6 @@ describe("Scheduler", () => {
     scheduler.stopTimer(); // no error
   });
 
-  it("defaults persistence to the scope runtime directory", () => {
-    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-scheduler-project-"));
-    const persistentScheduler = new Scheduler(scopeRoot);
-    try {
-      persistentScheduler.add("Persist locally", new Date(Date.now() + 60_000));
-      expect(
-        existsSync(join(scopeRoot, ".kota", `schedules-${scopeHash(scopeRoot)}.json`)),
-      ).toBe(true);
-    } finally {
-      persistentScheduler.stopTimer();
-      persistentScheduler.disconnectBus();
-      rmSync(scopeRoot, { recursive: true, force: true });
-    }
-  });
 });
 
 describe("Event-Based Triggers", () => {
@@ -339,14 +307,14 @@ describe("Event-Based Triggers", () => {
   let bus: EventBus;
 
   beforeEach(() => {
-    scheduler = new Scheduler("/test", null);
+    scheduler = new Scheduler();
     bus = new EventBus();
   });
 
   afterEach(() => {
     scheduler.disconnectBus();
     scheduler.stopTimer();
-    resetScheduler();
+
   });
 
   // --- addEventTrigger ---
@@ -525,7 +493,7 @@ describe("Event-Based Triggers", () => {
       fired.push(...items.map((i) => i.description));
     });
 
-    bus.emit("schedule.fire", { scopeId: "test-scope", itemId: 1, description: "test" });
+    bus.emit("schedule.fire", { scopeId: "test-scope", itemId: 1, description: "test", scheduledFor: new Date().toISOString(), repeat: null });
     expect(fired).toHaveLength(0);
   });
 
@@ -581,29 +549,8 @@ describe("Event-Based Triggers", () => {
     expect(fired2).toHaveLength(1); // new connection active
   });
 
-  // --- getPendingSummary with event triggers ---
 
-  it("getPendingSummary includes event-triggered items", () => {
-    const future = new Date(Date.now() + 3_600_000);
-    scheduler.add("Time task", future);
-    scheduler.addEventTrigger("Event task", "session.end", { repeat: true });
 
-    const summary = scheduler.getPendingSummary();
-    expect(summary).toContain("upcoming");
-    expect(summary).toContain("Time task");
-    expect(summary).toContain("event-triggered");
-    expect(summary).toContain("Event task");
-    expect(summary).toContain("on session.end");
-    expect(summary).toContain("repeat");
-  });
-
-  it("getPendingSummary shows non-repeat event triggers", () => {
-    scheduler.addEventTrigger("One-shot event", "workflow.completed");
-    const summary = scheduler.getPendingSummary();
-    expect(summary).toContain("event-triggered");
-    expect(summary).toContain("on workflow.completed");
-    expect(summary).not.toContain("repeat");
-  });
 
   // --- Mixed time + event items ---
 

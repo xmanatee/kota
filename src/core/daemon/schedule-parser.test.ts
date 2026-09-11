@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatRelative,
   matchesFilter,
   parseRepeat,
   parseTime,
@@ -215,53 +214,5 @@ describe("matchesFilter", () => {
     const payload = { a: "1", b: "2", c: "3" };
     expect(matchesFilter(payload, { a: "1", b: "2" })).toBe(true);
     expect(matchesFilter(payload, { a: "1", b: "WRONG" })).toBe(false);
-  });
-});
-
-describe("formatRelative", () => {
-  const now = new Date("2025-06-15T10:00:00Z");
-
-  it("returns 'overdue' for past dates", () => {
-    const past = new Date(now.getTime() - 60_000);
-    expect(formatRelative(past, now)).toBe("overdue");
-  });
-
-  it("returns 'overdue' for equal dates", () => {
-    expect(formatRelative(now, now)).toBe("overdue");
-  });
-
-  it("returns minutes for <60m", () => {
-    const target = new Date(now.getTime() + 30 * 60_000);
-    expect(formatRelative(target, now)).toBe("in 30m");
-  });
-
-  it("returns hours for 1-23h", () => {
-    const target = new Date(now.getTime() + 3 * 3_600_000);
-    expect(formatRelative(target, now)).toBe("in 3h");
-  });
-
-  it("returns days for 24h+", () => {
-    const target = new Date(now.getTime() + 48 * 3_600_000);
-    expect(formatRelative(target, now)).toBe("in 2d");
-  });
-
-  it("rounds to nearest minute", () => {
-    const target = new Date(now.getTime() + 90_000); // 1.5 minutes
-    expect(formatRelative(target, now)).toBe("in 2m");
-  });
-
-  it("boundary: exactly 60 minutes shows 1h", () => {
-    const target = new Date(now.getTime() + 60 * 60_000);
-    expect(formatRelative(target, now)).toBe("in 1h");
-  });
-
-  it("boundary: exactly 24 hours shows 1d", () => {
-    const target = new Date(now.getTime() + 24 * 3_600_000);
-    expect(formatRelative(target, now)).toBe("in 1d");
-  });
-
-  it("1 minute ahead", () => {
-    const target = new Date(now.getTime() + 60_000);
-    expect(formatRelative(target, now)).toBe("in 1m");
   });
 });

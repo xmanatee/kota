@@ -22,7 +22,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { handleListModules } from "#modules/module-manager/routes.js";
@@ -57,12 +56,12 @@ describe("Daemon module HTTP routes integration", () => {
     stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
-    resetScheduler();
+
   });
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     rmSync(scopeRoot, { recursive: true, force: true });
   });
 

@@ -24,49 +24,10 @@ export type ScheduledItem = {
   repeat?: boolean;
 };
 
-/** Build a human-readable summary of pending scheduled items. */
-export function getPendingSummary(items: ScheduledItem[]): string | null {
-  const pending = items.filter((i) => i.status === "pending");
-  if (pending.length === 0) return null;
-  const now = new Date();
-
-  const timeBased = pending.filter((i) => !i.triggerEvent);
-  const eventBased = pending.filter((i) => i.triggerEvent);
-
-  const overdue = timeBased.filter((i) => new Date(i.triggerAt) <= now);
-  const upcoming = timeBased.filter((i) => new Date(i.triggerAt) > now);
-
-  const parts: string[] = [];
-  if (overdue.length > 0) {
-    parts.push(
-      `${overdue.length} OVERDUE: ${overdue.map((i) => `"${i.description}"`).join(", ")}`,
-    );
-  }
-  if (upcoming.length > 0) {
-    const preview = upcoming.slice(0, 3).map((i) => {
-      const label = formatRelative(new Date(i.triggerAt), now);
-      return `"${i.description}" (${label})`;
-    });
-    const more = upcoming.length > 3 ? ` (+${upcoming.length - 3} more)` : "";
-    parts.push(`${upcoming.length} upcoming: ${preview.join(", ")}${more}`);
-  }
-  if (eventBased.length > 0) {
-    const preview = eventBased.slice(0, 3).map((i) => {
-      const repeatTag = i.repeat ? ", repeat" : "";
-      return `"${i.description}" (on ${i.triggerEvent}${repeatTag})`;
-    });
-    const more =
-      eventBased.length > 3 ? ` (+${eventBased.length - 3} more)` : "";
-    parts.push(
-      `${eventBased.length} event-triggered: ${preview.join(", ")}${more}`,
-    );
-  }
-  return parts.join("; ");
-}
 
 /**
  * Deterministic hash for project-scoping storage files.
- * Used by both Scheduler and TaskStore to derive per-scope filenames.
+ * Used by TaskStore and the one-way legacy reminder import.
  */
 export function scopeHash(path: string): string {
   const identity = scopeStorageIdentity(path);
@@ -159,16 +120,4 @@ export function matchesFilter(
     if (String(payload[key]) !== value) return false;
   }
   return true;
-}
-
-/** Format a Date as a human-readable relative time string. */
-export function formatRelative(target: Date, now: Date): string {
-  const diffMs = target.getTime() - now.getTime();
-  if (diffMs <= 0) return "overdue";
-  const mins = Math.round(diffMs / 60_000);
-  if (mins < 60) return `in ${mins}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `in ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `in ${days}d`;
 }

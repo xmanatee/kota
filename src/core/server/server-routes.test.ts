@@ -1,6 +1,5 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Scheduler } from "#core/daemon/scheduler.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { routeInvocationContract } from "./route-invocation-test-support.js";
@@ -23,12 +22,11 @@ describe("buildRequestHandler route auth", () => {
   }, authToken);
 
   it.each(["sync", "async"] as const)("contains %s failures in direct host routes", async (failure) => {
-    const scheduler = new Scheduler(undefined, null);
     const pool = new SessionPool();
     const fail = () => { throw new Error("host route failed"); };
-    vi.spyOn(scheduler, "count").mockImplementation(fail);
     vi.spyOn(pool, "get").mockImplementation(fail);
-    const server = createServer(makeRequestHandler([], authToken, { scheduler, pool }));
+    vi.spyOn(pool, "size", "get").mockImplementation(fail);
+    const server = createServer(makeRequestHandler([], authToken, { pool }));
     servers.push(server);
     const baseUrl = await listen(server);
     const response = await fetch(`${baseUrl}${failure === "sync" ? "/api/health" : "/api/sessions/example"}`, {
@@ -156,7 +154,6 @@ function makeRequestHandler(
   return buildRequestHandler({
     port: 0,
     pool: new SessionPool(),
-    scheduler: new Scheduler(undefined, null),
     bus: new EventBus(),
     moduleRoutes,
     makeAgent: () => {

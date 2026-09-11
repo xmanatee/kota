@@ -3,7 +3,6 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Scheduler } from "#core/daemon/scheduler.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { buildRequestHandler } from "#core/server/server-routes.js";
 import { SessionPool } from "#core/server/session-pool.js";
@@ -49,7 +48,6 @@ describe("GET /api/attention", () => {
     const requestHandler = buildRequestHandler({
       port: 0,
       pool,
-      scheduler: { count: () => 0 } as unknown as Scheduler,
       bus,
       moduleRoutes: attentionRoutes({
         stateDir: join(workspaceRoot, ".kota"),

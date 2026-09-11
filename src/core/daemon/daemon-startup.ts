@@ -19,7 +19,6 @@ import {
   startDaemonWorkflowRuntimes,
   validateDaemonWorkflowRuntimes,
 } from "./daemon-workflows.js";
-import { getScheduler } from "./scheduler.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
 
 const DEFAULT_POLL_INTERVAL = 30_000;
@@ -177,7 +176,7 @@ export async function runDaemonStartup(
   saveDaemonStateToDisk(ctx.stateDir, ctx.state);
   ctx.log(
     `Daemon ready (pid ${process.pid}): ${ctx.workflows.getDefinitionCount()} workflows, ` +
-      `${getScheduler().count()} scheduled items, poll ${pollMs / 1000}s`,
+      `${ctx.scopeRuntimes.getDefault().scheduler.count()} scheduled items, poll ${pollMs / 1000}s`,
   );
   hooks.onReady();
   await hooks.waitForStop();

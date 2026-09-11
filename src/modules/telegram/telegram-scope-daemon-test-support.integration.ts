@@ -27,7 +27,7 @@ export function makeScopeRuntime(
 ): ScopeRuntime {
   return {
     scope,
-    scheduler: new Scheduler(scope.scopeRoot, null),
+    scheduler: new Scheduler(),
   } as unknown as ScopeRuntime;
 }
 

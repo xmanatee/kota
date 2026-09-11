@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
@@ -72,7 +71,7 @@ describe("telegram scope integration", () => {
   afterEach(async () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
     resetEventBus();
-    resetScheduler();
+
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     agentSessionOptions.length = 0;

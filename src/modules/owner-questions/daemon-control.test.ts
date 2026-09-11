@@ -1,3 +1,4 @@
+import { Scheduler } from "#core/daemon/scheduler.js";
 /**
  * Exercises the owner-questions module's daemon-control routes through the
  * same registration seam the real daemon uses: `ownerQuestionControlRoutes()`
@@ -167,6 +168,7 @@ function registerScopeQueueProvider(
         ok: true,
         runtime: {
           scope: entry.scope,
+      scheduler: new Scheduler(),
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,

@@ -15,7 +15,7 @@
  * `init*(scopeRoot)` from somewhere else in the daemon source tree.
  *
  * The default directory scope's bundle installs the process-owned singletons
- * (`getTaskStore` / `getScheduler` / etc.) for consumers that have not yet
+ * (`getTaskStore` / etc.) for consumers that have not yet
  * moved to host-owned lifecycle injection. Non-default directory
  * bundles intentionally do not touch the singletons.
  */
@@ -56,7 +56,8 @@ import {
   OwnerQuestionQueue,
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
-import { Scheduler, setSchedulerInstance } from "./scheduler.js";
+import { Scheduler } from "./scheduler.js";
+import { migrateSchedules } from "./scheduler-migration.js";
 import type { ScopePolicyAuthority } from "./scope-policy.js";
 import type { DirectoryScope } from "./scope-registry.js";
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
@@ -116,7 +117,7 @@ export type ScopeRuntimeFactoryOptions = {
   onLog: (message: string) => void;
   /**
    * When true, the freshly built per-scope instances are also installed
-   * as the process-level singletons (`getTaskStore`, `getScheduler`,
+   * as the process-level singletons (`getTaskStore`,
    * `getApprovalQueue`, `getOwnerQuestionQueue`, `getModuleLogStore`).
    * Exactly one bundle per daemon should pass `true` — the default
    * scope. Other bundles must leave the singletons untouched.
@@ -134,7 +135,6 @@ export type ScopeRuntimeFactoryOptions = {
 
 function installScopeRuntimeSingletons(runtime: ScopeRuntime): void {
   setTaskStoreInstance(runtime.taskStore);
-  setSchedulerInstance(runtime.scheduler);
   setModuleLogStoreInstance(runtime.moduleLogStore);
   setApprovalQueueInstance(runtime.approvalQueue);
   setIdempotencyStoreInstance(runtime.idempotencyStore);
@@ -184,7 +184,8 @@ export function createScopeRuntime(
       ),
   });
   const taskStore = new TaskStore(scopeRoot, undefined, pbus);
-  const scheduler = new Scheduler(scopeRoot, undefined, pbus);
+  migrateSchedules(scopeRoot, { database: opts.runState, scopeId: opts.scope.scopeId });
+  const scheduler = new Scheduler({ database: opts.runState, scopeId: opts.scope.scopeId }, pbus);
   const moduleLogStore = new ModuleLogStore(scopeRoot);
   const approvalQueue = new ApprovalQueue(
     join(scopeRoot, ".kota", "approvals"),

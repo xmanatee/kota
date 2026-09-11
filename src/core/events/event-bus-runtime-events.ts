@@ -206,6 +206,8 @@ export type RuntimeBusEvents = {
     scopeId: ScopeId;
     itemId: number;
     description: string;
+    scheduledFor: string;
+    repeat: string | null;
   };
   "knowledge.create": {
     id: string;

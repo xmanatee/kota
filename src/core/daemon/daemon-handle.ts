@@ -9,6 +9,7 @@ import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { DaemonConfig } from "./daemon.js";
+import { subscribeToDaemonEvents } from "./daemon-control-events.js";
 import type {
   DaemonControlHandle,
   InteractiveSession,
@@ -200,51 +201,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
     ...buildDaemonWorkflowHandle(ctx, lookupRuntime, getUnavailableScopeState),
     ...buildDaemonConfigReloadHandle(ctx),
-    subscribeToEvents: (handler) => {
-      const stops = [
-        bus.on("workflow.started", (payload) => {
-          handler({ type: "workflow.started", payload });
-          handler({
-            type: "queue.changed",
-            payload: { source: "workflow.started", workflow: payload.workflow },
-          });
-        }),
-        bus.on("workflow.completed", (payload) => {
-          handler({ type: "workflow.completed", payload });
-          handler({
-            type: "queue.changed",
-            payload: {
-              source: "workflow.completed",
-              workflow: payload.workflow,
-              status: payload.status,
-            },
-          });
-        }),
-        bus.on("workflow.step.completed", (payload) =>
-          handler({ type: "workflow.step.completed", payload })),
-        bus.on("daemon.config.reload", (payload) =>
-          handler({ type: "daemon.config.reload", payload })),
-        bus.on("scope.lifecycle.changed", (payload) =>
-          handler({ type: "scope.lifecycle.changed", payload })),
-        bus.on("approval.changed", (payload) => handler({ type: "approval.changed", payload })),
-        bus.on("task.changed", (payload) => handler({ type: "task.changed", payload })),
-        bus.on("session.registered", (payload) =>
-          handler({ type: "session.registered", payload })),
-        bus.on("session.unregistered", (payload) =>
-          handler({ type: "session.unregistered", payload })),
-        bus.on("owner.question.asked", (payload) =>
-          handler({ type: "owner.question.asked", payload })),
-        bus.on("owner.question.changed", (payload) =>
-          handler({ type: "owner.question.changed", payload })),
-        bus.on("owner.question.resolved", (payload) =>
-          handler({ type: "owner.question.resolved", payload })),
-        bus.on("owner.question.dismissed", (payload) =>
-          handler({ type: "owner.question.dismissed", payload })),
-        bus.on("owner.question.expired", (payload) =>
-          handler({ type: "owner.question.expired", payload })),
-      ];
-      return () => stops.forEach((stop) => stop());
-    },
+    subscribeToEvents: (handler) => subscribeToDaemonEvents(bus, handler),
     ...buildDaemonRunHandle(lookupRuntime),
     listDeadLetters: (opts) => {
       const runtime = lookupRuntime(opts?.scopeId);

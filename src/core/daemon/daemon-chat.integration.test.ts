@@ -28,7 +28,6 @@ import {
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
 import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs.js";
-import { resetScheduler } from "./scheduler.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 const CONV_ID = "c-fixture-0000";
@@ -710,7 +709,7 @@ describe("Daemon chat scope-scoped history", () => {
 
   beforeEach(() => {
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
     rootDir = mkdtempSync(join(tmpdir(), "kota-chat-project-history-"));
     stateDir = join(rootDir, "daemon-state");
@@ -723,7 +722,7 @@ describe("Daemon chat scope-scoped history", () => {
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
     rmSync(rootDir, { recursive: true, force: true });
   });

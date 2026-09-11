@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { Daemon } from "./daemon.js";
-import { resetScheduler } from "./scheduler.js";
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,7 +59,7 @@ describe("daemon operates against an external scope fixture", () => {
 
   beforeEach(() => {
     resetEventBus();
-    resetScheduler();
+
     fixtureDir = join(
       tmpdir(),
       `kota-ext-fixture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -109,7 +108,7 @@ describe("daemon operates against an external scope fixture", () => {
 
     rmSync(fixtureDir, { recursive: true, force: true });
     resetEventBus();
-    resetScheduler();
+
   });
 
   it(

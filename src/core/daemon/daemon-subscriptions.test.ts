@@ -14,7 +14,6 @@ import {
   resetOwnerQuestionQueue,
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
-import { resetScheduler } from "./scheduler.js";
 
 describe("subscribeDaemon", () => {
   const scopeRoots: string[] = [];
@@ -22,7 +21,7 @@ describe("subscribeDaemon", () => {
   afterEach(() => {
     resetApprovalQueue();
     resetOwnerQuestionQueue();
-    resetScheduler();
+
     vi.useRealTimers();
     for (const scopeRoot of scopeRoots.splice(0)) {
       rmSync(scopeRoot, { recursive: true, force: true });

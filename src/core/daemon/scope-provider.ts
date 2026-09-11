@@ -3,6 +3,7 @@ import {
   type ProviderToken,
 } from "#core/modules/provider-registry.js";
 import type { SetActiveScopeResult, UnknownScopeError } from "./daemon-control-types.js";
+import type { ReminderCommands } from "./scheduler.js";
 import type { ScopeAuthorityOperatorActionValue } from "./scope-authority-types.js";
 import type {
   ScopeDrainResult,
@@ -28,7 +29,7 @@ export type DaemonScopeRuntime = Pick<
   | "ownerDecisionStore"
   | "ownerQuestionQueue"
   | "scopePolicyAuthority"
->;
+> & { scheduler: ReminderCommands };
 
 export type DaemonScopeRuntimeResolution =
   | { ok: true; runtime: DaemonScopeRuntime }

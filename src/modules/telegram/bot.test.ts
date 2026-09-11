@@ -74,7 +74,7 @@ function makeScopeRuntime(
 ): ScopeRuntime {
   return {
     scope: { scopeId, scopeRoot, displayName: scopeId },
-    scheduler: new Scheduler(scopeRoot, null),
+    scheduler: new Scheduler(),
   } as ScopeRuntime;
 }
 

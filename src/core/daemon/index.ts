@@ -25,19 +25,14 @@ export type {
 	StoreReclamationSummary,
 } from "./lifecycle-collector-types.js";
 export {
-	formatRelative,
 	matchesFilter,
 	scopeHash,
 } from "./schedule-parser.js";
 export {
-	getScheduler,
-	initScheduler,
 	parseRepeat,
 	parseTime,
-	resetScheduler,
 	type ScheduledItem,
 	Scheduler,
-	setSchedulerInstance,
 } from "./scheduler.js";
 export type {
 	ScopeImprovementPosture,
