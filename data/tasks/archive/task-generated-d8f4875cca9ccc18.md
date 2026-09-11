@@ -54,3 +54,5 @@ This completes refusal handling, not the live security review. The source run an
 dead letter remain one incident with one failure timestamp. No provider safeguard
 was bypassed, no live coverage was claimed, and the original incident and pending
 live evidence were not modified.
+
+<!-- generated-work retirement: bc5f43dca92bdf612b8cfcd4a3748b9d492ecb1ef7231df9bd734a5d9ed1b390 -->
