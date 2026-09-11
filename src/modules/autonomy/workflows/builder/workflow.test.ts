@@ -25,6 +25,7 @@ import { assessBuilderRecovery, builderRecoveryRevision } from "./recovery.js";
 import {
   inspectBuilderTaskTarget,
   listBuilderTaskDispatches,
+  verifyBuilderTaskSnapshot,
 } from "./task-contract.js";
 import builderWorkflow from "./workflow.js";
 
@@ -74,6 +75,12 @@ describe("targeted builder contract", () => {
     writeTask(root, "open");
     publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
+    // Persisted run identities must survive changes to continuation context.
+    expect(payload.taskDigest).toBe("34fd617ffdd0dda4497e86b7b5345be601aa5a8b4e87b1a7b6ef387757bd9e30");
+    const snapshot = readFileSync(join(root, payload.taskPath), "utf8");
+    expect(verifyBuilderTaskSnapshot(payload, snapshot).taskDigest).toBe(payload.taskDigest);
+    expect(() => verifyBuilderTaskSnapshot(payload, snapshot.replace("initial", "changed")))
+      .toThrow("does not match its immutable admitted contract");
     const trigger = {
       event: "autonomy.queue.available",
       schemaRef: null,

@@ -58,7 +58,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       "taskPath",
       "taskState",
       "taskDigest",
-      "taskContract",
       "title",
       "priority",
       "dependsOn",
@@ -72,7 +71,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       taskPath: { type: "string", minLength: 1 },
       taskState: { enum: ["open"] },
       taskDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
-      taskContract: { type: "string", minLength: 1 },
       title: { type: "string", minLength: 1 },
       priority: { type: "string", enum: ["p0", "p1", "p2", "p3"] },
       dependsOn: {

@@ -11,6 +11,7 @@ import type { TaskReviewContract } from "#modules/autonomy/task-review-target.js
 import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
 import {
   listFullRepoTasks,
+  parseRepoTaskRecord,
   type RepoTaskFullRecord,
   type RepoTaskPriority,
   selectActionableRepoTasks,
@@ -24,9 +25,8 @@ export type BuilderTaskIdentity = Readonly<{
   taskPath: string;
   taskState: "open";
   taskDigest: string;
-  taskContract: string;
   title: string;
-  priority: RepoTaskFullRecord["priority"];
+  priority: RepoTaskPriority;
   dependsOn: readonly string[];
   idempotencyKey: string;
 }>;
@@ -60,24 +60,16 @@ function taskPath(task: Pick<RepoTaskFullRecord, "id" | "state">): string {
   return join("data", "tasks", `${task.id}.md`);
 }
 
-function admittedTaskContract(task: RepoTaskFullRecord): string {
-  return [
-    `status: ${task.state}`,
-    `priority: ${task.priority ?? "none"}`,
-    `depends_on: ${[...task.dependsOn].sort().join(", ") || "none"}`,
-    "",
-    task.body,
-  ].join("\n");
-}
-
-function digestTaskContract(taskId: string, taskContract: string): string {
-  return createHash("sha256")
-    .update(JSON.stringify({ taskId, taskContract }))
-    .digest("hex");
-}
-
 function digestTask(task: RepoTaskFullRecord): string {
-  return digestTaskContract(task.id, admittedTaskContract(task));
+  const contract = {
+    id: task.id,
+    title: task.title,
+    state: task.state,
+    priority: task.priority,
+    body: task.body,
+    dependsOn: [...task.dependsOn].sort(),
+  };
+  return createHash("sha256").update(JSON.stringify(contract)).digest("hex");
 }
 
 function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
@@ -85,13 +77,11 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
     throw new Error(`Task "${task.id}" is not actionable`);
   }
   const taskDigest = digestTask(task);
-  const taskContract = admittedTaskContract(task);
   return Object.freeze({
     taskId: task.id,
     taskPath: taskPath(task),
     taskState: task.state,
     taskDigest,
-    taskContract,
     title: task.title,
     priority: task.priority!,
     dependsOn: Object.freeze([...task.dependsOn]),
@@ -127,8 +117,6 @@ export function readBuilderTaskPayload(
     dispatch.taskPath !== taskPath({ id: dispatch.taskId, state: dispatch.taskState }) ||
     typeof dispatch.taskDigest !== "string" ||
     !TASK_DIGEST_PATTERN.test(dispatch.taskDigest) ||
-    typeof dispatch.taskContract !== "string" ||
-    dispatch.taskContract.trim().length === 0 ||
     typeof dispatch.title !== "string" ||
     dispatch.title.trim().length === 0 ||
     priority === null ||
@@ -138,16 +126,6 @@ export function readBuilderTaskPayload(
     !dependsOn.every((dependency): dependency is string =>
       typeof dependency === "string" && TASK_ID_PATTERN.test(dependency)
     ) ||
-    !dispatch.taskContract.startsWith(
-      [
-        "status: open",
-        `priority: ${priority}`,
-        `depends_on: ${[...dependsOn].sort().join(", ") || "none"}`,
-        "",
-      ].join("\n"),
-    ) ||
-    digestTaskContract(dispatch.taskId, dispatch.taskContract) !==
-      dispatch.taskDigest ||
     dispatch.idempotencyKey !==
       `builder:${dispatch.taskId}:${dispatch.taskDigest}`
   ) {
@@ -158,12 +136,27 @@ export function readBuilderTaskPayload(
     taskPath: dispatch.taskPath,
     taskState: dispatch.taskState,
     taskDigest: dispatch.taskDigest,
-    taskContract: dispatch.taskContract,
     title: dispatch.title,
     priority,
     dependsOn: Object.freeze([...dependsOn]),
     idempotencyKey: dispatch.idempotencyKey,
   };
+}
+
+export function verifyBuilderTaskSnapshot(
+  payload: Record<string, unknown>,
+  content: string,
+): BuilderTaskIdentity {
+  const admitted = readBuilderTaskPayload(payload);
+  const snapshot = payloadFor(parseRepoTaskRecord({
+    path: admitted.taskPath,
+    archived: false,
+    content,
+  }));
+  if (snapshot.taskDigest !== admitted.taskDigest) {
+    throw new Error("Builder task snapshot does not match its immutable admitted contract");
+  }
+  return snapshot;
 }
 
 export function readBuilderTaskReviewContract(

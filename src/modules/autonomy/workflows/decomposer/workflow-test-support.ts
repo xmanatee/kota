@@ -65,22 +65,21 @@ export function writeActionableTask(
 export function immutableTaskPayload(
   taskId: string,
 ): BuilderTaskDispatchPayload {
-  const taskContract = [
-    "status: open",
-    "priority: p1",
-    "depends_on: none",
-    "",
-    "# Immutable task target",
-  ].join("\n");
   const digest = createHash("sha256")
-    .update(JSON.stringify({ taskId, taskContract }))
+    .update(JSON.stringify({
+      id: taskId,
+      title: "Immutable task target",
+      state: "open",
+      priority: "p1",
+      body: "# Immutable task target",
+      dependsOn: [],
+    }))
     .digest("hex");
   return {
     taskId,
     taskPath: `data/tasks/${taskId}.md`,
     taskState: "open",
     taskDigest: digest,
-    taskContract,
     title: "Immutable task target",
     priority: "p1",
     dependsOn: [],
