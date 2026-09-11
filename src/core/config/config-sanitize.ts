@@ -11,7 +11,7 @@ import { decodeScopePolicyFragments } from "../daemon/scope-policy-codec.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
-import { sanitizeGuardrailsConfig } from "../tools/guardrails.js";
+import { sanitizeGuardrailsConfig } from "../tools/guardrails-config.js";
 import type { CoreKotaConfig, KotaConfig } from "./config.js";
 import {
   getRegisteredConfigSlices,

@@ -1,5 +1,5 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { getToolEffect } from "#core/tools/index.js";
+import { getToolEffect } from "#core/tools/tool-registry.js";
 
 function includeAskOwnerTool(
   allowedTools: string[] | undefined,

@@ -7,8 +7,8 @@ import {
 	type ToolDescriptionQualityProvider,
 } from "./agent-status-description-quality.js";
 import { readOnlySessionEffect, riskFromEffect } from "./effect.js";
-import { getCoreRegistrations, getRegisteredTools, getToolEffect, type ToolRegistration, type ToolResult } from "./index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
+import { getCoreRegistrations, getRegisteredTools, getToolEffect, type ToolRegistration, type ToolResult } from "./tool-registry.js";
 
 export const agentStatusTool: KotaTool = {
 	name: "agent_status",

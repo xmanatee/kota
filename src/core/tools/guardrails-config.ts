@@ -1,0 +1,181 @@
+/**
+ * Guardrail configuration, decoding and policy snapshots.
+ *
+ * Every tool call is assessed for risk before execution. The policy determines
+ * whether to allow, require confirmation, or deny the call. Configurable via
+ * .kota/config.json. Non-interactive contexts (server, telegram, daemon) use
+ * stricter defaults.
+ */
+
+import { createHash } from "node:crypto";
+import type { RiskLevel } from "./guardrails-classify.js";
+
+export type { RiskLevel };
+
+export type Policy = "allow" | "confirm" | "deny" | "queue";
+
+export type GuardrailsConfig = {
+	/** Policy applied at each risk level. */
+	policies: Record<RiskLevel, Policy>;
+	/** Override policy for specific tool names (bypasses risk classification). */
+	toolOverrides?: Record<string, Policy>;
+	/** TTL in ms for approval requests created in this context. Stored on each queued item. */
+	approvalTimeoutMs?: number;
+};
+
+export type GuardrailsSnapshot = {
+	id: string;
+	generation: number;
+	updatedAt: string;
+};
+
+export type Assessment = {
+	tool: string;
+	risk: RiskLevel;
+	policy: Policy;
+	reason: string;
+};
+
+// ─── Default configuration ────────────────────────────────────────────
+
+const DEFAULT_POLICIES: Record<RiskLevel, Policy> = {
+	safe: "allow",
+	moderate: "allow",
+	dangerous: "confirm",
+};
+
+const DEFAULT_CONFIG: GuardrailsConfig = {
+	policies: { ...DEFAULT_POLICIES },
+};
+
+// ─── Policy resolution ────────────────────────────────────────────────
+
+/** Determine the policy for a tool call given config and risk assessment. */
+export function resolvePolicy(
+	name: string,
+	risk: RiskLevel,
+	config: GuardrailsConfig,
+): Policy {
+	// Tool-level override takes precedence
+	if (config.toolOverrides?.[name]) {
+		return config.toolOverrides[name];
+	}
+	return config.policies[risk] ?? DEFAULT_POLICIES[risk];
+}
+
+// ─── Stricter defaults for non-interactive contexts ───────────────────
+
+/** Policies for autonomous/non-interactive contexts (server, telegram, daemon). */
+export const NON_INTERACTIVE_POLICIES: Record<RiskLevel, Policy> = {
+	safe: "allow",
+	moderate: "allow",
+	dangerous: "queue",
+};
+
+export function nonInteractiveConfig(
+	base?: GuardrailsConfig,
+): GuardrailsConfig {
+	return {
+		policies: { ...NON_INTERACTIVE_POLICIES },
+		toolOverrides: base?.toolOverrides,
+		...(base?.approvalTimeoutMs !== undefined && {
+			approvalTimeoutMs: base.approvalTimeoutMs,
+		}),
+	};
+}
+
+// ─── Config helpers ───────────────────────────────────────────────────
+
+export function getDefaultConfig(): GuardrailsConfig {
+	return { ...DEFAULT_CONFIG, policies: { ...DEFAULT_POLICIES } };
+}
+
+export function cloneGuardrailsConfig(
+	config: GuardrailsConfig,
+): GuardrailsConfig {
+	return {
+		policies: { ...config.policies },
+		...(config.toolOverrides !== undefined
+			? { toolOverrides: { ...config.toolOverrides } }
+			: {}),
+		...(config.approvalTimeoutMs !== undefined
+			? { approvalTimeoutMs: config.approvalTimeoutMs }
+			: {}),
+	};
+}
+
+export function fingerprintGuardrailsConfig(config: GuardrailsConfig): string {
+	const payload = {
+		policies: {
+			safe: config.policies.safe,
+			moderate: config.policies.moderate,
+			dangerous: config.policies.dangerous,
+		},
+		toolOverrides: Object.entries(config.toolOverrides ?? {}).sort(([a], [b]) =>
+			a.localeCompare(b),
+		),
+		approvalTimeoutMs: config.approvalTimeoutMs ?? null,
+	};
+	return `gr_${createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16)}`;
+}
+
+export function createGuardrailsSnapshot(
+	config: GuardrailsConfig,
+	generation: number,
+	updatedAt = new Date().toISOString(),
+): GuardrailsSnapshot {
+	return {
+		id: fingerprintGuardrailsConfig(config),
+		generation,
+		updatedAt,
+	};
+}
+
+/** Validate and sanitize a raw guardrails config object from JSON. */
+export function sanitizeGuardrailsConfig(
+	raw: Record<string, unknown>,
+): GuardrailsConfig | null {
+	if (typeof raw !== "object" || raw === null) return null;
+
+	const config: GuardrailsConfig = { policies: { ...DEFAULT_POLICIES } };
+
+	if (typeof raw.policies === "object" && raw.policies !== null) {
+		const p = raw.policies as Record<string, unknown>;
+		for (const level of ["safe", "moderate", "dangerous"] as RiskLevel[]) {
+			const val = p[level];
+			if (
+				val === "allow" ||
+				val === "confirm" ||
+				val === "deny" ||
+				val === "queue"
+			) {
+				config.policies[level] = val;
+			}
+		}
+	}
+
+	if (typeof raw.toolOverrides === "object" && raw.toolOverrides !== null) {
+		const overrides: Record<string, Policy> = {};
+		for (const [key, val] of Object.entries(
+			raw.toolOverrides as Record<string, unknown>,
+		)) {
+			if (
+				val === "allow" ||
+				val === "confirm" ||
+				val === "deny" ||
+				val === "queue"
+			) {
+				overrides[key] = val;
+			}
+		}
+		if (Object.keys(overrides).length > 0) {
+			config.toolOverrides = overrides;
+		}
+	}
+
+	if (typeof raw.approvalTimeoutMs === "number" && raw.approvalTimeoutMs > 0) {
+		config.approvalTimeoutMs = raw.approvalTimeoutMs;
+	}
+
+	return config;
+}

@@ -21,14 +21,11 @@ vi.mock("./instruction-files.js", () => ({
 vi.mock("#root/init.js", () => ({
   buildSessionWarmup: vi.fn(() => ""),
 }));
-vi.mock("#core/tools/delegate.js", () => ({
+vi.mock("#core/tools/delegate.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("#core/tools/delegate.js")>(),
   setDelegateConfig: vi.fn(),
-  delegateTool: {
-    name: "delegate",
-    description: "",
-    input_schema: { type: "object", properties: {} },
-  },
 }));
+
 vi.mock("#core/daemon/task-store.js", () => ({
   initTaskStore: vi.fn(),
   getTaskStore: vi.fn(() => ({

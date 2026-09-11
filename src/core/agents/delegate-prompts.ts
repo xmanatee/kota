@@ -1,6 +1,6 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ResolvedToolSet, ToolRunner } from "#core/tools/index.js";
-import { resolveRegisteredToolSetByEffect } from "#core/tools/index.js";
+import type { ResolvedToolSet, ToolRunner } from "#core/tools/tool-registry.js";
+import { resolveRegisteredToolSetByEffect } from "#core/tools/tool-registry.js";
 import { detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
 import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
 

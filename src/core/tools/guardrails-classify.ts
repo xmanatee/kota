@@ -39,9 +39,11 @@ import {
   formatEnvironmentOverrideReasons,
   formatWorkingDirectoryReasons,
 } from "./guardrails-shell-authority.js";
-import { getToolEffect } from "./index.js";
 import { isPathOutsideRoot } from "./path-containment.js";
-import { getModuleToolManifestEffect } from "./tool-effect-registry.js";
+import {
+  getModuleToolManifestEffect,
+  resolveRegisteredToolEffect as getToolEffect,
+} from "./tool-effect-registry.js";
 
 export type RiskLevel = RiskTier;
 export type { McpToolAnnotations };

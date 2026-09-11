@@ -3,7 +3,7 @@ import type {
   ModuleManifestEffectLookup,
 } from "#core/modules/module-manifest.js";
 import type { ToolEffect } from "./effect.js";
-import type { ToolRunner } from "./index.js";
+import type { ToolRunner } from "./tool-registry.js";
 
 export type ToolEffectResolver = (
   input: Parameters<ToolRunner>[0],

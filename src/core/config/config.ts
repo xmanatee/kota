@@ -8,10 +8,12 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-directory.js";
 import { mergeConfigs } from "./config-merge.js";
+import { getGlobalConfigPath } from "./config-paths.js";
 import { isPlainObject, sanitize } from "./config-sanitize.js";
 import { getRegisteredConfigSlice } from "./config-slice.js";
 import type { KotaConfig } from "./config-types.js";
 
+export { getGlobalConfigPath } from "./config-paths.js";
 export { buildUserProfile, expandAlias } from "./config-text.js";
 export type { CoreKotaConfig, KotaConfig, ModuleConfigSliceFields } from "./config-types.js";
 export { updateScopeConfig } from "./scope-config-writer.js";
@@ -28,10 +30,6 @@ const MACHINE_AUTHORITY_KEYS = [
 export type LoadConfigOptions = {
   globalConfigPath?: string;
 };
-
-export function getGlobalConfigPath(): string {
-  return join(GLOBAL_DIR, CONFIG_FILENAME);
-}
 
 export type ScopeConfigTrustReason =
   | "kota-self-scope"
@@ -142,7 +140,7 @@ function classifyScopeConfigKey(
   if (key === "autoEnable") return "tool enablement";
   if (key === "log") return "operator logging";
   if (key === "approvalTtlMs") return "approval policy";
-  if (key === "user" || key === "aliases" || key === "reflection") return "prompt/session behavior";
+  if (key === "user" || key === "aliases") return "prompt/session behavior";
   if (rawScopeConfig[key] !== undefined) return "scope config";
   return "scope config";
 }

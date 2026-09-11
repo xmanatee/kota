@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { getGlobalConfigPath } from "#core/config/config.js";
+import { getGlobalConfigPath } from "#core/config/config-paths.js";
 import {
   readOptionalJsonFile,
   writeJsonFileAtomic,
