@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { DaemonControlHandle } from "./daemon-control-types.js";
+import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
+import type { DaemonControlHandle, InteractiveSession } from "./daemon-control-types.js";
 import { jsonResponse, readBody, resolveScopeIdParam } from "./daemon-control-utils.js";
+import type { ScopeId } from "./scope-registry.js";
 
 export function handleListSessions(
   handle: DaemonControlHandle,
@@ -70,4 +72,20 @@ export function handleUnregisterSession(
   handle.unregisterSession(params.id);
   res.writeHead(204);
   res.end();
+}
+
+export function listInteractiveSessions(
+  deps: BuiltinControlRouteDeps,
+  scopeId: ScopeId | undefined,
+): InteractiveSession[] {
+  const { handle, chatPool } = deps;
+  const resolvedScopeId = scopeId ?? handle.getScopeRegistryProjection().defaultScopeId;
+  if (!chatPool) return handle.listSessions(resolvedScopeId);
+  const daemonEntries = chatPool.list(resolvedScopeId);
+  const daemonIds = new Set(daemonEntries.map((session) => session.id));
+  const serveSessions = handle
+    .listSessions(resolvedScopeId)
+    .filter((session) => !daemonIds.has(session.id))
+    .map((session) => ({ ...session, source: "serve" as const }));
+  return [...serveSessions, ...daemonEntries];
 }

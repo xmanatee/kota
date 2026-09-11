@@ -10,26 +10,9 @@ import {
   handleResolveDaemonChatApproval,
 } from "./daemon-chat-handlers.js";
 import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
-import { handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
-import type { InteractiveSession } from "./daemon-control-types.js";
+import { handleRegisterSession, handleUnregisterSession, listInteractiveSessions } from "./daemon-control-sessions.js";
 import { jsonResponse, resolveScopeIdParam } from "./daemon-control-utils.js";
 import type { ScopeId } from "./scope-registry.js";
-
-function listInteractiveSessions(
-  deps: BuiltinControlRouteDeps,
-  scopeId: ScopeId | undefined,
-): InteractiveSession[] {
-  const { handle, chatPool } = deps;
-  const resolvedScopeId = scopeId ?? handle.getScopeRegistryProjection().defaultScopeId;
-  if (!chatPool) return handle.listSessions(resolvedScopeId);
-  const daemonEntries = chatPool.list(resolvedScopeId);
-  const daemonIds = new Set(daemonEntries.map((session) => session.id));
-  const serveSessions = handle
-    .listSessions(resolvedScopeId)
-    .filter((session) => !daemonIds.has(session.id))
-    .map((session) => ({ ...session, source: "serve" as const }));
-  return [...serveSessions, ...daemonEntries];
-}
 
 function listDaemonChatBindings(
   chatBindings: DaemonChatBindingStore,

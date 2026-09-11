@@ -5,9 +5,7 @@ import {
   directoryScopesFromProjection,
 } from "#core/daemon/scope-registry.js";
 import { McpManager } from "#core/mcp/manager.js";
-import type {
-  ModuleManifestSetupAvailabilitySnapshot,
-} from "#core/modules/module-manifest.js";
+import { scopeSetupAvailability } from "#core/modules/module-manifest-setup.js";
 import {
   listModuleSetupStatusesFromSummaries,
 } from "#core/modules/module-setup-status.js";
@@ -50,25 +48,6 @@ type DiscoveryScope = {
   isDefault: boolean;
 };
 
-function setupAvailabilityFromStatus(
-  status: ModuleSetupRequirementStatus,
-): ModuleManifestSetupAvailabilitySnapshot {
-  return {
-    state: status.state,
-    reason: status.reason,
-    message: status.message,
-    ...(status.capabilities !== undefined ? { capabilities: status.capabilities } : {}),
-    ...(status.pendingAction !== undefined
-      ? {
-          pendingAction: {
-            ...status.pendingAction,
-            complete: `/setup/actions/${encodeURIComponent(status.pendingAction.actionId)}/complete`,
-          },
-        }
-      : {}),
-  };
-}
-
 function moduleSummariesWithAdvisoryAvailability(
   summaries: readonly ModuleSummary[],
   statuses: readonly ModuleSetupRequirementStatus[],
@@ -104,7 +83,7 @@ function moduleSummariesWithAdvisoryAvailability(
             consumed.add(statusIndex);
             return {
               ...req,
-              availability: setupAvailabilityFromStatus(status),
+              availability: scopeSetupAvailability(status),
             };
           }),
         },

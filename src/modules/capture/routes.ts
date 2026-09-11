@@ -5,12 +5,12 @@ import type {
 } from "#core/modules/module-types.js";
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { ResolveStoreScopeContext } from "#modules/store-scope-context.js";
 import {
   CAPTURE_TARGET_ORDER,
   type CaptureProvider,
 } from "./capture-types.js";
 import type { CaptureFilter, CaptureTarget } from "./client.js";
-import type { ResolveCaptureScopeContext } from "./scope-context.js";
 
 type ParsedCaptureRequest =
   | { ok: true; text: string; filter?: CaptureFilter }
@@ -67,7 +67,7 @@ export function parseCaptureRequestBody(value: unknown): ParsedCaptureRequest {
 
 export function createCaptureRouteHandler(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     let body: unknown;
@@ -109,7 +109,7 @@ export function createCaptureRouteHandler(
 
 export function captureControlRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): ControlRouteRegistration[] {
   return [{
     method: "POST",
@@ -121,7 +121,7 @@ export function captureControlRoutes(
 
 export function captureApiRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): RouteRegistration[] {
   return [{
     method: "POST",

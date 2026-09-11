@@ -26,7 +26,6 @@ import { createAnswerRouteHandler } from "#modules/answer/routes.js";
 import { createAnswerScopeContextResolver } from "#modules/answer/scope-context.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
-import { createCaptureScopeContextResolver } from "#modules/capture/scope-context.js";
 import { getScopeHistoryStore } from "#modules/history/history.js";
 import { HistoryScopeStores } from "#modules/history/scope.js";
 import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
@@ -46,7 +45,7 @@ import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractRouteHandler } from "#modules/retract/routes.js";
-import { createRetractScopeContextResolver } from "#modules/retract/scope-context.js";
+import { createStoreScopeContextResolver } from "#modules/store-scope-context.js";
 
 type JsonResult = { status: number; body: unknown };
 
@@ -140,7 +139,7 @@ describe("scope-scoped cross-store daemon routes", () => {
     registry.register(HISTORY_PROVIDER_TOKEN, "default", historyProviderA);
     registry.register(REPO_TASKS_PROVIDER_TOKEN, "default", tasksA);
 
-    const captureScope = createCaptureScopeContextResolver(scopeA.scopeRoot);
+    const captureScope = createStoreScopeContextResolver(scopeA.scopeRoot);
     const captureProvider = new CaptureProviderImpl({
       classifier: { classify: async () => ({ kind: "ambiguous" }) },
       resolveScopeContext: captureScope,
@@ -190,7 +189,7 @@ describe("scope-scoped cross-store daemon routes", () => {
       resolveScopeContext: answerScope,
     });
 
-    const retractScope = createRetractScopeContextResolver(scopeA.scopeRoot);
+    const retractScope = createStoreScopeContextResolver(scopeA.scopeRoot);
     const retractProvider = new RetractProviderImpl({
       resolveScopeContext: retractScope,
     });

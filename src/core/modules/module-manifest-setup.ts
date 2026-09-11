@@ -29,7 +29,7 @@ export function buildModuleManifestSetupStatusLinks(args: {
   };
 }
 
-function scopeSetupAvailability(
+export function scopeSetupAvailability(
   status: ModuleSetupRequirementStatus,
 ): ModuleManifestSetupAvailabilitySnapshot {
   return {

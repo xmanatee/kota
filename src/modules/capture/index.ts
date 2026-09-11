@@ -21,6 +21,7 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
+import { createStoreScopeContextResolver } from "#modules/store-scope-context.js";
 import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
 import {
@@ -38,7 +39,6 @@ import type {
   CaptureClient,
 } from "./client.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
-import { createCaptureScopeContextResolver } from "./scope-context.js";
 import {
   buildCaptureDynamicStateProvider,
   CAPTURE_DYNAMIC_STATE_NAME,
@@ -110,7 +110,7 @@ const captureModule: KotaModule = {
   uiSurfaces: [captureUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveScopeContext = createCaptureScopeContextResolver(ctx.cwd, ctx);
+    const resolveScopeContext = createStoreScopeContextResolver(ctx.cwd, ctx);
     const provider = new CaptureProviderImpl({
       classifier: createDefaultClassifier(ctx),
       resolveScopeContext,
@@ -138,19 +138,19 @@ const captureModule: KotaModule = {
   controlRoutes: (ctx) =>
     captureControlRoutes(
       () => requireCaptureProvider(ctx),
-      createCaptureScopeContextResolver(ctx.cwd, ctx),
+      createStoreScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     captureApiRoutes(
       () => requireCaptureProvider(ctx),
-      createCaptureScopeContextResolver(ctx.cwd, ctx),
+      createStoreScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: (ctx) => {
     const handler: CaptureClient = {
       async capture(text, filter) {
-        const scope = createCaptureScopeContextResolver(ctx.cwd, ctx)(
+        const scope = createStoreScopeContextResolver(ctx.cwd, ctx)(
           selectedScopeSelectorId(filter),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);

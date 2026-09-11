@@ -20,6 +20,7 @@ import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
+import { createStoreScopeContextResolver } from "#modules/store-scope-context.js";
 import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import type { RetractClient, } from "./client.js";
@@ -29,7 +30,6 @@ import {
   type RetractProvider,
 } from "./retract-types.js";
 import { retractApiRoutes, retractControlRoutes } from "./routes.js";
-import { createRetractScopeContextResolver } from "./scope-context.js";
 import {
   buildRetractDynamicStateProvider,
   RETRACT_DYNAMIC_STATE_NAME,
@@ -92,7 +92,7 @@ const retractModule: KotaModule = {
 
   onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RetractProviderImpl({
-      resolveScopeContext: createRetractScopeContextResolver(ctx.cwd, ctx),
+      resolveScopeContext: createStoreScopeContextResolver(ctx.cwd, ctx),
     });
     ctx.registerProvider(RETRACT_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
@@ -117,19 +117,19 @@ const retractModule: KotaModule = {
   controlRoutes: (ctx) =>
     retractControlRoutes(
       () => requireRetractProvider(ctx),
-      createRetractScopeContextResolver(ctx.cwd, ctx),
+      createStoreScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     retractApiRoutes(
       () => requireRetractProvider(ctx),
-      createRetractScopeContextResolver(ctx.cwd, ctx),
+      createStoreScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: (ctx) => {
     const handler: RetractClient = {
       async retract(request) {
-        const scope = createRetractScopeContextResolver(ctx.cwd, ctx)(
+        const scope = createStoreScopeContextResolver(ctx.cwd, ctx)(
           selectedScopeSelectorId(request),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
