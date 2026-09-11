@@ -82,11 +82,11 @@ function parseDaemonSseFrame(frame: string): DaemonSseStreamEvent | null {
   if (id.length === 0 || eventType.length === 0 || dataLines.length === 0) {
     throw new Error("Daemon SSE frame is missing id, event, or data");
   }
-  return {
-    id,
-    type: eventType,
-    payload: JSON.parse(dataLines.join("\n")),
-  } as DaemonSseStreamEvent;
+  const payload: unknown = JSON.parse(dataLines.join("\n"));
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new Error("Daemon event data must be an object");
+  }
+  return { id, type: eventType, payload } as DaemonSseStreamEvent;
 }
 
 export type DaemonRequestInit = {
@@ -135,7 +135,7 @@ export interface DaemonTransport {
   /**
    * Open the daemon SSE stream and yield decoded events.
    */
-  events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseStreamEvent>;
+  events(init?: { signal?: AbortSignal; after?: string }): AsyncGenerator<DaemonSseStreamEvent>;
 
   /**
    * Issue a raw fetch against the daemon. Used by callers that need the
@@ -205,12 +205,12 @@ class HttpDaemonTransport implements DaemonTransport {
     return response;
   }
 
-  async *events(init?: { signal?: AbortSignal }): AsyncGenerator<DaemonSseStreamEvent> {
+  async *events(init?: { signal?: AbortSignal; after?: string }): AsyncGenerator<DaemonSseStreamEvent> {
     const { response: res } = await outboundHttp.requestStream(
       {
         profile: OUTBOUND_HTTP_PROFILES.daemonLoopback,
         operation: "daemon-transport.events",
-        url: `${this.baseUrl}/events`,
+        url: `${this.baseUrl}/events${init?.after ? `?after=${encodeURIComponent(init.after)}` : ""}`,
         headers: this.authHeaders(),
         ...(init?.signal !== undefined && { signal: init.signal }),
       },

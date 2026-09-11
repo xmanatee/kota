@@ -152,11 +152,20 @@ export function buildRequestHandler(ctx: ServerContext) {
         return;
       }
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
-      const gen = client.events();
-      req.on("close", () => { void gen.return(undefined); });
-      for await (const event of gen) {
-        if (res.destroyed) break;
-        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+      const controller = new AbortController();
+      const after = new URL(req.url ?? "/", "http://localhost").searchParams.get("after");
+      const gen = client.events({ signal: controller.signal, ...(after ? { after } : {}) });
+      res.once("close", () => controller.abort());
+      try {
+        for await (const event of gen) {
+          if (res.destroyed) break;
+          res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) throw error;
+      } finally {
+        controller.abort();
+        res.end();
       }
       return;
     }

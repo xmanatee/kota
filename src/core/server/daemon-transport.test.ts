@@ -41,6 +41,15 @@ describe("daemon SSE transport", () => {
     );
   });
 
+  it.each(["null", "[]", "42"])("rejects non-object event data %s", async (data) => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(`id: 1\nevent: task.changed\ndata: ${data}\n\n`),
+    );
+    await expect(daemonTransportFromAddress(ADDRESS).events().next()).rejects.toThrow(
+      "Daemon event data must be an object",
+    );
+  });
+
   it("accepts heartbeats and rejects incomplete event frames", async () => {
     const transport = daemonTransportFromAddress(ADDRESS);
     globalThis.fetch = vi.fn().mockResolvedValueOnce(
@@ -58,6 +67,14 @@ describe("daemon SSE transport", () => {
     await expect(transport.events().next()).rejects.toThrow(
       "Daemon SSE frame is missing id, event, or data",
     );
+  });
+
+  it("forwards an opaque replay cursor to the daemon", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('id: next\nevent: task.changed\ndata: {}\n\n'));
+    const events = daemonTransportFromAddress(ADDRESS).events({ after: "epoch:42" });
+    expect((await events.next()).value?.id).toBe("next");
+    expect(String(vi.mocked(globalThis.fetch).mock.calls[0]?.[0])).toContain("/events?after=epoch%3A42");
+    await events.return(undefined);
   });
 
   it("rejects unsupported methods before dispatch", async () => {
