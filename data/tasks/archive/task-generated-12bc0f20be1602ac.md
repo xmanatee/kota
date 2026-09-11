@@ -1,6 +1,5 @@
 ---
-status: blocked
-priority: p0
+status: dropped
 ---
 # Restore dispatcher routing when retained security evidence fails validation
 
