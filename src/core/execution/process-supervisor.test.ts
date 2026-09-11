@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -166,6 +167,31 @@ describe.skipIf(process.platform === "win32")("ProcessSupervisor", () => {
     expect(outcome.escalated).toBe(true);
     expect(childPid).toBeDefined();
     expect(() => process.kill(childPid!, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
+  });
+
+  it("leaves a reused PID in another group untouched when the original group is gone", async () => {
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+      detached: false, stdio: "ignore",
+    });
+    await new Promise<void>((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
+    const exited = new Promise<void>((resolve) => { child.once("exit", () => resolve()); });
+    try {
+      const retained: ProcessIdentity = {
+        pid: child.pid!, processGroupId: child.pid!,
+        osStartToken: "previous-process", observedCommandHash: "retained-command",
+      };
+      expect(ProcessSupervisor.verifyOwnedProcess(retained).status).toBe("identity-mismatch");
+      expect(await ProcessSupervisor.terminateOwnedProcess(retained, 20)).toEqual({
+        status: "not-running", escalated: false,
+      });
+      expect(() => process.kill(child.pid!, 0)).not.toThrow();
+    } finally {
+      child.kill("SIGKILL");
+      await exited;
+    }
   });
 
   it("cleans up descendants when the command leader exits", async () => {

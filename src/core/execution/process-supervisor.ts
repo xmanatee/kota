@@ -347,6 +347,12 @@ export class ProcessSupervisor {
   ): Promise<ProcessTerminationOutcome> {
     validateGraceMs(terminationGraceMs);
     const verification = ProcessSupervisor.verifyOwnedProcess(identity);
+    if (verification.status === "identity-mismatch" &&
+      verification.observed.processGroupId !== identity.processGroupId &&
+      inspectProcessGroup(identity.processGroupId).length === 0) {
+      // PID reuse in another group does not keep the original group alive.
+      return { status: "not-running", escalated: false };
+    }
     if (verification.status !== "owned") {
       return { ...verification, escalated: false };
     }
