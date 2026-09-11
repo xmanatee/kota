@@ -44,11 +44,12 @@ capability or dependency change should restart a failed attempt.
   trajectory exists with 14 repairs; try authorized scoped evidence access
   before requesting export. Separate replayed decision correctness from an
   unprovable counterfactual claim about hours saved; report missing trajectories.
-- hjhox7, verification closure: the retained candidate already removes the
-  retired-anchor contradiction. Preserve that correction and the owner's 70%
-  baseline/goal. Latest critic measures only 14.506% reduction: this is real
-  implementation/audit work, not merely a /bin/ps permission wait. Decompose
-  coherent remaining ownership work through the existing task mechanism if needed.
+- hjhox7, retained verification work: the September 11 owner decision changes
+  the initiative to a 50% minimum and 70% stretch, preserving the frozen baseline.
+  Its same-id task now owns bounded publication of the retained changes; separate
+  owner-sized children and `task-verify-fifty-percent-test-reduction` own the rest.
+  Reconcile the old immutable admission through recovery before applying this
+  revised intent. Do not demand global reduction from this one retained writer.
 - 720nnv, database confinement: actual Linux child boundary proof is missing.
   Argument inspection is insufficient; use synthetic data to prove denial of
   database and late journals while permitted repo/artifact reads still work.
@@ -64,8 +65,9 @@ Do not invent another issue queue, worker, task state, retry counter, or evidenc
 protocol. Preserve run IDs, diffs and resource lineage. Do not silently rewrite
 admitted contracts or enqueue an ordinary mutator against another retained owner.
 Route safe contract reconciliation through the owning recovery operation.
-Never weaken sandboxing, invent a pass, drop the 70% goal, or request broad
-credentials. This task is independent of the held tasks and can execute now.
+Never weaken sandboxing, invent a pass, lower the owner-approved 50% minimum,
+or request broad credentials. Historical 70%-mandatory wording below describes
+earlier attempts, not current acceptance. This task is independent of held work.
 
 ## How We Will Know
 
@@ -235,7 +237,8 @@ through the existing owner once the assessment is coherent.
 
 `un8vlq` is active in its original worktree, and `hjhox7` is queued with its
 original retained work. Neither has a new accepted outcome yet. Preserve the
-browser persistence obligation and original 70% verification-reduction target.
+browser persistence obligation and retained verification work; apply the current
+owner-approved reduction contract rather than restoring its obsolete target.
 
 ## Blocked on
 

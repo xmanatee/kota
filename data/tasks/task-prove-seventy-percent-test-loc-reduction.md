@@ -4,36 +4,54 @@ priority: p1
 depends_on: [task-collapse-root-integration-and-test-support]
 ---
 
-# Prove and close the seventy-percent verification reduction
+# Integrate retained verification simplifications without expanding the scope
 
-## Scope / Starting Points
+## Outcome
 
-Use the exact baseline command, exclusions, and inventory frozen by `task-align-verification-ownership-and-cadences`. Reconcile every program child, retained test, authored helper/fixture, generated exclusion, and implicated production mechanism.
+Review, repair and publish the useful changes already retained by builder run
+`2026-09-08T22-45-09-535Z-builder-hjhox7`. This is a bounded integration task,
+not an instruction for one builder to finish the repository-wide reduction.
+The owner now requires 50% overall reduction, with 70% a stretch goal; the
+aggregate contract belongs to `task-verify-fifty-percent-test-reduction`.
+
+## Retained Work And Recovery
+
+Keep this task id so the original run can reconcile its changed contract and
+adopt its owned workspace through ordinary recovery. Its sandbox allocation is
+`2026-09-08t22-45-09-535z-builder-9cf8a78f014841c477fc6aa35a30bd3c3bfed1290af9b002bf763626a689410a`
+under `.kota/runtime/` and `.kota/runtime/worktrees/`. Read its run metadata,
+latest repair summary, critic findings, diff and validation evidence. The
+September 11 postcheck-22 inventory records 265,690 test LOC versus the frozen
+334,805 baseline; it is a work-in-progress snapshot, not a published result.
+
+The earlier immutable admission still requires 70%. A canonical task edit does
+not update that admission or restore its ephemeral Codex conversation. Reconcile
+through the runtime's retained-run recovery before executing this revised scope;
+never rewrite the database, admitted snapshot, or another running writer's files.
+Do not start a duplicate writer or discard the retained work. If that ownership
+cannot be recovered, preserve it and report the precise recovery prerequisite.
 
 ## Required Changes
 
-- Report baseline and final executable-test LOC, reduction percentage, authored test-support/fixture delta, generated/vendor exclusions, and implicated production-glue delta.
-- Audit for renamed or moved test code, fixture/eval displacement, generated snapshots, shadow implementations, compatibility aliases, ambient state, and overengineering.
-- For protocol, security, durability, recovery, destructive action, and operator journeys, sample meaningful counterfactual failures or equivalent observations showing the intended owner catches them.
-- Record an explicit exceptional reason for any retained test that lacks the standard consumer/owner/stimulus/oracle/distinct-failure/cadence admission.
-- Resolve or remove every obsolete child, report, inventory, compatibility path, and misleading instruction; update all anchor checkboxes and move the program anchor to done as the final initiative action.
-
-## Must Not Complete While
-
-Executable-test LOC exceeds 30 percent of the frozen baseline, authored support absorbed deletion, any retained test or program task is unresolved, any duplicate production owner remains, or any temporary tracking artifact remains after its evidence is recorded.
+- Restrict implementation to the existing changed owners and defects necessary
+  to make that changeset publishable. Stop opening unrelated test families to
+  chase a percentage; the dependency-linked children own the remaining cleanup.
+- Check actual behavior preserved by deletions and implicated production changes.
+  Reuse prior owner-level findings and valid evidence. Fix concrete regressions;
+  remove unnecessary changes from this writer only when their removal is justified.
+- Reconcile with current main through runtime-owned integration and rerun checks
+  invalidated by that reconciliation. Preserve source-authority, sandbox and
+  publication guarantees. The reported `/bin/ps` denial is not a passing writer
+  probe: distinguish an execution-profile problem from a product failure, and
+  obtain the owning runtime's authorized validation without weakening isolation.
+- Record the integrated revision, before/after test and support totals, affected
+  production-owner deltas, and any precise follow-up owned by a child task.
+  No fresh repository-wide census/admission dossier is required after each repair.
 
 ## Done When
 
-- The exact reduction is at least 70 percent.
-- Every retained test is admitted or explicitly exceptional.
-- Sampled high-risk counterfactuals are caught by their intended mechanisms.
-- No obsolete task, report, inventory, alias, shadow path, migration-only path, or misleading automation instruction remains.
-- This task and `task-lean-behavioral-verification-program` are moved to done in the final workflow integration.
-
-## Acceptance Evidence
-
-Provide the reproducible baseline/final calculation, retained-test disposition, authored-support and production-glue deltas, sampled counterfactual results, cleanup diff, and final anchor state.
-
-## Initiative
-
-Closure task for the lean behavioral verification program; the 70 percent target is a migration outcome, not a permanent gate.
+The retained changes are integrated with valid changed-surface evidence, task and
+claim cleanup completes safely, and no useful work is silently lost. This slice
+may finish below 50%; it must not claim the overall initiative is complete.
+Do not restore or mark the retired strategic anchor done. Other child tasks and
+the final percentage audit must remain independent, dispatchable work.
