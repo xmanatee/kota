@@ -125,6 +125,8 @@ function makeStepContext(
         taskDigest,
         idempotencyKey: `builder:${taskId}:${taskDigest}`,
         title: "Calibration task",
+        priority: "p2",
+        dependsOn: [],
       },
     },
     previousOutput: undefined,

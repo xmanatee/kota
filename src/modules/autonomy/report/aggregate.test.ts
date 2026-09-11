@@ -101,6 +101,7 @@ function writeWriterIntegration(
   );
 }
 
+// Historical triggers predate the priority and dependency fields required for new admission.
 function builderTrigger(taskId: string, title: string) {
   const taskDigest = "0".repeat(64);
   return {

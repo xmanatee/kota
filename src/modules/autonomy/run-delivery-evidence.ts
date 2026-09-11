@@ -12,7 +12,6 @@ import {
   readWriterIntegrationEvidence,
   type WriterIntegrationEvidence,
 } from "#core/workflow/writer-integration-evidence.js";
-import { readBuilderTaskPayload } from "./workflows/builder/task-contract.js";
 
 export type AutonomyRunDeliveryEvidence = WriterIntegrationEvidence &
   Readonly<{
@@ -35,17 +34,7 @@ export function taskIdentityFromRunTrigger(
   run: WorkflowRunMetadata,
 ): Readonly<{ taskId: string | null; taskTitle: string | null }> {
   const payload = reportRunTriggerPayload(run);
-  if (run.workflow === "builder") {
-    try {
-      const task = readBuilderTaskPayload(payload);
-      return {
-        taskId: task.taskId,
-        taskTitle: typeof payload.title === "string" ? payload.title : null,
-      };
-    } catch {
-      return { taskId: null, taskTitle: null };
-    }
-  }
+  // Reporting identifies stored work; current admission requirements do not invalidate historical records.
   return {
     taskId: typeof payload.taskId === "string" ? payload.taskId : null,
     taskTitle: typeof payload.title === "string" ? payload.title : null,

@@ -5,148 +5,113 @@ and publication.
 
 ## Run Ownership
 
-- Every workflow definition must declare repository access as `none`, `read`,
-  or `write`. A writer also declares integration validation. Logical resource
-  resolvers express domain exclusivity without workflow-specific locks.
-- `RunStateDatabase` is the only durable queue and the authority for admission,
-  run attempts, logical resources, process identities, external effects, and
-  terminal publications. Scope-owned durable state uses its revisioned
-  SQLite API; runs stage compare-and-set mutations that commit atomically with
-  success publications. `WorkflowRunStore` and run artifacts are evidence, not
-  queue, summary, lease, or shared state. Persistent dispatch pause is project
-  state in that database. Agent backoff is scope state so one scope cannot halt
-  or resume a sibling. Only the daemon database composition root migrates
-  schema or disposes known obsolete operational files; offline readers are
-  explicit and read-only, and standalone hosts never perform cutover work.
-- `RunCoordinator` owns daemon-wide capacity, global and project admission
-  pause, cancellation, and child waits. Waiting parents release capacity and
-  reacquire it before continuing.
-- `RunLifecycle` owns sandbox creation/adoption, resource allocation, workflow
-  execution, writer finalization, restart reconciliation, and cleanup.
-- `IntegrationQueue` is the only writer publication path. It rebases against
-  the current canonical head, validates, acquires the repository integration
-  resource, runs any workflow-declared semantic invariant against that exact
-  reconciled/canonical snapshot, checks both trees again, and publishes with a
-  fast-forward merge. Invariants receive fresh scope-state and scope-filtered run-ownership
-  readers. Rejection preserves the writer for attention.
-- Conflict and validator repair use a bounded AI continuation. Screened
+- Definitions declare repository access (`none`, `read`, or `write`); writers
+  also declare integration validation. Logical resources express domain
+  exclusivity without workflow-specific locks.
+- `RunStateDatabase` owns durable admission, attempts, resources, processes,
+  external effects, and terminal publications. Scope state uses its revisioned
+  SQLite API; staged compare-and-set mutations commit atomically with success.
+  Project dispatch pause and scope agent backoff live there, with sibling scopes
+  isolated. `WorkflowRunStore` and artifacts are evidence, never a second queue
+  or shared state store. Only daemon database composition migrates schema and
+  removes obsolete operational files; offline readers are explicit and read-only.
+- `RunCoordinator` owns capacity, admission pause, cancellation, and child waits.
+  Waiting parents release capacity and reacquire it before continuing.
+- `RunLifecycle` owns sandbox creation/adoption, resource allocation, execution,
+  writer finalization, restart reconciliation, and cleanup.
+- `IntegrationQueue` alone publishes writers: rebase onto canonical head,
+  validate, acquire the integration resource, run domain invariants against
+  that exact snapshot with fresh scope-state and scope-filtered ownership
+  readers, recheck both trees, then fast-forward. Rejection retains the writer.
+- Conflict and validator repair use bounded AI continuation with screened
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
-  and no-progress fingerprints are runtime rails; staging, rebase continuation,
-  commit, and publication remain runtime-owned.
-- Integration agents retain ordinary timestamped agent streams and results
-  under the original run, with a distinct identity for every repair invocation.
-  Message streaming follows harness capability; adapters without a message
-  stream still retain returned results and measured usage.
-  Verification summaries and measured usage survive errors and cancellation;
-  successful agent output still awaits runtime validation and publication.
-- Agent repair continuation is evidence-driven: workflow owners contribute the
-  task/queue packet and capable-agent judgment, while core detects semantic
-  boundaries, records compact check outputs and neutral command-verification
-  results, and observes both queue revisions and same-scope workspace churn
-  while the initial agent call is active. It requests one judgment per semantic
-  boundary. Volatile diff, failure-output, or queue-revision churn at that same
-  boundary remains evidence for the recorded decision rather than creating a
-  reviewer cadence. A continued boundary is judged again only when unresolved
-  attempts grow geometrically, failures strictly expand, or diff scope
-  materially expands relative to the last decision; that renewed decision
-  becomes the next baseline. Core then owns durable yield/resume. Resumable
-  harnesses establish a KOTA-owned session before active checkpoint polling. A
-  preserved run retains its sandbox and run-lifetime resources while releasing
-  capacity; it resumes only after the higher-priority resources named by its
-  decision have reached a terminal attempt.
+  and no-progress fingerprints. Runtime owns staging, commits, rebase, and
+  publication. Each repair invocation retains distinct timestamped evidence
+  under its original run. Stream only when supported; always retain returned
+  results, verification summaries, and measured usage, including on errors or
+  cancellation. Agent success still requires validation and publication.
+- Workflow owners supply repair continuation's domain contract and judgment;
+  core observes semantic boundaries, check evidence, queue revisions, and
+  same-scope workspace changes, then owns durable yield/resume. One judgment
+  covers a boundary until unresolved attempts grow geometrically, failures
+  strictly expand, or diff scope materially expands; volatile churn alone
+  never creates a reviewer cadence. Resumable harnesses establish their session
+  before checkpoint polling. Preserved runs retain workspaces and resources,
+  release capacity, and resume only after the named higher-priority resources
+  reach a terminal attempt.
 - Nested critic, semantic-gate, and continuation judges are filesystem
-  read-only. They assess the writer's unpublished workspace without racing it
-  or becoming another mutation owner.
-- A decomposition decision terminally classifies the current writer and flows
-  through its existing failed-run consumer. The owning module reviews and
-  mutates domain work; core does not create child tasks from free-form text.
-- `WorkflowQueueManager` is a trigger-admission adapter over durable run state.
-  Do not add an in-memory or JSON queue, task-claim file, workflow-owned
-  worktree, merge gate, process registry, port lease, or recovery side channel.
-- New admissions cannot compete with a suspended run's retained resources.
-  Reconciliation and resumption must enter through that run's recovery owner;
-  ordinary mutators cannot queue behind it to revise its contract.
-- Definitions may assess relevant changes before retained business execution.
-  Runtime reconciles the trigger, recovery revision and dispatch identity
-  atomically while preserving resources. Publication journals continue through
-  integration recovery instead of restarting business execution.
-- Discovery-based resource resolvers select work at admission and reuse the
-  runtime's admitted resource snapshot on restoration. Queue changes, including
-  a writer's own publication, cannot strand its publication or cleanup recovery.
-- Workflow code obtains immutable, scope-filtered run observations through
-  `ctx.runEvidence`. Investigators receive redacted exports and unavailable
-  diagnostics; database handles and host control authority stay in the runtime.
-- Daemon startup may repair authority-critical or restart-recovered malformed
-  run metadata only when the durable run, `workflow.json`, and `trigger.json`
-  agree. Terminal history otherwise keeps its quarantinable inspection
-  behavior. Retain the malformed source beside the repaired record; any
-  disagreement stays fail-closed. Dead-letter disposition requires that
-  run-specific repair evidence plus a later successful consumer. Standalone
-  and inspection paths remain read-only.
-- Native writer authorization stays host-side and rechecks the invoking run,
-  attempt, daemon epoch, and workspace for each mutation. Sandboxed commands
-  receive only a fresh boolean result through protected runtime responses,
-  never raw database access. Authorization requests and responses are transient
-  invocation transport, not durable run state or reusable approvals.
+  read-only; they inspect unpublished work without becoming mutation owners.
+- Decomposition terminally classifies the writer through its failed-run
+  consumer. The domain module reviews and changes work; core never creates
+  child tasks from free-form text.
+- `WorkflowQueueManager` adapts triggers to durable admission. Do not add
+  parallel queues, task-claim files, workflow-owned worktrees, merge gates,
+  process registries, port leases, or recovery side channels.
+- Suspended runs retain exclusive resources. Reconciliation and resumption
+  enter through their recovery owner; ordinary mutators cannot revise their
+  contract. Definitions may assess relevant changes before retained execution;
+  runtime atomically reconciles trigger, recovery revision, and dispatch
+  identity while preserving resources. Publication journals resume integration
+  recovery instead of restarting business execution.
+- Discovery-based resource resolvers select work at admission and reuse that
+  admitted snapshot on restoration. Queue changes, including the writer's own
+  publication, cannot strand publication or cleanup recovery.
+- `ctx.runEvidence` provides immutable, scope-filtered observations. Investigators
+  receive redacted exports and unavailable diagnostics; database handles and
+  host control authority stay in runtime.
+- Daemon startup may repair malformed authority-critical or recovered metadata
+  only when durable run, `workflow.json`, and `trigger.json` agree. Preserve the
+  malformed source; disagreement fails closed. Other terminal history remains
+  quarantinable. Dead-letter disposition needs run-specific repair evidence and
+  a later successful consumer. Standalone and inspection paths stay read-only.
+- Native writer authorization rechecks run, attempt, daemon epoch, and workspace
+  per mutation. Sandboxed commands receive fresh boolean responses, never raw
+  databases. Request/reply files are transient invocation transport, not durable
+  state or reusable approvals.
 
 ## Definitions And Steps
 
-- Workflows are the only automation runtime surface. `defineAutomation` and
-  `defineHook` must compile to ordinary definitions before validation,
-  scheduling, storage, approvals, or APIs observe them.
-- Keep trigger semantics narrow and explicit. Prefer semantic events over
-  workflow-name inventories, synthetic recovery events, or implicit routing.
-- Keep validation, retries, timeouts, dispatch windows, truncation, and
-  notification suppression in typed code. Test their observable behavior
-  without copying configuration catalogs or private runtime phases.
-- Cross-run retries replay ordinary completed steps. `rerunOnRetry` marks
-  current-run work that must execute again with following steps; explicit
-  resume remains a separate operator checkpoint.
-- Hard timeouts cap wall-clock execution. Idle timeouts cap gaps between trusted
-  code heartbeats or typed agent progress messages.
-- Agent steps receive a thin runtime envelope. Expose prior output only when
-  normal repository context and tools cannot recover it cheaply.
-- `WorkflowStepContext.stateDir` is the owning directory scope's `.kota`
-  artifact root; `runtimeStateDir` identifies the authoritative database root.
-  The event journal may be daemon-wide and must not redirect scope-local
-  run, task, owner-state, or workflow-state inspection to the default scope.
-- Repository writers cannot approve, await owner input, restart, trigger other
-  workflows, or call non-read tools before integration. Writer agent and nested
-  judge contracts have owner questions disabled. Use declarative emits for
-  outbox-staged publication. Local completion belongs in shared synchronous
-  `finalize` after lifecycle cleanup, committing staged state and emits with
-  success, not child bookkeeping workflows. Local effects must be idempotent
-  across replay of the same durable run. Reserve `repository: none` follow-ups
-  for external effects after integration.
-- Repair accounting includes initial and repair token usage, including terminal
-  failures.
-- Every workflow-owned harness call crosses its scope's agent-backoff gate,
-  including agent steps, repair iterations, and code-step judges. Classified
-  provider failures activate it at that boundary, cancel other in-flight agent
-  calls in that scope, and deny later calls before harness launch while
-  deterministic dispatch remains eligible. Autonomous daemon one-shot
-  judgments explicitly join the selected scope's gate before sending. Shared
-  provider incidents persist stable reason codes; raw harness and provider
-  diagnostics remain in authenticated session or retained run evidence.
-  Quality pauses retain any active provider recovery horizon, and an operator
-  retry clears only the quality pause while that provider incident remains
-  active.
+- `defineAutomation` and `defineHook` compile to ordinary workflows before
+  validation, scheduling, storage, approvals, or APIs observe them.
+- Prefer explicit semantic triggers over workflow-name inventories, synthetic
+  recovery events, or implicit routing.
+- Validation, retries, timeouts, dispatch windows, truncation, and notification
+  suppression belong in typed code. Test behavior, not copied catalogs or
+  private runtime phases.
+- Cross-run retries replay ordinary completed steps. `rerunOnRetry` repeats
+  current-run work and following steps; explicit resume is a separate checkpoint.
+- Hard timeouts cap runtime; idle timeouts cap gaps between trusted heartbeats
+  or typed agent progress messages.
+- Agent envelopes stay thin. Supply prior output only when repository context
+  and tools cannot recover it cheaply.
+- `WorkflowStepContext.stateDir` is the owning scope's `.kota` artifact root;
+  `runtimeStateDir` locates the authoritative database. A daemon-wide event
+  journal cannot redirect scope-local run, task, owner, or workflow inspection.
+- Before integration, repository writers cannot approve, await owner input,
+  restart, trigger workflows, or call non-read tools. Writer agents and nested
+  judges disable owner questions. Declarative emits stage outbox publication;
+  synchronous `finalize` commits domain state and emits with success after
+  lifecycle cleanup. Local effects must be idempotent per durable run. Use
+  `repository: none` follow-ups only for external effects after integration.
+- Account for initial and repair token usage, including terminal failures.
+- Every workflow harness call and autonomous daemon judgment joins its scope's
+  agent-backoff gate. Classified provider failures cancel in-flight agents and
+  deny new launches while deterministic dispatch remains eligible. Persist
+  stable incident reasons; retain raw diagnostics only in authenticated session
+  or run evidence. Quality pauses preserve provider recovery horizons; operator
+  retry clears only the quality pause, never an active provider incident.
 
 ## Durable Waits
 
-- `await-event` suspends a run on a typed event match and persists enough state
-  to resume after restart. Live delivery and timeout race once; duplicate
-  delivery is ignored.
-- `askOwnerSteps` composes `ask`, `wait`, and `consume` over that primitive.
-  Owner questions, answers, dismissal, expiry, and timeout remain typed daemon
-  state rather than an open agent tool loop.
-- Await steps without an explicit step timeout may exceed the default hang rail;
-  `awaitTimeoutMs` is the protocol deadline. An explicit `timeoutMs` still caps
-  active runtime.
+- `await-event` persists a typed event wait across restart. Delivery and timeout
+  settle once; duplicate delivery is ignored.
+- `askOwnerSteps` composes ask, wait, and consume. Questions, answers, dismissal,
+  expiry, and timeout are typed daemon state, not an open agent loop.
+- `awaitTimeoutMs` is the protocol deadline and may exceed the default hang
+  rail. An explicit step `timeoutMs` still caps active runtime.
 
 ## Typed Code Steps
 
-Use `typedCodeStep<T>` when downstream steps consume code-step output. Its
-decoder validates fresh and persisted values; `output` is optional and
-`outputRequired` fails when the step did not produce a value. Untyped code
-steps remain appropriate for scalar or unread output.
+Use `typedCodeStep<T>` for consumed code-step output. Its decoder validates fresh
+and persisted values; `output` is optional, while `outputRequired` rejects a
+missing value. Untyped steps remain appropriate for scalar or unread output.

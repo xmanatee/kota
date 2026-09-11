@@ -25,6 +25,9 @@ function builderTaskPayload(taskId: string): Record<string, unknown> {
   const taskDigest = taskId === "task-alpha" ? "a".repeat(64) : "b".repeat(64);
   return {
     taskId,
+    title: taskId,
+    priority: "p2",
+    dependsOn: [],
     taskPath: `data/tasks/${taskId}.md`,
     taskState: "open",
     taskDigest,

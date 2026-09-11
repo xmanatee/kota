@@ -378,6 +378,7 @@ describe("declarative workflow tool effects", () => {
     await expect(runChecksPhased(
       [{ id: "read-check", type: "tool", tool: readTool }], value.context, parentStep,
     )).resolves.toEqual({
+      results: [{ id: "read-check", passed: false, output: "Verification failed", severity: "error" }],
       failures: [{ id: "read-check", passed: false, output: "Verification failed", severity: "error" }],
       warnings: [],
     });

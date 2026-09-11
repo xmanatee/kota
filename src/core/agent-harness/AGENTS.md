@@ -9,12 +9,9 @@ the protocol and registry.
 - A harness must not silently coerce unsupported options. If an adapter cannot
   honor a requested option (for example a tools list against a text-only
   harness), it should fail loudly at the boundary.
-- `AgentHarnessRunOptions.systemPrompt` is a plain string of portable KOTA
-  system-prompt content composed by `buildKotaSystemPrompt` in
-  `src/core/loop/`. Harness-neutral callers never build provider-native wire
-  shapes; adapters that want to wrap the text in a native envelope do the
-  wrapping inside the adapter. `AgentSystemPrompt = string` is the contract
-  every adapter consumes.
+- `AgentHarnessRunOptions.systemPrompt` is portable text composed by
+  `buildKotaSystemPrompt` in `src/core/loop/`. Only adapters wrap it in
+  provider-native envelopes.
 - Neutral options carry tool risk, live scope policy, commit/daemon guards, and
   injection defense (`scopePolicy`, `getScopePolicySnapshot`, `canUseTool`, MCP
   and tool lists). KOTA-routable loops must honor them; other adapters declare
@@ -105,23 +102,13 @@ hook, not that.
 
 ## Neutral wire-type declarations
 
-`types.ts` declares the KOTA-native neutral run options and
-`agent-message.ts` declares the strict discriminated `KotaAgentMessage`
-union every adapter normalizes into. `AgentMcpServerConfig` is
-`stdio | sse | http`; adapters either host those servers through their own
-tool-control surface or reject unsupported transports/options at the boundary.
-`AgentCanUseTool` / `AgentPermissionResult` are KOTA-shaped
-(`toolUseId`, `decisionAttribution` literals); adapters bridge
-them to their native shape at their own seam. Nothing in core imports
-`@anthropic-ai/claude-agent-sdk`. Harness-specific in-process MCP hosting
-stays inside the owning adapter.
+`types.ts` owns neutral run options; `agent-message.ts` owns the discriminated
+`KotaAgentMessage` union. Adapters translate KOTA tool permissions and MCP
+transports (`stdio | sse | http`) or reject unsupported requests. Provider SDK
+imports and in-process MCP hosting stay inside adapters.
 
-Provider SDK knobs stay off `AgentHarnessRunOptions`. The neutral surface
-carries KOTA concepts, ModelClient selection, and portable transport fields.
-Adapter-private options travel through validated `harnessOverrides` as opaque
-`AgentHarnessStepOverrides`.
-`neutral-protocol-shape.test.ts` checks the public type boundary; provider
-adapters own translation of their private field names.
+Provider knobs travel through validated `harnessOverrides`, never neutral run
+options. `neutral-protocol-shape.test.ts` checks the public type boundary.
 
 Core interfaces use KOTA-owned neutral types from `message-protocol.ts`;
 adapters translate provider types at their seam. Biome enforces the boundary.

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -84,33 +84,28 @@ describe("machine authority execution sandbox", () => {
   });
 
   it("builds a Linux namespace with the authority directory read-only", () => {
-    const configPath = "/operator/.kota/config.json";
+    const authorityDir = mkdtempSync(join(tmpdir(), "kota-authority-"));
+    roots.push(authorityDir);
+    const configPath = join(authorityDir, "config.json");
+    const tokenPath = join(authorityDir, "scope-authority-token.json");
+    writeFileSync(configPath, "{}");
     const launch = buildMachineAuthoritySandboxLaunch("python3", ["worker.py"], {
       cwd: "/project",
       authorityConfigPath: configPath,
       platform: "linux",
-      pathExists: (path) => path === "/usr/bin/bwrap" || path === dirname(configPath),
+      pathExists: (path) => path === "/usr/bin/bwrap" || existsSync(path),
     });
 
-    expect(launch).toEqual({
-      ok: true,
-      command: "/usr/bin/bwrap",
-      args: [
-        "--die-with-parent",
-        "--new-session",
-        "--bind",
-        "/",
-        "/",
-        "--ro-bind",
-        "/operator/.kota",
-        "/operator/.kota",
-        "--chdir",
-        "/project",
-        "--",
-        "python3",
-        "worker.py",
-      ],
-    });
+    expect(launch).toMatchObject({ ok: true, command: "/usr/bin/bwrap" });
+    if (!launch.ok) return;
+    const mounts = launch.args.join("\n");
+    expect(mounts).toContain(["--ro-bind", authorityDir, authorityDir].join("\n"));
+    expect(mounts).toContain(["--tmpfs", authorityDir].join("\n"));
+    expect(mounts).toContain(["--ro-bind", configPath, configPath].join("\n"));
+    expect(mounts).toContain(["--ro-bind", "/dev/null", tokenPath].join("\n"));
+    expect(mounts).toContain(["--remount-ro", authorityDir].join("\n"));
+    expect(launch.args.slice(-5)).toEqual(["--chdir", "/project", "--", "python3", "worker.py"]);
+    expect(existsSync(tokenPath)).toBe(false);
   });
 
   it("mounts only declared native CLI roots writable on Linux", () => {

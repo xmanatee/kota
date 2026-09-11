@@ -110,7 +110,7 @@ export async function runOpenaiToolsLoop(
     scopeRoot: scopeRoot,
   });
   const outputTokenLimit = resolveModelOutputTokenLimit(
-    resolved.model,
+    options.model,
     options.modelOutputTokenLimits,
   );
   const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
