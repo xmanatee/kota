@@ -151,3 +151,5 @@ scoped authorization. These errors are not a passing static gate. The earlier
 workspace totals remain historical pre-integration observations. Runtime still
 owns staging, continuation, complete validation, publication and final cleanup;
 this repair does not claim an integrated revision or task completion.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T10:24:11.823Z -->

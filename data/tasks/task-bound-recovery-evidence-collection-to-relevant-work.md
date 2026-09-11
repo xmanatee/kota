@@ -168,3 +168,5 @@ change is requested. Resume once the runtime's existing activation/recovery
 owners expose attributable post-integration evidence. Preserve the original
 held writers and their task/resource lineage. The separate activation and
 recovery tasks retain their own live acceptance contracts.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T10:24:11.823Z -->

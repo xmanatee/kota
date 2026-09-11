@@ -124,3 +124,5 @@ daemon process or other retained writer was changed. Sandbox denial does not
 establish that the host lacks these capabilities; equivalent attributable scoped
 evidence can satisfy the remaining acceptance without a new investigation or
 renewed authorization.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T10:24:11.823Z -->
