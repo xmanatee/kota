@@ -383,8 +383,12 @@ struct ChatView: View {
 
     private func endSession() {
         Task {
-            await appState.endSession(sessionId)
-            dismiss()
+            do {
+                try await appState.endSession(sessionId)
+                dismiss()
+            } catch {
+                errorMessage = DaemonErrorPresenter.message(for: error)
+            }
         }
     }
 

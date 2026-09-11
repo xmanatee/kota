@@ -686,9 +686,9 @@ public final class AppState: ObservableObject {
         }
     }
 
-    func endSession(_ id: String) async {
-        guard let token = synchronizeRequestSource() else { return }
-        try? await client.deleteSession(id: id, scopeId: activeScopeId)
+    func endSession(_ id: String) async throws {
+        guard let token = synchronizeRequestSource() else { throw DaemonClientError.notConnected }
+        try await client.deleteSession(id: id, scopeId: activeScopeId)
         guard isCurrent(token) else { return }
         await refreshUiSurfaceBundle(token: token)
     }

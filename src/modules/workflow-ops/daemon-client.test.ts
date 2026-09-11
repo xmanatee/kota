@@ -1,25 +1,4 @@
-/**
- * Workflow namespace daemon-side handler test.
- *
- * The workflow namespace migrated out of the core stub into
- * `daemonClient(link)` on the workflow-ops module. This test pins the
- * invariants the migration relies on:
- *
- *  1. The workflow-ops module exposes a `daemonClient(link)` factory and the
- *     factory contributes the `workflow` namespace contract methods.
- *  2. Each method routes through the expected HTTP method + path with the
- *     expected query/body shape.
- *  3. The success arm decodes correctly for each method.
- *  4. The throw-on-`null` arm fires with the byte-for-byte error string for
- *     each method that throws on transport failure.
- *  5. `listRuns` and `getRun` soft-fall through on `null` (returning `{ runs:
- *     [] }` and `{ found: false }` respectively).
- *  6. `triggerByName` preserves the complete enqueue contract and omits only
- *     unset fields.
- *  7. Supplying the contribution to the assembly path satisfies coverage.
- *  8. Removing the workflow-ops contribution makes assembly fail loudly with
- *     a clear "workflow" missing-handler error.
- */
+/** Workflow client wire behavior through a controlled transport port. */
 
 import { describe, expect, it } from "vitest";
 import type {
@@ -72,8 +51,11 @@ function makeRecordingTransport(opts?: {
       const result = await opts.respondRequest(method, path, body);
       return result as T | null;
     },
-    requestStrict: async () => {
-      throw new Error("not used");
+    requestStrict: async <T>(method: string, path: string, body?: unknown, init?: DaemonRequestInit): Promise<T> => {
+      calls.push({ kind: "request", method, path, body, init });
+      const value = await opts?.respondRequest?.(method, path, body);
+      if (value == null) throw new Error("Daemon unavailable");
+      return value as T;
     },
     fetchRaw: async (path: string, init?: RequestInit) => {
       calls.push({ kind: "fetchRaw", path, init });
@@ -102,8 +84,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       respondRequest: () => ({ runs: [] }),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.listRuns();
-    expect(result).toEqual({ runs: [] });
+    expect(await wf.listRuns()).toEqual({ runs: [] });
     expect(calls).toEqual([
       {
         kind: "request",
@@ -131,13 +112,12 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     );
   });
 
-  it("listRuns soft-falls through on transport failure", async () => {
+  it("listRuns reports transport failure", async () => {
     const { transport } = makeRecordingTransport({
       respondRequest: () => null,
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.listRuns();
-    expect(result).toEqual({ runs: [] });
+    await expect(wf.listRuns()).rejects.toThrow("Daemon unavailable");
   });
 
   it("status routes through GET /workflow/status and adds pendingAbort: false", async () => {
@@ -515,7 +495,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     );
   });
 
-  it("getRun routes through GET /workflow/runs/<id> and soft-falls through on null", async () => {
+  it("getRun routes through GET /workflow/runs/<id> and distinguishes 404", async () => {
     {
       const detail = {
         id: "run-1",
@@ -526,19 +506,18 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
         steps: [],
       };
       const { transport, calls } = makeRecordingTransport({
-        respondRequest: () => detail,
+        respondFetch: () => jsonResponse(200, detail),
       });
       const wf = workflowOpsModule.daemonClient!(transport).workflow!;
       const result = await wf.getRun("run-1");
       expect(result).toEqual({ found: true, run: detail });
-      expect((calls[0] as { method: string; path: string }).method).toBe("GET");
       expect((calls[0] as { method: string; path: string }).path).toBe(
         "/workflow/runs/run-1",
       );
     }
     {
       const { transport } = makeRecordingTransport({
-        respondRequest: () => null,
+        respondFetch: () => jsonResponse(404, {}),
       });
       const wf = workflowOpsModule.daemonClient!(transport).workflow!;
       expect(await wf.getRun("missing")).toEqual({ found: false });
@@ -547,7 +526,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
 
 	it("getRun scopes the daemon run lookup", async () => {
 		const { transport, calls } = makeRecordingTransport({
-			respondRequest: () => null,
+			respondFetch: () => jsonResponse(404, {}),
 		});
 		const wf = workflowOpsModule.daemonClient!(transport).workflow!;
 		await wf.getRun("run-1", { scopeId: "scope-a" });
@@ -555,6 +534,18 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
 			"/workflow/runs/run-1?scopeId=scope-a",
 		);
 	});
+
+  it.each(["getRun", "getDeadLetter", "exportDeadLetterDiagnostics"] as const)("%s does not turn an outage into absence", async method => {
+    const { transport } = makeRecordingTransport({ respondFetch: () => { throw new Error("Daemon offline"); } });
+    const client = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(client[method]("known-id")).rejects.toThrow("Daemon offline");
+  });
+
+  it.each(["getRun", "getDeadLetter", "exportDeadLetterDiagnostics"] as const)("%s preserves an unknown-scope error", async method => {
+    const { transport } = makeRecordingTransport({ respondFetch: () => new Response(JSON.stringify({ reason: "unknown_scope", scopeId: "gone" }), { status: 404 }) });
+    const client = workflowOpsModule.daemonClient!(transport).workflow!;
+    await expect(client[method]("id")).rejects.toThrow("Unknown scope: gone");
+  });
 
   it("listDefinitions routes through GET /workflow/definitions and reshapes source: 'daemon'", async () => {
     const { transport, calls } = makeRecordingTransport({
