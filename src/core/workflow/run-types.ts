@@ -12,6 +12,12 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import type {
+  WorkflowContinuationContext,
+  WorkflowContinuationDecision,
+  WorkflowContinuationPacket,
+  WorkflowContinuationRecord,
+} from "./continuation.js";
 import type { RunEvidenceReader, RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
@@ -299,8 +305,29 @@ export type WorkflowRepairCheck = {
 export type WorkflowRepairLoopConfig = {
   /** Checks to run after the agent step. Failures trigger a repair agent run. */
   checks: WorkflowRepairCheck[];
-  /** Optional operational stop. Omit for quality-first repair until checks pass or the step aborts. */
+  /**
+   * Optional operational stop. Omit for quality-first repair until checks pass
+   * or the step aborts; unbounded definitions must declare continuation.
+   */
   maxRepairAttempts?: number;
+  /**
+   * Workflow-owned task/queue evidence and judgment. Core owns boundary
+   * detection, deduplication, suspension, and durable resumption.
+   */
+  continuation?: {
+    collectContext: (
+      context: WorkflowStepContext,
+      parentStep: WorkflowAgentStep,
+    ) => Promise<WorkflowContinuationContext> | WorkflowContinuationContext;
+    decide: (
+      context: WorkflowStepContext,
+      parentStep: WorkflowAgentStep,
+      packet: WorkflowContinuationPacket,
+    ) => Promise<WorkflowContinuationDecision> | WorkflowContinuationDecision;
+    resolveAgentContract: (
+      parentStep: WorkflowAgentStep,
+    ) => WorkflowAgentRunContractSpec;
+  };
 };
 
 export type WorkflowRunExecutionResult = {
@@ -308,6 +335,8 @@ export type WorkflowRunExecutionResult = {
   agentBackoff?: WorkflowAgentBackoffSignal;
   /** Existing incident that denied this run another agent-provider call. */
   deferredByAgentBackoff?: WorkflowAgentBackoffState;
+  continuation?: WorkflowContinuationRecord;
+  continuationCheckpointFailure?: string;
 };
 
 export type WorkflowRunWarning = {
@@ -363,4 +392,5 @@ export type WorkflowRunMetadata = {
   runDir: string;
   steps: WorkflowStepResult[];
   warnings?: WorkflowRunWarning[];
+  continuations?: WorkflowContinuationRecord[];
 };

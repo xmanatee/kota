@@ -14,6 +14,7 @@ import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.
 import { WORKFLOW_RUN_METADATA_VERSION } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowStepResult } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   EVALUATOR_CALIBRATION_STEP_ID,
@@ -23,7 +24,10 @@ import { writeRunArtifact } from "#modules/eval-harness/runner-artifact.js";
 import { assessBuilderRecovery, builderRecoveryRevision } from "./recovery.js";
 import {
   inspectBuilderTaskTarget,
-  listBuilderTaskDispatches,verifyBuilderTaskContractAfterReconcile, } from "./task-contract.js";
+  listBuilderTaskDispatches,
+  verifyBuilderTaskContractAfterReconcile,
+  verifyBuilderTaskSnapshot,
+} from "./task-contract.js";
 import builderWorkflow from "./workflow.js";
 
 const roots: string[] = [];
@@ -68,16 +72,20 @@ afterEach(() => {
 
 describe("targeted builder contract", () => {
   it("binds each run to its task resource and shared write sandbox", () => {
+    const root = project();
+    writeTask(root, "open");
+    publish(root);
+    const payload = listBuilderTaskDispatches(root)[0]!;
+    // Persisted run identities must survive changes to continuation context.
+    expect(payload.taskDigest).toBe("34fd617ffdd0dda4497e86b7b5345be601aa5a8b4e87b1a7b6ef387757bd9e30");
+    const snapshot = readFileSync(join(root, payload.taskPath), "utf8");
+    expect(verifyBuilderTaskSnapshot(payload, snapshot).taskDigest).toBe(payload.taskDigest);
+    expect(() => verifyBuilderTaskSnapshot(payload, snapshot.replace("initial", "changed")))
+      .toThrow("does not match its immutable admitted contract");
     const trigger = {
       event: "autonomy.queue.available",
       schemaRef: null,
-      payload: {
-        taskId: "task-target",
-        taskPath: "data/tasks/task-target.md",
-        taskState: "open",
-        taskDigest: "a".repeat(64),
-        idempotencyKey: `builder:task-target:${"a".repeat(64)}`,
-      },
+      payload,
     };
     expect(builderWorkflow.repository).toBe("write");
     expect(builderWorkflow.resources?.({
@@ -451,6 +459,10 @@ describe("targeted builder contract", () => {
     );
     mkdirSync(runDir, { recursive: true });
     mkdirSync(criticVerdictRunDir, { recursive: true });
+    writeTask(root, "open");
+    publish(root);
+    const taskPayload = listBuilderTaskDispatches(root)[0]!;
+    rmSync(join(root, "data", "tasks", "task-target.md"));
     writeTask(root, "done");
     writeFileSync(
       join(runDir, "critic-review.json"),
@@ -478,7 +490,6 @@ describe("targeted builder contract", () => {
     if (!calibration || calibration.type !== "code") {
       throw new Error("missing builder calibration step");
     }
-    const taskDigest = "a".repeat(64);
     const result = await calibration.run({
       workspaceRoot: root,
       runtimeResources: { agentRunDir: criticVerdictRunDir },
@@ -489,11 +500,7 @@ describe("targeted builder contract", () => {
       },
       trigger: {
         payload: {
-          taskId: "task-target",
-          taskPath: "data/tasks/task-target.md",
-          taskState: "open",
-          taskDigest,
-          idempotencyKey: `builder:task-target:${taskDigest}`,
+          ...taskPayload,
         },
       },
       stepOutputs: { build: { repairIterations: [] } },
@@ -511,6 +518,27 @@ describe("targeted builder contract", () => {
     ).toMatchObject({
       verdict: "pass",
       criticPromptHash: "builder-critic-prompt",
+    });
+  });
+
+  it("runs continuation judgment without workspace write authority", () => {
+    const build = builderWorkflow.steps.find((step) => step.id === "build");
+    if (!build || build.type !== "agent") throw new Error("missing build step");
+    const continuation = build.repairLoop?.continuation;
+    if (!continuation) throw new Error("missing continuation policy");
+
+    const validatedBuild: WorkflowAgentStep = {
+      ...build,
+      promptPath: build.promptPath ?? "prompt.md",
+      moduleRoot: "/module",
+      harness: "test-harness",
+      model: "test-model",
+      effort: "high",
+      autonomyMode: "autonomous",
+    };
+    expect(continuation.resolveAgentContract(validatedBuild)).toMatchObject({
+      agentWriteScope: "deny-all",
+      ownerQuestionAccess: "disabled",
     });
   });
 });

@@ -30,6 +30,7 @@ const DECOMPOSITION_PLAN: DecompositionPlan = { action: "replace",
   rationale: "Separate the failed task into one independently actionable slice.",
   subtasks: [
     {
+      reuseTaskId: null,
       title: "Scoped subtask",
       priority: "p1",
       problem: "The original task could not produce stageable progress.",
@@ -260,6 +261,11 @@ describe("decomposer workflow", () => {
   it.each([
     ["timeout", "step-timeout" as const, "task-oversized"],
     ["repair exhaustion", "repair-no-progress" as const, "task-needs-rescope"],
+    [
+      "a continuation decomposition decision",
+      "continuation-decompose" as const,
+      "task-continuation-rescope",
+    ],
   ])("decomposes an unchanged task after %s", async (_label, errorKind, taskId) => {
     const fixture = failureFixture(errorKind, taskId);
     const result = await runFixture(fixture);

@@ -9,7 +9,7 @@ import { stageGardenerTask } from "./gardener-task.js";
 it("materializes an unverified two-consumer proposal and leaves existing task ownership intact", () => {
   const root = mkdtempSync(join(tmpdir(), "gardener-proposal-"));
   try {
-    const decision = decodeGardenerDecision({ revisit: { reason: "Revisit when the observed boundary changes", observationIds: [] },
+    const decision = decodeGardenerDecision({ revisit: { reason: "Revisit when the observed boundary changes", deliveryIssueKeys: [] },
       action: "propose", rationale: "Two maintained readers share anchored I/O but retain distinct decoders.",
       evidenceRefs: ["src/modules/a/read.ts:readRecord", "src/modules/b/read.ts:readRecord"], existingTaskId: null,
       proposal: { priority: "p2",
@@ -24,6 +24,7 @@ it("materializes an unverified two-consumer proposal and leaves existing task ow
     });
     const first = stageGardenerTask({ heldTaskIds: [], workspaceRoot: root, runId: "first", decision });
     expect(first.touchedTaskQueue).toBe(true);
+    expect(stageGardenerTask({ heldTaskIds: [], workspaceRoot: root, runId: "replay", decision }).disposition).toBe("unchanged");
     const task = listFullRepoTasks(root)[0]!;
     expect(task.body).toContain("unverified expectation");
     expect(task.body).toContain("a/read.ts");
@@ -40,10 +41,10 @@ it("materializes an unverified two-consumer proposal and leaves existing task ow
     expect(held.disposition).toBe("deferred");
     expect(listFullRepoTasks(root)[0]!.state).toBe("done");
     const reopened = stageGardenerTask({ workspaceRoot: root, runId: "reopened", decision, heldTaskIds: [] });
-    expect(reopened).toMatchObject({ taskId: task.id, touchedTaskQueue: true, disposition: "proposed" });
+    expect(reopened).toMatchObject({ taskId: task.id, touchedTaskQueue: true, disposition: "applied" });
     expect(reopened.actions).toContainEqual(expect.objectContaining({ kind: "reopened-task", taskId: task.id }));
     expect(listFullRepoTasks(root)[0]).toMatchObject({ state: "open", priority: "p2" });
-    expect(() => stageGardenerTask({ heldTaskIds: [], workspaceRoot: root, runId: "missing", decision: { revisit: { reason: "Revisit when the observed boundary changes", observationIds: [] },
+    expect(() => stageGardenerTask({ heldTaskIds: [], workspaceRoot: root, runId: "missing", decision: { revisit: { reason: "Revisit when the observed boundary changes", deliveryIssueKeys: [] },
       action: "covered", existingTaskId: "missing", proposal: null, rationale: "Already covered", evidenceRefs: ["missing"],
     } })).toThrow("missing task");
   } finally { rmSync(root, { recursive: true, force: true }); }

@@ -351,7 +351,16 @@ describe("declarative workflow tool effects", () => {
         value.context,
         parentStep,
       ),
-    ).resolves.toEqual({ failures: [], warnings: [] });
+    ).resolves.toEqual({
+      results: [{
+        id: "read-check",
+        passed: true,
+        output: "verified",
+        severity: "error",
+      }],
+      failures: [],
+      warnings: [],
+    });
     const mutation = await runChecksPhased(
       [{ id: "write-check", type: "tool", tool: writeTool }],
       value.context,

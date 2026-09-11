@@ -202,7 +202,11 @@ function formatDeliveryDisposition(delivery: WorkflowDeliveryDisposition): { tex
   }
 }
 
-function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): RenderNode {
+function buildRunHeader(
+  metadata: WorkflowRunMetadata,
+  showPayload: boolean,
+  continuation?: WorkflowRunDetail["continuation"],
+): RenderNode {
   const delivery = metadata.delivery ?? deriveWorkflowRunDelivery(metadata);
   const deliveryInfo = formatDeliveryDisposition(delivery);
   const entries: KVEntry[] = [
@@ -240,6 +244,18 @@ function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): Re
       value: formatUsageCost(metadata.usage),
       role: "muted",
     });
+  }
+  if (continuation !== undefined) {
+    entries.push(
+      { label: "Continuation", value: continuation.decision, role: "warn" },
+      { label: "Why", value: continuation.rationale },
+      { label: "Next", value: continuation.nextAction },
+      {
+        label: "Boundary",
+        value: continuation.boundaries.join(", "),
+        role: "muted",
+      },
+    );
   }
   const nodes: RenderNode[] = [kvBlock(entries)];
   if (
@@ -410,6 +426,7 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
       // needs the full step output (including the `output` field, which the
       // daemon summary trims) so that path always reads the artifact.
       let metadata: WorkflowRunMetadata;
+      let continuation: WorkflowRunDetail["continuation"];
       if (stepId !== undefined) {
         const diskMeta = store.getRun(resolvedId);
         if (!diskMeta) {
@@ -424,6 +441,7 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
           process.exit(1);
         }
         metadata = metadataFromDetail(result.run);
+        continuation = result.run.continuation;
       }
 
       if (stepId !== undefined) {
@@ -465,7 +483,9 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
       const errorPath = join(store.runsDir, resolvedId, "error.txt");
       const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
 
-      const children: RenderNode[] = [buildRunHeader(metadata, showPayload === true)];
+      const children: RenderNode[] = [
+        buildRunHeader(metadata, showPayload === true, continuation),
+      ];
       if (errorText !== null) {
         children.push(blank());
         children.push(line(plain("Error:")));

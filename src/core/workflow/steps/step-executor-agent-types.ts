@@ -19,6 +19,8 @@ import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
 import type { AgentBackoffManager } from "../agent-backoff.js";
+
+import type { WorkflowContinuationRepairEvidence } from "../continuation.js";
 import type { RepositoryAccess } from "../run-sandbox.js";
 import type { WorkflowRuntimeResources } from "../run-types.js";
 
@@ -44,6 +46,8 @@ export type AgentStepResult = {
   trajectoryDiagnostics: TrajectoryDiagnosticsMetadata;
   trajectoryMessages: readonly KotaAgentMessage[];
   preStepMutatedPaths: readonly string[];
+  continuationInitialWorkspace?: WorkflowContinuationRepairEvidence;
+  continuationTrajectory?: readonly WorkflowContinuationRepairEvidence[];
   tokenBudget?: AgentTokenBudgetLedger;
 };
 
@@ -78,3 +82,10 @@ export type AgentStepConfig = {
   /** Run-level cancellation used to preserve the complete run on suppression. */
   agentBackoffAbortController?: AbortController;
 };
+
+export type ActiveAgentContinuationRuntime = Readonly<{
+  initialWorkspace: WorkflowContinuationRepairEvidence;
+  trajectory: readonly WorkflowContinuationRepairEvidence[];
+  onProgressMessage: (message: KotaAgentMessage) => void | Promise<void>;
+  pollEvidence: () => void | Promise<void>;
+}>;

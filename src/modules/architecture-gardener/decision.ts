@@ -22,8 +22,11 @@ const proposalSchema = z.object({
 const decisionSchema = z.object({
   action: z.enum(["propose", "no-action", "covered"]),
   rationale: text,
-  revisit: z.object({ reason: text, observationIds: z.array(text) }).strict(),
   evidenceRefs: z.array(text).min(1),
+  revisit: z.object({
+    reason: text,
+    deliveryIssueKeys: z.array(text),
+  }).strict(),
   existingTaskId: text.nullable(),
   proposal: proposalSchema.nullable(),
 }).strict();

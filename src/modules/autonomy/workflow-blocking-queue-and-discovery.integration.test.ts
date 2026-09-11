@@ -143,6 +143,7 @@ describe("task and discovery blocking operations", () => {
             rationale: "Create one independently verifiable worker-boundary slice.",
             subtasks: [
               {
+                reuseTaskId: null,
                 title: "Worker decomposition slice",
                 priority: "p1",
                 problem: "The original work requires a smaller execution unit.",

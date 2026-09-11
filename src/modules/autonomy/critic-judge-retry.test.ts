@@ -11,6 +11,7 @@ import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
+  getOptionsArg,
   makeContext,
   makeRunDir,
   makeTmpDir,
@@ -24,6 +25,34 @@ const mockRunAgentHarness = getMockRunAgentHarness();
 
 describe("critic judge retry handling", () => {
   beforeEach(resetCriticTestMocks);
+
+  it("launches the judge with read-only filesystem authority", async () => {
+    const dir = makeTmpDir();
+    writeOpenTask(
+      dir,
+      "task-read-only.md",
+      "---\nstatus: open\npriority: p2\n---\n\n# Read-only judge\n\nContent.",
+    );
+    const runDir = makeRunDir(dir);
+    mockRunAgentHarness.mockResolvedValue({
+      text: JSON.stringify({
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "The reviewed change is complete.",
+      }),
+      streamedText: "",
+      turns: 1,
+      isError: false,
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+
+    expect(getOptionsArg(mockRunAgentHarness.mock.calls[0]!)).toMatchObject({
+      agentWriteScope: "deny-all",
+    });
+  });
 
   it("clears a prior failed verdict when the final critic attempt is unavailable", async () => {
     const dir = makeTmpDir();

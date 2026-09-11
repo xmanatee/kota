@@ -38,8 +38,13 @@ type CodexCliEvent = {
   thread_id?: string;
   usage?: CodexCliUsage;
   item?: {
+    id?: string;
     type?: string;
     text?: string;
+    command?: string;
+    aggregated_output?: string;
+    exit_code?: number;
+    status?: string;
   };
   message?: string;
 };
@@ -135,6 +140,7 @@ async function runCodexCliProcess(
   let turns = 0;
   let inputTokens: number | undefined;
   let outputTokens: number | undefined;
+  let commandSequence = 0;
   let cliFailure: { detail: string; subtype: string } | undefined;
 
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
@@ -178,90 +184,123 @@ async function runCodexCliProcess(
     child.stderr.on("end", resolve);
   });
 
+  let stdoutFailure: Error | undefined;
   const stdoutDone = (async (): Promise<void> => {
-    const lines = createInterface({ input: child.stdout });
-    for await (const line of lines) {
-      const event = parseCodexEvent(line);
-      if (!event) continue;
-      if (event.type === "thread.started" && typeof event.thread_id === "string") {
-        sessionId = event.thread_id;
-        await emitCodexMessage(args.onMessage, {
-          type: "status",
-          category: "codex.thread.started",
-          sessionId,
-          text: "Codex thread started.",
-        });
-      } else if (event.type === "turn.started") {
-        await emitCodexMessage(
-          args.onMessage,
-          withSession(
-            {
-              type: "status",
-              category: "codex.turn.started",
-              text: "Codex turn started.",
-            },
+    try {
+      const lines = createInterface({ input: child.stdout });
+      for await (const line of lines) {
+        const event = parseCodexEvent(line);
+        if (!event) continue;
+        if (event.type === "thread.started" && typeof event.thread_id === "string") {
+          sessionId = event.thread_id;
+          await emitCodexMessage(args.onMessage, {
+            type: "status",
+            category: "codex.thread.started",
             sessionId,
-          ),
-        );
-      } else if (event.type === "item.completed" && event.item?.type === "agent_message") {
-        const text = event.item.text ?? "";
-        streamedChunks.push(text);
-        args.writer?.write(text);
-        await emitCodexMessage(
-          args.onMessage,
-          withSession({ type: "text", text }, sessionId),
-        );
-      } else if (event.type === "turn.completed") {
-        turns += 1;
-        inputTokens = event.usage?.input_tokens;
-        outputTokens = event.usage?.output_tokens;
-        const usage = unpricedAgentUsage(inputTokens, outputTokens);
-        args.onUsage?.(usage);
-        await emitCodexMessage(
-          args.onMessage,
-          withSession(
-            {
-              type: "result",
-              isError: false,
-              numTurns: turns,
-              usage,
-            },
-            sessionId,
-          ),
-        );
-      } else if (event.type === "error") {
-        cliFailure = {
-          detail: event.message ?? "Codex CLI reported an error",
-          subtype: "codex_cli_error",
-        };
-        await emitCodexMessage(
-          args.onMessage,
-          withSession(
-            {
-              type: "result",
-              isError: true,
-              subtype: cliFailure.subtype,
-              text: cliFailure.detail,
-              usage: unpricedAgentUsage(undefined, undefined),
-            },
-            sessionId,
-          ),
-        );
-        terminateChild();
-        return;
-      } else if (event.type !== undefined) {
-        await emitCodexMessage(
-          args.onMessage,
-          withSession(
-            {
-              type: "status",
-              category: `codex.${event.type}`,
-              ...(typeof event.message === "string" ? { text: event.message } : {}),
-            },
-            sessionId,
-          ),
-        );
+            text: "Codex thread started.",
+          });
+        } else if (event.type === "turn.started") {
+          await emitCodexMessage(
+            args.onMessage,
+            withSession(
+              {
+                type: "status",
+                category: "codex.turn.started",
+                text: "Codex turn started.",
+              },
+              sessionId,
+            ),
+          );
+        } else if (
+          event.type === "item.completed" &&
+          event.item?.type === "command_execution" &&
+          typeof event.item.command === "string"
+        ) {
+          commandSequence += 1;
+          const toolUseId = event.item.id ?? `codex-command-${commandSequence}`;
+          await emitCodexMessage(
+            args.onMessage,
+            withSession({
+              type: "tool_call",
+              toolUseId,
+              toolName: "codex.command",
+              input: { command: event.item.command },
+            }, sessionId),
+          );
+          await emitCodexMessage(
+            args.onMessage,
+            withSession({
+              type: "tool_result",
+              toolUseId,
+              isError:
+                (event.item.exit_code !== undefined && event.item.exit_code !== 0) ||
+                event.item.status === "failed",
+              content: event.item.aggregated_output ?? "",
+            }, sessionId),
+          );
+        } else if (event.type === "item.completed" && event.item?.type === "agent_message") {
+          const text = event.item.text ?? "";
+          streamedChunks.push(text);
+          args.writer?.write(text);
+          await emitCodexMessage(
+            args.onMessage,
+            withSession({ type: "text", text }, sessionId),
+          );
+        } else if (event.type === "turn.completed") {
+          turns += 1;
+          inputTokens = event.usage?.input_tokens;
+          outputTokens = event.usage?.output_tokens;
+          const usage = unpricedAgentUsage(inputTokens, outputTokens);
+          args.onUsage?.(usage);
+          await emitCodexMessage(
+            args.onMessage,
+            withSession(
+              {
+                type: "result",
+                isError: false,
+                numTurns: turns,
+                usage,
+              },
+              sessionId,
+            ),
+          );
+        } else if (event.type === "error") {
+          cliFailure = {
+            detail: event.message ?? "Codex CLI reported an error",
+            subtype: "codex_cli_error",
+          };
+          await emitCodexMessage(
+            args.onMessage,
+            withSession(
+              {
+                type: "result",
+                isError: true,
+                subtype: cliFailure.subtype,
+                text: cliFailure.detail,
+                usage: unpricedAgentUsage(undefined, undefined),
+              },
+              sessionId,
+            ),
+          );
+          terminateChild();
+          return;
+        } else if (event.type !== undefined) {
+          await emitCodexMessage(
+            args.onMessage,
+            withSession(
+              {
+                type: "status",
+                category: `codex.${event.type}`,
+                ...(typeof event.message === "string" ? { text: event.message } : {}),
+              },
+              sessionId,
+            ),
+          );
+        }
       }
+    } catch (error) {
+      stdoutFailure = error instanceof Error ? error : new Error(String(error));
+      quarantineChild();
     }
   })();
 
@@ -280,6 +319,7 @@ async function runCodexCliProcess(
     });
   });
   await Promise.all([stdoutDone, stderrDone]);
+  if (stdoutFailure !== undefined) throw stdoutFailure;
 
   if (abortController?.signal.aborted) {
     return {

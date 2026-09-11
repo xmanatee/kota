@@ -19,8 +19,9 @@ import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixtur
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import { buildArchitectureGardenerCommand } from "#modules/architecture-gardener/cli-command.js";
 import { architectureReviewRequested } from "#modules/architecture-gardener/events.js";
+import { ARCHITECTURE_GARDENER_RUN_ARTIFACT } from "#modules/architecture-gardener/proposal-identity.js";
 import { buildGardenerControlRoutes } from "#modules/architecture-gardener/routes.js";
-import workflow, { ARCHITECTURE_GARDENER_RUN_ARTIFACT, agent } from "#modules/architecture-gardener/workflow.js";
+import workflow, { agent } from "#modules/architecture-gardener/workflow.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { buildWorkflowDaemonHandler } from "#modules/workflow-ops/index.js";
@@ -79,7 +80,9 @@ it("admits scoped API/CLI requests, investigates once, and rejects unknown scope
       expect(options.cwd).not.toBe(other);
       expect(options.agentWriteScope).toBe("deny-all");
       expect(options.prompt).toContain("inspect-evidence");
-      const decision = { revisit: { reason: "Revisit when the observed boundary changes", observationIds: [] }, action: "no-action", rationale: "The selected scope has no implementations to consolidate.", evidenceRefs: ["src/ (absent in selected scope)"], existingTaskId: null, proposal: null };
+      const decision = { action: "no-action", rationale: "The selected scope has no implementations to consolidate.",
+        evidenceRefs: ["src/ (absent in selected scope)"], existingTaskId: null, proposal: null,
+        revisit: { reason: "Revisit when maintained implementations are added to this scope.", deliveryIssueKeys: [] } };
       const text = `\`\`\`json\n${JSON.stringify(decision)}\n\`\`\``;
       return { text, streamedText: text, turns: 1, isError: false,
         usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } } };
@@ -115,7 +118,8 @@ it("admits scoped API/CLI requests, investigates once, and rejects unknown scope
   try {
     host.runtime.start();
     const route = loader.getContributedControlRoutes().find((route) => route.path === "/api/architecture/review")!;
-    const response = await invoke(route.handler, `/api/architecture/review?scopeId=${scopeId}`, JSON.stringify({ targetScope: "repo" }));
+    const reason = "Inspect maintained implementations in the selected scope";
+    const response = await invoke(route.handler, `/api/architecture/review?scopeId=${scopeId}`, JSON.stringify({ targetScope: "repo", reason }));
     expect(response.status).toBe(202);
     await waitForControlCondition(() => {
       const failed = host.runState.listRuns(scopeId, ["failed", "needs_attention"]);
@@ -128,7 +132,7 @@ it("admits scoped API/CLI requests, investigates once, and rejects unknown scope
     expect(artifact.decision.action).toBe("no-action");
     expect(artifact.observations).toEqual([]);
     const command = buildArchitectureGardenerCommand({ cwd: root, client });
-    await command.parseAsync(["review", "repo", "--scope", scopeId, "--json"], { from: "user" });
+    await command.parseAsync(["review", "repo", "--scope", scopeId, "--reason", reason, "--json"], { from: "user" });
     await waitForControlCondition(() => host.runState.listRuns(scopeId, ["succeeded"]).length === 2, 15_000);
     expect(investigations).toBe(1);
     expect(listFullRepoTasks(other)).toEqual([]);

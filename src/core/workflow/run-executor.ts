@@ -14,10 +14,15 @@ import {
   buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
+import { WorkflowContinuationSuspension } from "./repair-loop.js";
 import type { RunExecutorDeps } from "./run-executor-deps.js";
 import { executeGroupStep } from "./run-executor-groups.js";
 import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
+import {
+  parseWorkflowContinuationRecord,
+  parseWorkflowRunMetadata,
+} from "./run-metadata.js";
 import type {
   WorkflowRunExecutionResult,
   WorkflowRunStatus,
@@ -38,6 +43,25 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type { RunExecutorDeps } from "./run-executor-deps.js";
+
+function readDurableContinuationResume(
+  wait: Readonly<Record<string, unknown>> | undefined,
+): Readonly<{
+  record: ReturnType<typeof parseWorkflowContinuationRecord>;
+  metadata: WorkflowRunExecutionResult["metadata"];
+}> | null {
+  if (wait?.kind !== "continuation") return null;
+  return Object.freeze({
+    record: parseWorkflowContinuationRecord(
+      wait.record,
+      "durable continuation wait.record",
+    ),
+    metadata: parseWorkflowRunMetadata(
+      wait.lineage,
+      "durable continuation wait.lineage",
+    ),
+  });
+}
 
 function collectAgentSessionIds(
   steps: readonly WorkflowStepResult[],
@@ -122,9 +146,23 @@ export function executeWorkflowRun(
     approvalQueue,
     resolveAgentHarness: inputDeps.resolveAgentHarness ?? resolveAgentHarness,
   };
-  const previousAttempt = runContext.run.attempt > 1
-    ? deps.store.getRun(runContext.run.id, { authorityCritical: true })
-    : null;
+  const durableResume = readDurableContinuationResume(
+    runContext.run.resumeWait,
+  );
+  let artifactPreviousAttempt: WorkflowRunExecutionResult["metadata"] | null = null;
+  if (runContext.run.attempt > 1) {
+    try {
+      artifactPreviousAttempt = deps.store.getRun(runContext.run.id, { authorityCritical: true });
+    } catch (error) {
+      if (durableResume === null) throw error;
+      deps.log(
+        `Run evidence for resumed workflow "${runContext.run.id}" is unavailable; rebuilding from durable continuation state: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+  const previousAttempt = durableResume?.metadata ?? artifactPreviousAttempt;
   const resumeSessionIds = collectAgentSessionIds(previousAttempt?.steps ?? []);
   const run = deps.store.createRun(
     definition,
@@ -133,6 +171,16 @@ export function executeWorkflowRun(
     runContext.sandbox.repository === "none"
       ? null
       : runContext.sandbox.baseCommit,
+    previousAttempt === null && durableResume === null
+      ? undefined
+      : {
+          ...(previousAttempt === null
+            ? {}
+            : { priorMetadata: previousAttempt }),
+          ...(durableResume === null
+            ? {}
+            : { durableContinuation: durableResume.record }),
+        },
   );
   const startedAt = Date.now();
   const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(
@@ -169,8 +217,14 @@ export function executeWorkflowRun(
     let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
     let deferredByAgentBackoff: WorkflowRunExecutionResult["deferredByAgentBackoff"];
     const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
-    const resumedFromRunId = typeof trigger.payload.resumedFromRunId === "string" ? trigger.payload.resumedFromRunId : undefined;
-    const resumeFromStep = typeof trigger.payload.resumeFromStep === "string" ? trigger.payload.resumeFromStep : undefined;
+    const resumedFromRunId = durableResume?.metadata.id ??
+      (typeof trigger.payload.resumedFromRunId === "string"
+        ? trigger.payload.resumedFromRunId
+        : undefined);
+    const resumeFromStep = durableResume?.record.stepId ??
+      (typeof trigger.payload.resumeFromStep === "string"
+        ? trigger.payload.resumeFromStep
+        : undefined);
     const stepDeps = { bus: deps.bus, pbus: deps.pbus, log: deps.log };
 
     try {
@@ -345,6 +399,60 @@ export function executeWorkflowRun(
           : "failed";
       const timing = runTimeout?.snapshot();
       runTimeout?.dispose();
+      if (err instanceof WorkflowContinuationSuspension) {
+        const existing = run.metadata.continuations ?? [];
+        if (
+          !existing.some(
+            (record) =>
+              record.packet.evidenceFingerprint ===
+              err.continuation.packet.evidenceFingerprint,
+          )
+        ) {
+          run.metadata.continuations = [...existing, err.continuation];
+        }
+        const status = err.continuation.decision.decision === "decompose"
+          ? "failed"
+          : "interrupted";
+        const fallback: WorkflowRunExecutionResult["metadata"] = {
+          ...run.metadata,
+          status,
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt,
+          ...activeTimingMetadata(timing),
+        };
+        let completed = fallback;
+        try {
+          completed = run.finish({
+            status,
+            durationMs: fallback.durationMs!,
+            ...activeTimingMetadata(timing),
+            error: err.message,
+          });
+        } catch (artifactError) {
+          err.recordCheckpointFailure(
+            "workflow artifact persistence failed",
+            artifactError,
+          );
+          deps.log(
+            `Continuation checkpoint artifacts for workflow "${definition.name}" (${run.metadata.id}) could not be persisted; runtime suspension will preserve the sandbox: ${
+              artifactError instanceof Error
+                ? artifactError.message
+                : String(artifactError)
+            }`,
+          );
+        }
+        const transition = status === "failed" ? "Classified" : "Suspended";
+        deps.log(
+          `${transition} workflow "${definition.name}" (${completed.id}) for ${err.continuation.decision.decision}`,
+        );
+        return {
+          metadata: completed,
+          continuation: err.continuation,
+          ...(err.checkpointFailure === undefined
+            ? {}
+            : { continuationCheckpointFailure: err.checkpointFailure }),
+        };
+      }
       const completed = run.finish({
         status,
         durationMs: Date.now() - startedAt,

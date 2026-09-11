@@ -8,11 +8,11 @@ implementation to builders through the existing publication transaction.
   apparent unused symbols require caller and dynamic-entrypoint investigation;
   diagnostic counts never create tasks, impose quotas or veto a change.
 - Automatic observations run after builder delivery and durable issue changes.
-  Initial automatic investigation needs structural evidence and delivery friction.
-  Settled decisions reopen for changed structural evidence, selected observations,
-  or linked implementation outcomes. Unselected size metrics and unrelated task
-  completions do not readmit investigation; explicit scoped requests still apply.
-  Unchanged cohorts suppress review across request surfaces and restart. Shared
+  Initial automatic review needs structural and delivery-friction evidence.
+  Settled judgments retain their relevant delivery issue keys and revisit reason;
+  structural changes, changes to those issues, a new justified scoped request,
+  or linked terminal evidence may reopen investigation. Unrelated issue churn
+  leaves the judgment settled across requests and restart. Shared
   runtime resources and transactional state own serialization and publication.
   Scoped cohorts resolve module names and repository paths against all affected
   source locations or owners, including every participant in shared observations.
@@ -25,17 +25,20 @@ implementation to builders through the existing publication transaction.
 - Apply Standards to preservation evidence at authoritative consumer boundaries.
   Retain distinct public-behavior and security checks while retiring proofs made
   redundant by the replacement.
-- Defer proposals against active tasks, including blocked and retained builders.
-  Reopen terminal work only for justified new evidence, explicit priority, and
-  available runtime ownership. Follow linked completed tasks
+- Reuse active task ownership, including blocked and retained builders. Defer
+  revised proposals against active tasks and retain the decision until terminal evidence can be
+  reassessed. A grounded proposal may reopen the same terminal task through the
+  generated-work materializer with explicit priority; status alone never proves
+  coverage. Every task-dependent settlement, including no-action judgments,
+  rechecks linked and cited task evidence against canonical state and the
+  outcome in the reconciled writer. Follow linked completed tasks
   through migrated callers, retired paths, proportionate proof and the actual
-  simpler result; tasks and run artifacts remain the evidence record.
+  simpler result; tasks and run artifacts remain the evidence record. The shared
+  task publication policy protects current runtime ownership. Successful runtime
+  finalization completes the generated proposal's pending owner-question effects.
 - The investigator inherits the active preset and has deny-all repository write
   scope. Only deterministic task materialization writes in the runtime sandbox.
-  Record the materializer’s actual result; proposed intent alone is not publication.
-  Retain staged proposal effects and reconcile owner questions in the shared
-  success finalizer after integration. Task publication owns resource checks;
-  gardener owns evidence admission and active-task deferral.
+  No second planner/critic pass is added to ordinary builder runs.
 - CLI/API requests use normal daemon workflow dispatch with canonical scope
   identity. Read surfaces select the requested scope; never silently read a
   different directory or manufacture success when the daemon is unavailable.
@@ -43,7 +46,16 @@ implementation to builders through the existing publication transaction.
   durable evidence with architectural observations without taking over issues.
 
 - Cited systemic handoffs are explicit scoped requests. Preserve their shared
-  topic key when staging a proposal. Publication owns unchanged-handoff
+  topic keys and task links across deferred and no-action reviews, reviews of
+  other mechanisms, overlapping repository/directory/file requests, and automatic
+  terminal follow-ups. Reused identities retain their original target scope;
+  broader reviews cannot expand ownership into disjoint request paths.
+  Linked task ownership survives state upgrades. Recover missing proposal keys
+  from attributable run evidence and verify their task identity before reuse;
+  unavailable identity evidence cannot authorize duplicate work. Unresolved
+  ownership constrains proposals across scoped requests until its identity is
+  recovered; it is not evidence of delivery within the requested scope.
+  Publication owns unchanged-handoff
   suppression and deferral while its task is active, so delivered counterevidence
   must reach investigation even if the structural cohort is unchanged.
   Assess every handoff reference, recording unavailable evidence explicitly;

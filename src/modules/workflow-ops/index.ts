@@ -870,6 +870,16 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     ...(meta.retryOf !== undefined && { retryOf: meta.retryOf }),
     ...(meta.resumedFromRunId !== undefined && { resumedFromRunId: meta.resumedFromRunId }),
     ...(meta.tags !== undefined && { tags: meta.tags }),
+    ...(meta.continuations?.at(-1) !== undefined && {
+      continuation: {
+        decision: meta.continuations.at(-1)!.decision.decision,
+        rationale: redactSensitiveText(meta.continuations.at(-1)!.decision.rationale),
+        nextAction: redactSensitiveText(meta.continuations.at(-1)!.decision.nextAction),
+        decidedAt: meta.continuations.at(-1)!.decidedAt,
+        evidenceFingerprint: meta.continuations.at(-1)!.packet.evidenceFingerprint,
+        boundaries: [...meta.continuations.at(-1)!.packet.boundaries],
+      },
+    }),
     ...(triggerPayload !== undefined && { triggerPayload }),
     steps,
     ...(meta.warnings !== undefined && {

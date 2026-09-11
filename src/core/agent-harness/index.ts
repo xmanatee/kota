@@ -178,6 +178,7 @@ export {
 export type { AgentHarnessToolExecutionOverrides } from "./tool-execution-options.js";
 export { agentHarnessToolExecutionOptions } from "./tool-execution-options.js";
 export type {
+  AgentVerificationTrajectoryEntry,
   TrajectoryDiagnostic,
   TrajectoryDiagnosticCode,
   TrajectoryDiagnosticsArtifact,
@@ -187,6 +188,7 @@ export type {
 export {
   aggregateTrajectoryDiagnosticsMetadata,
   buildTrajectoryDiagnosticsArtifact,
+  collectAgentVerificationTrajectory,
   TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME,
   trajectoryDiagnosticsMetadata,
 } from "./trajectory-diagnostics.js";

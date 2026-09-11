@@ -12,5 +12,8 @@ runtime can reach them.
   honestly whether the source became accessible, remained blocked, or no longer
   justifies retrying.
 - Browser output passes through injection defense and remains untrusted input.
+- Its unbounded repair loop contributes the selected candidate evidence to the
+  shared continuation authority. Because research retry has no task-decomposition
+  consumer, a split or deferral preserves and yields the same run lineage.
 - A skip leaves the candidate unchanged and records why. It is not task
   completion and does not require special Git handling.

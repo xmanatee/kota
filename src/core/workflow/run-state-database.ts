@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import Database from "better-sqlite3";
+import { resolvePathIdentities } from "#core/util/real-path.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import {
   initializeRunStateSchema,
@@ -78,7 +79,9 @@ function terminalResultStatus(state: TerminalRunState): WorkflowRunStatus {
 }
 
 export class RunStateDatabase {
+  private static readonly activeDatabases = new Set<RunStateDatabase>();
   readonly path: string;
+  private readonly pathIdentities: readonly string[];
   private readonly database: Database.Database;
 
   constructor(
@@ -86,7 +89,7 @@ export class RunStateDatabase {
     mode: "create-or-migrate" | "existing" | "read-only" = "create-or-migrate",
   ) {
     if (mode === "create-or-migrate") mkdirSync(stateDir, { recursive: true });
-    this.path = join(stateDir, "kota.sqlite");
+    this.path = resolve(stateDir, "kota.sqlite");
     this.database = new Database(this.path, {
       fileMustExist: mode !== "create-or-migrate",
       readonly: mode === "read-only",
@@ -107,6 +110,20 @@ export class RunStateDatabase {
         );
       }
     }
+    this.pathIdentities = resolvePathIdentities(this.path, process.cwd());
+    RunStateDatabase.activeDatabases.add(this);
+  }
+
+  /** Host-owned locators plus conventional state roots, never agent environment. */
+  static readProtectedPaths(stateRoots: readonly string[] = []): string[] {
+    const databases = [
+      ...[...RunStateDatabase.activeDatabases].flatMap((store) => store.pathIdentities),
+      ...stateRoots.flatMap((root) => resolvePathIdentities(resolve(root, "kota.sqlite"), process.cwd())),
+    ];
+    return [...new Set(databases.flatMap((database) =>
+      [database, `${database}-wal`, `${database}-shm`, `${database}-journal`]
+        .flatMap((path) => resolvePathIdentities(path, process.cwd()))
+    ))];
   }
 
   static openExisting(stateDir: string): RunStateDatabase {
@@ -119,6 +136,7 @@ export class RunStateDatabase {
 
   close(): void {
     this.database.close();
+    RunStateDatabase.activeDatabases.delete(this);
   }
 
   registerScope(input: {
@@ -706,6 +724,72 @@ export class RunStateDatabase {
       this.resumeRun(current.id, input.resumedAt);
       return true;
     })();
+  }
+
+  /**
+   * Resume evidence-preserved runs only after every higher-priority resource
+   * named by their continuation packet has completed a later admitted run.
+   */
+  resumeSatisfiedContinuationRuns(resumedAt: string): string[] {
+    const rows = this.database
+      .prepare(
+        `SELECT id, scope_id, wait_json FROM runs
+         WHERE state = 'waiting' AND wait_json IS NOT NULL
+         ORDER BY admitted_at, rowid`,
+      )
+      .all() as Array<{ id: string; scope_id: string; wait_json: string }>;
+    const completedBlocker = this.database.prepare(
+      `SELECT 1
+       FROM run_resource_requests AS request
+       JOIN runs AS blocker ON blocker.id = request.run_id
+       WHERE request.resource_key = ?
+         AND blocker.id != ?
+         AND blocker.finished_at >= ?
+         AND blocker.state IN ('succeeded', 'failed', 'cancelled')
+       LIMIT 1`,
+    );
+    const resumed: string[] = [];
+    this.database.transaction(() => {
+      for (const row of rows) {
+        let wait: unknown;
+        try {
+          wait = JSON.parse(row.wait_json) as unknown;
+        } catch {
+          continue;
+        }
+        if (wait === null || typeof wait !== "object" || Array.isArray(wait)) continue;
+        const record = wait as Record<string, unknown>;
+        if (
+          record.kind !== "continuation" ||
+          record.decision !== "preserve-yield" ||
+          typeof record.decidedAt !== "string" ||
+          !Array.isArray(record.blockerResources) ||
+          record.blockerResources.length === 0 ||
+          !record.blockerResources.every(
+            (resource): resource is string => typeof resource === "string" && resource.length > 0,
+          )
+        ) {
+          continue;
+        }
+        const satisfied = record.blockerResources.every(
+          (resource) =>
+            completedBlocker.get(
+              this.scopeResourceKey(row.scope_id, resource),
+              row.id,
+              record.decidedAt,
+            ) !== undefined,
+        );
+        if (!satisfied) continue;
+        const updated = this.database.prepare(
+          `UPDATE runs
+           SET state = 'queued', not_before_at = ?,
+               finished_at = NULL, last_error = NULL
+           WHERE id = ? AND state = 'waiting'`,
+        ).run(resumedAt, row.id);
+        if (updated.changes === 1) resumed.push(row.id);
+      }
+    })();
+    return resumed;
   }
 
   requireRunAttention(runId: string, reason: string, evidence: readonly string[]): void {

@@ -73,7 +73,11 @@ export async function runChecksPhased(
   checks: WorkflowRepairCheck[],
   context: WorkflowStepContext,
   parentStep: WorkflowAgentStep,
-): Promise<{ failures: RepairCheckResult[]; warnings: RepairCheckResult[] }> {
+): Promise<{
+  results: RepairCheckResult[];
+  failures: RepairCheckResult[];
+  warnings: RepairCheckResult[];
+}> {
   const phases = new Map<number, WorkflowRepairCheck[]>();
   for (const check of checks) {
     const p = check.phase ?? 0;
@@ -94,6 +98,7 @@ export async function runChecksPhased(
   }
 
   return {
+    results: allResults,
     failures: allResults.filter((r) => !r.passed && r.severity === "error"),
     warnings: allResults.filter((r) => !r.passed && r.severity === "warning"),
   };

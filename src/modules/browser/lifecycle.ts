@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { dirname } from "node:path";
 import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
@@ -225,14 +224,13 @@ async function persistResource(resource: BrowserSessionResource): Promise<void> 
     resource.allowedWriteRoots,
   );
   if (!resolved) return;
-  const dir = dirname(resolved);
-  if (!existsSync(dir)) {
-    throw new Error(
-      `Cannot persist browser profile: directory does not exist: ${dir}. ` +
-        "Create it explicitly or point storageStatePath at an existing location.",
-    );
-  }
-  await resource.context.storageState({ path: resolved });
+  // A validated path or directory descriptor can move outside the write grant
+  // before staging or publication. Do not collect or write credentials until a
+  // runtime backend can enforce pathname authority throughout those operations.
+  throw new Error(
+    "Browser profile persistence is unavailable: filesystem root relocation cannot be safely excluded. " +
+      "Set modules.browser.persistProfile to false to use an existing profile without saving changes.",
+  );
 }
 
 /** Persist only the authenticated context owned by the invoking session. */

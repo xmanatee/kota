@@ -233,6 +233,10 @@ export class WorkflowRunStore {
     trigger: WorkflowRunTrigger,
     runId?: string,
     headSha: string | null = null,
+    resume?: Readonly<{
+      priorMetadata?: WorkflowRunMetadata;
+      durableContinuation?: NonNullable<WorkflowRunMetadata["continuations"]>[number];
+    }>,
   ): ActiveWorkflowRunHandle {
     return createWorkflowRun({
       scopeRoot: this.scopeRoot,
@@ -241,6 +245,12 @@ export class WorkflowRunStore {
       trigger,
       runId,
       headSha,
+      ...(resume?.priorMetadata === undefined
+        ? {}
+        : { priorMetadata: resume.priorMetadata }),
+      ...(resume?.durableContinuation === undefined
+        ? {}
+        : { durableContinuation: resume.durableContinuation }),
     });
   }
 }

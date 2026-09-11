@@ -10,7 +10,7 @@ import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { setTerminalTransport, TerminalTransport } from "#modules/rendering/transport.js";
-import { filterWithContext, followRunLogs, formatAgentMessage, truncateContent } from "./workflow-logs.js";
+import { buildRunLogs, filterWithContext, followRunLogs, formatAgentMessage, truncateContent } from "./workflow-logs.js";
 
 function captureTransport(): { getLines: () => string[]; restore: () => void } {
   const chunks: string[] = [];
@@ -260,6 +260,36 @@ describe("followRunLogs", () => {
     }
   });
 
+  it("follows live integration evidence after business steps complete, then stops when durable activity ends", async () => {
+    const metadata = makeMetadata("success");
+    writeMetadata(metadata);
+    const repairId = "integration-validation-2-attempt";
+    const active = new Set([RUN_ID]);
+    const authority = async () => ({
+      authorityCriticalRunIds: new Set<string>(),
+      operationallyActiveRunIds: new Set(active),
+      terminalRunIds: new Set<string>(),
+    });
+    const capture = captureTransport();
+    try {
+      const following = followRunLogs(runsDir, authority, RUN_ID, undefined, 200, 10);
+      writeFileSync(join(runsDir, RUN_ID, "steps", `${repairId}.events.jsonl`), `${JSON.stringify({
+        type: "status", category: "integration-repair-started", description: "Repair active", recordedAt: new Date().toISOString(),
+      })}\n`);
+      // No completed step result exists for the active invocation yet.
+      expect(buildRunLogs(runsDir, RUN_ID, metadata, repairId)).toMatchObject([
+        { stepId: repairId },
+      ]);
+      await new Promise<void>((resolve) => setTimeout(resolve, 40));
+      expect(capture.getLines().join("\n")).toContain("integration-repair-started");
+      active.clear();
+      await following;
+    } finally {
+      active.clear();
+      capture.restore();
+    }
+  });
+
   it("fails with recovery guidance when durable state identifies an active run without metadata", async () => {
     const runState = new RunStateDatabase(tmpDir);
     try {
@@ -444,6 +474,7 @@ describe("followRunLogs", () => {
 
       await new Promise<void>((r) => setTimeout(r, 80));
       writeMetadata(makeMetadata("success"));
+      runState.finishRun(RUN_ID, epoch, "succeeded", new Date().toISOString());
 
       await followPromise;
       runState.close();

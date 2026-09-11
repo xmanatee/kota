@@ -6,6 +6,7 @@ import {
   workflowRunMetadataOperationallyActiveIds,
   workflowRunMetadataTerminalIds,
 } from "#core/workflow/run-metadata.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type {
   DaemonControlHandle,
   WorkflowCostEntry,
@@ -22,6 +23,21 @@ type RunHandle = Pick<
   DaemonControlHandle,
   "listWorkflowRuns" | "getWorkflowRun" | "getWorkflowMetricCounts"
 >;
+
+function continuationStatus(
+  run: Pick<WorkflowRunMetadata, "continuations">,
+): WorkflowRunSummary["continuation"] {
+  const latest = run.continuations?.at(-1);
+  if (latest === undefined) return undefined;
+  return {
+    decision: latest.decision.decision,
+    rationale: redactSensitiveText(latest.decision.rationale),
+    nextAction: redactSensitiveText(latest.decision.nextAction),
+    decidedAt: latest.decidedAt,
+    evidenceFingerprint: latest.packet.evidenceFingerprint,
+    boundaries: [...latest.packet.boundaries],
+  };
+}
 
 export function buildDaemonRunHandle(
   lookupRuntime: (scopeId?: ScopeId) => ScopeRuntime,
@@ -72,6 +88,9 @@ export function buildDaemonRunHandle(
         ...(run.retryOf != null && { retryOf: run.retryOf }),
         ...(run.resumedFromRunId != null && { resumedFromRunId: run.resumedFromRunId }),
         ...(run.tags && run.tags.length > 0 && { tags: run.tags }),
+        ...(continuationStatus(run) !== undefined && {
+          continuation: continuationStatus(run),
+        }),
       }));
     },
     getWorkflowRun: (id: string, scopeId?: ScopeId): WorkflowRunDetail | null => {
@@ -109,6 +128,9 @@ export function buildDaemonRunHandle(
         ...(run.retryOf != null && { retryOf: run.retryOf }),
         ...(run.resumedFromRunId != null && { resumedFromRunId: run.resumedFromRunId }),
         ...(run.tags && run.tags.length > 0 && { tags: run.tags }),
+        ...(continuationStatus(run) !== undefined && {
+          continuation: continuationStatus(run),
+        }),
         ...(triggerPayload !== undefined && { triggerPayload }),
         ...(run.warnings && run.warnings.length > 0 && {
           warnings: run.warnings.map((warning) => ({

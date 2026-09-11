@@ -224,6 +224,9 @@ export class RunCoordinator {
     this.clearEligibilityTimer();
     this.grantCapacityWaiters();
     const observedAt = this.now();
+    if (!this.globalAdmissionPaused) {
+      this.store.resumeSatisfiedContinuationRuns(observedAt);
+    }
     let started = this.startCandidates(
       this.store.listDispatchableRuns({
         now: observedAt,

@@ -23,9 +23,9 @@ export type BrowserModuleConfig = {
    */
   storageStatePath?: string;
   /**
-   * When true, persist the current context's storage state back to
-   * `storageStatePath` on idle close. Operators can use this to capture
-   * a fresh login before pinning the file in their secrets/config surface.
+   * Requests saving the context back to `storageStatePath`. Persistence is
+   * currently unavailable: explicit save and close reject before collecting
+   * state. Keep false to use an existing profile without saving changes.
    */
   persistProfile?: boolean;
   /**

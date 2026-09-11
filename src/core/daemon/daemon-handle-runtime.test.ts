@@ -41,6 +41,33 @@ describe("buildDaemonHandle workflow run projections", () => {
       runDir: ".kota/runs/run-redaction",
       steps: [],
       warnings: [{ type: "output-schema-mismatch", message: "email owner@example.test" }],
+      continuations: [{
+        stepId: "build",
+        decidedAt: "2026-01-01T01:00:00.000Z",
+        packet: {
+          version: 2,
+          evidenceFingerprint: "evidence-1",
+          boundaryKey: "higher-priority-work",
+          boundaries: ["higher-priority-work"],
+          taskContract: "private contract",
+          workspace: {
+            fingerprint: "workspace-1",
+            changedPaths: ["src/example.ts"],
+            diffStat: "1 file changed",
+            diff: "+secret",
+          },
+          verificationTrajectory: [],
+          remainingFailures: [],
+          queue: { revision: "queue-1", available: [] },
+          current: { id: "task-current", priority: 1, priorityLabel: "p1" },
+          higherPriorityWork: [],
+        },
+        decision: {
+          decision: "preserve-yield",
+          rationale: "owner@example.test reported a higher-priority runtime defect",
+          nextAction: "Resume after owner@example.test confirms",
+        },
+      }],
     };
     const handle = makeWorkflowRunSubject(metadata);
 
@@ -63,6 +90,14 @@ describe("buildDaemonHandle workflow run projections", () => {
     expect(run?.warnings).toEqual([
       { type: "output-schema-mismatch", message: "email [redacted]" },
     ]);
+    expect(run?.continuation).toEqual({
+      decision: "preserve-yield",
+      rationale: "[redacted] reported a higher-priority runtime defect",
+      nextAction: "Resume after [redacted] confirms",
+      decidedAt: "2026-01-01T01:00:00.000Z",
+      evidenceFingerprint: "evidence-1",
+      boundaries: ["higher-priority-work"],
+    });
     expect(JSON.stringify(run)).not.toContain("raw-token");
     expect(JSON.stringify(run)).not.toContain("Bearer raw-auth");
     expect(JSON.stringify(run)).not.toContain("owner@example.test");

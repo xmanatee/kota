@@ -174,6 +174,17 @@ describe("codexAgentHarness", () => {
         JSON.stringify({ type: "turn.started" }),
         JSON.stringify({
           type: "item.completed",
+          item: {
+            id: "command-1",
+            type: "command_execution",
+            command: "pnpm test --run",
+            aggregated_output: "tests passed",
+            exit_code: 0,
+            status: "completed",
+          },
+        }),
+        JSON.stringify({
+          type: "item.completed",
           item: { type: "agent_message", text: "all done" },
         }),
         JSON.stringify({
@@ -271,6 +282,20 @@ describe("codexAgentHarness", () => {
         category: "codex.turn.started",
         sessionId: "thread-1",
         text: "Codex turn started.",
+      },
+      {
+        type: "tool_call",
+        sessionId: "thread-1",
+        toolUseId: "command-1",
+        toolName: "codex.command",
+        input: { command: "pnpm test --run" },
+      },
+      {
+        type: "tool_result",
+        sessionId: "thread-1",
+        toolUseId: "command-1",
+        isError: false,
+        content: "tests passed",
       },
       {
         type: "text",
@@ -550,6 +575,42 @@ describe("codexAgentHarness", () => {
       isError: true,
       subtype: "aborted",
     });
+  });
+
+  it("quarantines the Codex process when a streamed-message consumer rejects", async () => {
+    const process = mockCodexProcess({ autoClose: false });
+    const callbackFailure = new Error("preserve-yield checkpoint");
+    let settled = false;
+    const run = codexAgentHarness.run({
+      prompt: "x",
+      model: "gpt-5.6-sol",
+      effort: "xhigh",
+      onMessage: () => {
+        throw callbackFailure;
+      },
+    });
+    void run.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    process.child.stdout.write(
+      `${JSON.stringify({ type: "turn.started" })}\n`,
+    );
+    await vi.waitFor(() => {
+      expect(process.child.kill).toHaveBeenCalledWith("SIGKILL");
+    });
+    expect(settled).toBe(false);
+
+    process.child.stdout.end();
+    process.child.stderr.end();
+    process.child.emit("close", null, "SIGKILL");
+
+    await expect(run).rejects.toBe(callbackFailure);
   });
 
   it("rejects unsupported KOTA-only surfaces loudly", async () => {

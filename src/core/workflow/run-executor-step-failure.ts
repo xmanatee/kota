@@ -10,6 +10,7 @@ import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payl
 import {
   RepairAgentRuntimeError,
   RepairLoopError,
+  WorkflowContinuationSuspension,
 } from "./repair-loop.js";
 import type { RunExecutorBoundaryValue } from "./run-executor-step.js";
 import { writeFailedAgentTrajectoryDiagnostics } from "./run-executor-step-artifacts.js";
@@ -187,7 +188,17 @@ export function recordWorkflowStepFailure(args: {
         ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),
       }
     : { ...failedBase, type: step.type };
-  run.recordStep(failed);
+  try {
+    run.recordStep(failed);
+  } catch (artifactError) {
+    if (!(err instanceof WorkflowContinuationSuspension)) throw artifactError;
+    err.recordCheckpointFailure("step artifact persistence failed", artifactError);
+    deps.log(
+      `Continuation checkpoint for step "${step.id}" could not persist run artifacts; runtime suspension will preserve the sandbox: ${
+        artifactError instanceof Error ? artifactError.message : String(artifactError)
+      }`,
+    );
+  }
   acc.stepResultsById[step.id] = failed;
   deps.pbus.emit(
     "workflow.step.completed",

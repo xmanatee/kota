@@ -49,6 +49,7 @@ export function buildAgentHarnessRunOptions(input: {
   abortController: AbortController;
   onMessage?: (message: KotaAgentMessage) => void;
   tokenBudget?: AgentTokenBudgetLedger;
+  persistContinuationSession?: boolean;
 }): AgentHarnessRunOptionBundle {
   const {
     step,
@@ -113,10 +114,14 @@ export function buildAgentHarnessRunOptions(input: {
   const askOwner = contract.askOwner;
   const modelProvider = modelProviderSelection(agentConfig.config);
   const resumeSessionId = agentConfig.resumeSessionIds?.[step.id];
+  const persistContinuationSession = input.persistContinuationSession === true &&
+    harnessSupportsRunOption(resolvedHarness, "persistSession") &&
+    harnessSupportsRunOption(resolvedHarness, "resumeSessionId");
 
   return {
     options: {
       ...contract.options,
+      ...(persistContinuationSession ? { persistSession: true } : {}),
       ...(resumeSessionId !== undefined &&
           harnessSupportsRunOption(resolvedHarness, "resumeSessionId")
         ? { resumeSessionId }

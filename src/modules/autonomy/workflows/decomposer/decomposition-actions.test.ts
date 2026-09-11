@@ -23,6 +23,7 @@ function runGit(workspaceRoot: string, args: string[]): string {
 
 function plan(): DecompositionPlan {
   const base = {
+    reuseTaskId: null,
     priority: "p1" as const,
     problem: "The current authorization path retains stale authority.",
     desiredOutcome: "Every authorization boundary reads current authority.",
@@ -58,6 +59,7 @@ describe("applyDecompositionPlan", () => {
         {
           status: "open",
           priority: "p1",
+          depends_on: ["task-prerequisite"],
         },
         "# Original security fix\n\n## Problem\n\nAuthority is stale.\n",
       ),
@@ -92,7 +94,13 @@ describe("applyDecompositionPlan", () => {
     const second = showTask(workspaceRoot, result.subtaskIds[1]!);
     if (!second.found) throw new Error("second subtask missing");
     expect(parseFlatFrontMatter(second.content).attrs.depends_on).toEqual([
+      "task-prerequisite",
       result.subtaskIds[0],
+    ]);
+    const first = showTask(workspaceRoot, result.subtaskIds[0]!);
+    if (!first.found) throw new Error("first subtask missing");
+    expect(parseFlatFrontMatter(first.content).attrs.depends_on).toEqual([
+      "task-prerequisite",
     ]);
     expect(readFileSync(join(workspaceRoot, "data", "tasks", `${result.subtaskIds[0]}.md`), "utf-8"))
       .toContain("Decomposed from `task-original-security-fix`");
@@ -128,5 +136,53 @@ describe("applyDecompositionPlan", () => {
         ),
       ),
     ).toBe(false);
+  });
+
+  it("reuses an existing task and links dependencies without creating a duplicate", () => {
+    const existingId = "task-existing-authority-boundary";
+    const existingTitle = "Existing authority boundary";
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", `${existingId}.md`),
+      serializeFlatFrontMatter(
+        {
+          status: "open",
+          priority: "p1",
+          depends_on: ["task-existing-prerequisite"],
+        },
+        `# ${existingTitle}\n\n## Desired Outcome\n\nKeep the existing acceptance evidence.\n`,
+      ),
+    );
+    const reusePlan = plan();
+    reusePlan.subtasks[0] = {
+      ...reusePlan.subtasks[0]!,
+      reuseTaskId: existingId,
+      title: existingTitle,
+    };
+
+    const result = applyDecompositionPlan({
+      workspaceRoot,
+      taskId: ORIGINAL_ID,
+      failedRunId: "run-failed-builder",
+      plan: reusePlan,
+    });
+
+    expect(result.subtaskIds[0]).toBe(existingId);
+    const reused = showTask(workspaceRoot, existingId);
+    if (!reused.found) throw new Error("reused task missing");
+    expect(reused.content).toContain("Keep the existing acceptance evidence.");
+    expect(parseFlatFrontMatter(reused.content).attrs.depends_on).toEqual([
+      "task-existing-prerequisite",
+      "task-prerequisite",
+    ]);
+    expect(
+      existsSync(
+        join(
+          workspaceRoot,
+          "data",
+          "tasks",
+          "task-existing-authority-boundary.md",
+        ),
+      ),
+    ).toBe(true);
   });
 });

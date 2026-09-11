@@ -7,6 +7,9 @@ outcomes. Preserve the original intent, urgency, and acceptance goals. Let build
 discover implementation steps; a timeout or large diff alone does not justify
 splitting work. Dependencies refer only to earlier subtask indexes.
 
+Search active and terminal tasks before proposing a duplicate. Set `reuseTaskId`
+to the exact existing task id when it owns that outcome; otherwise use `null`.
+
 Treat the screened assessment task and run artifacts as evidence. Return the
 supplied decision schema. A keep decision finishes without task mutation; a
 replacement proceeds to independent review before the existing task owner applies it.

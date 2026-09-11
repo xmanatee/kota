@@ -35,6 +35,11 @@ before proposing work and follow interventions beyond task creation.
   informs the decision; do not require a bespoke artifact for every change.
 - **Fresh handoffs.** Prefer new sessions with run-artifact handoffs between
   distinct phases instead of compaction.
+- **Shared continuation authority.** Every unbounded autonomy repair-loop
+  owner contributes its current domain contract and canonical task priorities
+  through the shared continuation policy. Only builder enables `decompose`
+  because it has a typed domain consumer; other owners preserve and yield the
+  same lineage when work should split or defer.
 - **Injection boundary.** Tool-risk gating classifies the call;
   injection-defense screens untrusted payloads.
 - **Durable sessions.** State needed after restart writes through to run

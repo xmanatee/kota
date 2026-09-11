@@ -5,6 +5,7 @@ import {
   type ActiveWorkflowRunHandle,
   createActiveRunHandle,
 } from "./active-run-handle.js";
+import type { WorkflowContinuationRecord } from "./continuation.js";
 import {
   projectWorkflowRunMetadataForStorage,
   projectWorkflowRunTriggerForStorage,
@@ -23,9 +24,7 @@ import {
 } from "./run-metadata.js";
 import { buildWorkflowSnapshot } from "./run-store-snapshot.js";
 import { buildStepOrder } from "./run-store-step-order.js";
-import type {
-  WorkflowRunMetadata,
-} from "./run-types.js";
+import type { WorkflowRunMetadata } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -36,6 +35,8 @@ export function createWorkflowRun(opts: {
   trigger: WorkflowRunTrigger;
   runId: string | undefined;
   headSha: string | null;
+  priorMetadata?: WorkflowRunMetadata;
+  durableContinuation?: WorkflowContinuationRecord;
 }): ActiveWorkflowRunHandle {
   const payloadRunId =
     typeof opts.trigger.payload._runId === "string"
@@ -65,6 +66,12 @@ export function createWorkflowRun(opts: {
     workflow: opts.workflow,
     trigger: opts.trigger,
     authorityRepair,
+    ...(opts.priorMetadata === undefined
+      ? {}
+      : { priorMetadata: opts.priorMetadata }),
+    ...(opts.durableContinuation === undefined
+      ? {}
+      : { durableContinuation: opts.durableContinuation }),
   });
 
   writeJsonFile(join(runDirPath, "workflow.json"), buildWorkflowSnapshot(opts.workflow));
@@ -94,11 +101,23 @@ function buildRunMetadata(opts: {
   workflow: WorkflowDefinition;
   trigger: WorkflowRunTrigger;
   authorityRepair: WorkflowRunMetadata["authorityRepair"];
+  priorMetadata?: WorkflowRunMetadata;
+  durableContinuation?: NonNullable<WorkflowRunMetadata["continuations"]>[number];
 }): WorkflowRunMetadata {
   const causalProvenance = deriveWorkflowRunCausalProvenance(opts.trigger);
   const triggerTags = stringArray(opts.trigger.payload.tags) ?? [];
   const tags = [...new Set([...opts.workflow.tags, ...triggerTags])];
 
+  const continuations = [
+    ...(opts.priorMetadata?.continuations ?? []),
+    ...(opts.durableContinuation === undefined ? [] : [opts.durableContinuation]),
+  ].filter(
+    (record, index, records) =>
+      records.findIndex(
+        (candidate) =>
+          candidate.packet.evidenceFingerprint === record.packet.evidenceFingerprint,
+      ) === index,
+  );
   return {
     metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
     id: opts.id,
@@ -110,10 +129,11 @@ function buildRunMetadata(opts: {
       ? {}
       : { authorityRepair: opts.authorityRepair }),
     ...(tags.length > 0 ? { tags } : {}),
-    startedAt: new Date().toISOString(),
+    startedAt: opts.priorMetadata?.startedAt ?? new Date().toISOString(),
     status: "running",
     runDir: relative(opts.scopeRoot, opts.runDirPath),
-    steps: [],
+    steps: [...(opts.priorMetadata?.steps ?? [])],
+    ...(continuations.length === 0 ? {} : { continuations }),
   };
 }
 

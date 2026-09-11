@@ -1,12 +1,24 @@
-import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import {
+  collectAgentVerificationTrajectory,
+  type KotaAgentMessage,
+} from "#core/agent-harness/index.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { withWorkflowBlockingOperation } from "../blocking-operation-context.js";
+import {
+  continuationPacketNeedsJudgment,
+  WorkflowContinuationCheckpointRequest,
+  type WorkflowContinuationRecord,
+} from "../continuation.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import {
   buildRepairPrompt,
+  evaluateAgentContinuation,
+  prepareAgentContinuationPacket,
   RepairLoopError,
   runAgentRepairLoop,
+  WorkflowContinuationSuspension,
 } from "../repair-loop.js";
+import { repairProgressSnapshot } from "../repair-loop-progress.js";
 import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
 import type { WorkflowNotifyConfig } from "../step-input-base.js";
 import {
@@ -24,6 +36,7 @@ import {
   withRetry,
 } from "./step-executor-agent.js";
 import { buildAgentPrompt } from "./step-executor-agent-prompt.js";
+import type { ActiveAgentContinuationRuntime } from "./step-executor-agent-types.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 import { executeAwaitEventStep } from "./step-executor-await-event.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
@@ -182,21 +195,205 @@ export async function executeStep(
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   bus: EventBus,
+  recordContinuation: (record: WorkflowContinuationRecord) => void = (record) => {
+    metadata.continuations = [...(metadata.continuations ?? []), record];
+  },
 ): Promise<WorkflowStepOutput | AgentStepResult> {
   if (step.type === "tool") return executeToolStep(step, context);
   if (step.type === "agent") {
-    const result = await executeAgentStep(
-      definition,
-      step,
-      metadata,
-      trigger,
-      abortController,
-      appendMessage,
-      writeInputs,
-      agentConfig,
-      context.stepOutputs,
-      context.foreach,
-    );
+    const continuationPolicy = step.repairLoop?.continuation;
+    let continuationRuntime: ActiveAgentContinuationRuntime | undefined;
+    if (continuationPolicy !== undefined) {
+      const initialProgress = await repairProgressSnapshot(
+        context.workspaceRoot,
+        [],
+        context.runCommand,
+      );
+      const initialWorkspace = {
+        attempt: 0,
+        source: "active" as const,
+        verificationResults: [],
+        workspaceFingerprint: initialProgress.key,
+        changedPaths: initialProgress.changedPaths,
+      };
+      const activeMessages: KotaAgentMessage[] = [];
+      const activeTrajectory: ActiveAgentContinuationRuntime["trajectory"][number][] = [];
+      let observedVerificationCount = 0;
+      let lastWorkspaceFingerprint = initialWorkspace.workspaceFingerprint;
+      let activeSessionId = agentConfig.resumeSessionIds?.[step.id];
+      let observation: Promise<void> | undefined;
+      const observeBoundary = (
+        message?: KotaAgentMessage,
+      ): Promise<void> => {
+        if (message !== undefined) {
+          activeMessages.push(message);
+          if (message.sessionId !== undefined) activeSessionId = message.sessionId;
+        }
+        if (observation !== undefined) return observation;
+        observation = (async () => {
+          const continuationContext = await continuationPolicy.collectContext(
+            context,
+            step,
+          );
+          const progress = await repairProgressSnapshot(
+            context.workspaceRoot,
+            [],
+            context.runCommand,
+          );
+          const verificationTrajectory = collectAgentVerificationTrajectory(
+            activeMessages,
+          );
+          const newVerificationResults = verificationTrajectory.slice(
+            observedVerificationCount,
+          );
+          const workspaceChanged = progress.key !== lastWorkspaceFingerprint;
+          if (workspaceChanged || newVerificationResults.length > 0) {
+            activeTrajectory.push({
+              attempt: activeTrajectory.length + 1,
+              source: "active",
+              verificationResults: newVerificationResults,
+              workspaceFingerprint: progress.key,
+              changedPaths: progress.changedPaths,
+            });
+            lastWorkspaceFingerprint = progress.key;
+            observedVerificationCount = verificationTrajectory.length;
+          }
+          const packet = await prepareAgentContinuationPacket({
+            policy: continuationPolicy,
+            step,
+            context,
+            continuationContext,
+            initialWorkspace,
+            trajectory: activeTrajectory,
+            currentWorkspace: {
+              fingerprint: progress.key,
+              changedPaths: progress.changedPaths,
+              diffStat: progress.diffStat,
+              diff: progress.diff,
+            },
+            remainingFailures: [],
+          });
+          if (
+            packet !== null &&
+            continuationPacketNeedsJudgment(
+              metadata.continuations ?? [],
+              step.id,
+              packet,
+            )
+          ) {
+            throw new WorkflowContinuationCheckpointRequest(activeSessionId);
+          }
+        })().finally(() => {
+          observation = undefined;
+        });
+        return observation;
+      };
+      continuationRuntime = {
+        initialWorkspace,
+        trajectory: activeTrajectory,
+        onProgressMessage: (message) => observeBoundary(message),
+        pollEvidence: () => observeBoundary(),
+      };
+    }
+    let resumedSessionId = agentConfig.resumeSessionIds?.[step.id];
+    let result: AgentStepResult;
+    while (true) {
+      const attemptConfig = resumedSessionId === undefined
+        ? agentConfig
+        : {
+            ...agentConfig,
+            resumeSessionIds: {
+              ...agentConfig.resumeSessionIds,
+              [step.id]: resumedSessionId,
+            },
+          };
+      try {
+        result = await executeAgentStep(
+          definition,
+          step,
+          metadata,
+          trigger,
+          abortController,
+          appendMessage,
+          writeInputs,
+          attemptConfig,
+          context.stepOutputs,
+          context.foreach,
+          continuationRuntime,
+        );
+        break;
+      } catch (error) {
+        if (
+          continuationPolicy === undefined ||
+          continuationRuntime === undefined ||
+          !(error instanceof WorkflowContinuationCheckpointRequest)
+        ) {
+          throw error;
+        }
+        resumedSessionId = error.sessionId ?? resumedSessionId;
+        const progress = await repairProgressSnapshot(
+          context.workspaceRoot,
+          [],
+          context.runCommand,
+        );
+        const record = await evaluateAgentContinuation({
+          policy: continuationPolicy,
+          step,
+          context,
+          metadata,
+          initialWorkspace: continuationRuntime.initialWorkspace,
+          trajectory: continuationRuntime.trajectory,
+          currentWorkspace: {
+            fingerprint: progress.key,
+            changedPaths: progress.changedPaths,
+            diffStat: progress.diffStat,
+            diff: progress.diff,
+          },
+          remainingFailures: [],
+        });
+        if (record === null) continue;
+        try {
+          recordContinuation(record);
+        } catch (persistenceError) {
+          const suspension = new WorkflowContinuationSuspension(
+            record,
+            step.id,
+            [],
+            {
+              content: "",
+              turns: 0,
+              ...(resumedSessionId === undefined
+                ? {}
+                : { sessionId: resumedSessionId }),
+              repairIterations: [],
+              repairWarnings: [],
+              continuationDecisions: metadata.continuations ?? [record],
+            },
+          );
+          suspension.recordCheckpointFailure(
+            "continuation decision persistence failed",
+            persistenceError,
+          );
+          throw suspension;
+        }
+        if (record.decision.decision === "continue") continue;
+        throw new WorkflowContinuationSuspension(
+          record,
+          step.id,
+          [],
+          {
+            content: "",
+            turns: 0,
+            ...(resumedSessionId === undefined
+              ? {}
+              : { sessionId: resumedSessionId }),
+            repairIterations: [],
+            repairWarnings: [],
+            continuationDecisions: metadata.continuations ?? [record],
+          },
+        );
+      }
+    }
     if (!step.repairLoop) return result;
     try {
       return await runAgentRepairLoop(
@@ -207,6 +404,7 @@ export async function executeStep(
         abortController,
         appendMessage,
         agentConfig,
+        recordContinuation,
       );
     } catch (error) {
       if (error instanceof RepairLoopError && error.agentBackoff !== undefined) {

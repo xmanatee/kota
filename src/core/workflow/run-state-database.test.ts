@@ -106,6 +106,117 @@ describe("RunStateDatabase", () => {
     }
   });
 
+  test("preserves a yielded resource and resumes its lineage after priority blockers finish", () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    store.admitRun({
+      id: "run-yielded",
+      scopeId: "scope-a",
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "task.ready", schemaRef: null, payload: {} },
+      resources: ["task:current"],
+      admittedAt: "2026-08-25T10:00:01.000Z",
+    });
+    store.startRun("run-yielded", epoch, "2026-08-25T10:00:02.000Z");
+    const sandbox = {
+      runId: "run-yielded",
+      repository: "write" as const,
+      rootDir: "/runtime/run-yielded",
+      workspaceDir: "/runtime/run-yielded/workspace",
+      tempDir: "/runtime/run-yielded/tmp",
+      artifactDir: "/runtime/run-yielded/artifacts",
+      baseCommit: "a".repeat(40),
+      branch: "kota/run-yielded",
+      targetBranch: "main",
+    };
+    store.setSandbox("run-yielded", epoch, sandbox);
+    store.stageEmitIntent({
+      runId: "run-yielded",
+      stepId: "result",
+      event: "work.result",
+      payload: { lineage: "run-yielded" },
+      stagedAt: "2026-08-25T10:00:02.500Z",
+    });
+    store.suspendRun({
+      runId: "run-yielded",
+      epoch,
+      state: "waiting",
+      suspendedAt: "2026-08-25T10:00:03.000Z",
+      wait: {
+        kind: "continuation",
+        decision: "preserve-yield",
+        decidedAt: "2026-08-25T10:00:03.000Z",
+        blockerResources: ["task:urgent"],
+      },
+    });
+
+    expect(store.getRun("run-yielded")).toMatchObject({
+      state: "waiting",
+      resources: ["task:current"],
+      attempt: 1,
+      sandbox,
+    });
+
+    store.admitRun({
+      id: "run-urgent",
+      scopeId: "scope-a",
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "task.ready", schemaRef: null, payload: {} },
+      resources: ["task:urgent"],
+      admittedAt: "2026-08-25T10:00:03.500Z",
+    });
+    store.startRun("run-urgent", epoch, "2026-08-25T10:00:04.000Z");
+    expect(
+      store.resumeSatisfiedContinuationRuns("2026-08-25T10:00:04.500Z"),
+    ).toEqual([]);
+
+    store.finishRun(
+      "run-urgent",
+      epoch,
+      "succeeded",
+      "2026-08-25T10:00:05.000Z",
+    );
+    expect(
+      store.resumeSatisfiedContinuationRuns("2026-08-25T10:00:06.000Z"),
+    ).toEqual(["run-yielded"]);
+    expect(store.getRun("run-yielded")).toMatchObject({
+      state: "queued",
+      resources: ["task:current"],
+      attempt: 1,
+      wait: {
+        kind: "continuation",
+        decision: "preserve-yield",
+        blockerResources: ["task:urgent"],
+      },
+    });
+    expect(
+      store.startRun("run-yielded", epoch, "2026-08-25T10:00:07.000Z"),
+    ).toBe(2);
+    expect(store.getRun("run-yielded")?.sandbox).toEqual(sandbox);
+    store.stageEmitIntent({
+      runId: "run-yielded",
+      stepId: "result",
+      event: "work.result",
+      payload: { lineage: "run-yielded" },
+      stagedAt: "2026-08-25T10:00:07.500Z",
+    });
+    store.finishRun(
+      "run-yielded",
+      epoch,
+      "succeeded",
+      "2026-08-25T10:00:08.000Z",
+    );
+    expect(store.listPendingPublications()).toEqual([
+      expect.objectContaining({
+        runId: "run-yielded",
+        event: "work.result",
+        payload: { lineage: "run-yielded" },
+      }),
+    ]);
+  });
+
   test("derives workflow summaries from durable run outcomes", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");

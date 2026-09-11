@@ -56,7 +56,14 @@ export type RunExecutorBoundaryValue = unknown;
 export async function executeWorkflowStep(
   definition: WorkflowDefinition,
   step: WorkflowStep,
-  run: Pick<ActiveWorkflowRunHandle, "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs">,
+  run: Pick<
+    ActiveWorkflowRunHandle,
+    | "metadata"
+    | "recordContinuation"
+    | "recordStep"
+    | "appendAgentMessage"
+    | "writeAgentInputs"
+  >,
   trigger: WorkflowRunTrigger,
   context: WorkflowStepContext,
   runAbortController: AbortController,
@@ -166,6 +173,7 @@ export async function executeWorkflowStep(
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       effectiveAgentConfig,
       deps.bus,
+      run.recordContinuation,
     );
     const racePromises: Promise<unknown>[] = [stepPromise];
     if (activeTimeout !== null) {

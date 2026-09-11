@@ -282,6 +282,7 @@ describe("resolved workflow agent run-contract validation", () => {
     expect(() => validateWorkflowDefinitions([
       definition(harness.name, {
         repairLoop: {
+          maxRepairAttempts: 1,
           checks: [{
             id: "judge",
             type: "code",

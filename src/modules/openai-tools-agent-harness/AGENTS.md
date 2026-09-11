@@ -43,7 +43,10 @@ without an `append` body because that shape is Claude-specific. Portable
 Persisted native-loop sessions are versioned module-owned records. Resume
 decodes metadata, tool declarations, and every neutral transcript message
 before model dispatch; malformed or unsupported records fail explicitly.
-Writes atomically replace the session file.
+Writes atomically replace the session file. A persistence-requested run creates
+its KOTA-owned session id before the first model turn and checkpoints only
+complete transcript boundaries, so workflow continuation never treats a
+provider message id as a resumable session.
 
 ## Reasoning Effort
 

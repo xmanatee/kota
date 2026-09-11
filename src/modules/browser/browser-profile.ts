@@ -119,7 +119,7 @@ export function resolveBrowserProfileStoragePath(
     : null;
 }
 
-/** Recheck target identity and agent authority immediately before persistence. */
+/** Check session configuration and policy; this does not authorize pathname I/O. */
 export function resolveBrowserProfilePersistencePath(
   snapshot: BrowserProfileSnapshot,
   identity: BrowserSessionIdentity,

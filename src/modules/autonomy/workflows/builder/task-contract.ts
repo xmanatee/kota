@@ -11,7 +11,9 @@ import type { TaskReviewContract } from "#modules/autonomy/task-review-target.js
 import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
 import {
   listFullRepoTasks,
+  parseRepoTaskRecord,
   type RepoTaskFullRecord,
+  type RepoTaskPriority,
   selectActionableRepoTasks,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { requireResolvedTargetTask } from "./task-state-repair-checks.js";
@@ -23,6 +25,9 @@ export type BuilderTaskIdentity = Readonly<{
   taskPath: string;
   taskState: "open";
   taskDigest: string;
+  title: string;
+  priority: RepoTaskPriority;
+  dependsOn: readonly string[];
   idempotencyKey: string;
 }>;
 
@@ -30,8 +35,8 @@ export type BuilderTaskReviewContract = TaskReviewContract;
 
 export type BuilderTaskDispatchPayload = Omit<
   AutonomyQueueAvailableEvent,
-  "scopeId"
->;
+  "scopeId" | "priority"
+> & Readonly<{ priority: RepoTaskPriority }>;
 
 export type BuilderTaskTarget = Readonly<{
   actionable: boolean;
@@ -102,6 +107,8 @@ export function readBuilderTaskPayload(
   payload: Record<string, unknown>,
 ): BuilderTaskIdentity {
   const dispatch = payload as Partial<BuilderTaskIdentity>;
+  const priority = dispatch.priority;
+  const dependsOn = dispatch.dependsOn;
   if (
     typeof dispatch.taskId !== "string" ||
     !TASK_ID_PATTERN.test(dispatch.taskId) ||
@@ -110,6 +117,15 @@ export function readBuilderTaskPayload(
     dispatch.taskPath !== taskPath({ id: dispatch.taskId, state: dispatch.taskState }) ||
     typeof dispatch.taskDigest !== "string" ||
     !TASK_DIGEST_PATTERN.test(dispatch.taskDigest) ||
+    typeof dispatch.title !== "string" ||
+    dispatch.title.trim().length === 0 ||
+    priority === null ||
+    priority === undefined ||
+    !PRIORITY_ORDER.has(priority) ||
+    !Array.isArray(dependsOn) ||
+    !dependsOn.every((dependency): dependency is string =>
+      typeof dependency === "string" && TASK_ID_PATTERN.test(dependency)
+    ) ||
     dispatch.idempotencyKey !==
       `builder:${dispatch.taskId}:${dispatch.taskDigest}`
   ) {
@@ -120,8 +136,27 @@ export function readBuilderTaskPayload(
     taskPath: dispatch.taskPath,
     taskState: dispatch.taskState,
     taskDigest: dispatch.taskDigest,
+    title: dispatch.title,
+    priority,
+    dependsOn: Object.freeze([...dependsOn]),
     idempotencyKey: dispatch.idempotencyKey,
   };
+}
+
+export function verifyBuilderTaskSnapshot(
+  payload: Record<string, unknown>,
+  content: string,
+): BuilderTaskIdentity {
+  const admitted = readBuilderTaskPayload(payload);
+  const snapshot = payloadFor(parseRepoTaskRecord({
+    path: admitted.taskPath,
+    archived: false,
+    content,
+  }));
+  if (snapshot.taskDigest !== admitted.taskDigest) {
+    throw new Error("Builder task snapshot does not match its immutable admitted contract");
+  }
+  return snapshot;
 }
 
 export function readBuilderTaskReviewContract(

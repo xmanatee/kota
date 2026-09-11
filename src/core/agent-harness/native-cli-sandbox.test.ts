@@ -1,9 +1,10 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { buildNativeCliEnvironment } from "./native-cli-environment.js";
 import {
   isNativeCliSandboxBootstrapError,
@@ -50,6 +51,141 @@ async function runNativeProcess(
 }
 
 describe("native CLI live sandbox", () => {
+  it.each(["canonical", "custom-linked"])(
+    "protects host database locators for a non-writer with %s state storage",
+    async (storage) => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-database-")));
+      roots.push(root);
+      const cwd = join(root, "project");
+      mkdirSync(cwd);
+      const stateDir = storage === "canonical" ? join(cwd, ".kota") : join(root, "state-link");
+      const actualStateDir = storage === "canonical" ? stateDir : join(root, "private-state");
+      mkdirSync(actualStateDir);
+      if (storage !== "canonical") symlinkSync(actualStateDir, stateDir);
+      const store = new RunStateDatabase(stateDir);
+      const reader = RunStateDatabase.openReadOnly(stateDir);
+      store.close();
+      try {
+        await withNativeCliSandbox("/bin/sh", [], {
+          cwd,
+          machineAuthorityOwner: "native-cli",
+          writableRoots: [cwd],
+          readOnlyHostRoots: [root],
+          env: buildNativeCliEnvironment(),
+          prepareEnvironment(context, env) {
+            expect(env.KOTA_RUN_ID).toBeUndefined();
+            expect(env.KOTA_RUN_AUTHORIZATION).toBeUndefined();
+            expect(context.readableRoots).toContain(cwd);
+            // Closing a second connection cannot remove the live host's denials.
+            for (const directory of [stateDir, actualStateDir]) {
+              for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+                expect(context.readProtectedPaths).toContain(join(directory, `kota.sqlite${suffix}`));
+              }
+            }
+            return env;
+          },
+        }, async () => undefined);
+      } finally {
+        reader.close();
+      }
+      expect(RunStateDatabase.readProtectedPaths()).not.toContain(join(actualStateDir, "kota.sqlite"));
+    },
+  );
+
+  it.runIf(process.platform === "darwin" || process.platform === "linux")(
+    "launches from a read-only repository without a state directory and retains artifact access",
+    async ({ skip }) => {
+      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-offline-state-")));
+      roots.push(cwd);
+      const artifacts = join(cwd, "artifacts");
+      mkdirSync(artifacts);
+      writeFileSync(join(cwd, "project.txt"), "repository-visible");
+      const script = [
+        'const { readFileSync, writeFileSync } = require("node:fs");',
+        'if (readFileSync("project.txt", "utf8") !== "repository-visible") throw new Error("Repository unavailable");',
+        'writeFileSync("artifacts/result.txt", "artifact-writable");',
+        'try { writeFileSync("forbidden.txt", "bad"); throw new Error("Repository writable"); }',
+        'catch (error) { if (!["EACCES", "EPERM", "EROFS"].includes(error.code)) throw error; }',
+        'process.stdout.write("repository-visible; artifact-writable");',
+      ].join("\n");
+      const result = await withNativeCliSandbox(process.execPath, ["-e", script], {
+        cwd,
+        machineAuthorityOwner: "kota",
+        writableRoots: [artifacts],
+        env: buildNativeCliEnvironment(),
+        prepareEnvironment(context, env) {
+          for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+            expect(context.readProtectedPaths).toContain(join(cwd, ".kota", `kota.sqlite${suffix}`));
+          }
+          return env;
+        },
+      }, (child) => runNativeProcess(cwd, child));
+      if (isNativeCliSandboxBootstrapError(result.stderr)) {
+        skip("Host forbids nested OS sandboxes; no repository probe executed");
+      }
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toBe("repository-visible; artifact-writable");
+      expect(readFileSync(join(artifacts, "result.txt"), "utf8")).toBe("artifact-writable");
+      expect(existsSync(join(cwd, ".kota"))).toBe(false);
+    },
+  );
+
+  it.runIf(process.platform === "darwin" || process.platform === "linux")(
+    "denies non-writer reads of other scopes' database records while retaining repository access",
+    async ({ skip }) => {
+      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-nonwriter-")));
+      roots.push(cwd);
+      const stateDir = join(cwd, ".kota");
+      const store = new RunStateDatabase(stateDir);
+      try {
+        for (const id of ["current", "unrelated"]) {
+          store.registerScope({ id, rootPath: join(cwd, id), createdAt: "2026-09-07T00:00:00Z" });
+        }
+        store.admitRun({
+          id: "private-run", scopeId: "unrelated", workflow: "private", repository: "none",
+          trigger: { event: "private", schemaRef: null, payload: { secret: "other-scope-private-trigger" } },
+          resources: [], admittedAt: "2026-09-07T00:00:00Z",
+        });
+        writeFileSync(join(cwd, "project.txt"), "repository-visible");
+        const artifacts = join(stateDir, "runs", "probe", "agent");
+        mkdirSync(artifacts, { recursive: true });
+        const database = store.path;
+        const databasePaths = [database, `${database}-wal`, `${database}-shm`, `${database}-journal`];
+        for (const path of databasePaths.slice(0, 3)) expect(existsSync(path)).toBe(true);
+        const script = [
+          'const { readFileSync, writeFileSync } = require("node:fs");',
+          'if (readFileSync("project.txt", "utf8") !== "repository-visible") throw new Error("Repository unavailable");',
+          `for (const path of ${JSON.stringify(databasePaths)}) {`,
+          '  try { if (readFileSync(path).length !== 0 || process.platform !== "linux") throw new Error("Database exposed"); }',
+          '  catch (error) { if (!["EACCES", "EPERM"].includes(error.code)) throw error; }',
+          '}',
+          `writeFileSync(${JSON.stringify(join(artifacts, "result.txt"))}, "artifact-writable");`,
+          'process.stdout.write("repository-visible; database-denied; artifact-writable");',
+        ].join("\n");
+        const result = await withNativeCliSandbox(process.execPath, ["-e", script], {
+          cwd,
+          machineAuthorityOwner: "kota",
+          writableRoots: [artifacts],
+          env: { ...buildNativeCliEnvironment(), KOTA_RUN_ARTIFACT_DIR: artifacts },
+          prepareEnvironment(_context, env) {
+            // A journal created after policy construction must also be protected.
+            writeFileSync(`${database}-journal`, "synthetic-private-journal");
+            return env;
+          },
+        }, (child) => runNativeProcess(cwd, child));
+        if (isNativeCliSandboxBootstrapError(result.stderr)) {
+          skip("Host forbids nested OS sandboxes; no read probe executed");
+        }
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout).toBe("repository-visible; database-denied; artifact-writable");
+        expect(readFileSync(join(artifacts, "result.txt"), "utf8")).toBe("artifact-writable");
+      } finally {
+        rmSync(`${store.path}-journal`, { force: true });
+        store.close();
+      }
+    },
+  );
+
   it("projects linked-worktree Git directories into the write-protected boundary", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-git-boundary-"));
     roots.push(root);

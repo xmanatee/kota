@@ -78,7 +78,7 @@ describe("browser lifecycle — authenticated profile", () => {
     expect(lifecycleTestState.capturedContextOptions[0]?.storageState).toBeUndefined();
   });
 
-  it("persists storage state on close only when enabled", async () => {
+  it("rejects explicit persistence and close before collecting state, while completing cleanup", async () => {
     const profilePath = join(workDir, "persisted.json");
     writeFileSync(
       profilePath,
@@ -91,9 +91,15 @@ describe("browser lifecycle — authenticated profile", () => {
     });
 
     await lifecycle.getPage(context);
-    await lifecycle.closeBrowserSession(context);
+    const original = readFileSync(profilePath, "utf8");
+    await expect(lifecycle.persistBrowserProfile(context)).rejects.toThrow("persistence is unavailable");
+    await expect(lifecycle.closeBrowserSession(context)).rejects.toThrow("persistence is unavailable");
 
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
+    expect(lifecycleTestState.storageStateCalls).toBe(0);
+    expect(lifecycleTestState.closedContexts).toBe(1);
+    expect(lifecycleTestState.closedPages).toBe(1);
+    expect(readFileSync(profilePath, "utf8")).toBe(original);
     expect(JSON.parse(readFileSync(profilePath, "utf8")).authCookie).toBe(
       "valid-session",
     );
@@ -182,7 +188,7 @@ describe("browser lifecycle — authenticated profile", () => {
     ["absolute", (root: string) => join(root, "shared-profile.json")],
     ["scope-escaping", () => join("..", "shared-profile.json")],
   ])(
-    "loads and persists a %s profile only for its owning scope",
+    "loads a %s profile only for its owning scope and rejects saving it",
     async (_kind, configuredPath) => {
       const scopeARoot = join(workDir, "scope-a");
       const scopeBRoot = join(workDir, "scope-b");
@@ -216,8 +222,9 @@ describe("browser lifecycle — authenticated profile", () => {
 
       await lifecycle.closeBrowserSession(contextB);
       expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
-      await lifecycle.closeBrowserSession(contextA);
-      expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
+      await expect(lifecycle.closeBrowserSession(contextA)).rejects.toThrow("persistence is unavailable");
+      expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
+      expect(lifecycleTestState.storageStateCalls).toBe(0);
     },
   );
 
@@ -257,8 +264,9 @@ describe("browser lifecycle — authenticated profile", () => {
 
     await lifecycle.closeBrowserSession(contextB);
     expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
-    await lifecycle.closeBrowserSession(contextA);
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profileA));
+    await expect(lifecycle.closeBrowserSession(contextA)).rejects.toThrow("persistence is unavailable");
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
+    expect(lifecycleTestState.storageStateCalls).toBe(0);
   });
 
   it("rejects persistence outside an agent's declared write roots", async () => {
@@ -314,4 +322,5 @@ describe("browser lifecycle — authenticated profile", () => {
     );
     expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
   });
+
 });

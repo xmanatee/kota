@@ -58,7 +58,7 @@ describe("checkDecompositionApplied", () => {
     writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
-      `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
+      `OK: archived ${ORIGINAL_ID} as dropped and linked 1 retained subtask(s)`,
     );
   });
 
@@ -73,7 +73,7 @@ describe("checkDecompositionApplied", () => {
     writeTask(workspaceRoot, "open", subtaskId, "## Problem\n\nScoped work.");
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
-      `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
+      `OK: archived ${ORIGINAL_ID} as dropped and linked 1 retained subtask(s)`,
     );
   });
 
@@ -93,7 +93,7 @@ describe("checkDecompositionApplied", () => {
     );
   });
 
-  it("rejects a referenced subtask outside open", () => {
+  it("rejects a missing referenced subtask", () => {
     writeTask(
       workspaceRoot,
       "dropped",
@@ -102,11 +102,11 @@ describe("checkDecompositionApplied", () => {
     );
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
-      `Decomposed subtasks must be open: ${SUBTASK_ID}`,
+      `Decomposed subtasks must remain active or completed: ${SUBTASK_ID}`,
     );
   });
 
-  it("rejects task files not changed by the decomposition run", () => {
+  it("rejects an original task unchanged by the decomposition run", () => {
     writeTask(
       workspaceRoot,
       "dropped",
@@ -115,11 +115,11 @@ describe("checkDecompositionApplied", () => {
     );
     writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
 
-    execFileSync("git", ["add", `data/tasks/${SUBTASK_ID}.md`], { cwd: workspaceRoot });
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot });
     execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--quiet", "-m", "existing subtask"], { cwd: workspaceRoot });
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
-      `Decomposition must create or update its task files: data/tasks/${SUBTASK_ID}.md`,
+      `Decomposition must create or update its task files: data/tasks/archive/${ORIGINAL_ID}.md`,
     );
   });
 });

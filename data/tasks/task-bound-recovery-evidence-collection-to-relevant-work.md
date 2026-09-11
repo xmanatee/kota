@@ -22,6 +22,13 @@ directory anchoring already owned by `core/util/filesystem/anchored-files.ts`.
 The direct blocking-operation call in builder recovery does not forward the
 calling step's abort signal or progress reporter.
 
+The completed preflight measured 1,048,479 ms host-active. After activation,
+`qj0mm4` and `720nnv` each spent another approximately 1,082,000 ms host-active
+in the same step. The first was already non-actionable because its committed
+task contract had changed, but still performed the full export before skipping
+the build. The current `un8vlq` scan also crossed host sleep; exclude the
+September 10 18:21-18:51Z suspension from its elapsed-work diagnosis.
+
 ## Desired Outcome
 
 Normal dispatch and retained recovery inspect attributable evidence without
@@ -44,6 +51,13 @@ Keep one filesystem-safety boundary and one runtime-owned execution lifecycle.
 - Route blocking work through its existing lifecycle so cancellation and useful
   collection progress propagate. Do not manufacture heartbeat progress or clear
   a safety pause to hide a slow operation.
+- Keep the task intent and evidence assessment coherent across asynchronous
+  collection. Recovery for `qj0mm4` captured its old task digest before commit
+  `76bf6d037`, finished collection after that commit, and queued the stale
+  digest. Its next preflight and publication invariant correctly rejected it.
+  Recheck changed source intent through the existing admission/recovery owner;
+  do not rewrite an active contract or loosen the publication guard. A known
+  non-actionable target must not pay for an unrelated full-history scan.
 
 ## Acceptance
 

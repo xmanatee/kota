@@ -17,6 +17,9 @@ This directory contains the explorer workflow definition and prompt.
 - Record exploration completion in the run artifact. The canonical cooldown is
   advanced by the original run's success finalizer through runtime
   compare-and-set, after any repository changes integrate.
+- Its unbounded repair loop contributes the inspected queue and watchlist to
+  the shared continuation authority. Because explorer has no task-decomposition
+  consumer, a split or deferral preserves and yields the same run lineage.
 - Keep watchlist summaries factual: record the relevant current state observed
   from a source, not an adopt/reject/defer policy verdict. Durable external
   pattern verdicts live in the typed

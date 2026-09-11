@@ -127,6 +127,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
           harness: harness.name,
           autonomyMode: "autonomous",
           repairLoop: {
+            maxRepairAttempts: 1,
             checks: [{
               id: "judge",
               type: "code",

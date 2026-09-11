@@ -113,6 +113,7 @@ describe("workflow run transaction definition", () => {
           effort: "medium",
           autonomyMode: "autonomous",
           repairLoop: {
+            maxRepairAttempts: 1,
             checks: [{
               id: "judge",
               type: "code",

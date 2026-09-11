@@ -33,6 +33,33 @@ and publication.
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
   and no-progress fingerprints are runtime rails; staging, rebase continuation,
   commit, and publication remain runtime-owned.
+- Integration agents retain ordinary timestamped agent streams and results
+  under the original run, with a distinct identity for every repair invocation.
+  Message streaming follows harness capability; adapters without a message
+  stream still retain returned results and measured usage.
+  Verification summaries and measured usage survive errors and cancellation;
+  successful agent output still awaits runtime validation and publication.
+- Agent repair continuation is evidence-driven: workflow owners contribute the
+  task/queue packet and capable-agent judgment, while core detects semantic
+  boundaries, records compact check outputs and neutral command-verification
+  results, and observes both queue revisions and same-scope workspace churn
+  while the initial agent call is active. It requests one judgment per semantic
+  boundary. Volatile diff, failure-output, or queue-revision churn at that same
+  boundary remains evidence for the recorded decision rather than creating a
+  reviewer cadence. A continued boundary is judged again only when unresolved
+  attempts grow geometrically, failures strictly expand, or diff scope
+  materially expands relative to the last decision; that renewed decision
+  becomes the next baseline. Core then owns durable yield/resume. Resumable
+  harnesses establish a KOTA-owned session before active checkpoint polling. A
+  preserved run retains its sandbox and run-lifetime resources while releasing
+  capacity; it resumes only after the higher-priority resources named by its
+  decision have reached a terminal attempt.
+- Nested critic, semantic-gate, and continuation judges are filesystem
+  read-only. They assess the writer's unpublished workspace without racing it
+  or becoming another mutation owner.
+- A decomposition decision terminally classifies the current writer and flows
+  through its existing failed-run consumer. The owning module reviews and
+  mutates domain work; core does not create child tasks from free-form text.
 - `WorkflowQueueManager` is a trigger-admission adapter over durable run state.
   Do not add an in-memory or JSON queue, task-claim file, workflow-owned
   worktree, merge gate, process registry, port lease, or recovery side channel.

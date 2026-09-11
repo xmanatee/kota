@@ -112,6 +112,20 @@ preflight is owned by `task-bound-recovery-evidence-collection-to-relevant-work`
 Keep restart disposition intelligible through the existing status contract,
 without adding another pause owner or activation mechanism.
 
+The next drain completed after gardener `91e2py` integrated `3a2534594` at
+17:44:08Z. Replacement PID 6889 loaded that exact revision, reported active,
+resumed dispatch and admitted two original retained builders at 17:44:21Z.
+Gardener cleanup and durable completion publication were verified. This supplies
+live coalescing and refill evidence; it does not prove an isolated restart probe.
+
+Integration `1743ee4d3` requested another drain at 18:20:12Z while `un8vlq`
+was in preflight. Queued dispatcher, runtime health and issue-consumer work also
+waits behind global admission closure. Report this as an activation gate, not
+absence of work or provider backoff. Attribute host suspension separately from
+the expensive preflight owned by the existing P0 evidence-collection task.
+Evaluate this repeated-update journey when judging activation acceptance; do
+not bypass the shared restart owner or interrupt healthy work to force refill.
+
 kind: operator-capture
 path: .kota/runs
 description: Runtime-owned isolated live activation evidence with fresh process/API identity, preserved queued ownership, and capacity refill; equivalent attributable exports are accepted.

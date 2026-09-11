@@ -16,6 +16,7 @@ import { readRunCommitMessage } from "./run-commit-message.js";
 import type { RunContext } from "./run-context.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { recordEmittedEventEvidence } from "./run-event-evidence.js";
+import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { runHasSuccessfulAgentExecution } from "./run-executor-utils.js";
 import { validateWorkflowRunId } from "./run-io.js";
@@ -223,6 +224,55 @@ export async function executeAdmittedWorkflowRun(
       (result.agentBackoff ? state.backoff.apply(result.agentBackoff) : undefined);
     if (appliedBackoff !== undefined) {
       state.wfQueue.deferAgentRunsUntil(agentBackoffQueueUntil(appliedBackoff));
+    }
+    if (result.continuation !== undefined) {
+      const record = result.continuation;
+      const blockerResources = record.packet.higherPriorityWork.map(
+        (item) => item.resource,
+      );
+      const wait = {
+        kind: "continuation",
+        record,
+        lineage: projectWorkflowRunMetadataForStorage(result.metadata),
+        stepId: record.stepId,
+        decision: record.decision.decision,
+        decidedAt: record.decidedAt,
+        evidenceFingerprint: record.packet.evidenceFingerprint,
+        boundaryKey: record.packet.boundaryKey,
+        blockerResources,
+        rationale: record.decision.rationale,
+        nextAction: record.decision.nextAction,
+        ...(result.continuationCheckpointFailure === undefined
+          ? {}
+          : { checkpointFailure: result.continuationCheckpointFailure }),
+      };
+      if (result.continuationCheckpointFailure !== undefined) {
+        return {
+          kind: "suspended",
+          state: "needs_attention",
+          wait,
+          error: result.continuationCheckpointFailure,
+        };
+      }
+      if (record.decision.decision === "decompose") {
+        return {
+          kind: "terminal",
+          state: "failed",
+          error: record.decision.rationale,
+        };
+      }
+      if (
+        record.decision.decision === "preserve-yield" &&
+        blockerResources.length > 0
+      ) {
+        return { kind: "suspended", state: "waiting", wait };
+      }
+      return {
+        kind: "suspended",
+        state: "needs_attention",
+        wait,
+        error: record.decision.rationale,
+      };
     }
     if (
       result.deferredByAgentBackoff === undefined ||

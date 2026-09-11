@@ -16,8 +16,9 @@ simpler callers. Preserve differences in domain behavior. A similar-looking
 function or an unreferenced export may be a deliberate protocol entrypoint.
 
 Inspect active tasks and related archived work before proposing anything. Use
-`covered` with its existing task id when work already owns the outcome, including
-blocked or retained builders. Do not revise or recreate their contracts. For
+`covered` with its existing task id only when that work actually covers the
+new evidence and outcome. A revised proposal against active work is deferred;
+blocked or retained builders keep their contracts. For
 linked terminal tasks, inspect migrated callers, retired paths and actual proof;
 completion status alone does not establish a simpler result. Keep any follow-up
 outcome and evidence linked to the original task through normal task provenance.
@@ -28,10 +29,7 @@ a false positive, insufficient evidence, or a verified completed simplification;
 explain which applies. For `propose`, name the observed problem, maintained
 consumers, alternatives, migration and retirement, unverified expected benefit,
 and the strongest proportionate preservation and simplification proof a builder
-needs. Use a stable mechanismKey for the same outcome across request surfaces and
-choose priority from demonstrated urgency. In `revisit`, explain what could change
-the decision and select only observation IDs whose changes would matter.
-Structural changes and linked implementation outcomes remain independently visible.
+needs. Use a stable mechanismKey for the same outcome across request surfaces.
 Do not claim a measured improvement, preserved invariants or an accepted Pareto
 result from an unimplemented proposal. A task count or deletion quota is not a goal.
 
@@ -43,3 +41,12 @@ durable records you cite in the decision. A proposal may cite only available,
 assessed evidence for the requested target. The handoff's reason and citations
 do not establish a defect; later counterevidence may disprove an earlier
 expectation without warranting more implementation work.
+
+Retain a `revisit` reason and the `deliveryIssueKeys` whose material changes
+could alter this judgment. Use observed issue ids only; an empty list rejects
+the delivery correlation. Structural changes and linked task outcomes remain
+revisit signals. New evidence outside these conditions can arrive through a
+justified scoped request. Inspect previous judgments, including deferred
+proposals, before replacing them. For a terminal task, justify coverage or
+propose new work under the same mechanism/topic key with an explicit `priority`;
+explain why the cited evidence now requires reopening.

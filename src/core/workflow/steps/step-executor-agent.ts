@@ -41,6 +41,7 @@ import {
 } from "./step-executor-agent-token-budget.js";
 import { writeAgentTrajectoryDiagnosticsArtifact } from "./step-executor-agent-trajectory-diagnostics.js";
 import type {
+  ActiveAgentContinuationRuntime,
   AgentStepConfig,
   AgentStepResult,
   WorkflowStepOutput,
@@ -80,6 +81,7 @@ export async function executeAgentStep(
   agentConfig: AgentStepConfig,
   priorStepOutputs: Record<string, unknown> = {},
   foreach?: WorkflowStepContext["foreach"],
+  continuationRuntime?: ActiveAgentContinuationRuntime,
 ): Promise<AgentStepResult> {
   const resolvedHarness = agentConfig.resolveAgentHarness?.(step.harness)
     ?? resolveAgentHarness(step.harness);
@@ -193,6 +195,9 @@ export async function executeAgentStep(
         workspaceRoot: agentConfig.workspaceRoot ?? agentConfig.scopeRoot,
         stepOutputs: priorStepOutputs,
       },
+      onProgressMessage: continuationRuntime?.onProgressMessage,
+      pollContinuationEvidence: continuationRuntime?.pollEvidence,
+      persistContinuationSession: continuationRuntime !== undefined,
     });
   };
 
@@ -295,6 +300,12 @@ export async function executeAgentStep(
       trajectoryDiagnostics,
       trajectoryMessages: successfulAttemptMessages,
       preStepMutatedPaths,
+      ...(continuationRuntime === undefined
+        ? {}
+        : {
+            continuationInitialWorkspace: continuationRuntime.initialWorkspace,
+            continuationTrajectory: continuationRuntime.trajectory,
+          }),
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
     };
   };

@@ -213,6 +213,23 @@ export type WorkflowRunSummary = {
   retryOf?: string;
   resumedFromRunId?: string;
   tags?: string[];
+  continuation?: WorkflowContinuationStatus;
+};
+
+export type WorkflowContinuationStatus = {
+  decision: "continue" | "decompose" | "preserve-yield" | "needs-owner";
+  rationale: string;
+  nextAction: string;
+  decidedAt: string;
+  evidenceFingerprint: string;
+  boundaries: Array<
+    | "active-verification-churn"
+    | "active-workspace-churn"
+    | "higher-priority-work"
+    | "material-scope-expansion"
+    | "repeated-repair"
+    | "unresolved-acceptance"
+  >;
 };
 
 export type WorkflowRunStepSummary = {

@@ -6,6 +6,7 @@ import {
 
 function subtask(dependsOn: number[]) {
   return {
+    reuseTaskId: null,
     title: "Scoped task",
     priority: "p1",
     problem: "The original task exhausted repair.",

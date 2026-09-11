@@ -1,3 +1,5 @@
+import type { GardenerDecision } from "./decision.js";
+
 /**
  * Core domain types for the Architecture Gardener vertical slice.
  */
@@ -30,16 +32,32 @@ export type ArchitectureObservation = {
   readonly timestamp: string;
 };
 
-export type CandidateDisposition = "admitted" | "proposed" | "no-action" | "covered" | "suppressed" | "deferred";
+export type CandidateDisposition = "admitted" | "proposed" | "no-action" | "covered" | "suppressed" | "applied" | "unchanged" | "deferred";
+
+export type SettledGardenerReview = {
+  readonly decision: GardenerDecision;
+  readonly structuralCohort: string;
+  readonly deliveryCohort: string;
+  readonly requestFingerprint: string | null;
+};
+
+export type GardenerProposalIdentity = {
+  readonly targetScope: string;
+  readonly mechanismKey: string;
+  readonly proposalKey: string;
+  readonly taskId: string;
+};
 
 export type StoredDispositionRecord = {
   readonly targetScope: string;
   readonly disposition: CandidateDisposition;
   readonly reason: string;
   readonly decidedAt: string;
-  /** Absent when no relevant revisit condition has yet been assessed. */
-  readonly revisit?: { readonly reason: string; readonly observationIds: readonly string[] };
   readonly taskId: string | null;
+  /** Retained across reviews of other mechanisms; absent on pre-identity judgments. */
+  readonly proposalIdentities?: readonly GardenerProposalIdentity[];
+  /** Absent on judgments recorded before relevant revisit evidence was retained. */
+  readonly review?: SettledGardenerReview;
 };
 
 export type ArchitectureGardenerRunState = {

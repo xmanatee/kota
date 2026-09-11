@@ -27,6 +27,7 @@ import {
   RepairAgentRuntimeError,
   RepairLoopError,
   runAgentRepairLoop,
+  WorkflowContinuationSuspension,
 } from "./repair-loop.js";
 import type {
   WorkflowRunMetadata,
@@ -524,6 +525,313 @@ describe("runAgentRepairLoop", () => {
     expect(error.output.repairIterations[0]?.agentSubtype).toBe(
       "antigravity_cli_empty_output",
     );
+  });
+
+  it("does not invoke continuation judgment for a repair that resolves fresh failures", async () => {
+    const harnessName = uniqueName("repair-fresh-progress");
+    registerRepairHarness(harnessName, async () => ({
+      text: "fixed",
+      streamedText: "fixed",
+      turns: 1,
+      usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+      isError: false,
+    }));
+    initGitRepo(scopeRoot);
+    let checks = 0;
+    const decide = vi.fn(() => ({
+      decision: "continue" as const,
+      rationale: "unused",
+      nextAction: "unused",
+    }));
+    const step = makeStep(scopeRoot, harnessName, {
+      repairLoop: {
+        checks: [{
+          id: "fresh-failure",
+          type: "code",
+          run: () => {
+            checks += 1;
+            if (checks === 1) throw new Error("repair once");
+            return "ok";
+          },
+        }],
+        continuation: {
+          collectContext: () => ({
+            taskContract: "task",
+            current: { id: "task", priority: 1, priorityLabel: "p1" },
+            queue: { revision: "one", available: [] },
+          }),
+          decide,
+          resolveAgentContract: (parent) => ({
+            harness: parent.harness,
+            model: parent.model,
+            effort: parent.effort,
+            autonomyMode: "autonomous",
+            ownerQuestionAccess: "disabled",
+          }),
+        },
+      },
+    });
+
+    await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      makeContext(scopeRoot),
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      { scopeRoot, resolveAgentHarness },
+    );
+
+    expect(decide).not.toHaveBeenCalled();
+  });
+
+  it("turns newly proven higher-priority work into a typed suspension", async () => {
+    const harnessName = uniqueName("repair-continuation-yield");
+    const repairRuns: string[] = [];
+    registerRepairHarness(harnessName, async () => {
+      repairRuns.push("repair");
+      return {
+        text: "changed but unresolved",
+        streamedText: "changed but unresolved",
+        turns: 1,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+        isError: false,
+      };
+    });
+    initGitRepo(scopeRoot);
+    const decide = vi.fn(() => ({
+      decision: "preserve-yield" as const,
+      rationale: "The P0 runtime repair is ready while this gate remains unresolved.",
+      nextAction: "Resume the same session and address the critic finding.",
+    }));
+    const step = makeStep(scopeRoot, harnessName, {
+      repairLoop: {
+        checks: [{
+          id: "critic",
+          type: "code",
+          run: () => {
+            throw new Error("still unresolved");
+          },
+        }],
+        continuation: {
+          collectContext: () => ({
+            taskContract: "# Current P1 task",
+            current: { id: "task-current", priority: 1, priorityLabel: "p1" },
+            queue: {
+              revision: "two",
+              available: [{
+                id: "task-urgent",
+                title: "Repair runtime safety",
+                priority: 0,
+                priorityLabel: "p0",
+                resource: "task:task-urgent",
+              }],
+            },
+          }),
+          decide,
+          resolveAgentContract: (parent) => ({
+            harness: parent.harness,
+            model: parent.model,
+            effort: parent.effort,
+            autonomyMode: "autonomous",
+            ownerQuestionAccess: "disabled",
+          }),
+        },
+      },
+    });
+
+    const metadata = makeMetadata();
+    const failure = await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      makeContext(scopeRoot),
+      metadata,
+      new AbortController(),
+      vi.fn(),
+      { scopeRoot, resolveAgentHarness },
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(WorkflowContinuationSuspension);
+    const suspension = failure as WorkflowContinuationSuspension;
+    expect(suspension.continuation.decision.decision).toBe("preserve-yield");
+    expect(suspension.continuation.packet.boundaries).toEqual([
+      "higher-priority-work",
+    ]);
+    expect(suspension.output.continuationDecisions).toHaveLength(1);
+    expect(metadata.continuations).toEqual([
+      suspension.continuation,
+    ]);
+    expect(repairRuns).toHaveLength(0);
+    expect(decide).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a typed owner-attention checkpoint when continuation judgment fails", async () => {
+    const harnessName = uniqueName("repair-continuation-judge-failure");
+    const repairRuns: string[] = [];
+    registerRepairHarness(harnessName, async () => {
+      repairRuns.push("repair");
+      return {
+        text: "repair",
+        streamedText: "repair",
+        turns: 1,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+        isError: false,
+      };
+    });
+    initGitRepo(scopeRoot);
+    const step = makeStep(scopeRoot, harnessName, {
+      repairLoop: {
+        checks: [{
+          id: "critic",
+          type: "code",
+          run: () => {
+            throw new Error("still unresolved");
+          },
+        }],
+        continuation: {
+          collectContext: () => ({
+            taskContract: "# Current P1 task",
+            current: { id: "task-current", priority: 1, priorityLabel: "p1" },
+            queue: {
+              revision: "urgent",
+              available: [{
+                id: "task-urgent",
+                title: "Repair runtime safety",
+                priority: 0,
+                priorityLabel: "p0",
+                resource: "task:task-urgent",
+              }],
+            },
+          }),
+          decide: () => {
+            throw new Error("judge unavailable");
+          },
+          resolveAgentContract: (parent) => ({
+            harness: parent.harness,
+            model: parent.model,
+            effort: parent.effort,
+            autonomyMode: "autonomous",
+            ownerQuestionAccess: "disabled",
+          }),
+        },
+      },
+    });
+
+    const failure = await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      makeContext(scopeRoot),
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      { scopeRoot, resolveAgentHarness },
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(WorkflowContinuationSuspension);
+    expect(
+      (failure as WorkflowContinuationSuspension).continuation.decision,
+    ).toMatchObject({
+      decision: "needs-owner",
+      rationale: expect.stringContaining("judge unavailable"),
+    });
+    expect(repairRuns).toHaveLength(0);
+  });
+
+  it("rejudges a continued boundary only after unresolved attempts double", async () => {
+    const harnessName = uniqueName("repair-continuation-changing");
+    let repairAttempt = 0;
+    registerRepairHarness(harnessName, async () => {
+      repairAttempt += 1;
+      writeFileSync(
+        join(scopeRoot, "changing.ts"),
+        `export const attempt = ${repairAttempt};\n`,
+      );
+      return {
+        text: `changed attempt ${repairAttempt}`,
+        streamedText: `changed attempt ${repairAttempt}`,
+        turns: 1,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+        isError: false,
+      };
+    });
+    initGitRepo(scopeRoot);
+    const decide = vi.fn().mockReturnValue({
+      decision: "continue" as const,
+      rationale: "The first changed repair may still resolve the critic gate.",
+      nextAction: "Try the next concrete repair.",
+    });
+    const step = makeStep(scopeRoot, harnessName, {
+      repairLoop: {
+        maxRepairAttempts: 4,
+        checks: [
+          {
+            id: "critic-a",
+            type: "code",
+            run: () => {
+              if (repairAttempt % 2 === 0) throw new Error("critic A unresolved");
+              return "ok";
+            },
+          },
+          {
+            id: "critic-b",
+            type: "code",
+            run: () => {
+              if (repairAttempt % 2 === 1) throw new Error("critic B unresolved");
+              return "ok";
+            },
+          },
+        ],
+        continuation: {
+          collectContext: () => ({
+            taskContract: "# Oversized task",
+            current: { id: "task-current", priority: 1, priorityLabel: "p1" },
+            queue: { revision: "one", available: [] },
+          }),
+          decide,
+          resolveAgentContract: (parent) => ({
+            harness: parent.harness,
+            model: parent.model,
+            effort: parent.effort,
+            autonomyMode: "autonomous",
+            ownerQuestionAccess: "disabled",
+          }),
+        },
+      },
+    });
+
+    const failure = await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      makeContext(scopeRoot),
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      { scopeRoot, resolveAgentHarness },
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(RepairLoopError);
+    const repairFailure = failure as RepairLoopError;
+    expect(repairFailure).not.toBeInstanceOf(WorkflowContinuationSuspension);
+    expect(repairFailure.output.continuationDecisions).toHaveLength(2);
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(repairAttempt).toBe(4);
+    expect(
+      repairFailure.output.continuationDecisions?.map(
+        (record) => record.packet.boundaries,
+      ),
+    ).toEqual([
+      ["repeated-repair", "unresolved-acceptance"],
+      ["repeated-repair", "unresolved-acceptance"],
+    ]);
   });
 
   it("ignores volatile output from the same failing check when detecting no progress", async () => {

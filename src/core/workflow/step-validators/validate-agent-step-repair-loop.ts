@@ -106,5 +106,50 @@ export function validateRepairLoop(
       ) as WorkflowValueResolver<RepairLoopRecord>,
     };
   });
-  return { checks, maxRepairAttempts };
+  let continuation: WorkflowRepairLoopConfig["continuation"];
+  if (value.continuation !== undefined) {
+    if (!isPlainObject(value.continuation)) {
+      throw new WorkflowDefinitionError(
+        `${field}.continuation must be an object`,
+        definitionPath,
+      );
+    }
+    const collectContext = expectOptionalFunction(
+      value.continuation.collectContext,
+      `${field}.continuation.collectContext`,
+      definitionPath,
+    );
+    const decide = expectOptionalFunction(
+      value.continuation.decide,
+      `${field}.continuation.decide`,
+      definitionPath,
+    );
+    const resolveAgentContract = expectOptionalFunction(
+      value.continuation.resolveAgentContract,
+      `${field}.continuation.resolveAgentContract`,
+      definitionPath,
+    );
+    if (!collectContext || !decide || !resolveAgentContract) {
+      throw new WorkflowDefinitionError(
+        `${field}.continuation requires collectContext, decide, and resolveAgentContract functions`,
+        definitionPath,
+      );
+    }
+    continuation = {
+      collectContext: collectContext as NonNullable<WorkflowRepairLoopConfig["continuation"]>["collectContext"],
+      decide: decide as NonNullable<WorkflowRepairLoopConfig["continuation"]>["decide"],
+      resolveAgentContract: resolveAgentContract as NonNullable<WorkflowRepairLoopConfig["continuation"]>["resolveAgentContract"],
+    };
+  }
+  if (maxRepairAttempts === undefined && continuation === undefined) {
+    throw new WorkflowDefinitionError(
+      `${field}.continuation is required when maxRepairAttempts is omitted`,
+      definitionPath,
+    );
+  }
+  return {
+    checks,
+    maxRepairAttempts,
+    ...(continuation === undefined ? {} : { continuation }),
+  };
 }
