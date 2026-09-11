@@ -1,40 +1,80 @@
+import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 
 /** Operator queue invalidation synthesized from workflow lifecycle events. */
 export type QueueChangedPayload =
-  | { source: "workflow.started"; workflow: string }
-  | {
-      source: "workflow.completed";
-      workflow: string;
-      status: BusEvents["workflow.completed"]["status"];
-    };
+	| { source: "workflow.started"; workflow: string }
+	| {
+			source: "workflow.completed";
+			workflow: string;
+			status: BusEvents["workflow.completed"]["status"];
+	  };
 
-/** Typed daemon SSE broadcasts. */
+/** Direct bus events exposed by the daemon control stream. */
+const FORWARDED_EVENTS = [
+	"schedule.fire",
+	"workflow.started",
+	"workflow.completed",
+	"workflow.step.completed",
+	"daemon.config.reload",
+	"scope.lifecycle.changed",
+	"approval.changed",
+	"task.changed",
+	"session.registered",
+	"session.unregistered",
+	"owner.question.asked",
+	"owner.question.changed",
+	"owner.question.resolved",
+	"owner.question.dismissed",
+	"owner.question.expired",
+] as const satisfies readonly (keyof BusEvents)[];
+
+type ForwardedEventType = (typeof FORWARDED_EVENTS)[number];
+type ForwardedEvent = {
+	[K in ForwardedEventType]: { type: K; payload: BusEvents[K] };
+}[ForwardedEventType];
+
 export type DaemonSseEvent =
-  | { type: "workflow.started"; payload: BusEvents["workflow.started"] }
-  | { type: "workflow.completed"; payload: BusEvents["workflow.completed"] }
-  | { type: "workflow.step.completed"; payload: BusEvents["workflow.step.completed"] }
-  | { type: "daemon.config.reload"; payload: BusEvents["daemon.config.reload"] }
-  | { type: "scope.lifecycle.changed"; payload: BusEvents["scope.lifecycle.changed"] }
-  | { type: "queue.changed"; payload: QueueChangedPayload }
-  | { type: "approval.changed"; payload: BusEvents["approval.changed"] }
-  | { type: "task.changed"; payload: BusEvents["task.changed"] }
-  | { type: "session.registered"; payload: BusEvents["session.registered"] }
-  | { type: "session.unregistered"; payload: BusEvents["session.unregistered"] }
-  | { type: "owner.question.asked"; payload: BusEvents["owner.question.asked"] }
-  | { type: "owner.question.changed"; payload: BusEvents["owner.question.changed"] }
-  | { type: "owner.question.resolved"; payload: BusEvents["owner.question.resolved"] }
-  | { type: "owner.question.dismissed"; payload: BusEvents["owner.question.dismissed"] }
-  | { type: "owner.question.expired"; payload: BusEvents["owner.question.expired"] };
+	| ForwardedEvent
+	| { type: "queue.changed"; payload: QueueChangedPayload };
+
+export function subscribeToDaemonEvents(
+	bus: EventBus,
+	handler: (event: DaemonSseEvent) => void,
+): () => void {
+	const stops = FORWARDED_EVENTS.map((type) =>
+		bus.on(type, (payload) => {
+			// The bus correlates each payload with its subscribed type.
+			const event = { type, payload } as ForwardedEvent;
+			handler(event);
+			if (event.type === "workflow.started") {
+				handler({
+					type: "queue.changed",
+					payload: { source: event.type, workflow: event.payload.workflow },
+				});
+			} else if (event.type === "workflow.completed") {
+				handler({
+					type: "queue.changed",
+					payload: {
+						source: event.type,
+						workflow: event.payload.workflow,
+						status: event.payload.status,
+					},
+				});
+			}
+		}),
+	);
+	return () => stops.forEach((stop) => stop());
+}
 
 export type DaemonSseEventType = DaemonSseEvent["type"];
 
 export type DaemonSseStreamEvent = DaemonSseEvent & {
-  /** Opaque, daemon-local event id used as the reconnect cursor. */
-  id: string;
+	/** Opaque, daemon-local event id used as the reconnect cursor. */
+	id: string;
 };
 
 export type DaemonTimelineEvent = DaemonSseStreamEvent & {
-  /** ISO timestamp for human-facing ordering and timestamp catch-up. */
-  timestamp: string;
+	/** ISO timestamp for human-facing ordering and timestamp catch-up. */
+	timestamp: string;
 };
