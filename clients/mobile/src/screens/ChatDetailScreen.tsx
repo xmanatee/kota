@@ -20,72 +20,6 @@ interface ChatMessage {
   streaming?: boolean;
 }
 
-function streamChat(
-  url: string,
-  authHeader: string,
-  message: string,
-  onText: (chunk: string) => void,
-  onDone: () => void,
-  onError: (err: string) => void,
-): () => void {
-  const xhr = new XMLHttpRequest();
-  let buffer = '';
-  let currentEvent = '';
-  let currentData = '';
-
-  function parseChunk(chunk: string) {
-    const lines = chunk.split('\n');
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        currentEvent = line.slice(7).trim();
-      } else if (line.startsWith('data: ')) {
-        currentData += line.slice(6);
-      } else if (line === '' && currentData !== '') {
-        try {
-          const payload = JSON.parse(currentData) as Record<string, unknown>;
-          if (currentEvent === 'text' && typeof payload.content === 'string') {
-            onText(payload.content as string);
-          } else if (currentEvent === 'done') {
-            onDone();
-          } else if (currentEvent === 'error' && typeof payload.message === 'string') {
-            onError(payload.message as string);
-          }
-        } catch {
-          // malformed SSE — skip
-        }
-        currentEvent = '';
-        currentData = '';
-      }
-    }
-  }
-
-  xhr.open('POST', url, true);
-  xhr.setRequestHeader('Authorization', authHeader);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('Accept', 'text/event-stream');
-  xhr.setRequestHeader('Cache-Control', 'no-cache');
-
-  xhr.onreadystatechange = () => {
-    if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED && xhr.status !== 200) {
-      onError(`${xhr.status} ${xhr.statusText}`);
-      return;
-    }
-    if (xhr.readyState === XMLHttpRequest.LOADING || xhr.readyState === XMLHttpRequest.DONE) {
-      const newText = xhr.responseText.slice(buffer.length);
-      buffer = xhr.responseText;
-      parseChunk(newText);
-    }
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      onDone();
-    }
-  };
-
-  xhr.onerror = () => onError('Connection failed');
-  xhr.send(JSON.stringify({ message }));
-
-  return () => xhr.abort();
-}
-
 export function ChatDetailScreen({
   sessionId,
   onClose,
@@ -140,12 +74,8 @@ export function ChatDetailScreen({
     setStreaming(true);
     scrollToBottom();
 
-    const url = client.chatUrl(sessionId);
-    const auth = client.authHeader;
-
-    abortRef.current = streamChat(
-      url,
-      auth,
+    abortRef.current = client.streamChat(
+      sessionId,
       userMsg.content,
       (chunk) => {
         setMessages((prev) =>
@@ -168,7 +98,7 @@ export function ChatDetailScreen({
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
-              ? { ...m, content: m.content || `Error: ${err}`, streaming: false }
+              ? { ...m, content: [m.content, `Error: ${err}`].filter(Boolean).join('\n\n'), streaming: false }
               : m,
           ),
         );
@@ -181,14 +111,14 @@ export function ChatDetailScreen({
   async function handleClose() {
     if (!client || closing) return;
     setClosing(true);
-    abortRef.current?.();
     try {
       await client.deleteSession(sessionId);
+      abortRef.current?.();
+      onClose();
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to close session.');
     } finally {
       setClosing(false);
-      onClose();
     }
   }
 

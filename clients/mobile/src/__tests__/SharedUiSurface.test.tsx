@@ -26,7 +26,7 @@ describe('Android shared UI surface renderer', () => {
     const view = renderSurface();
     expect(view.getByText('Operator Control')).toBeTruthy();
     expect(view.getByText('Live daemon events')).toBeTruthy();
-    expect(view.getByText('Live mobile event appended.')).toBeTruthy();
+    expect(view.getByText(/Live mobile event appended\./)).toBeTruthy();
     expect(view.getByText('Action unavailable')).toBeTruthy();
     expect(view.getByLabelText('Configure launch defaults')).toBeDisabled();
   });

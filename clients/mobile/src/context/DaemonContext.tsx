@@ -276,8 +276,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useSSE(
-    state.connection.online && client ? client.sseUrl() : null,
-    client?.authHeader ?? null,
+    state.connection.online ? client : null,
     handleSseEvent,
     handleSseStatus,
     (_raw, error) => console.warn(`Malformed daemon event: ${error.message}`),

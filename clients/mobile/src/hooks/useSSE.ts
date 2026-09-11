@@ -1,133 +1,17 @@
-import { useCallback, useEffect, useRef } from 'react';
-import type { SseEvent, SseEventType } from '../daemon/sse';
+import { useEffect, useRef } from 'react';
+import type { DaemonClient } from '../daemonClient';
+import type { EventSubscription } from '../daemon/sse';
 
-type EventHandler = (event: SseEvent) => void;
-type MalformedEventHandler = (raw: string, error: Error) => void;
-
-export function useSSE(
-  url: string | null,
-  authHeader: string | null,
-  onEvent: EventHandler,
-  onStatusChange: (connected: boolean) => void,
-  onMalformedEvent?: MalformedEventHandler,
-): void {
-  const onEventRef = useRef(onEvent);
-  const onStatusRef = useRef(onStatusChange);
-  const onMalformedEventRef = useRef(onMalformedEvent);
-  onEventRef.current = onEvent;
-  onStatusRef.current = onStatusChange;
-  onMalformedEventRef.current = onMalformedEvent;
-
-  const retryCountRef = useRef(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
-  const activeRef = useRef(false);
-  const lastEventTimeRef = useRef<string | undefined>(undefined);
-
-  const connect = useCallback(() => {
-    if (!url || !authHeader) return;
-
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-
-    const connectUrl = lastEventTimeRef.current
-      ? `${url}${url.includes('?') ? '&' : '?'}since=${encodeURIComponent(lastEventTimeRef.current)}`
-      : url;
-
-    xhr.open('GET', connectUrl, true);
-    xhr.setRequestHeader('Authorization', authHeader);
-    xhr.setRequestHeader('Accept', 'text/event-stream');
-    xhr.setRequestHeader('Cache-Control', 'no-cache');
-
-    let buffer = '';
-
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
-        if (xhr.status === 200) {
-          retryCountRef.current = 0;
-          onStatusRef.current(true);
-        } else {
-          xhr.abort();
-          scheduleRetry();
-        }
-      }
-
-      if (xhr.readyState === XMLHttpRequest.LOADING || xhr.readyState === XMLHttpRequest.DONE) {
-        const newText = xhr.responseText.slice(buffer.length);
-        buffer = xhr.responseText;
-        parseChunk(newText);
-      }
-
-      if (xhr.readyState === XMLHttpRequest.DONE) {
-        onStatusRef.current(false);
-        if (activeRef.current) scheduleRetry();
-      }
-    };
-
-    xhr.onerror = () => {
-      onStatusRef.current(false);
-      if (activeRef.current) scheduleRetry();
-    };
-
-    let currentEventType = '';
-    let currentData = '';
-
-    function parseChunk(chunk: string) {
-      const lines = chunk.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          currentEventType = line.slice(7).trim();
-        } else if (line.startsWith('data: ')) {
-          currentData += line.slice(6);
-        } else if (line === '' && currentData !== '') {
-          try {
-            const payload = JSON.parse(currentData) as Record<string, unknown>;
-            const ts = typeof payload.timestamp === 'string' ? payload.timestamp : new Date().toISOString();
-            lastEventTimeRef.current = ts;
-            onEventRef.current({
-              type: currentEventType as SseEventType,
-              payload,
-              timestamp: ts,
-            });
-          } catch (err) {
-            onMalformedEventRef.current?.(currentData, toError(err));
-          }
-          currentEventType = '';
-          currentData = '';
-        }
-      }
-    }
-
-    xhr.send();
-  }, [url, authHeader]);
-
-  function scheduleRetry() {
-    const delay = Math.min(1000 * 2 ** retryCountRef.current, 30_000);
-    retryCountRef.current += 1;
-    retryTimerRef.current = setTimeout(() => {
-      if (activeRef.current) connect();
-    }, delay);
-  }
-
+export function useSSE(client: DaemonClient | null, onEvent: EventSubscription['onEvent'],
+  onStatus: EventSubscription['onStatus'], onMalformed?: EventSubscription['onMalformed']): void {
+  const callbacks = useRef({ onEvent, onStatus, onMalformed });
+  callbacks.current = { onEvent, onStatus, onMalformed };
   useEffect(() => {
-    if (!url || !authHeader) {
-      onStatusRef.current(false);
-      return;
-    }
-
-    activeRef.current = true;
-    retryCountRef.current = 0;
-    connect();
-
-    return () => {
-      activeRef.current = false;
-      if (retryTimerRef.current !== null) clearTimeout(retryTimerRef.current);
-      xhrRef.current?.abort();
-      xhrRef.current = null;
-    };
-  }, [url, authHeader, connect]);
-}
-
-function toError(err: unknown): Error {
-  return err instanceof Error ? err : new Error(String(err));
+    if (!client) { callbacks.current.onStatus(false); return; }
+    return client.subscribeEvents({
+      onEvent: event => callbacks.current.onEvent(event),
+      onStatus: connected => callbacks.current.onStatus(connected),
+      onMalformed: (raw, error) => callbacks.current.onMalformed?.(raw, error),
+    });
+  }, [client]);
 }
