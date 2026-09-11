@@ -19,7 +19,6 @@ import {
   tokenBudgetExhaustedError,
 } from "./loop-token-budget.js";
 import { runPreSendHooks } from "./pre-send-hooks.js";
-import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 
 const MAX_ITERATIONS = 200;
@@ -92,7 +91,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
 
     const failureTracker = new FailureTracker();
-    let reflectionDone = false;
     const tokenBudget = getAgentLoopTokenBudget(state);
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -213,22 +211,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         throw tokenBudgetExhaustedError(message);
       }
 
-      if (toolBlocks.length === 0) {
-        if (state.reflectionEnabled && !reflectionDone) {
-          const responseText = streamedText || getLastAssistantText(state.context.getMessages());
-          if (shouldReflect(state.context.getMessages(), responseText)) {
-            reflectionDone = true;
-            if (state.stateMachine.canTransition("reflecting")) {
-              state.stateMachine.transition("reflecting");
-            }
-            const reflectionPrompt = buildReflectionPrompt(state.context.getMessages());
-            state.context.addUserMessage(reflectionPrompt);
-            state.transport.emit({ type: "status", message: "[kota] Self-reflecting on response quality..." });
-            continue;
-          }
-        }
-        break;
-      }
+      if (toolBlocks.length === 0) break;
 
       if (state.stateMachine.canTransition("acting")) {
         state.stateMachine.transition("acting", { toolCount: toolBlocks.length });

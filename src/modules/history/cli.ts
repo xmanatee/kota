@@ -7,7 +7,6 @@ import { isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
-import { Scheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import {
   createAskUserMcpAuthorizationResolver,
@@ -362,14 +361,6 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     prompt: "kota> ",
   });
 
-  const scheduler = new Scheduler(session.scopeRoot);
-  const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-    for (const item of dueItems) {
-      stderr.write(blank());
-      stderr.write(line(span(`[kota] ⏰ Reminder: ${item.description}`, "accent")));
-    }
-  });
-
   stderr.write(
     line(span("KOTA", "agent", true), plain(" — interactive mode. Type /help for commands, or 'exit' to quit.")),
   );
@@ -383,7 +374,6 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
       return;
     }
     if (input === "exit" || input === "quit") {
-      stopScheduler();
       await session.dispose();
       rl.close();
       return;
@@ -411,7 +401,6 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
   });
 
   rl.on("close", async () => {
-    stopScheduler();
     await session.dispose();
     stderr.write(blank());
     stderr.write(line(span("Goodbye.", "muted")));

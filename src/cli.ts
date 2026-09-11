@@ -246,7 +246,6 @@ program
   .option("-c, --continue [id]", "Continue most recent conversation (or specify conversation ID)")
   .option("--resume-here", "Resume explicit conversations in the caller's current directory instead of the saved cwd")
   .option("--no-history", "Disable automatic conversation history")
-  .option("--no-reflect", "Disable self-reflection before delivering responses")
   .option("--no-cost", "Suppress per-turn cost display")
   .action(async (promptWords: string[], opts) => {
     const parsedMaxTokens = opts.maxTokens ? parseIntOption(opts.maxTokens, "max-tokens") : undefined;
@@ -312,7 +311,6 @@ program
             config,
             resumeConversation: resumeSelection.id,
             noHistory: opts.history === false,
-            reflectionEnabled: opts.reflect !== false,
             showCost: opts.cost !== false && (config.serve?.showCost ?? true),
             mcpInputResolver: createAskUserMcpInputResolver(),
             mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
@@ -420,7 +418,6 @@ program
       config,
       resumeConversation: resumeSelection?.id,
       noHistory: opts.history === false,
-      reflectionEnabled: opts.reflect !== false,
       client: resolved.client,
       showCost: opts.cost !== false && (config.serve?.showCost ?? true),
       mcpInputResolver: createAskUserMcpInputResolver(),

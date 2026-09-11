@@ -26,7 +26,6 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "autoEnable",
   "user",
   "aliases",
-  "reflection",
   "guardrails",
   "modules",
   "foreignModules",

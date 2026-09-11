@@ -195,7 +195,6 @@
     },
     {
       "includes": [
-        "src/check-hygiene.ts",
         "src/cli.ts",
         "src/core/daemon/**",
         "src/core/loop/**",

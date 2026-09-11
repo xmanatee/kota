@@ -751,7 +751,7 @@ describe("Daemon chat scope-scoped history", () => {
     const moduleLoader = new ModuleLoader({}, false, { providerRegistry: registry });
     moduleLoader.setBus(eventBus);
 
-    const config = { defaultAgentHarness: "claude-agent-sdk", reflection: false };
+    const config = { defaultAgentHarness: "claude-agent-sdk" };
     const daemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader },
       scopes: [{ scopeRoot: defaultScopeRoot }, { scopeRoot: selectedScopeRoot }],

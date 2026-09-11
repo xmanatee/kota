@@ -43,7 +43,6 @@ export function createDaemonAgentSessionFactories(
       label: options.label,
       noHistory: options.noHistory,
       historySource: options.historySource,
-      reflectionEnabled: options.reflectionEnabled,
       scopeRoot: runtime.scope.scopeRoot,
       scopeRuntime: runtime,
       moduleLoader: config.runtimeModuleHost?.moduleLoader,

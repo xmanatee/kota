@@ -28,7 +28,6 @@ function createTestSession(
 	responses: Parameters<typeof createMockClient>[0],
 	opts?: {
 		verbose?: boolean;
-		reflectionEnabled?: boolean;
 	},
 ): { session: AgentSession; transport: BufferTransport; calls: MockApiCall[] } {
 	const [client, calls] = createMockClient(responses);
@@ -39,7 +38,6 @@ function createTestSession(
 		transport,
 		model: "claude-haiku-4-5-20251001",
 		noHistory: true,
-		reflectionEnabled: opts?.reflectionEnabled ?? false,
 		verbose: opts?.verbose ?? false,
 	});
 	return { session, transport, calls };

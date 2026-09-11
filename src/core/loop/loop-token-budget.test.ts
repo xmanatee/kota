@@ -158,7 +158,6 @@ describe("AgentSession token budget", () => {
       autonomyMode: "autonomous",
       tokenBudget,
       transport,
-      reflectionEnabled: false,
     });
     mockStreamMessage.mockResolvedValueOnce(textResponse("done", 80));
 

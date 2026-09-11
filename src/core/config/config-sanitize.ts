@@ -46,7 +46,6 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
     if (!decoded.ok) throw new Error(decoded.error);
     out.scopeAuthority = decoded.value;
   }
-  if (typeof raw.reflection === "boolean") out.reflection = raw.reflection;
   if (typeof raw.defaultAgentHarness === "string" && raw.defaultAgentHarness) {
     out.defaultAgentHarness = raw.defaultAgentHarness;
   }

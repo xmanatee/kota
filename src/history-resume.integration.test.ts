@@ -15,7 +15,7 @@ describe("session history persistence", () => {
 
   function session(response: string, options: { resumeConversation?: string; noHistory?: boolean } = {}) {
     const [client, calls] = createMockClient([textResponse(response)]);
-    return { calls, agent: new AgentSession({ scopeRoot, client, transport: new BufferTransport(), model: "claude-haiku-4-5-20251001", autonomyMode: "autonomous", reflectionEnabled: false, ...options }) };
+    return { calls, agent: new AgentSession({ scopeRoot, client, transport: new BufferTransport(), model: "claude-haiku-4-5-20251001", autonomyMode: "autonomous", ...options }) };
   }
 
   it("restores saved context in a new session and appends to the same durable conversation", async () => {

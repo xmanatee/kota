@@ -85,7 +85,6 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     mcpServers: undefined,
     clientApprovalResolver: undefined,
     costTracker: new CostTracker(),
-    reflectionEnabled: false,
     stateMachine: {
       canTransition: () => false,
       transition: vi.fn(),

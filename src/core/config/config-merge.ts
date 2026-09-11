@@ -27,7 +27,6 @@ const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "autoEnable",
   "user",
   "aliases",
-  "reflection",
   "guardrails",
   "modules",
   "foreignModules",

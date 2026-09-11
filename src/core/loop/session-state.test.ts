@@ -23,17 +23,6 @@ describe("SessionStateMachine", () => {
     expect(sm.current()).toBe("ready");
   });
 
-  it("supports the reflection path: thinking → reflecting → thinking", () => {
-    const sm = new SessionStateMachine();
-    sm.transition("initializing");
-    sm.transition("ready");
-    sm.transition("thinking");
-    sm.transition("reflecting");
-    expect(sm.current()).toBe("reflecting");
-    sm.transition("thinking");
-    expect(sm.current()).toBe("thinking");
-  });
-
   it("rejects invalid transitions", () => {
     const sm = new SessionStateMachine();
     expect(() => sm.transition("thinking")).toThrow("Invalid state transition: idle → thinking");
@@ -51,7 +40,7 @@ describe("SessionStateMachine", () => {
   });
 
   it("allows any state to transition to closed", () => {
-    for (const state of ["idle", "initializing", "ready", "thinking", "acting", "reflecting", "error"] as SessionState[]) {
+    for (const state of ["idle", "initializing", "ready", "thinking", "acting", "error"] as SessionState[]) {
       const sm = new SessionStateMachine();
       // Get to the target state
       if (state === "initializing") sm.transition("initializing");
@@ -67,11 +56,6 @@ describe("SessionStateMachine", () => {
         sm.transition("ready");
         sm.transition("thinking");
         sm.transition("acting");
-      } else if (state === "reflecting") {
-        sm.transition("initializing");
-        sm.transition("ready");
-        sm.transition("thinking");
-        sm.transition("reflecting");
       } else if (state === "error") {
         sm.transition("initializing");
         sm.transition("error");
@@ -162,16 +146,13 @@ describe("SessionStateMachine", () => {
   });
 
   describe("isProcessing", () => {
-    it("returns true for thinking, acting, reflecting", () => {
+    it("returns true for thinking, acting", () => {
       const sm = new SessionStateMachine();
       sm.transition("initializing");
       sm.transition("ready");
       sm.transition("thinking");
       expect(sm.isProcessing()).toBe(true);
       sm.transition("acting");
-      expect(sm.isProcessing()).toBe(true);
-      sm.transition("thinking");
-      sm.transition("reflecting");
       expect(sm.isProcessing()).toBe(true);
     });
 

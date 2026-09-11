@@ -65,7 +65,6 @@ export interface AgentLoopState {
   mcpServers: Record<string, McpServerConfig> | undefined;
   clientApprovalResolver: ToolApprovalResolver | undefined;
   costTracker: CostTracker;
-  reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;
   guardrailsConfig: GuardrailsConfig;
   guardrailsSnapshot: GuardrailsSnapshot;
