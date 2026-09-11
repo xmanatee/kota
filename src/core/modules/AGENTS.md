@@ -52,7 +52,10 @@ module context so unload can remove only that module's contributions.
 
 When activation allocates resources, `onLoad` returns a `ModuleActivation`
 whose `dispose` releases that exact instance. Each loader tracks exact registration disposers in one owned list. Withdrawal
-precedes asynchronous activation disposal, including single-module unload.
+precedes asynchronous activation disposal, including single-module unload. Each
+load attempt has its own registration authority, revoked before withdrawal and
+on failed admission. Retained contexts cannot contribute to a later activation
+with the same name; disposal may still unsubscribe and emit cleanup events.
 Process-wide executable names remain unique; rejected loaders cannot withdraw
 another activation by its module label. Lifecycle mutations are serialized; shutdown disposes in reverse load order. Do not add a reset-all teardown path; process-owned exceptions must stay
 at the CLI composition boundary and must not promise multi-host isolation.

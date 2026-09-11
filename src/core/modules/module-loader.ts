@@ -28,7 +28,7 @@ import {
   runModuleLoadPhases,
 } from "./module-loader-load-phases.js";
 import { refreshImportedSkills } from "./module-loader-skills.js";
-import { createLoaderState, type LoaderState, trackModuleRegistration } from "./module-loader-state.js";
+import { createLoaderState, type LoaderState, ModuleRegistrationLifetime } from "./module-loader-state.js";
 import {
   collectModuleSummaries,
   findModuleAgent,
@@ -138,7 +138,7 @@ export class ModuleLoader {
     };
   }
 
-  private createContext(moduleName?: string): ModuleRuntimeContext {
+  private createContext(moduleName: string, registrations: ModuleRegistrationLifetime): ModuleRuntimeContext {
     return createLoaderModuleContext(
       {
         cwd: this.installedModuleSourceDir ?? this.cwd,
@@ -147,7 +147,8 @@ export class ModuleLoader {
         config: this.config,
         moduleStorages: this.state.moduleStorages,
         getBus: () => this.bus,
-        trackRegistration: (dispose) => trackModuleRegistration(this.state, moduleName ?? "_default", dispose),
+        assertRegistrationOpen: () => registrations.assertOpen(),
+        trackRegistration: (dispose) => registrations.track(dispose),
         trackEventSubscription: (unsubscribe) => trackModuleEventSubscription(this.state, moduleName, unsubscribe),
         getRoutes: () => this.getRoutes(),
         getContributedControlRoutes: () => this.getContributedControlRoutes(),
@@ -189,11 +190,13 @@ export class ModuleLoader {
 
     checkDuplicateModule(state, mod);
     checkDependencies(state, mod);
+    const registrations = new ModuleRegistrationLifetime(mod.name);
+    state.moduleRegistrations.set(mod.name, registrations);
     try {
       registerModuleConfigSlices(state, mod);
       registerModuleEvents(state, mod);
 
-      const ctx = this.createContext(mod.name);
+      const ctx = this.createContext(mod.name, registrations);
       await runModuleLoadPhases(state, policy, mod, ctx, this.verbose);
     } catch (err) {
       discardModuleLoadState(mod.name, state, this.providerRegistry, this.mode);

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # End module registration authority when its activation ends
@@ -52,3 +51,27 @@ the documented behavior of already-running calls.
 
 This is a correctness repair, independent of
 `task-simplify-module-composition-tests` and its verification migration dependency.
+
+## Completion
+
+Each load attempt now owns a registration lifetime captured by its context.
+Withdrawal closes it before disposing registrations, and failed admission uses
+that same withdrawal path. Every context contribution entry point checks this
+lifetime before publishing a registry entry or event listener. Old contexts
+remain closed across replacement activations and final shutdown; unsubscribe,
+cleanup event emission, and already-running middleware retain their behavior.
+The module runtime guidance records this ownership contract.
+
+Validation:
+
+- 158 focused loader, context, and event-lifecycle tests passed. The lifecycle
+  owner exercises all registration entry points during asynchronous disposal,
+  verifies no residue, and checks failed admission, same-name replacement,
+  independent hosts, and completion of an in-flight middleware call.
+- 15 integration/resilience tests passed across module lifecycle modes, hosted
+  log ownership, module-load failures, and foreign-module process recovery.
+  These exercise existing consumers and failure handling through real loaders.
+- `pnpm check:fast` and `pnpm build` passed, covering strict production/test
+  types, lint, task contracts, generated bindings, and production output.
+
+No live model evaluation was needed for this deterministic lifecycle repair.

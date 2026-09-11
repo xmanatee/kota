@@ -46,6 +46,7 @@ export interface ModuleContextParams {
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
   trackEventSubscription: (unsubscribe: () => void) => () => void;
+  assertRegistrationOpen: () => void;
   trackRegistration: (dispose: () => void) => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
@@ -85,6 +86,7 @@ function getOrCreateStorage(
 class ModuleEventProxyImpl implements ModuleEventProxy {
   constructor(
     private readonly getBus: () => EventBus | null,
+    private readonly assertRegistrationOpen: () => void,
     private readonly trackSubscription: (unsubscribe: () => void) => () => void,
   ) {}
 
@@ -122,6 +124,7 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
     event: string | ModuleEventDef,
     handler: (payload: never) => void,
   ): () => void {
+    this.assertRegistrationOpen();
     const bus = this.requireBus("subscribe");
     const name = typeof event === "string" ? event : event.name;
     return this.trackSubscription(bus.on(name, handler as never));
@@ -135,6 +138,7 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
     event: string,
     handler: (payload: Record<string, unknown>) => void,
   ): () => void {
+    this.assertRegistrationOpen();
     const bus = this.requireBus("subscribeExternal");
     return this.trackSubscription(bus.on(event, handler as never));
   }
@@ -146,13 +150,14 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
 
 function createEventProxy(
   getBus: () => EventBus | null,
+  assertRegistrationOpen: () => void,
   trackSubscription: (unsubscribe: () => void) => () => void,
 ): ModuleEventProxy {
-  return new ModuleEventProxyImpl(getBus, trackSubscription);
+  return new ModuleEventProxyImpl(getBus, assertRegistrationOpen, trackSubscription);
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
-  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, trackRegistration, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys, providerRegistry } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, assertRegistrationOpen, trackRegistration, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys, providerRegistry } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -264,6 +269,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     config,
     storage,
     registerGroup: (name, toolNames, pattern) => {
+      assertRegistrationOpen();
       trackRegistration(registerCustomGroup(name, toolNames, pattern));
     },
     getRoutes,
@@ -281,7 +287,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     listTools: (): string[] => {
       return getRegisteredTools().map((t) => t.name);
     },
-    events: createEventProxy(getBus, trackEventSubscription),
+    events: createEventProxy(getBus, assertRegistrationOpen, trackEventSubscription),
     createSession: (opts?: CreateSessionOptions): ModuleSession => {
       const sessionFactory = getSessionFactory();
       if (!sessionFactory) {
@@ -290,6 +296,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       return sessionFactory(opts ?? {});
     },
     registerProvider: <T>(token: ProviderToken<T>, provider: T): void => {
+      assertRegistrationOpen();
       if (!moduleName) {
         log.warn(`Cannot register provider without a module name`);
         return;
@@ -308,18 +315,23 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     callTool,
     registerMiddleware: (name, fn, priority) => {
+      assertRegistrationOpen();
       trackRegistration(getToolMiddleware().add(name, fn, { priority }));
     },
     registerDynamicStateProvider: (name, fn) => {
+      assertRegistrationOpen();
       trackRegistration(registerDynamicStateProvider(name, fn));
     },
     registerCleanupHook: (fn) => {
+      assertRegistrationOpen();
       trackRegistration(registerCleanupHook(fn));
     },
     registerPreSendHook: (name, fn) => {
+      assertRegistrationOpen();
       trackRegistration(registerPreSendHookImpl(name, fn));
     },
     registerHarnessHook: (registration) => {
+      assertRegistrationOpen();
       const owner = moduleName ?? "_default";
       if (registration.kind === "preRun") {
         trackRegistration(registerHarnessHookImpl({

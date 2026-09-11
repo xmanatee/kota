@@ -32,7 +32,7 @@ import type { ModuleSetupRequirementContribution } from "./setup-requirements.js
 export interface LoaderState {
   modules: KotaModule[];
   moduleActivations: Map<string, ModuleActivation>;
-  moduleRegistrationDisposers: Map<string, (() => void)[]>;
+  moduleRegistrations: Map<string, ModuleRegistrationLifetime>;
   moduleStorages: Map<string, ModuleStorage>;
   moduleRegistry: Map<string, KotaModule>;
   moduleToolCounts: Map<string, number>;
@@ -73,7 +73,7 @@ export function createLoaderState(): LoaderState {
   return {
     modules: [],
     moduleActivations: new Map(),
-    moduleRegistrationDisposers: new Map(),
+    moduleRegistrations: new Map(),
     moduleStorages: new Map(),
     moduleRegistry: new Map(),
     moduleToolCounts: new Map(),
@@ -108,14 +108,39 @@ export function createLoaderState(): LoaderState {
   };
 }
 
+/** One admission authority per load attempt, retained by that attempt's context. */
+export class ModuleRegistrationLifetime {
+  private open = true;
+  private readonly disposers: (() => void)[] = [];
+
+  constructor(private readonly owner: string) {}
+
+  assertOpen(): void {
+    if (!this.open) {
+      throw new Error(`Module "${this.owner}" registration lifetime is closed`);
+    }
+  }
+
+  track(dispose: () => void): void {
+    this.assertOpen();
+    this.disposers.push(dispose);
+  }
+
+  release(): void {
+    // Revoke future publication before invoking even synchronous disposers.
+    this.open = false;
+    for (const dispose of this.disposers.splice(0).reverse()) dispose();
+  }
+}
+
 export function trackModuleRegistration(state: LoaderState, owner: string, dispose: () => void): void {
-  const registrations = state.moduleRegistrationDisposers.get(owner) ?? [];
-  registrations.push(dispose);
-  state.moduleRegistrationDisposers.set(owner, registrations);
+  const registrations = state.moduleRegistrations.get(owner);
+  if (!registrations) throw new Error(`Module "${owner}" has no registration lifetime`);
+  registrations.track(dispose);
 }
 
 export function releaseModuleRegistrations(state: LoaderState, owner: string): void {
-  const registrations = state.moduleRegistrationDisposers.get(owner) ?? [];
-  state.moduleRegistrationDisposers.delete(owner);
-  for (const dispose of registrations.reverse()) dispose();
+  const registrations = state.moduleRegistrations.get(owner);
+  state.moduleRegistrations.delete(owner);
+  registrations?.release();
 }

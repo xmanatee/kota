@@ -20,6 +20,7 @@ import {
   defineDaemonWideModuleEvent,
   getModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { collectDynamicState } from "#core/loop/dynamic-state.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
@@ -37,7 +38,8 @@ import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
 import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
-import type { KotaModule } from "./module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "./module-types.js";
+import { defineProviderToken } from "./provider-token.js";
 
 const unexpectedTransportCall = () => { throw new Error("Client admission must not use the transport"); };
 const transport: DaemonTransport = {
@@ -1309,29 +1311,152 @@ describe("ModuleLoader", () => {
     await loader.unloadAll();
   });
 
-  it("withdraws executable contributions before awaiting activation disposal", async () => {
+  it("closes every context registration before asynchronous disposal without leaving residue", async () => {
     const loader = createLoader({});
+    const token = defineProviderToken<string>("disposal-provider");
+    const cleanup = vi.fn();
+    const listener = vi.fn();
+    let context!: ModuleRuntimeContext;
+    let unsubscribe!: () => void;
     let release!: () => void;
     let entered!: () => void;
     const disposing = new Promise<void>((resolve) => { entered = resolve; });
     const barrier = new Promise<void>((resolve) => { release = resolve; });
+    const contributions = (ctx: ModuleRuntimeContext) => [
+      () => ctx.registerGroup("late-group", ["disposal_boundary_tool"]),
+      () => ctx.registerMiddleware("late-middleware", async (_call, next) => next()),
+      () => ctx.registerDynamicStateProvider("late-state", () => "late-state"),
+      () => ctx.registerCleanupHook(cleanup),
+      () => ctx.registerPreSendHook("late-pre-send", async () => null),
+      () => ctx.registerHarnessHook({ kind: "preRun", name: "late-pre-run", handler: () => {} }),
+      () => ctx.registerHarnessHook({ kind: "postRun", name: "late-post-run", handler: () => {} }),
+      () => ctx.registerProvider(token, "late-provider"),
+      () => ctx.events.subscribe("runtime.idle", listener),
+      () => ctx.events.subscribeExternal("late.external", listener),
+    ];
     await loader.load({
       name: "disposal-boundary",
       tools: [makeTool("disposal_boundary_tool")],
       onLoad: (ctx) => {
-        ctx.registerMiddleware("disposal-boundary", async (_call, next) => next());
-        return { dispose: async () => { entered(); await barrier; } };
+        context = ctx;
+        ctx.registerMiddleware("disposal-boundary", async (_call, next) => {
+          await barrier;
+          const result = await next();
+          return { content: `completed: ${result.content}` };
+        });
+        unsubscribe = ctx.events.subscribeExternal("cleanup.event", listener);
+        return { dispose: async () => {
+          entered();
+          await barrier;
+          // Disposal still has its ordinary cleanup and event-emission capabilities.
+          unsubscribe();
+          ctx.events.emitExternal("cleanup.event", {});
+        } };
       },
     });
+    const rejectLateContributions = () => {
+      for (const register of contributions(context)) {
+        expect(register).toThrow(/registration lifetime is closed/);
+      }
+    };
+    const running = getToolMiddleware().execute(
+      { name: "already-running", input: {} },
+      async () => ({ content: "in-flight call" }),
+    );
     const unloading = loader.unload("disposal-boundary");
     await disposing;
     try {
       expect((await executeTool("disposal_boundary_tool", {})).is_error).toBe(true);
       expect(getToolMiddleware().list()).not.toContain("disposal-boundary");
+      rejectLateContributions();
     } finally {
       release();
       await unloading;
     }
+    expect(await running).toEqual({ content: "completed: in-flight call" });
+    rejectLateContributions();
+    expect(context.events.listenerCount()).toBe(0);
+    expect(context.getProvider(token)).toBeNull();
+    expect(TOOL_GROUPS["late-group"]).toBeUndefined();
+    expect(getToolMiddleware().list()).not.toContain("late-middleware");
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("");
+    expect(listHarnessHooks("preRun")).toEqual([]);
+    expect(listHarnessHooks("postRun")).toEqual([]);
+    runCleanupHooks();
+    expect(cleanup).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+
+    // Reusing every identity also proves rejection did not publish a hook first
+    // and only then fail to track its disposer.
+    await loader.load({
+      name: "disposal-boundary",
+      onLoad: (ctx) => { for (const register of contributions(ctx)) register(); },
+    });
+    rejectLateContributions();
+    expect(context.getProvider(token)).toBe("late-provider");
+    expect(context.events.listenerCount()).toBe(2);
+    await loader.unloadAll();
+    rejectLateContributions();
+    expect(getToolMiddleware().list()).not.toContain("late-middleware");
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("");
+    runCleanupHooks();
+    expect(cleanup).not.toHaveBeenCalled();
+  });
+
+  it("revokes a rejected load's context across replacement and another host's lifetime", async () => {
+    const loader = createLoader({});
+    const other = createLoader({});
+    const token = defineProviderToken<string>("retained-provider");
+    let stale!: ModuleRuntimeContext;
+    let current!: ModuleRuntimeContext;
+    let peer!: ModuleRuntimeContext;
+    let unsubscribe!: () => void;
+    const listener = vi.fn();
+    await other.load({ name: "retained-owner", onLoad: (ctx) => {
+      peer = ctx;
+      ctx.registerMiddleware("peer-middleware", async (_call, next) => next());
+      ctx.registerProvider(token, "peer");
+      ctx.events.subscribeExternal("retained.event", listener);
+    } });
+    await expect(loader.load({ name: "retained-owner", onLoad: (ctx) => {
+      stale = ctx;
+      ctx.registerMiddleware("retained-middleware", async (_call, next) => next());
+      ctx.registerProvider(token, "rejected");
+      unsubscribe = ctx.events.subscribeExternal("retained.event", listener);
+      throw new Error("activation failed");
+    } })).rejects.toThrow("activation failed");
+    const rejectDelayedCallback = async () => {
+      await Promise.resolve();
+      expect(() => stale.registerMiddleware("retained-middleware", async (_call, next) => next()))
+        .toThrow(/registration lifetime is closed/);
+      expect(() => stale.registerProvider(token, "stale"))
+        .toThrow(/registration lifetime is closed/);
+      expect(() => stale.events.subscribeExternal("retained.event", listener))
+        .toThrow(/registration lifetime is closed/);
+    };
+    await rejectDelayedCallback();
+    expect(getToolMiddleware().list()).not.toContain("retained-middleware");
+    expect(stale.getProvider(token)).toBeNull();
+    expect(stale.events.listenerCount()).toBe(0);
+    await loader.load({ name: "retained-owner", onLoad: (ctx) => {
+      current = ctx;
+      ctx.registerMiddleware("retained-middleware", async (_call, next) => next());
+      ctx.registerProvider(token, "replacement");
+      ctx.events.subscribeExternal("retained.event", listener);
+    } });
+    await rejectDelayedCallback();
+    unsubscribe();
+    expect(current.getProvider(token)).toBe("replacement");
+    expect(current.events.listenerCount()).toBe(1);
+    await loader.unloadAll();
+    await rejectDelayedCallback();
+    expect(getToolMiddleware().list()).not.toContain("retained-middleware");
+    expect(getToolMiddleware().list()).toContain("peer-middleware");
+    expect(peer.getProvider(token)).toBe("peer");
+    peer.events.emitExternal("retained.event", {});
+    expect(listener).toHaveBeenCalledTimes(1);
+    await other.unloadAll();
+    expect(getToolMiddleware().list()).not.toContain("peer-middleware");
   });
 
   it("commands-loader teardown preserves registrations owned by an active runtime loader", async () => {

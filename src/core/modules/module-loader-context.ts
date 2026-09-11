@@ -26,6 +26,7 @@ export interface LoaderContextDeps {
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
   trackEventSubscription: (unsubscribe: () => void) => () => void;
+  assertRegistrationOpen: () => void;
   trackRegistration: (dispose: () => void) => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
@@ -53,6 +54,7 @@ export function createLoaderModuleContext(
     moduleStorages: deps.moduleStorages,
     getBus: deps.getBus,
     trackEventSubscription: deps.trackEventSubscription,
+    assertRegistrationOpen: deps.assertRegistrationOpen,
     trackRegistration: deps.trackRegistration,
     getRoutes: deps.getRoutes,
     getContributedControlRoutes: deps.getContributedControlRoutes,
