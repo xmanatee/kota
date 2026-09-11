@@ -2,15 +2,20 @@
 
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
+import { redactOutboundHttpText } from "#core/outbound-http/index.js";
+import { hostActiveClock } from "#core/workflow/host-suspension.js";
 import { TelegramMessageRuntime } from "./bot-message-runtime.js";
 import {
   callTelegramApi,
   ERROR_BACKOFF_MS,
   isRetryableTelegramApiFailure,
+  isTelegramAuthenticationFailure,
   isTelegramGetUpdatesConflict,
   POLL_REQUEST_TIMEOUT_MS,
   POLL_TIMEOUT_S,
   splitMessage,
+  TelegramApiError,
+  TelegramApiTransportError,
   TelegramTransport,
   type TelegramUpdate,
   type TelegramUser,
@@ -35,7 +40,7 @@ export class TelegramBot extends TelegramMessageRuntime {
   private offset = 0;
   private pollController: AbortController | null = null;
   private releasePollingOwner: (() => void) | null = null;
-  private pollHealthyReported = false;
+  private pollHealthy = false;
 
   async start(): Promise<void> {
     const releasePollingOwner = acquireTelegramPollingOwner(
@@ -47,26 +52,27 @@ export class TelegramBot extends TelegramMessageRuntime {
     );
     this.releasePollingOwner = releasePollingOwner;
     this.running = true;
-    this.pollHealthyReported = false;
+    this.pollHealthy = false;
     try {
       let me: TelegramUser | null = null;
       while (this.running && me === null) {
+        const started = hostActiveClock.observe();
+        const controller = new AbortController();
+        this.pollController = controller;
         try {
           me = await callTelegramApi<TelegramUser>(
             this.token,
             "getMe",
             undefined,
-            { http: this.options.http },
+            { http: this.options.http, signal: controller.signal },
           );
         } catch (error) {
           if (!this.running) break;
           if (!isRetryableTelegramApiFailure(error)) throw error;
-          printTerminalDiagnostic(
-            "[kota-telegram] Startup error:",
-            "error",
-            (error as Error).message,
-          );
+          this.reportRetry(error, "startup", started);
           await sleep(ERROR_BACKOFF_MS);
+        } finally {
+          if (this.pollController === controller) this.pollController = null;
         }
       }
       if (me === null) return;
@@ -82,15 +88,18 @@ export class TelegramBot extends TelegramMessageRuntime {
             this.running = false;
             throw new TelegramGetUpdatesConflictError();
           }
-          printTerminalDiagnostic(
-            "[kota-telegram] Poll error:",
-            "error",
-            (err as Error).message,
-          );
+          // Handler failures are distinct from a failed getUpdates request.
+          const pollFailed = (err instanceof TelegramApiError || err instanceof TelegramApiTransportError) &&
+            err.method === "getUpdates";
+          if (pollFailed && isTelegramAuthenticationFailure(err)) throw err;
+          if (!pollFailed) {
+            printTerminalDiagnostic("[kota-telegram] Update handler error:", "error", this.safeError(err));
+          }
           await sleep(ERROR_BACKOFF_MS);
         }
       }
     } finally {
+      this.running = false;
       if (this.releasePollingOwner === releasePollingOwner) {
         this.releasePollingOwner = null;
       }
@@ -143,9 +152,37 @@ export class TelegramBot extends TelegramMessageRuntime {
     }
   }
 
+  private safeError(error: unknown): string {
+    return redactOutboundHttpText(
+      (error instanceof Error ? error.message : String(error)).replaceAll(this.token, "[redacted]"),
+    );
+  }
+
+  private reportRetry(
+    error: unknown,
+    phase: "startup" | "poll",
+    started: ReturnType<typeof hostActiveClock.observe>,
+  ): void {
+    this.pollHealthy = false;
+    const finished = hostActiveClock.observe();
+    // A long request alone is not evidence of sleep; consult the OS clock owner.
+    const hostSuspendedMs = error instanceof TelegramApiTransportError &&
+      error.statusCode === undefined && finished.wallMs - started.wallMs > 5_000
+      ? hostActiveClock.suspendedBetween(started, finished) : 0;
+    const message = `telegram-interactive ${phase} retrying after ${
+      isRetryableTelegramApiFailure(error) ? "transient network/provider failure: " : ""
+    }${this.safeError(error)}`;
+    if (this.options.onOperationHealth) {
+      this.options.onOperationHealth({ status: "failed", message, phase, hostSuspendedMs });
+    } else {
+      printTerminalDiagnostic("[kota-telegram]", "error", message);
+    }
+  }
+
   private async poll(): Promise<void> {
     const controller = new AbortController();
     this.pollController = controller;
+    const started = hostActiveClock.observe();
     const updates = await callTelegramApi<TelegramUpdate[]>(this.token, "getUpdates", {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
@@ -154,12 +191,19 @@ export class TelegramBot extends TelegramMessageRuntime {
       signal: controller.signal,
       http: this.options.http,
       timeoutMs: POLL_REQUEST_TIMEOUT_MS,
+    }).catch((error: unknown) => {
+      if (this.running && !isTelegramGetUpdatesConflict(error) &&
+          !isTelegramAuthenticationFailure(error)) {
+        this.reportRetry(error, "poll", started);
+      }
+      throw error;
     }).finally(() => {
       if (this.pollController === controller) this.pollController = null;
     });
-    if (!this.pollHealthyReported) {
-      this.pollHealthyReported = true;
-      this.options.onPollHealthy?.();
+    if (!this.running) return;
+    if (!this.pollHealthy) {
+      this.pollHealthy = true;
+      this.options.onOperationHealth?.({ status: "healthy" });
     }
 
     for (const update of updates) {

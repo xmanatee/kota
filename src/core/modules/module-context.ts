@@ -27,7 +27,7 @@ import { resolveLogFormatter } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { getModuleLogStore } from "./module-log.js";
-import { classifyModuleOperationFailure } from "./module-operation-health.js";
+import { classifyModuleOperationFailure, type ModuleOperationFailureIdentity } from "./module-operation-health.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
@@ -155,6 +155,9 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
   const prefix = moduleName ? `[module:${moduleName}]` : "[module]";
   const secretStore = getScopeSecretStore(cwd);
   const formatLine = resolveLogFormatter(config.log?.format);
+  // Carry identities into recovery even when the issue reviewer is paused.
+  // The durable events remain the observation authority; this is activation-local.
+  const pendingOperationFailures = new Map<string, Map<string, ModuleOperationFailureIdentity>>();
   const log = {
     info: (msg: string, data?: unknown) => {
       printTerminalDiagnostic(formatLine("info", prefix, msg, data));
@@ -174,18 +177,19 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       msg: string,
       data?: unknown,
     ) => {
-      printTerminalDiagnostic(formatLine("error", prefix, msg, data), "error");
-      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, {
-        scopeId,
-        operation,
-        detail: data,
-      });
+      const observationData = { scopeId, operation, detail: data };
+      printTerminalDiagnostic(formatLine("error", prefix, msg, observationData), "error");
+      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, observationData);
       if (moduleName !== undefined) {
         const identity = classifyModuleOperationFailure({
           module: moduleName,
           operation,
           message: msg,
         });
+        const key = JSON.stringify([scopeId, operation]);
+        const pending = pendingOperationFailures.get(key) ?? new Map();
+        pending.set(JSON.stringify(identity), identity);
+        pendingOperationFailures.set(key, pending);
         getBus()?.emit("module.operation.failed", {
           scopeId,
           module: moduleName,
@@ -200,21 +204,24 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       operation: string,
       msg?: string,
       data?: unknown,
+      failures?: readonly ModuleOperationFailureIdentity[],
     ) => {
       const message = msg ?? `${operation} recovered`;
-      printTerminalDiagnostic(formatLine("info", prefix, message, data));
-      getModuleLogStore()?.append(moduleName ?? "_default", "info", message, {
-        scopeId,
-        operation,
-        detail: data,
-      });
+      const observationData = { scopeId, operation, detail: data };
+      printTerminalDiagnostic(formatLine("info", prefix, message, observationData));
+      getModuleLogStore()?.append(moduleName ?? "_default", "info", message, observationData);
       if (moduleName !== undefined) {
+        const key = JSON.stringify([scopeId, operation]);
+        const recovered = new Map(pendingOperationFailures.get(key));
+        for (const identity of failures ?? []) recovered.set(JSON.stringify(identity), identity);
         getBus()?.emit("module.operation.recovered", {
           scopeId,
           module: moduleName,
           operation,
+          failures: [...recovered.values()],
           observedAt: new Date().toISOString(),
         });
+        pendingOperationFailures.delete(key);
       }
     },
     debug: (msg: string, data?: unknown) => {

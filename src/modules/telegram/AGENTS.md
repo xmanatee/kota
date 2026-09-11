@@ -77,8 +77,12 @@ notification forwarding.
 - The interactive channel does not own the scheduler. The daemon owns
   it; the channel subscribes to `schedule.fire` bus events and
   broadcasts reminders to active chat sessions.
-- Poll-loop health clears only after a successful Bot API `getUpdates`
-  response. Adapter construction or token validation alone is not recovery.
+- The channel reports retry episodes through scoped module-operation health;
+  HTTP telemetry remains transport diagnostics. Successful `getUpdates` clears
+  the episode, including startup retries, and subsequent failures rearm reporting.
+  Adapter construction, token validation and empty polls do not prove a reply.
+  Deliberate cancellation is quiet; verified host suspension stays diagnostic
+  instead of creating an issue. Authentication and poll ownership failures exit.
 
 ## Boundaries
 

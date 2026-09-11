@@ -233,11 +233,13 @@ export function reportTelegramPollRecovered(
   reportedPollConflicts: Set<string>,
 ): void {
   const reportKey = `${scopeId}:module:telegram:getupdates-conflict`;
-  reportedPollConflicts.delete(reportKey);
+  const hadConflict = reportedPollConflicts.delete(reportKey);
   ctx.log.operationRecovered?.(
     scopeId,
     "poll-loop",
-    "telegram-interactive poll loop completed a healthy getUpdates request",
+    "telegram-interactive poll loop completed a healthy getUpdates request; interactive reply not verified",
+    undefined,
+    hadConflict ? [{ failureKind: "duplicate-consumer", causeKey: "getupdates-conflict" }] : [],
   );
 }
 

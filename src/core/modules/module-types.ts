@@ -1,3 +1,4 @@
+import type { ModuleOperationFailureIdentity } from "./module-operation-health.js";
 /**
  * KotaModule protocol — the standard unit of functionality in KOTA.
  *
@@ -88,6 +89,8 @@ export type ModuleLogger = {
     operation: string,
     msg?: string,
     data?: unknown,
+    /** Additional identities observed outside this logger, cleared by the same operation. */
+    failures?: readonly ModuleOperationFailureIdentity[],
   ) => void;
 };
 

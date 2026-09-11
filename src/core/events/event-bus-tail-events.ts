@@ -1,4 +1,4 @@
-import type { ModuleOperationFailureKind } from "#core/modules/module-operation-health.js";
+import type { ModuleOperationFailureIdentity, ModuleOperationFailureKind } from "#core/modules/module-operation-health.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowDeadLetterBusEvents } from "./event-bus-dead-letter-events.js";
 import type { ScopeId } from "./scope.js";
@@ -215,6 +215,8 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     observedAt: string;
   };
   "module.operation.recovered": {
+    /** Explicit identities allow recovery before the issue consumer has projected failure. */
+    failures?: readonly ModuleOperationFailureIdentity[];
     scopeId: ScopeId;
     module: string;
     operation: string;

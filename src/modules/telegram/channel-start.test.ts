@@ -550,62 +550,7 @@ it("emits one deduped health signal when Telegram reports getUpdates conflicts",
     }
   });
 
-it("reports poll-loop recovery after a healthy getUpdates request", async () => {
-    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
-    const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
-    process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
-    mockedCallTelegramApi.mockReset();
-    let pollCount = 0;
-    mockedCallTelegramApi.mockImplementation(
-      async (_token, method, _params, options) => {
-        if (method === "getMe") {
-          return { id: 1, first_name: "TestBot", username: "test_bot" } as never;
-        }
-        if (method === "getUpdates") {
-          pollCount++;
-          if (pollCount === 1) return [] as never;
-          return await new Promise((_, reject) => {
-            const signal = options?.signal;
-            const abort = () => reject(new Error("poll stopped"));
-            if (signal?.aborted) abort();
-            else signal?.addEventListener("abort", abort, { once: true });
-          });
-        }
-        return {} as never;
-      },
-    );
-    const ctx = makeStubCtx(
-      undefined,
-      makeStubClient(),
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
-    );
-    const operationRecovered = vi.fn();
-    ctx.log.operationRecovered = operationRecovered;
 
-    try {
-      const channel = makeTelegramInteractiveChannel(ctx, [], createTelegramRuntimeState());
-      if (!channel) throw new Error("telegram-interactive channel missing");
-      const result = channel.create(makeChannelStartContext());
-      if (result.status !== "started") {
-        throw new Error(`telegram-interactive did not start: ${result.status}`);
-      }
-
-      await result.adapter.start();
-      await flushAsyncNotifications();
-      expect(operationRecovered).toHaveBeenCalledWith(
-        TEST_SCOPE.scopeId,
-        "poll-loop",
-        "telegram-interactive poll loop completed a healthy getUpdates request",
-      );
-      await result.adapter.stop();
-    } finally {
-      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
-      else delete process.env.TELEGRAM_BOT_TOKEN;
-      if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
-      else delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    }
-  });
 });
 
 async function flushAsyncNotifications(): Promise<void> { await new Promise(resolve => setImmediate(resolve)); }

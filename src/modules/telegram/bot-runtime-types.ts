@@ -38,8 +38,11 @@ export type TelegramBotOptions = {
     events: Pick<ModuleContext["events"], "emit">;
   };
   pollOwner?: TelegramPollingOwner;
-  /** Called after the Bot API completes a getUpdates request successfully. */
-  onPollHealthy?: () => void;
+  /** Operation completion and retry episodes; successful polls are quiet between failures. */
+  onOperationHealth?: (observation:
+    | { status: "failed"; message: string; phase: "startup" | "poll"; hostSuspendedMs: number }
+    | { status: "healthy" }
+  ) => void;
   http?: OutboundHttpRequestPort;
 };
 

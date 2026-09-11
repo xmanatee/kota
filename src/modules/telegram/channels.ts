@@ -4,10 +4,11 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   type OutboundHttpRequestPort,
   outboundHttp,
+  redactOutboundHttpText,
 } from "#core/outbound-http/index.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
 import { createTelegramCallbackHandler } from "./callback-poll.js";
-import { callTelegramApi } from "./client.js";
+import { callTelegramApi, isTelegramAuthenticationFailure } from "./client.js";
 import { renderScopeLabelPrefix } from "./notification-delivery.js";
 import { tryHandleOwnerQuestionReply } from "./owner-question-reply.js";
 import {
@@ -106,6 +107,9 @@ export function makeTelegramInteractiveChannel(
         ctx,
         chatScopeBindings,
       );
+      // The shared update stream belongs to the channel activation, not a chat
+      // or a later default-scope selection. Keep failure and recovery attributable.
+      const healthScopeId = channelCtx.getDefaultScopeRuntime().scope.scopeId;
       const bot = new TelegramBot({
         token,
         model: ctx.config.model,
@@ -117,11 +121,23 @@ export function makeTelegramInteractiveChannel(
           owner: "telegram-interactive",
           source: "daemon channel",
         },
-        onPollHealthy: () => reportTelegramPollRecovered(
-          ctx,
-          channelCtx.getDefaultScopeRuntime().scope.scopeId,
-          runtimeState.reportedPollConflicts,
-        ),
+        onOperationHealth: (observation) => {
+          if (observation.status === "healthy") {
+            reportTelegramPollRecovered(ctx, healthScopeId, runtimeState.reportedPollConflicts);
+            return;
+          }
+          if (observation.hostSuspendedMs > 0) {
+            ctx.log.warn("telegram-interactive request overlapped verified host suspension; retrying", {
+              detail: observation.message,
+              scopeId: healthScopeId,
+              operation: "poll-loop",
+              phase: observation.phase,
+              hostSuspendedMs: observation.hostSuspendedMs,
+            });
+          } else {
+            ctx.log.operationFailed?.(healthScopeId, "poll-loop", observation.message, { phase: observation.phase });
+          }
+        },
         defaultScopeRuntime: channelCtx.getDefaultScopeRuntime(),
         getScopeRuntime: channelCtx.getScopeRuntime,
         allowedChatIds,
@@ -234,23 +250,26 @@ export function makeTelegramInteractiveChannel(
         adapter: {
           listScopeSessionIds: (scopeId) => bot.listScopeSessionIds(scopeId),
           async start() {
+            ctx.log.info("telegram-interactive channel started; polling is not yet verified", { scopeId: healthScopeId });
             startPromise = bot.start().catch((err) => {
-              const message = (err as Error).message;
+              const message = redactOutboundHttpText(
+                (err instanceof Error ? err.message : String(err)).replaceAll(token, "[redacted]"),
+              );
               if (err instanceof TelegramGetUpdatesConflictError) {
                 emitTelegramPollConflictHealthSignal(
                   ctx,
-                  channelCtx.getDefaultScopeRuntime().scope.scopeId,
+                  healthScopeId,
                   runtimeState.reportedPollConflicts,
                 );
                 ctx.log.error(
                   `telegram-interactive channel poll loop exited: ${message}`,
-                  { operation: "poll-loop" },
+                  { scopeId: healthScopeId, operation: "poll-loop" },
                 );
               } else {
                 ctx.log.operationFailed?.(
-                  channelCtx.getDefaultScopeRuntime().scope.scopeId,
+                  healthScopeId,
                   "poll-loop",
-                  `telegram-interactive channel poll loop exited: ${message}`,
+                  `telegram-interactive channel poll loop exited: ${isTelegramAuthenticationFailure(err) ? "authentication failure: " : ""}${message}`,
                 );
               }
               channelCtx.reportFailure(message);

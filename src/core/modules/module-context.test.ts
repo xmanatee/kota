@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getScopeSecretStore } from "#core/config/secrets.js";
 import { EventBus } from "#core/events/event-bus.js";
+import type { BusEvents } from "#core/events/event-bus-types.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { registerTool } from "#core/tools/index.js";
 import {
@@ -82,7 +83,9 @@ describe("ModuleContext.log", () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-health-"));
     try {
       const bus = new EventBus();
-      const failures: Array<{ scopeId: string; module: string }> = [];
+      const failures: Array<BusEvents["module.operation.failed"]> = [];
+      const recoveries: Array<BusEvents["module.operation.recovered"]> = [];
+      bus.on("module.operation.recovered", (payload) => recoveries.push(payload));
       bus.on("module.operation.failed", (payload) => failures.push(payload));
       const onLoad = vi.fn();
       const loader = new ModuleLoader(TEXT_LOG_CONFIG);
@@ -108,6 +111,17 @@ describe("ModuleContext.log", () => {
         observedAt: expect.any(String),
       }]);
       expect(JSON.stringify(failures)).not.toContain("retained-only");
+      ctx.log.operationFailed?.("scope-other", "poll-loop", "network timeout");
+      ctx.log.operationFailed?.("scope-other", "poll-loop", "network timeout");
+      ctx.log.operationRecovered?.("scope-operation", "poll-loop");
+      ctx.log.operationRecovered?.("scope-other", "poll-loop");
+      ctx.log.operationRecovered?.("scope-other", "poll-loop");
+      expect(recoveries.map(({ scopeId, failures }) => ({ scopeId, failures }))).toEqual([
+        { scopeId: "scope-operation", failures: [{ failureKind: "unknown", causeKey: failures[0]!.causeKey }] },
+        { scopeId: "scope-other", failures: [{ failureKind: "provider", causeKey: "external-provider-failure" }] },
+        { scopeId: "scope-other", failures: [] },
+      ]);
+      await loader.unloadAll();
     } finally {
       rmSync(scopeRoot, { recursive: true, force: true });
     }

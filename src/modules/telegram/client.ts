@@ -191,6 +191,12 @@ export function isRetryableTelegramApiFailure(
       (error.errorCode !== undefined && error.errorCode >= 500));
 }
 
+export function isTelegramAuthenticationFailure(error: TelegramApiFailureCandidate): boolean {
+  const code = error instanceof TelegramApiError ? error.errorCode
+    : error instanceof TelegramApiTransportError ? error.statusCode : undefined;
+  return code === 401 || code === 403;
+}
+
 export function isTelegramGetUpdatesConflict(
   error: TelegramApiFailureCandidate,
 ): boolean {
@@ -246,7 +252,7 @@ export async function callTelegramApi<T>(
     throw new TelegramApiError(
       method,
       data.description ?? "unknown error",
-      data.error_code,
+      data.error_code ?? (res.ok ? undefined : res.status),
     );
   }
   return data.result;
