@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RunCoordinator } from "./run-coordinator.js";
+import { RunCoordinator } from "./run-coordinator.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import {
@@ -70,6 +70,7 @@ function workflow(scopeRoot: string, contractChange: ContractChange = "none"): W
 describe("durable workflow queue restoration", () => {
   let scopeRoot: string;
   let runState: RunStateDatabase;
+  let coordinator: RunCoordinator;
 
   beforeEach(() => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-queue-restore-"));
@@ -79,9 +80,13 @@ describe("durable workflow queue restoration", () => {
       rootPath: scopeRoot,
       createdAt: "2026-08-25T10:00:00.000Z",
     });
+    coordinator = new RunCoordinator({ store: runState, daemonEpoch: runState.getEpoch(),
+      concurrency: 1, execute: async () => ({ kind: "terminal", state: "succeeded" }) });
+    coordinator.pauseGlobalAdmission();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await coordinator?.dispose();
     runState.close();
     rmSync(scopeRoot, { recursive: true, force: true });
   });
@@ -263,7 +268,7 @@ describe("durable workflow queue restoration", () => {
     const queue = new WorkflowQueueManager({
       store: new WorkflowRunStore(scopeRoot),
       runState,
-      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      coordinator,
       scopeId: SCOPE_ID,
       scopeRoot,
       getScopeId: () => SCOPE_ID,
@@ -314,7 +319,7 @@ describe("durable workflow queue restoration", () => {
     definition.recovery = recovery;
     const queue = new WorkflowQueueManager({
       store: new WorkflowRunStore(scopeRoot), runState,
-      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      coordinator,
       scopeId: SCOPE_ID, scopeRoot, getScopeId: () => SCOPE_ID,
       getActiveBackoff: () => null, workflowUsesAgent: () => false,
       getDefinitions: () => [definition], log: vi.fn(),
@@ -349,7 +354,7 @@ describe("durable workflow queue restoration", () => {
     definition.recovery = () => new Promise((resolve) => { finish = resolve; });
     const queue = new WorkflowQueueManager({
       store: new WorkflowRunStore(scopeRoot), runState,
-      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      coordinator,
       scopeId: SCOPE_ID, scopeRoot, getScopeId: () => SCOPE_ID,
       getActiveBackoff: () => null, workflowUsesAgent: () => false,
       getDefinitions: () => [definition], log: vi.fn(),

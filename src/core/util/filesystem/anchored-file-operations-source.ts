@@ -24,7 +24,23 @@ function readTextFile(request, parentIdentity) {
   const opened = inspectTextFileEntry(request.fileName, undefined);
   if (opened === undefined) return { exists: false };
   try {
-    const content = readFileSync(opened.fd, "utf8");
+    let content;
+    if (request.maxBytes !== undefined) {
+      if (!Number.isSafeInteger(request.maxBytes) || request.maxBytes < 0 || opened.snapshot.size > request.maxBytes) {
+        refuse("file exceeds read limit");
+      }
+      const bytes = Buffer.alloc(request.maxBytes + 1);
+      let length = 0;
+      while (length < bytes.length) {
+        const count = readSync(opened.fd, bytes, length, bytes.length - length, length);
+        if (count === 0) break;
+        length += count;
+      }
+      if (length > request.maxBytes) refuse("file exceeds read limit");
+      content = bytes.subarray(0, length).toString("utf8");
+    } else {
+      content = readFileSync(opened.fd, "utf8");
+    }
     const after = snapshot(fstatSync(opened.fd));
     if (!sameSnapshot(after, opened.snapshot)) {
       refuse("file entry changed while it was read");

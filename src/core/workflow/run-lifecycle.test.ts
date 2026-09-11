@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import type { ControlMonitorCoverageArtifact } from "./control-monitor-coverage.js";
@@ -20,6 +20,20 @@ import {
   readWriterIntegrationEvidence,
   writerIntegrationEvidencePath,
 } from "./writer-integration-evidence.js";
+
+// Runtime composition creates its own allocator; control only the external
+// listener probe, just as the direct lifecycle fixture below does.
+vi.mock("./run-resources.js", async (original) => {
+  const actual = await original<typeof import("./run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(store: RunStateDatabase, options: import("./run-resources.js").RunResourceAllocatorOptions) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
 
 type Fixture = {
   root: string;

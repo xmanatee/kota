@@ -1146,41 +1146,35 @@ export class RunStateDatabase {
   readWorkflowSummary(scopeId: string): WorkflowRuntimeSummary {
     const workflows: WorkflowRuntimeSummary["workflows"] = {};
     let completedRuns = 0;
-    for (const run of this.listRuns(scopeId)) {
-      if (run.startedAt !== undefined) {
-        const current = workflows[run.workflow]?.lastStarted;
-        if (
-          current === undefined ||
-          Date.parse(run.startedAt) >= Date.parse(current.startedAt)
-        ) {
-          workflows[run.workflow] = {
-            ...workflows[run.workflow],
-            lastStarted: { runId: run.id, startedAt: run.startedAt },
-          };
-        }
-      }
-      if (
-        run.finishedAt === undefined ||
-        run.startedAt === undefined ||
-        run.resultStatus === undefined
-      ) {
-        continue;
-      }
-      completedRuns += 1;
-      const current = workflows[run.workflow]?.lastCompletion;
-      if (
-        current === undefined ||
-        Date.parse(run.finishedAt) >= Date.parse(current.completedAt)
-      ) {
-        workflows[run.workflow] = {
-          ...workflows[run.workflow],
-          lastCompletion: {
-            runId: run.id,
-            startedAt: run.startedAt,
-            completedAt: run.finishedAt,
-            status: run.resultStatus,
-          },
-        };
+    // Rank at the storage boundary: summaries never materialize historical
+    // triggers, attempts, processes or resource ownership on the control thread.
+    const rows = this.database.prepare(`
+      WITH starts AS (
+        SELECT workflow, id, started_at, NULL AS finished_at, NULL AS result_status,
+          'start' AS kind, 0 AS completed_count,
+          ROW_NUMBER() OVER (PARTITION BY workflow ORDER BY julianday(started_at) DESC, admitted_at DESC, rowid DESC) AS rank
+        FROM runs WHERE scope_id = ? AND started_at IS NOT NULL
+      ), completions AS (
+        SELECT workflow, id, started_at, finished_at, result_status,
+          'completion' AS kind, COUNT(*) OVER () AS completed_count,
+          ROW_NUMBER() OVER (PARTITION BY workflow ORDER BY julianday(finished_at) DESC, admitted_at DESC, rowid DESC) AS rank
+        FROM runs WHERE scope_id = ? AND started_at IS NOT NULL
+          AND finished_at IS NOT NULL AND result_status IS NOT NULL
+      )
+      SELECT * FROM starts WHERE rank = 1
+      UNION ALL SELECT * FROM completions WHERE rank = 1
+    `).all(scopeId, scopeId) as Array<{
+      workflow: string; id: string; started_at: string; completed_count: number;
+    } & ({ kind: "start" } | { kind: "completion"; finished_at: string; result_status: NonNullable<StoredRun["resultStatus"]> })>;
+    for (const row of rows) {
+      const current = workflows[row.workflow] ?? {};
+      if (row.kind === "start") {
+        workflows[row.workflow] = { ...current, lastStarted: { runId: row.id, startedAt: row.started_at } };
+      } else {
+        completedRuns = row.completed_count;
+        workflows[row.workflow] = { ...current, lastCompletion: {
+          runId: row.id, startedAt: row.started_at, completedAt: row.finished_at, status: row.result_status,
+        } };
       }
     }
     return { completedRuns, workflows };
@@ -1695,18 +1689,42 @@ export class RunStateDatabase {
     };
   }
 
-  listRuns(scopeId: string, states?: readonly DurableRunState[]): StoredRun[] {
-    const rows = states && states.length > 0
-      ? this.database
-          .prepare(
-            `SELECT id FROM runs WHERE scope_id = ? AND state IN (${states.map(() => "?").join(",")})
-             ORDER BY admitted_at, rowid`,
-          )
-          .all(scopeId, ...states)
-      : this.database
-          .prepare("SELECT id FROM runs WHERE scope_id = ? ORDER BY admitted_at, rowid")
-          .all(scopeId);
-    return rows.map((row) => this.getRun((row as { id: string }).id)!);
+  listRunStates(scopeId: string): Array<{ id: string; state: DurableRunState }> {
+    return this.database.prepare("SELECT id, state FROM runs WHERE scope_id = ?")
+      .all(scopeId) as Array<{ id: string; state: DurableRunState }>;
+  }
+
+  listRuns(scopeId: string, states?: readonly DurableRunState[], selection?: { references?: readonly string[]; workflow?: string; triggerReferences?: readonly string[] }): StoredRun[] {
+    return this.listRunIds(scopeId, states, selection).map((id) => this.getRun(id)!);
+  }
+
+  listRunIds(scopeId: string, states?: readonly DurableRunState[], selection?: { references?: readonly string[]; workflow?: string; triggerReferences?: readonly string[] }): string[] {
+    const conditions = ["scope_id = ?"];
+    const parameters: string[] = [scopeId];
+    if (states?.length) {
+      conditions.push(`state IN (${states.map(() => "?").join(",")})`);
+      parameters.push(...states);
+    }
+    if (selection?.workflow !== undefined) {
+      conditions.push("workflow = ?");
+      parameters.push(selection.workflow);
+    }
+    if (selection?.references !== undefined || selection?.triggerReferences !== undefined) {
+      if (!selection.references?.length && !selection.triggerReferences?.length) return [];
+      // Select identities in one scoped query before loading attempts or resources.
+      // Trigger linkage is explicit; prose tokens used as run citations must not
+      // match incidental trigger values such as "manual" or "report".
+      conditions.push(`(EXISTS (SELECT 1 FROM json_each(?) reference WHERE
+        runs.id = reference.value OR
+        substr(runs.id, -length(reference.value) - 1) = '-' || reference.value)
+        OR EXISTS (SELECT 1 FROM json_tree(runs.trigger_json, '$.payload') value
+          WHERE value.type = 'text' AND value.atom IN (SELECT value FROM json_each(?))))`);
+      parameters.push(JSON.stringify(selection.references ?? []), JSON.stringify(selection.triggerReferences ?? []));
+    }
+    const rows = this.database.prepare(
+      `SELECT id FROM runs WHERE ${conditions.join(" AND ")} ORDER BY admitted_at, rowid`,
+    ).all(...parameters);
+    return rows.map((row) => (row as { id: string }).id);
   }
 
   getEpoch(): number {

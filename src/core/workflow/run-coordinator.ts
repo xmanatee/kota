@@ -91,7 +91,7 @@ const TERMINAL_STATES = new Set<TerminalRunState>([
 
 /**
  * Owns daemon-wide run admission. Durable state remains authoritative; this
- * class keeps only the AbortControllers for attempts executing in this process.
+ * class owns cancellation for attempts and retained assessments in this process.
  */
 export class RunCoordinator {
   private readonly store: RunStateDatabase;
@@ -108,6 +108,9 @@ export class RunCoordinator {
   private readonly publicationRetryMs: number;
   private readonly prepareCancellation: NonNullable<RunCoordinatorOptions["prepareCancellation"]>;
   private readonly active = new Map<string, ActiveRun>();
+  private readonly recoveryAssessments = new Map<string, {
+    scopeId: string; controller: AbortController;
+  }>();
   private readonly idleWaiters = new Set<() => void>();
   private readonly scopeIdleWaiters = new Map<string, Set<() => void>>();
   private readonly capacityWaiters: CapacityWaiter[] = [];
@@ -188,7 +191,8 @@ export class RunCoordinator {
   }
 
   isScopeBusy(scopeId: string): boolean {
-    return this.activeRunIdsForScope(scopeId).length > 0;
+    return this.activeRunIdsForScope(scopeId).length > 0 ||
+      [...this.recoveryAssessments.values()].some((assessment) => assessment.scopeId === scopeId);
   }
 
   pauseGlobalAdmission(): void {
@@ -250,6 +254,24 @@ export class RunCoordinator {
     return started;
   }
 
+  /** Owns cancellation and shutdown of assessment work outside an active attempt. */
+  async assessRetainedRun<T>(runId: string, assess: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const run = this.store.getRun(runId);
+    if (this.phase !== "active" || run?.state !== "needs_attention") {
+      throw new Error(`Run "${runId}" is unavailable for recovery assessment`);
+    }
+    if (this.recoveryAssessments.has(runId)) throw new Error(`Run "${runId}" is already being assessed`);
+    const controller = new AbortController();
+    this.recoveryAssessments.set(runId, { scopeId: run.scopeId, controller });
+    try {
+      return await assess(controller.signal);
+    } finally {
+      this.recoveryAssessments.delete(runId);
+      this.resolveScopeIdleWaiters(run.scopeId);
+      this.resolveIdleWaiters();
+    }
+  }
+
   /**
    * Cancels queued work without executing it, or durably cancels and aborts an
    * active attempt. Active capacity is released only after execute() settles.
@@ -274,6 +296,7 @@ export class RunCoordinator {
     ) {
       return { cancelled: false, reason: "not-found" };
     }
+    this.recoveryAssessments.get(runId)?.controller.abort(new Error(`Run "${runId}" recovery was cancelled`));
     const prepared = this.prepareCancellation(run);
     if (!prepared.ready) {
       const transitionedAt = this.now();
@@ -304,7 +327,9 @@ export class RunCoordinator {
 
   cancelScope(scopeId: string): number {
     let cancelled = 0;
-    for (const runId of this.activeRunIdsForScope(scopeId)) {
+    const runIds = new Set([...this.activeRunIdsForScope(scopeId),
+      ...[...this.recoveryAssessments].filter(([, assessment]) => assessment.scopeId === scopeId).map(([id]) => id)]);
+    for (const runId of runIds) {
       if (this.cancel(runId).cancelled) cancelled += 1;
     }
     return cancelled;
@@ -361,7 +386,7 @@ export class RunCoordinator {
   }
 
   whenIdle(): Promise<void> {
-    if (this.active.size === 0) return Promise.resolve();
+    if (this.active.size === 0 && this.recoveryAssessments.size === 0) return Promise.resolve();
     return new Promise((resolve) => this.idleWaiters.add(resolve));
   }
 
@@ -597,7 +622,7 @@ export class RunCoordinator {
   }
 
   private resolveIdleWaiters(): void {
-    if (this.active.size > 0) return;
+    if (this.active.size > 0 || this.recoveryAssessments.size > 0) return;
     for (const resolve of this.idleWaiters) resolve();
     this.idleWaiters.clear();
   }
@@ -768,8 +793,11 @@ export class RunCoordinator {
       active.cancelled = true;
       active.controller.abort(new Error(`Run "${active.run.id}" was cancelled during shutdown`));
     }
+    for (const assessment of this.recoveryAssessments.values()) {
+      assessment.controller.abort(new Error("Recovery assessment cancelled during shutdown"));
+    }
     const deadline = Date.now() + maxWaitMs;
-    await this.waitForDisposalPhase(this.whenIdle(), deadline, "active attempts");
+    await this.waitForDisposalPhase(this.whenIdle(), deadline, "active attempts and recovery assessments");
     if (this.publicationDrain !== null) {
       await this.waitForDisposalPhase(
         this.publicationDrain,

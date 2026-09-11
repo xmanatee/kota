@@ -1,8 +1,10 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { constants, lstatSync, realpathSync, type Stats } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ANCHORED_FILE_HELPER_SOURCE } from "./anchored-file-helper-source.js";
 import {
+  type AnchoredBatchEntry,
+  type BatchReadRequest,
   type FileAccess,
   type FileIdentity,
   type FileSnapshot,
@@ -182,4 +184,56 @@ export function removeAnchoredTextFile(args: FileAccess & { expectedSnapshot: Fi
   if (response.removed !== true) {
     throw unsafeFilesystemPath(args.filePath, "helper omitted the removal result");
   }
+}
+
+/** Bounded independent reads share one isolated helper and retain per-file failures. */
+export async function readAnchoredTextFiles(
+  files: readonly (FileAccess & { maxBytes: number })[],
+  signal?: AbortSignal,
+): Promise<AnchoredBatchEntry[]> {
+  if (files.length > 64) throw new Error("Anchored read batch exceeds 64 files");
+  if (files.length === 0) return [];
+  const entries: AnchoredBatchEntry[] = [];
+  const selected: number[] = [];
+  const request: BatchReadRequest = { operation: "read-batch", requests: [] };
+  for (const [index, file] of files.entries()) {
+    try {
+      request.requests.push({ ...prepareFile(file, false), operation: "read", maxBytes: file.maxBytes });
+      selected.push(index);
+    } catch (error) {
+      entries[index] = { ok: false, reason: error instanceof Error ? error.message : "Unsafe file access" };
+    }
+  }
+  if (selected.length === 0) return entries;
+  signal?.throwIfAborted();
+  const output = await new Promise<string>((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "--eval", ANCHORED_FILE_HELPER_SOURCE], {
+      env: {}, stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
+    });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let failure: Error | undefined;
+    const abort = () => { failure = new Error("Anchored read aborted"); child.kill("SIGKILL"); };
+    signal?.addEventListener("abort", abort, { once: true });
+    child.stdout.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > HELPER_MAX_BUFFER) { failure = new Error("Anchored read output exceeds limit"); child.kill("SIGKILL"); }
+      else chunks.push(chunk);
+    });
+    child.stderr.resume();
+    child.stdin.on("error", (error: Error) => { failure ??= error; });
+    child.on("error", (error) => { failure = error; });
+    child.on("close", (code) => {
+      signal?.removeEventListener("abort", abort);
+      if (failure || code !== 0) reject(failure ?? new Error("Anchored read helper failed"));
+      else resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    child.stdin.end(JSON.stringify(request));
+    if (signal?.aborted) abort();
+  });
+  const response = helperResponseSchema.parse(JSON.parse(output));
+  if (!response.ok) throw new Error(response.reason);
+  if (response.files?.length !== selected.length) throw new Error("Anchored batch omitted file results");
+  for (const [index, file] of response.files.entries()) entries[selected[index]!] = file;
+  return entries;
 }

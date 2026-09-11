@@ -101,10 +101,10 @@ export const selectIssue = typedCodeStep<IssueDecisionInput>({
       "reason",
       "issue",
     ]),
-  run: (ctx) => {
+  run: async (ctx) => {
     const selected = triggerIssue(ctx);
     if (!selected.eligible || !selected.issue) return selected;
-    const evidencePath = writeIssueEvidence(ctx, selected.issue.evidenceRefs);
+    const evidencePath = await writeIssueEvidence(ctx, selected.issue.evidenceRefs);
     return evidencePath === null ? selected : { ...selected, evidencePath };
   },
 });

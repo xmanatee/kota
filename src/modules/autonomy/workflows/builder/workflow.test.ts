@@ -109,7 +109,7 @@ describe("targeted builder contract", () => {
     const preflight = builderWorkflow.steps.find((step) => step.id === "inspect-target-task");
     if (!preflight || preflight.type !== "code") throw new Error("missing preflight");
     const agentDir = join(workspace, "agent");
-    expect(await preflight.run({
+    const context = {
       runtimeResources: { agentRunDir: agentDir },
       workflow: { runId: "retained" },
       state: { read: () => ({ revision: 0, value: null }) },
@@ -117,7 +117,8 @@ describe("targeted builder contract", () => {
       workspaceRoot: workspace,
       trigger: { payload },
       runBlocking: runWorkflowBlockingOperation,
-    } as never)).toMatchObject({ actionable: true });
+    } as never;
+    expect(await preflight.run(context)).toMatchObject({ actionable: true });
     writeTask(root, "open", "changed");
     expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({ actionable: true });
     publish(root);
@@ -127,6 +128,7 @@ describe("targeted builder contract", () => {
       taskId: "task-target",
       reason: "task contract changed after dispatch",
     });
+    expect(await preflight.run(context)).toMatchObject({ actionable: false, recoveryRevision: null });
   });
 
   it("retains unchanged failures and reconciles a changed canonical contract without changing task identity", async () => {
@@ -137,6 +139,7 @@ describe("targeted builder contract", () => {
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
+      signal: new AbortController().signal,
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
       runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload },
@@ -160,6 +163,35 @@ describe("targeted builder contract", () => {
     } finally { store.close(); }
   });
 
+  it("rejects a source contract changed while the evidence worker is collecting", async () => {
+    const root = project();
+    writeTask(root, "open");
+    publish(root);
+    const payload = listBuilderTaskDispatches(root)[0]!;
+    const store = new RunStateDatabase(join(root, ".kota"));
+    store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
+    let published = false;
+    const input = {
+      signal: new AbortController().signal,
+      scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
+      runtimeStateDir: join(root, ".kota"),
+      trigger: { event: "autonomy.queue.available", schemaRef: null, payload },
+      state: { read: <T,>(key: string) => store.readScopeStateValue<T>("scope", key) },
+      reportProgress: () => {
+        if (published) return;
+        published = true;
+        writeTask(root, "open", "Revised during collection");
+        publish(root);
+      },
+    };
+    try {
+      expect(await assessBuilderRecovery(input)).toMatchObject({
+        resume: false, reason: "Target contract changed during evidence collection; reassess current intent",
+      });
+      expect(published).toBe(true);
+    } finally { store.close(); }
+  });
+
   it("recovers on task-linked execution and capability exports while restraining observation churn", async () => {
     const root = project();
     writeTask(root, "open", "Requires Linux boundary results; existing cohort .kota/eval-runs/linux-boundary");
@@ -168,6 +200,7 @@ describe("targeted builder contract", () => {
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
+      signal: new AbortController().signal,
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
       runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload },
@@ -181,6 +214,12 @@ describe("targeted builder contract", () => {
       });
     };
     const exportResult = (path: string, content: object) => {
+      // Runtime-owned task linkage selects exports before reading their leaves.
+      if (path.startsWith("runs/") && !store.getRun(path.slice(5))) store.admitRun({
+        id: path.slice(5), scopeId: "scope", workflow: "probe", repository: "none", resources: [],
+        trigger: { event: "probe", schemaRef: null, payload: { taskId: path === "runs/unrelated" ? "task-other" : payload.taskId } },
+        admittedAt: new Date().toISOString(),
+      });
       const directory = join(root, ".kota", path);
       mkdirSync(directory, { recursive: true });
       writeFileSync(join(directory, "result.json"), JSON.stringify(content));
@@ -245,6 +284,7 @@ describe("targeted builder contract", () => {
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
+      signal: new AbortController().signal,
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
       runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: listBuilderTaskDispatches(root)[0]! },
@@ -321,6 +361,7 @@ describe("targeted builder contract", () => {
       writeFileSync(join(dir, `${i}.json`), JSON.stringify({ taskId: "task-other", source: "fixture", outcome: "pass" }));
     }
     const input = {
+      signal: new AbortController().signal,
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
       runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: listBuilderTaskDispatches(root)[0]! },

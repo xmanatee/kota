@@ -170,17 +170,17 @@ export function createScopeRuntime(
   const runStore = new WorkflowRunStore(scopeRoot, {
     authorityCriticalRunIds: () =>
       workflowRunMetadataAuthorityCriticalIds(
-        opts.runState.listRuns(opts.scope.scopeId),
+        opts.runState.listRunStates(opts.scope.scopeId),
         opts.runState.listPendingPublicationHeads()
           .filter((publication) => publication.scopeId === opts.scope.scopeId),
       ),
     operationallyActiveRunIds: () =>
       workflowRunMetadataOperationallyActiveIds(
-        opts.runState.listRuns(opts.scope.scopeId),
+        opts.runState.listRunStates(opts.scope.scopeId),
       ),
     terminalRunIds: () =>
       workflowRunMetadataTerminalIds(
-        opts.runState.listRuns(opts.scope.scopeId),
+        opts.runState.listRunStates(opts.scope.scopeId),
       ),
   });
   const taskStore = new TaskStore(scopeRoot, undefined, pbus);

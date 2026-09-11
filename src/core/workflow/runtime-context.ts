@@ -97,17 +97,17 @@ export function createWorkflowRuntimeContext(
   const store = runtimeConfig.runStore ?? new WorkflowRunStore(scopeRoot, {
     authorityCriticalRunIds: () =>
       workflowRunMetadataAuthorityCriticalIds(
-        runtimeConfig.runState.listRuns(scopeId),
+        runtimeConfig.runState.listRunStates(scopeId),
         runtimeConfig.runState.listPendingPublicationHeads()
           .filter((publication) => publication.scopeId === scopeId),
       ),
     operationallyActiveRunIds: () =>
       workflowRunMetadataOperationallyActiveIds(
-        runtimeConfig.runState.listRuns(scopeId),
+        runtimeConfig.runState.listRunStates(scopeId),
       ),
     terminalRunIds: () =>
       workflowRunMetadataTerminalIds(
-        runtimeConfig.runState.listRuns(scopeId),
+        runtimeConfig.runState.listRunStates(scopeId),
       ),
   });
   const pbus =

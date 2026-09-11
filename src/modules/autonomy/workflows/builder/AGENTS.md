@@ -25,7 +25,10 @@ Builder is a business workflow, not a private execution runtime.
   retained writer's own artifacts do not authorize another attempt. Routine reports
   and copies at new paths are not new evidence; each execution/capability record
   must itself be attributable. Collection uses the shared asynchronous worker
-  boundary so retained admission cannot block daemon control.
+  boundary so retained admission cannot block daemon control. Select scoped
+  task-linked run identities and explicit run/export citations before reading
+  evidence through the shared anchored batch reader. Recheck canonical task
+  intent after collection; non-actionable targets skip evidence export.
 - Retained recovery compares the admitted task, critic policy, and linked issue
   revisions with the failed attempt. Unchanged inputs stay retained. The shared
   runtime reconciles a changed canonical contract under the same resource and

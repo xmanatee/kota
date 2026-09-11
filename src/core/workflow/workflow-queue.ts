@@ -365,16 +365,27 @@ export class WorkflowQueueManager {
     if (run?.state !== "needs_attention" || run.scopeId !== this.config.scopeId) return false;
     const definition = this.definition(run.workflow);
     if (!definition?.enabled) return false;
-    const recovery = canRestartRetainedWorkflow(run) ? await definition.recovery?.({
-      scopeRoot: this.config.scopeRoot,
-      stateDir: this.config.store.rootDir,
-      runtimeStateDir: dirname(this.config.runState.path),
-      scopeId: this.config.scopeId,
-      workflowName: run.workflow,
-      runId,
-      trigger: run.trigger,
-      state: { read: (key) => this.config.runState.readScopeStateValue(this.config.scopeId, key) },
-    }) : undefined;
+    const resolver = definition.recovery;
+    const recovery = canRestartRetainedWorkflow(run) && resolver
+      ? await this.config.coordinator.assessRetainedRun(runId, async (signal) => {
+        try {
+          const decision = await resolver({
+            signal,
+            scopeRoot: this.config.scopeRoot,
+            stateDir: this.config.store.rootDir,
+            runtimeStateDir: dirname(this.config.runState.path),
+            scopeId: this.config.scopeId,
+            workflowName: run.workflow,
+            runId,
+            trigger: run.trigger,
+            state: { read: (key) => this.config.runState.readScopeStateValue(this.config.scopeId, key) },
+          });
+          return signal.aborted ? { resume: false as const, reason: "Recovery assessment cancelled" } : decision;
+        } catch (error) {
+          if (signal.aborted) return { resume: false as const, reason: "Recovery assessment cancelled" };
+          throw error;
+        }
+      }) : undefined;
     if (recovery?.resume === false) {
       this.config.log(`Retained ${runId}: ${recovery.reason}`);
       return false;

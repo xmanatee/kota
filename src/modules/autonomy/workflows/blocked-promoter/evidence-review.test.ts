@@ -58,6 +58,7 @@ it("recollects corrected probe source and newly trusted declarations before reus
   let observations = 0;
   const ctx: Parameters<typeof reviewBlockedTasks>[0] = {
     workspaceRoot: root, scopeRoot: root, state, agentRuntime: runtime,
+    scopeId: state.scopeId, runtimeStateDir: state.stateDir,
     runEvidence: { getRun: (id) => store.getRun(id), listRuns: () => store.listRuns(state.scopeId) },
     workflow: { name: "blocked-promoter", runId: "review", runDir: ".kota/runs/review", runDirPath: join(root, ".kota/runs/review"), definitionPath: "workflow.ts" },
     runtimeResources: { profileId: "review", env: {}, agentRunDir: join(root, "agent") },
@@ -128,6 +129,11 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
     resources: ["task:task-evidence"], trigger: { event: "manual", schemaRef: null, payload: {} },
     admittedAt: new Date().toISOString(),
   });
+  store.admitRun({
+    id: "capture", scopeId: state.scopeId, workflow: "probe", repository: "none",
+    resources: [], trigger: { event: "manual", schemaRef: null, payload: taskLink },
+    admittedAt: new Date().toISOString(),
+  });
   const runtime = resolveAgentRuntime(undefined);
   for (const kind of ["read", "write"] as const) {
     registerTool({
@@ -147,6 +153,7 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
   let calls = 0;
   const ctx: Parameters<typeof reviewBlockedTasks>[0] = {
     workspaceRoot: root, scopeRoot: root, state, agentRuntime: runtime,
+    scopeId: state.scopeId, runtimeStateDir: state.stateDir,
     runEvidence: { getRun: (id) => store.getRun(id), listRuns: () => store.listRuns(state.scopeId) },
     workflow: { name: "blocked-promoter", runId: "review", runDir: ".kota/runs/review", runDirPath: join(root, ".kota/runs/review"), definitionPath: "workflow.ts" },
     runtimeResources: { profileId: "review", env: {}, agentRunDir: join(root, "agent") },

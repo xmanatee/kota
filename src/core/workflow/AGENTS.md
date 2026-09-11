@@ -16,7 +16,9 @@ and publication.
   or shared state store. Only daemon database composition migrates schema and
   removes obsolete operational files; offline readers are explicit and read-only.
 - `RunCoordinator` owns capacity, admission pause, cancellation, and child waits.
-  Waiting parents release capacity and reacquire it before continuing.
+  Waiting parents release capacity and reacquire it before continuing. Retained
+  recovery assessments inherit coordinator cancellation and join its scope and
+  shutdown drains without taking execution capacity.
 - `RunLifecycle` owns sandbox creation/adoption, resource allocation, execution,
   writer finalization, restart reconciliation, and cleanup.
 - `IntegrationQueue` alone publishes writers: rebase onto canonical head,
@@ -82,6 +84,9 @@ and publication.
   current-run work and following steps; explicit resume is a separate checkpoint.
 - Hard timeouts cap runtime; idle timeouts cap gaps between trusted heartbeats
   or typed agent progress messages.
+- Shared active timing excludes suspension only from independent OS clock or
+  power observations. Event-loop starvation remains elapsed runtime; timer
+  lateness alone cannot extend a deadline.
 - Agent envelopes stay thin. Supply prior output only when repository context
   and tools cannot recover it cheaply.
 - `WorkflowStepContext.stateDir` is the owning scope's `.kota` artifact root;

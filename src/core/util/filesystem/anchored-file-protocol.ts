@@ -38,7 +38,7 @@ export type PreparedDirectory = {
 export type HelperRequest = PreparedDirectory &
   (
     | { operation: "list"; nameSuffix: string | null }
-    | { operation: "read"; fileName: string }
+    | { operation: "read"; fileName: string; maxBytes?: number }
     | ({ operation: "write"; fileName: string; content: string } & MutationExpectation)
     | { operation: "remove"; fileName: string; expectedSnapshot: FileSnapshot }
   );
@@ -48,9 +48,17 @@ const verifiedFileSchema = z.object({
   snapshot: fileSnapshotSchema,
 });
 
+const batchEntrySchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), file: verifiedFileSchema.nullable() }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+]);
+export type AnchoredBatchEntry = z.infer<typeof batchEntrySchema>;
+export type BatchReadRequest = { operation: "read-batch"; requests: Array<PreparedDirectory & { operation: "read"; fileName: string; maxBytes: number }> };
+
 export const helperResponseSchema = z.discriminatedUnion("ok", [
   z.object({
     ok: z.literal(true),
+    files: z.array(batchEntrySchema).optional(),
     entries: z.array(verifiedFileSchema.extend({ name: z.string() })).optional(),
     snapshot: z.discriminatedUnion("exists", [
       z.object({ exists: z.literal(false) }),

@@ -259,6 +259,25 @@ describe("RunStateDatabase", () => {
     });
   });
 
+  test("selects scoped run references before materialization and distinguishes identity from trigger linkage", () => {
+    const store = createStore();
+    store.registerScope({ id: "scope-b", rootPath: "/scope-b", createdAt: "2026-09-10T00:00:00Z" });
+    try {
+      for (const [id, scopeId, payload] of [
+        ["builder-abcdef", "scope-a", { taskId: "task-target" }],
+        ["probe-ghijkl", "scope-a", { refs: ["task-target"] }],
+        ["report-mnopqr", "scope-a", { reason: "abcdef", mode: "manual" }],
+        ["foreign-abcdef", "scope-b", { taskId: "task-target" }],
+      ] as const) store.admitRun({ id, scopeId, workflow: "probe", repository: "none", resources: [],
+        trigger: { event: "manual", schemaRef: null, payload }, admittedAt: "2026-09-10T00:00:00Z" });
+      expect(store.listRunIds("scope-a", undefined, { references: ["abcdef"] })).toEqual(["builder-abcdef"]);
+      expect(store.listRunIds("scope-a", undefined, { references: ["manual"], triggerReferences: ["task-target"] }))
+        .toEqual(["builder-abcdef", "probe-ghijkl"]);
+      expect(store.listRunIds("scope-a", undefined, { references: [] })).toEqual([]);
+      expect(store.listRunIds("scope-a", undefined, { references: ["manual"], triggerReferences: ["task-target"], workflow: "other" })).toEqual([]);
+    } finally { store.close(); }
+  });
+
   test("updates runtime-owned scope state with revision checks", () => {
     const store = createStore();
 

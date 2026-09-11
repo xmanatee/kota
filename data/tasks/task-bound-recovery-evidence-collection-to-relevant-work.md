@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p0
 ---
 # Make recovery evidence collection proportional to relevant work
@@ -100,3 +100,71 @@ Keep one filesystem-safety boundary and one runtime-owned execution lifecycle.
 This corrects an internal implementation defect. It needs no new owner permission
 or manual capture. Existing recovery and activation tasks retain their separate
 live acceptance requirements; this task does not claim them completed.
+
+
+## Implementation and verification — September 11
+
+Run `2026-09-11T04-24-49-479Z-builder-ddrk4y` implements scoped run selection
+before materialization, shared anchored batch reads, asynchronous issue export,
+abort/progress propagation, and canonical task rechecks after collection.
+Known stale targets skip collection. Control summaries use storage-level
+aggregation and lightweight run-state projections instead of repeatedly loading
+historical triggers, attempts, resources and processes. Active deadlines require
+independent OS suspension evidence; timer starvation stays chargeable runtime.
+The duplicate evidence-reader boundary is removed. Retained-run exclusion,
+resource ownership and publication guards remain with their existing owners.
+
+The production daemon/control-route journey seeded 3,452 unrelated durable runs
+and 37,972 JSON leaves. Selected collection stayed at 70 reads and two helper
+launches: 133 ms without history and 198 ms with history. Three concurrent
+preflights reached the next step in 1.32, 2.23 and 3.12 seconds; the slowest of
+14 status-plus-health request pairs took 162 ms. Only network listener/probe
+ports were controlled; scoped authority, dispatch, workers, evidence reads and
+control routing used production owners. No host suspension was subtracted.
+A separate real 6,500 ms event-loop stall expired its active deadline with
+6,500 ms active and zero suspended time.
+
+`pnpm check:fast` passed. The build wrapper cannot remove sandbox-protected
+`dist` directories; production compilation is checked in a fresh run-owned
+output directory. Focused filesystem/evidence,
+blocking worker, deadline and builder tests passed, including changed outcomes,
+copied reports, own-writer exclusion and source drift during collection.
+Broader queue/coordinator, lifecycle finalization/restart, publication and daemon
+activation tests passed. The lifecycle test's runtime-created allocator now
+controls the same external listener probe as its direct lifecycle fixture;
+this resolves its sandbox-specific setup failures without replacing lifecycle
+semantics. Evidence and command logs remain in this run's agent directory,
+including `control-history-final.log`, `starvation-probe.json`,
+`owner-final.log`, `recovery-broad-final.log`, `lifecycle-final.log`,
+`revision-final.log`, `check-fast-final.log` and `build-final.log`.
+
+The critic repair restores discovery of task-named eval exports even when the
+body has no export citation; content attribution still controls relevance.
+Retained assessments now receive a required coordinator-owned abort signal.
+Run/scope cancellation and shutdown stop their real evidence workers, and idle
+waits retain ownership until assessments settle without using execution capacity.
+The queue continues sharing concurrent assessments and preserving stale-result
+rejection. The repair runtime suite passed 61 tests, including all three retained
+cancellation journeys, restart/activation, queue restoration and worker lifecycle.
+The representative-history rerun held at 70 reads/two helpers; concurrent
+preflights reached the next step within 1.41 seconds and control-request pairs
+within 23 ms (`repair-runtime.log`). Task-named export discovery and content
+attribution passed at the evidence owner (`repair-behavior.log`).
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Automatically collected, task-attributable runtime evidence after this changeset publishes and activates, showing real dispatch, drain completion, capacity refill and preserved held-writer ownership; equivalent scoped exports are accepted.
+
+The implementation and independent safety checks are complete. The remaining
+acceptance is observation of this revision on the launching daemon after
+runtime-owned publication and activation. Publication follows this agent step;
+this step cannot observe its own future integration, and its workflow rails
+prohibit controlling the launching daemon. The test daemon above proves the
+production composition under representative history, not deployment of this
+changeset. No new permission, manual capture, credential change or safety-pause
+change is requested. Resume once the runtime's existing activation/recovery
+owners expose attributable post-integration evidence. Preserve the original
+held writers and their task/resource lineage. The separate activation and
+recovery tasks retain their own live acceptance contracts.

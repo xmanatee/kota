@@ -146,7 +146,7 @@ export type WorkflowRecoveryDecision =
   | { resume: true; trigger: WorkflowRunTrigger; revision: string };
 
 export type WorkflowRecoveryResolver = (
-  input: WorkflowTriggerAdmissionInput & { runId: string },
+  input: WorkflowTriggerAdmissionInput & { runId: string; signal: AbortSignal },
 ) => WorkflowRecoveryDecision | Promise<WorkflowRecoveryDecision>;
 
 export type WorkflowResourceResolver = (

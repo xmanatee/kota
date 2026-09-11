@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { runWorkflowBlockingOperation, type WorkflowBlockingOperationRunner, type WorkflowBlockingOperationRunOptions } from "#core/workflow/blocking-operation.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
 import type { WorkflowRecoveryResolver, WorkflowTriggerAdmissionInput } from "#core/workflow/types.js";
@@ -17,14 +17,15 @@ import { recoveryEvidenceOutcomes } from "../blocked-promoter/evidence-relevance
 import { listBuilderTaskDispatches, readBuilderTaskPayload } from "./task-contract.js";
 
 /** Stable semantic inputs, excluding observation times, run counts, and unrelated tasks. */
-export async function builderRecoveryRevision(input: Pick<WorkflowTriggerAdmissionInput, "trigger" | "state" | "scopeRoot"> & { runId: string }): Promise<string> {
+export async function builderRecoveryRevision(input: Pick<WorkflowTriggerAdmissionInput, "trigger" | "state" | "scopeRoot" | "scopeId" | "runtimeStateDir"> & { runId: string } & Partial<WorkflowBlockingOperationRunner> & WorkflowBlockingOperationRunOptions): Promise<string> {
   const task = readBuilderTaskPayload(input.trigger.payload);
   const issues = decodeAutonomyIssueProjection(input.state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value);
   const source = readVerifiedRepoTaskFile(input.scopeRoot, "open", task.taskId);
   // Existing scoped exports include execution results and capability observations.
   // Exclude this writer: its own attempt artifacts cannot authorize another attempt.
-  const collection = await runWorkflowBlockingOperation(collectBlockedEvidenceOperation, {
+  const collection = await (input.runBlocking ?? ((operation, value) => runWorkflowBlockingOperation(operation, value, input)))(collectBlockedEvidenceOperation, {
     scopeRoot: input.scopeRoot, hint: ".kota/runs", excludedRunIds: [input.runId],
+    authority: { runtimeStateDir: input.runtimeStateDir, scopeId: input.scopeId, task: { id: task.taskId, body: source?.content ?? "" } },
   });
   const evidence = recoveryEvidenceOutcomes(collection, { id: task.taskId, body: source?.content ?? "" });
   return createHash("sha256").update(JSON.stringify({
@@ -43,12 +44,14 @@ export const assessBuilderRecovery: WorkflowRecoveryResolver = async (input) => 
   if (!current) return { resume: false, reason: "Target is no longer open and dependency-clear" };
   const trigger = { ...input.trigger, payload: { ...input.trigger.payload, ...current } };
   const revision = await builderRecoveryRevision({ ...input, trigger });
+  const refreshed = listBuilderTaskDispatches(input.scopeRoot).find((task) => task.taskId === admitted.taskId);
+  if (refreshed?.taskDigest !== current.taskDigest) return { resume: false, reason: "Target contract changed during evidence collection; reassess current intent" };
   const previous = readWorkflowRunMetadataFile(join(input.stateDir, "runs", input.runId, "metadata.json"));
   const observation = previous?.steps.find((step) => step.id === "inspect-target-task")?.output;
   const recovered = z.object({ revision: z.string().regex(/^[a-f0-9]{64}$/) }).nullable()
     .parse(input.state.read(`workflow:recovery:${input.runId}`).value);
   const observedRevision = typeof observation === "object" && observation !== null && "recoveryRevision" in observation
-    ? z.string().regex(/^[a-f0-9]{64}$/).parse(observation.recoveryRevision) : undefined;
+    ? z.string().regex(/^[a-f0-9]{64}$/).nullable().parse(observation.recoveryRevision) ?? undefined : undefined;
   const baseline = recovered?.revision ?? observedRevision;
   let changedReview = false;
   if (baseline === undefined) {

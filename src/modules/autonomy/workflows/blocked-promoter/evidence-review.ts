@@ -42,7 +42,7 @@ export type BlockedEvidenceReview = z.infer<typeof reviewResult>;
 
 type ReviewContext = Pick<WorkflowCodeStepContext,
   "workspaceRoot" | "scopeRoot" | "runEvidence" | "workflow" | "agentRuntime" |
-  "state" | "runCommand" | "runAgentHarness" | "signal" | "runtimeResources" | "runBlocking"
+  "runtimeStateDir" | "scopeId" | "state" | "runCommand" | "runAgentHarness" | "signal" | "runtimeResources" | "runBlocking"
 >;
 
 async function probeSourceRevision(ctx: Pick<ReviewContext, "workspaceRoot" | "runCommand">): Promise<string> {
@@ -76,14 +76,14 @@ export async function reviewBlockedTasks(ctx: ReviewContext): Promise<BlockedEvi
     const owner = authority.getRun(ctx.workflow.runId);
     if (!owner) throw new Error("Blocked review requires its owning run");
     const resources = owner.resources;
-    const excludedRunIds = authority.listRuns()
-      .filter((run) => run.workflow === ctx.workflow.name).map((run) => run.id);
+
     for (const task of listBlockedTasksWithPreconditions(ctx.workspaceRoot)) {
       if (!resources.includes(`task:${task.id}`)) continue;
       if (task.precondition.kind !== "operator-capture" ||
         getUnfinishedTaskDependencies(ctx.workspaceRoot, task.dependsOn).length > 0) continue;
       const collection = await ctx.runBlocking(collectBlockedEvidenceOperation, {
-        scopeRoot: ctx.scopeRoot, hint: task.precondition.path, excludedRunIds,
+        scopeRoot: ctx.scopeRoot, hint: task.precondition.path, excludedRunIds: [ctx.workflow.runId],
+        authority: { runtimeStateDir: ctx.runtimeStateDir, scopeId: ctx.scopeId, task: { id: task.id, body: task.body }, excludedWorkflow: ctx.workflow.name },
       });
       const evidence = relevantBlockedEvidence(collection, { id: task.id, body: task.body, hint: task.precondition.path });
       const probe = extractTaskProbe(task.body);

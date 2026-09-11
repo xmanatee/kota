@@ -58,7 +58,7 @@ export function buildDaemonRunHandle(
     ): WorkflowRunSummary[] => {
       const { workflow, limit, tag, causedByRunId, scopeId } = opts ?? {};
       const runtime = lookupRuntime(scopeId);
-      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const durableRuns = runtime.runState.listRunStates(runtime.scope.scopeId);
       const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
         durableRuns,
         runtime.runState.listPendingPublicationHeads()
@@ -164,7 +164,7 @@ export function buildDaemonRunHandle(
         };
       }
       const durationBucketsSeconds = [30, 120, 300, 900, 1800, 3600] as const;
-      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const durableRuns = runtime.runState.listRunStates(runtime.scope.scopeId);
       const runs = runtime.runStore.listRuns({
         limit: 100_000,
         authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(

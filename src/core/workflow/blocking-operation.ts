@@ -128,6 +128,7 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
   return new Promise<TOutput>((resolve, reject) => {
     const operationId = `${operation.moduleUrl}#${operation.exportName}`;
     let settled = false;
+    let abortReason: Error | undefined;
     let abortTermination: ReturnType<typeof setTimeout> | undefined;
     let worker: Worker;
     try {
@@ -152,23 +153,25 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
       callback();
     };
     const onAbort = (): void => {
-      if (settled) return;
+      if (settled || abortReason !== undefined) return;
+      abortReason = abortedOperationError(options.signal!);
       try {
         worker.postMessage({ type: "abort" });
       } catch {
         // A worker that has already exited is handled by its exit event.
       }
-      const error = abortedOperationError(options.signal!);
-      settle(() => reject(error));
+      // Keep ownership until exit: cooperative operations can reap their
+      // subprocesses before the caller observes cancellation.
       abortTermination = setTimeout(() => {
         void worker.terminate();
-      }, 25);
+      }, 250);
       abortTermination.unref();
     };
 
     options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
     worker.on("message", (message: BlockingWorkerMessage) => {
-      if (settled) return;
+      if (settled || abortReason !== undefined) return;
       if (message.type === "progress") {
         options.reportProgress?.({
           kind: "code-heartbeat",
@@ -196,6 +199,7 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
       settle(() => resolve(message.output as TOutput));
     });
     worker.on("error", (error) => {
+      if (abortReason !== undefined) return;
       settle(() =>
         reject(
           new WorkflowBlockingOperationError(operationId, error.message, {
@@ -207,6 +211,10 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
     });
     worker.on("exit", (code) => {
       if (settled) return;
+      if (abortReason !== undefined) {
+        settle(() => reject(abortReason));
+        return;
+      }
       settle(() =>
         reject(
           new WorkflowBlockingOperationError(

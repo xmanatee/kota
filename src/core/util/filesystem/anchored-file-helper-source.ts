@@ -20,6 +20,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  readSync,
   realpathSync,
   renameSync,
   statSync,
@@ -35,9 +36,8 @@ function respond(response) {
   process.stdout.write(JSON.stringify(response));
 }
 
-try {
+function execute(request) {
   requireNoFollowPrimitives();
-  const request = JSON.parse(readFileSync(0, "utf8"));
   if (
     request === null ||
     typeof request !== "object" ||
@@ -95,10 +95,10 @@ try {
 
   const parentIdentity = enterParent(request);
   if (parentIdentity === undefined) {
-    respond(
+    return (
       request.operation === "list"
         ? { ok: true, entries: [] }
-        : { ok: true, snapshot: { exists: false } },
+        : { ok: true, snapshot: { exists: false } }
     );
   } else {
     const directoryFd = openSync(
@@ -110,23 +110,25 @@ try {
         refuse("parent directory changed while it was opened");
       }
       if (request.operation === "list") {
-        respond({ ok: true, entries: listTextFiles(request, parentIdentity) });
+        return { ok: true, entries: listTextFiles(request, parentIdentity) };
       } else if (request.operation === "read") {
-        respond({ ok: true, snapshot: readTextFile(request, parentIdentity) });
+        return { ok: true, snapshot: readTextFile(request, parentIdentity) };
       } else if (request.operation === "write") {
-        respond({
+        return {
           ok: true,
           installedSnapshot: writeTextFile(request, parentIdentity, directoryFd),
-        });
+        };
       } else {
         removeTextFile(request, parentIdentity, directoryFd);
-        respond({ ok: true, removed: true });
+        return { ok: true, removed: true };
       }
     } finally {
       closeSync(directoryFd);
     }
   }
-} catch (error) {
+}
+
+function failure(error) {
   const reason =
     error && typeof error.safeReason === "string"
       ? error.safeReason
@@ -134,6 +136,23 @@ try {
         (error && typeof error.code === "string" ? error.code : "unknown") +
         (error && typeof error.syscall === "string" ? ": " + error.syscall : "") +
         ")";
-  respond({ ok: false, reason });
+  return { ok: false, reason };
 }
+try {
+  const request = JSON.parse(readFileSync(0, "utf8"));
+  if (request.operation === "read-batch") {
+    if (!Array.isArray(request.requests) || request.requests.length > 64 ||
+      request.requests.some(item => item.operation !== "read" || !Number.isSafeInteger(item.maxBytes) || item.maxBytes < 0 || item.maxBytes > 131072)) {
+      refuse("invalid bounded batch read");
+    }
+    const files = request.requests.map(item => {
+      try {
+        const result = execute(item);
+        return { ok: true, file: result.snapshot.exists
+          ? { content: result.snapshot.content, snapshot: result.snapshot.snapshot } : null };
+      } catch (error) { return failure(error); }
+    });
+    respond({ ok: true, files });
+  } else { respond(execute(request)); }
+} catch (error) { respond(failure(error)); }
 `;

@@ -13,13 +13,13 @@ import {
   inspectBuilderTaskTargetOperation,
 } from "./task-contract.js";
 
-export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget & { recoveryRevision: string }>({
+export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget & { recoveryRevision: string | null }>({
   id: "inspect-target-task",
   type: "code",
   exposeOutputToAgent: true,
   exposedOutputTrust: "untrusted",
   validate: (raw) =>
-    expectStructuredOutput<BuilderTaskTarget & { recoveryRevision: string }>(raw, [
+    expectStructuredOutput<BuilderTaskTarget & { recoveryRevision: string | null }>(raw, [
       "actionable",
       "taskId",
       "taskPath",
@@ -32,14 +32,20 @@ export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget & { recover
       workspaceRoot: ctx.scopeRoot,
       payload: ctx.trigger.payload,
     });
-    if (target.actionable) {
-      const source = readVerifiedRepoTaskFile(ctx.scopeRoot, "open", target.taskId);
-      if (source === null) throw new Error("Admitted task disappeared during inspection");
-      const agentDir = resolveAgentRunDirFromContext(ctx);
-      mkdirSync(agentDir, { recursive: true });
-      writeFileSync(join(agentDir, "admitted-task.md"), source.content, { mode: 0o600 });
-    }
-    return { ...target, recoveryRevision: await builderRecoveryRevision({ ...ctx, runId: ctx.workflow.runId }) };
+    if (!target.actionable) return { ...target, recoveryRevision: null };
+    const recoveryRevision = await builderRecoveryRevision({ ...ctx, runId: ctx.workflow.runId });
+    // Collection yields to concurrent publication. Recheck canonical intent
+    // before handing the admitted source to an agent.
+    const refreshed = await ctx.runBlocking(inspectBuilderTaskTargetOperation, {
+      workspaceRoot: ctx.scopeRoot, payload: ctx.trigger.payload,
+    });
+    if (!refreshed.actionable) return { ...refreshed, recoveryRevision: null };
+    const source = readVerifiedRepoTaskFile(ctx.scopeRoot, "open", target.taskId);
+    if (source === null) throw new Error("Admitted task disappeared during inspection");
+    const agentDir = resolveAgentRunDirFromContext(ctx);
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(join(agentDir, "admitted-task.md"), source.content, { mode: 0o600 });
+    return { ...refreshed, recoveryRevision };
   },
 });
 
@@ -50,7 +56,7 @@ export const taskIssueEvidenceStep = typedCodeStep<{ evidencePath: string | null
   exposedOutputTrust: "untrusted",
   when: (ctx) => inspectTargetTaskStep.outputRequired(ctx).actionable,
   validate: (raw) => expectStructuredOutput<{ evidencePath: string | null }>(raw, ["evidencePath"]),
-  run: (ctx) => {
+  run: async (ctx) => {
     const task = inspectTargetTaskStep.outputRequired(ctx);
     const projection = decodeAutonomyIssueProjection(
       ctx.state.read<AutonomyIssueProjection>(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value,
@@ -60,15 +66,8 @@ export const taskIssueEvidenceStep = typedCodeStep<{ evidencePath: string | null
       .flatMap((issue) => issue.evidenceRefs);
     const source = readVerifiedRepoTaskFile(ctx.scopeRoot, "open", task.taskId);
     const namedTokens = new Set(source?.content.match(/[A-Za-z0-9][A-Za-z0-9._-]*/g) ?? []);
-    // A task may explicitly name another run without being that run's incident
-    // owner. Select only named, same-scope runs through runtime authority.
-    for (const run of ctx.runEvidence?.listRuns() ?? []) {
-      const shortId = run.id.split("-").at(-1)!;
-      if (namedTokens.has(run.id) || (shortId.length >= 6 && namedTokens.has(shortId))) {
-        refs.push({ kind: "run", ref: `.kota/runs/${run.id}/metadata.json` });
-      }
-    }
-    return { evidencePath: writeIssueEvidence(ctx, refs) };
+    return { evidencePath: await writeIssueEvidence(ctx, refs, [...namedTokens].filter((token) =>
+      /^[a-z0-9]{6}$/.test(token) || /^\d{4}-\d{2}-\d{2}T/.test(token))) };
   },
 });
 

@@ -22,7 +22,7 @@ function authorityRuntime(
       operationallyActiveRunIds: () => new Set([runId]),
     }),
     runState: {
-      listRuns: () => [durableRun],
+      listRunStates: () => [durableRun],
       getRun: (id: string) => id === runId ? durableRun : null,
       listPendingPublicationHeads: () => [],
     },

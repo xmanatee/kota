@@ -44,7 +44,7 @@ export function buildDaemonWorkflowHandle(
       const runtime = lookupRuntime(scopeId);
       const workflows = runtime.workflowRuntime;
       const wfState = workflows.getState();
-      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const durableRuns = runtime.runState.listRunStates(runtime.scope.scopeId);
       const pendingPublications = runtime.runState.listPendingPublicationHeads()
         .filter((publication) => publication.scopeId === runtime.scope.scopeId);
       const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
