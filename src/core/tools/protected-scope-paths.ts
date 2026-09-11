@@ -12,6 +12,8 @@ import {
 
 export const PROTECTED_SCOPE_RUNTIME_FILES = [
   ".kota/daemon-control.json",
+  // Standalone startup persists the control bearer token in its ownership lock.
+  ".kota/daemon-instance.lock",
   ".kota/secrets.json",
 ] as const;
 
@@ -28,8 +30,7 @@ const PROTECTED_SCOPE_GLOB_IGNORES = [
 ] as const;
 
 const PROTECTED_SCOPE_GREP_EXCLUDES = [
-  "daemon-control.json",
-  "secrets.json",
+  ...PROTECTED_SCOPE_RUNTIME_FILES.map((path) => basename(path)),
   ".env",
   ".env.*",
 ] as const;

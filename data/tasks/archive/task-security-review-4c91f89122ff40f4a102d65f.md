@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Standalone daemon startup stores its control bearer token in daemon-instance.lock, but the shared protected-file policy omits that filename. The production file_read boundary therefore exposes a credential that daemon-control.json deliberately protects. An executed synthetic probe returned the credential sentinel from the lock while rejecting the control file; the lock was also absent from the native denial projection. No real credential was accessed.
 
@@ -155,3 +154,35 @@ excerpt:
 > if (isProtectedScopePath(filePath, context)) {
 >   return { content: protectedScopePathError(rawFilePath), is_error: true };
 > }
+
+
+## Resolution
+
+Added `.kota/daemon-instance.lock` to the shared protected runtime credential
+policy. File reads and listings inherit that denial, including resolved file and
+directory symlinks. Search exclusions now derive from the same runtime-file list;
+search roots resolve before invocation so a directory alias cannot bypass ripgrep's
+path exclusion. Native sandbox discovery and Codex workspace permissions consume
+the shared policy. Daemon lock acquisition, ownership checks and release are unchanged.
+
+## Verification
+
+- `pnpm check:fast` passed: production/test typechecking, lint, task validation,
+  and generated client-binding checks.
+- `pnpm test:owner src/modules/filesystem src/core/tools/protected-scope-paths.test.ts src/core/daemon/daemon-instance-lock.test.ts src/modules/codex-agent-harness/runtime-home.test.ts`
+  passed 194 tests in 18 files. Synthetic lock credentials exercise production
+  file reads, direct and recursive searches with real ripgrep and fallback grep,
+  file and directory symlinks, and credential listing exclusion. Positive controls
+  preserve ordinary repository reads/searches. Existing lock-owner tests establish
+  acquisition, stale-owner recovery and release behavior remains intact.
+- The focused `native-cli-sandbox.test.ts` case `projects the persisted daemon lock`
+  passed: the production native preparation boundary includes the lock in read
+  denials while retaining repository access.
+- The initial six-file run passed 80 tests, skipped two native execution cases,
+  and failed the unrelated provider-proxy/loopback case at listener creation with
+  `listen EPERM: operation not permitted 127.0.0.1`. Native OS confinement was not
+  established in this sandbox; native permission projection was established.
+
+All credential fixtures were synthetic. No real credential or running daemon
+endpoint was accessed. Evidence and proposed commit message are retained under
+builder run `2026-09-11T10-29-24-102Z-builder-ykjq28`.

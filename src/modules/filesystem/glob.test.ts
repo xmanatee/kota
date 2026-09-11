@@ -28,6 +28,6 @@ it("rejects a missing pattern and reports no matches", async () => {
 
 it("does not enumerate protected credential aliases", async () => {
   mkdirSync(join(root, ".KOTA"));
-  for (const name of ["daemon-control.json", "secrets.json"]) writeFileSync(join(root, ".KOTA", name), "synthetic-secret");
+  for (const name of ["daemon-control.json", "daemon-instance.lock", "secrets.json"]) writeFileSync(join(root, ".KOTA", name), "synthetic-secret");
   expect(await runGlob({ path: ".KOTA", pattern: "**/*" }, { cwd: root })).toEqual({ content: "No files matched." });
 });

@@ -8,6 +8,7 @@ import {
   protectedScopePathError,
 } from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import { resolveToolPath } from "./path-resolver.js";
 
 export const grepTool: KotaTool = {
@@ -125,6 +126,9 @@ export async function runGrep(
     return { content: protectedScopePathError(rawPath), is_error: true };
   }
 
+  // Match runtime exclusions against the real directory when the search root is an alias.
+  const searchPath = resolvePathThroughExistingAncestor(path) ?? path;
+
   // Try ripgrep first, fall back to grep
   const hasRg = (() => {
     try {
@@ -154,7 +158,7 @@ export async function runGrep(
     for (const ignore of protectedScopeGlobIgnores(context)) {
       args.push("--iglob", `!${ignore}`);
     }
-    args.push("--", pattern, path);
+    args.push("--", pattern, searchPath);
   } else {
     command = "grep";
     if (filesOnly) {
@@ -170,7 +174,7 @@ export async function runGrep(
     for (const exclude of protectedScopeGrepExcludes(context)) {
       args.push(`--exclude=${exclude}`);
     }
-    args.push("--", pattern, path);
+    args.push("--", pattern, searchPath);
   }
 
   try {

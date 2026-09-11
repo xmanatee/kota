@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -77,4 +77,31 @@ it("normalizes count output from grep backends including empty and zero-count en
   expect(formatCountOutput("a.ts:5\nb.ts:0\nc.ts:3")).toBe("a.ts:5\nc.ts:3\n\nTotal: 8 matches in 2 files");
   expect(formatCountOutput("a.ts:0\nb.ts:0")).toBe("No matches found.");
   expect(formatCountOutput("")).toBe("No matches found.");
+});
+
+// A PATH containing only grep exercises the supported fallback with a real process.
+it.each(["ripgrep", "grep"])("hides daemon lock credentials from direct and recursive %s searches", async (backend) => {
+  if (backend === "grep") {
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    symlinkSync("/usr/bin/grep", join(bin, "grep"));
+    vi.stubEnv("PATH", bin);
+  }
+  mkdirSync(join(root, ".kota"));
+  const token = "synthetic-instance-lock-bearer";
+  const lock = join(root, ".kota", "daemon-instance.lock");
+  writeFileSync(lock, JSON.stringify({ token }));
+  symlinkSync(lock, join(root, "notes.json"));
+  symlinkSync(join(root, ".kota"), join(root, "runtime-alias"));
+  writeFileSync(join(root, ".kota", "public.txt"), "repository-visible");
+  writeFileSync(join(root, "public.txt"), "repository-visible");
+  for (const path of [lock, "notes.json", "runtime-alias/daemon-instance.lock"]) {
+    const result = await runGrep({ path, pattern: token }, { cwd: root });
+    expect(result).toMatchObject({ is_error: true, content: expect.stringContaining("protected scope runtime credential") });
+    expect(result.content).not.toContain(token);
+  }
+  for (const path of [".", ".kota", "runtime-alias"]) {
+    expect(await runGrep({ path, pattern: token }, { cwd: root })).toEqual({ content: "No matches found." });
+    expect((await runGrep({ path, pattern: "repository-visible" }, { cwd: root })).content).toContain("public.txt");
+  }
 });

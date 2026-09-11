@@ -14,7 +14,7 @@ This directory contains the filesystem capability pack — a repo module that ow
 - Mutation tools reject the machine-authority directory supplied by the runtime;
   trust and policy changes must use the authenticated scope-authority service so
   they retain operator verification and audit provenance.
-- Read/list/search surfaces must not expose protected scope runtime credentials such as `.kota/daemon-control.json`, `.kota/secrets.json`, or env files; use `#core/tools/protected-scope-paths.js` for every filesystem and sandbox surface.
+- Read/list/search surfaces must not expose protected scope runtime credentials, including the daemon ownership lock; use `#core/tools/protected-scope-paths.js` for every filesystem and sandbox surface.
 - Exact edits treat replacement text literally, including dollar signs. Regex
   substitution belongs to explicit regex mode in find-and-replace.
 - Verify tool outcomes with scoped files and persisted contents. Kernel watcher

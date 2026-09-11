@@ -1,5 +1,5 @@
 import * as childProcess from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +68,21 @@ describe("file_read", () => {
 
   it.each([".kota/daemon-control.json", ".KOTA/daemon-control.json", ".kota/secrets.json", ".env", ".env.local"])("rejects protected path %s", async (path) => {
     expect(await runFileRead({ path }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("protected scope runtime credential") });
+  });
+
+  it("rejects a persisted daemon lock credential through file and directory aliases", async () => {
+    mkdirSync(join(root, ".kota"));
+    const token = "synthetic-instance-lock-bearer";
+    const lock = join(root, ".kota", "daemon-instance.lock");
+    writeFileSync(lock, JSON.stringify({ pid: 123, startedAt: "2026-09-11T00:00:00Z", token }));
+    symlinkSync(lock, join(root, "notes.json"));
+    symlinkSync(join(root, ".kota"), join(root, "runtime-alias"));
+    for (const path of [lock, "notes.json", "runtime-alias/daemon-instance.lock"]) {
+      const result = await runFileRead({ path }, { cwd: root });
+      expect(result).toMatchObject({ is_error: true, content: expect.stringContaining("protected scope runtime credential") });
+      expect(JSON.stringify(result)).not.toContain(token);
+    }
+    expect((await runFileRead({ path: file("public.txt", "repository-visible") }, { cwd: root })).content).toContain("repository-visible");
   });
 
   it("rejects a custom operator credential and its symlink without exposing bytes", async () => {

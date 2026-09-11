@@ -410,6 +410,28 @@ describe("native CLI live sandbox", () => {
     },
   );
 
+  it("projects the persisted daemon lock into native CLI read denials", async () => {
+    const scopeRoot = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-lock-")));
+    roots.push(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"));
+    const lock = join(scopeRoot, ".kota", "daemon-instance.lock");
+    writeFileSync(lock, JSON.stringify({ token: "synthetic-instance-lock-bearer" }));
+    const publicPath = join(scopeRoot, "public.txt");
+    writeFileSync(publicPath, "repository-visible");
+    await withNativeCliSandbox("/bin/sh", [], {
+      cwd: scopeRoot,
+      machineAuthorityOwner: "native-cli",
+      writableRoots: [scopeRoot],
+      env: buildNativeCliEnvironment(),
+      prepareEnvironment(context, env) {
+        expect(context.readProtectedPaths).toContain(lock);
+        expect(context.readProtectedPaths).not.toContain(publicPath);
+        expect(context.readableRoots).toContain(scopeRoot);
+        return env;
+      },
+    }, async () => undefined);
+  });
+
   it("lets a native CLI own the sandbox without an outer wrapper", async () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-owned-sandbox-"));
     roots.push(scopeRoot);
