@@ -144,3 +144,5 @@ runtime-owned evidence is sufficient; no specific capture directory or manual
 operator procedure is required. The launching daemon must remain under its host
 lifecycle owner. Controlled-port tests and static checks do not satisfy this
 remaining live acceptance condition.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

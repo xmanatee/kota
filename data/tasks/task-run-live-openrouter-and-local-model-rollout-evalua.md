@@ -255,3 +255,5 @@ launch, sequential repeats, offline scorer, missing-isolation, and schema reject
 cases still pass. These establish containment and retained behavior, not live
 routing or model quality. Repair-specific static checks and operator preflight
 results are recorded in the run summary and repair2 artifacts.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

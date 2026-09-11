@@ -74,3 +74,5 @@ and snapshot attribution are copied to
 remain in the builder run evidence. `live-acceptance-status.json` records the
 collection assessment. The original acceptance criteria above remain unmet only
 for the live explorer observation.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

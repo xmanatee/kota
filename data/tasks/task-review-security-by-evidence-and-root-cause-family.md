@@ -428,3 +428,5 @@ the normal task mutation owner after reviewing outcomes and execution provenance
   Then assess live coverage, actionable outcomes and agent time against an
   attributable pinned baseline. The implementation repairs above are complete;
   these are still-unobserved publication and measurement acceptance outcomes.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

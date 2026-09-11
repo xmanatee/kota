@@ -245,3 +245,5 @@ owner-approved reduction contract rather than restoring its obsolete target.
 kind: operator-capture
 path: .kota/runs
 description: Attributable current scoped runtime exports and owner dispositions for qj0mm4, hjhox7, 720nnv and un8vlq after the shared recovery path is integrated; prove relevant-change same-lineage recovery or explicit owner retention/cleanup, and distinguish each remaining prerequisite. Existing authorized runtime exports/probes may collect these results automatically; no new permission or ceremonial capture location is required.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->
