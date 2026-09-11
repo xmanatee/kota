@@ -233,6 +233,18 @@ function hasCodexCliFailureProvenance(input: AgentFailureContext): boolean {
   );
 }
 
+/** A content-specific refusal is an external prerequisite, never a timed outage. */
+export function classifyAgentPolicyRefusal(input: AgentFailureContext): {
+  kind: "policy-refusal";
+} | null {
+  if (input.errorName === "AbortError" || !hasCodexCliFailureProvenance(input)) return null;
+  const detail = input.message.replace(WRAPPED_CODEX_CLI_FAILURE_PREFIX, "");
+  if (!/^This content was flagged for possible cybersecurity risk\.(?:\s|$)/.test(detail)) return null;
+  return {
+    kind: "policy-refusal",
+  };
+}
+
 function parseCodexCliHttpStatus(
   input: AgentFailureContext,
 ): number | undefined {
@@ -294,6 +306,8 @@ export function classifyAgentRuntimeFailure(
   input: AgentFailureContext,
 ): AgentFailureClassification | null {
   if (input.errorName === "AbortError") return null;
+  // Do not let advice embedded in a refusal become a transient/auth backoff.
+  if (classifyAgentPolicyRefusal(input)) return null;
 
   if (input.subtype === "harness_readiness") {
     return { kind: "auth", retryable: false };

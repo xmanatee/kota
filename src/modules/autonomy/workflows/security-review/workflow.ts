@@ -23,6 +23,7 @@ import {
   securityInvestigationOutputSchema,
   securityRevalidationOutputSchema,
 } from "./output-schemas.js";
+import { recordInvestigationFailure, recordRevalidationFailure } from "./refusal-steps.js";
 import { SECURITY_REVIEW_RESOURCE } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
@@ -66,6 +67,8 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
     {
       id: "investigate-candidates",
       type: "agent",
+      // The next code step accepts policy refusals only; all other failures abort.
+      continueOnFailure: true,
       agentName: agent.name,
       promptPath: agent.promptPath,
       tier: AUTONOMY_AGENT_TIER,
@@ -76,10 +79,12 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       validate: decodeSecurityInvestigationOutput,
       when: (ctx) => (scanCandidates.output(ctx)?.candidateCount ?? 0) > 0,
     },
+    recordInvestigationFailure,
     recordInvestigationFindings,
     {
       id: "revalidate-findings",
       type: "agent",
+      continueOnFailure: true,
       agentName: agent.name,
       promptPath: agent.promptPath,
       tier: AUTONOMY_AGENT_TIER,
@@ -91,6 +96,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       when: (ctx) =>
         (recordedInvestigation(ctx)?.findings.length ?? 0) > 0,
     },
+    recordRevalidationFailure,
     recordRevalidation,
   ],
 };

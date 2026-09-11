@@ -30,6 +30,10 @@ uncertain, or unchecked evidence remains eligible. A settled unavailable review
 retains unknown coverage and its concrete prerequisite. Its unchanged content
 waits for a relevant repository prerequisite change or a new explicit request
 (for external capability/evidence); cooldown expiry alone cannot readmit it.
+Provider policy refusals at investigation or revalidation settle through that
+same unavailable-review owner. Preserve the provider diagnostic and unmet
+prerequisite in the run outcome, retain pending findings, and claim no coverage.
+Transient provider incidents and execution errors remain runtime failures.
 A no-finding verdict describes the boundary examined and its limits; scanner silence is not authorization or sandbox proof. Related changed
 paths share a bounded investigation without a finding or task quota.
 

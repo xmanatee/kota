@@ -360,8 +360,13 @@ export function reconcileSecurityReviewObservation(args: {
   stateDir: string;
 }): { nextState: SecurityReviewState; due: SecurityReviewDueDecision } {
   const { currentState, observedState, git } = args;
+  const pendingPaths = new Set(currentState.evidenceRequests.flatMap(({ request, reviewed }) =>
+    currentState.reviewedEvidenceIds.includes(request.id) ? [] : request.paths.filter((path) =>
+      reviewed[path] !== git.contentDigests[path] &&
+      !securityReviewPathUnavailable(currentState, path, git.contentDigests, request.id))));
   const changedPaths = git.changedPaths.filter((path) =>
-    currentState.reviewed[path]?.digest !== git.contentDigests[path] &&
+    (!securityReviewPathUnavailable(currentState, path, git.contentDigests, null) || pendingPaths.has(path)) &&
+    (currentState.reviewed[path]?.digest !== git.contentDigests[path] || currentState.unavailable[path] !== undefined) &&
     currentState.reviewed[path]?.digest === observedState.reviewed[path]?.digest);
   const unreviewedSurfaces = { ...currentState.unreviewedSurfaces };
   const classifications = changedPaths.map((path) => {
@@ -382,7 +387,7 @@ export function reconcileSecurityReviewObservation(args: {
   return {
     nextState: { ...currentState, unreviewedSurfaces },
     due: reduceSecurityReviewDue({ stateDir: args.stateDir, cooldownMs: args.inspection.cooldownMs },
-      { ...git, lastReview, comparison, changedPaths, pendingEvidence: currentState.evidenceRequests.length > 0 },
+      { ...git, lastReview, comparison, changedPaths, pendingEvidence: pendingPaths.size > 0 },
       classifications, args.inspection.openSecurityTasks),
   };
 }

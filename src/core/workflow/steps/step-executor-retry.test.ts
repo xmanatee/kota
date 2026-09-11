@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
+import { classifyAgentPolicyRefusal, classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 
 describe("classifyAgentRuntimeFailure", () => {
   afterEach(() => {
@@ -431,4 +431,25 @@ describe("classifyAgentRuntimeFailure", () => {
       classifyAgentRuntimeFailure({ message: "internal server error" }),
     ).toBeNull();
   });
+});
+
+const policyRefusal = "This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber";
+
+it.each([
+  { subtype: "codex_cli_error", message: policyRefusal },
+  { message: `Agent step "investigate-candidates" failed (codex_cli_error): ${policyRefusal}` },
+])("recognizes provider policy refusal without transient backoff: $message", (input) => {
+  expect(classifyAgentPolicyRefusal(input)).toEqual({ kind: "policy-refusal" });
+  expect(classifyAgentRuntimeFailure(input)).toBeNull();
+});
+
+it.each([
+  { message: policyRefusal },
+  { subtype: "error_during_execution", message: policyRefusal },
+  { subtype: "codex_cli_error", message: `Tool result: ${policyRefusal}` },
+  { subtype: "codex_cli_error", message: policyRefusal, errorName: "AbortError" },
+  { subtype: "codex_cli_error", message: "HTTP 503 Service Unavailable" },
+  { message: "Local permission denied" },
+])("does not infer a policy refusal from unrelated failure: $message", (input) => {
+  expect(classifyAgentPolicyRefusal(input)).toBeNull();
 });

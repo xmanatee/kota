@@ -5,6 +5,7 @@ import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
+import { finalizeSecurityReviewRefusal } from "./refusal-steps.js";
 import { type ReviewInputReference, refreshedReviewInputArtifact, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable, validateSecurityReviewState } from "./review-state.js";
 import {
@@ -87,6 +88,7 @@ export const recordRevalidation = typedCodeStep<ReviewInputReference>({
 
 /** Consumption and pending publication commit atomically only on successful review. */
 export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
+  if (finalizeSecurityReviewRefusal(ctx)) return;
   const reference = recordInvestigationFindings.output(ctx);
   if (!reference) return;
   const runDirPath = join(ctx.stateDir, "runs", ctx.runId);

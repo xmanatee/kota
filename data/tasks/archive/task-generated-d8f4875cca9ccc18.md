@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Preserve security-review blockers after provider policy refusals
 
@@ -29,3 +28,29 @@ Evidence:
 
 - dead-letter: .kota/dead-letter-queue/items.json#dlq-01ad2e02-aaca-4d98-bf02-0ebeacbf5a0b
 - run: .kota/runs/2026-09-10T02-03-16-653Z-security-review-zlzeed/metadata.json
+
+## Completion
+
+The shared failure classifier now recognizes the cited provider policy refusal
+without transient backoff. Security-review investigation and revalidation retain
+an explicit blocked outcome, provider diagnostic and prerequisite, run provenance,
+unknown coverage, pending findings, and evidence requests through the existing
+runtime state/finalization owners. Admission suppresses unchanged unavailable
+inputs, including stale dispatcher observations; a new explicit evidence request
+can admit recovery without discarding pending evidence.
+
+Builder run `2026-09-11T10-14-15-607Z-builder-342w2n` retains the scoped
+`refusal-replay/` export and verification summary. The exact captured refusal was
+replayed through production execution, persistence and admission; fresh runtimes
+preserved the blocker, cooldown did not readmit it, and a controlled recovery
+response recorded coverage only after review execution. Both refusing phases,
+transient errors and execution errors are covered by focused tests. Static checks,
+production build and 101 focused runtime/admission tests passed. The broader
+security-review/classifier selection passed 109 of 110 tests; its existing
+credential-terminology publication test could not launch task validation because
+the sandbox denies `/bin/ps` (EPERM).
+
+This completes refusal handling, not the live security review. The source run and
+dead letter remain one incident with one failure timestamp. No provider safeguard
+was bypassed, no live coverage was claimed, and the original incident and pending
+live evidence were not modified.
