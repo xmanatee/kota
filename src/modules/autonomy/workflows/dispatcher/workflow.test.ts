@@ -32,6 +32,7 @@ import {
 } from "../scope-improver/scope-improvement-state.js";
 import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "../security-review/review-state.js";
+import { PROGRESS_BOUNDARY_STATE_KEY } from "./semantic-reflection.js";
 import dispatcherWorkflow from "./workflow.js";
 
 function dispatcherDecision(result: WorkflowScenarioResult): Record<string, unknown> {
@@ -281,7 +282,20 @@ describe("dispatcher workflow", () => {
     expect(listFullRepoTasks(workspaceRoot).map(({ id, state }) => ({ id, state }))).toEqual([{ id: taskId, state: "done" }]);
   });
 
-  it("emits one targeted autonomy.queue.available event per open task", async () => {
+  it("emits targeted task events even when retained history exceeds the step-output limit", async () => {
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
+    const observedAt = "2026-09-01T00:00:00.000Z";
+    const runs = Array.from({ length: 1500 }, (_, i) => ({
+      id: `historical-builder-${i}`, workflow: "builder", startedAt: observedAt,
+      completedAt: observedAt, status: "success", delivery: "completed",
+      errors: [], observationOnly: false,
+    }));
+    expect(Buffer.byteLength(JSON.stringify(runs))).toBeGreaterThan(256 * 1024);
+    state.compareAndSet(PROGRESS_BOUNDARY_STATE_KEY, 0, {
+      schemaVersion: 2, scopeId, inputRevision: 0, pending: null,
+      baseline: { head: git(["rev-parse", "HEAD"]), ownerDecisionWatermark: null, runs, outcomeCohort: runs, observedAt },
+    });
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-foo.md"),
       taskFixture("task-foo", "open"),
@@ -290,7 +304,8 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "task-bar.md"),
       taskFixture("task-bar", "open"),
     );
-    const result = await runDispatcherScenario();
+    const result = await runDispatcherScenario({ ports: { state } });
+    expect(result.status, result.error).toBe("success");
 
     const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(2);

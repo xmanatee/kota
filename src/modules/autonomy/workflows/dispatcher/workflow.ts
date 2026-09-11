@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput, WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
@@ -55,7 +55,7 @@ type DispatcherObservation = {
 export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
   const { scopeRoot, stateDir, scopeId, state } = ctx;
   const observation = expectStructuredOutput<DispatcherObservation>(
-    expectStructuredOutput<{ observation: DispatcherObservation }>(ctx.stepOutputs["assess-and-dispatch"], ["observation"]).observation,
+    readOptionalJsonFile(join(stateDir, "runs", ctx.runId, "dispatcher-observation.json")),
     ["inspection", "progressBoundary", "progressState", "scopeImprovementState", "securityState", "securityReviewGitEvidence"],
   );
   const progressState = state.read<ProgressBoundaryState>(PROGRESS_BOUNDARY_STATE_KEY);
@@ -259,6 +259,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       run: async ({
         scopeRoot,
         stateDir,
+        workflow,
         runtimeStateDir,
         state,
         runBlocking,
@@ -313,7 +314,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           inspection, progressBoundary, progressState: progressState.value,
           scopeImprovementState, securityState, securityReviewGitEvidence,
         };
-        return { observation };
+        writeJsonFileAtomic(join(workflow.runDirPath, "dispatcher-observation.json"), observation);
+        return { availableTasks: inspection.builderTasks.length };
       },
     },
   ],

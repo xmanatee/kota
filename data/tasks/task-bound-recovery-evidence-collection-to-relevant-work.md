@@ -31,6 +31,24 @@ September 10 18:21-18:51Z suspension from its elapsed-work diagnosis.
 
 ## Desired Outcome
 
+The September 11 restart reproduced the same cost in concurrent preflights.
+Recovery reconciled `hjhox7` to its revised task and retained worktree, but both
+builders were still collecting evidence at 03:50Z. During host-active inspection,
+the control API repeatedly exceeded 5-, 10- and 20-second request deadlines;
+fresh confined-reader child processes continued and a main-thread sample spent
+its timer callback in repeated SQLite preparation/row mapping. Check both
+evidence collection and its shared authority reads for history-proportional work
+on the control thread; this sample does not establish which caller owns that cost.
+Verify control-API responsiveness under concurrent representative histories,
+not only aggregate collection duration. Exclude only independently verified host
+suspensions. `core/workflow/active-timeout.ts` currently treats every timer gap
+over its threshold as host suspension: the 03:27Z dispatcher reported 146616ms
+suspended without a matching macOS sleep/wake event. Distinguish host suspension
+from event-loop starvation through the shared timing owner, so blocked timers
+cannot hide scan cost or defeat active-runtime deadlines. Preserve real sleep
+protection; do not replace it with blind wall-clock timeouts or a per-workflow
+sleep detector.
+
 Normal dispatch and retained recovery inspect attributable evidence without
 repeatedly exporting the entire historical tree or spawning a process per leaf.
 Keep one filesystem-safety boundary and one runtime-owned execution lifecycle.
