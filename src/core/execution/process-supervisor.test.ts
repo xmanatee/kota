@@ -6,7 +6,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { type ProcessIdentity, ProcessSupervisor } from "./process-supervisor.js";
 
 function waitForIdentity(supervisor: ProcessSupervisor): Promise<ProcessIdentity> {
@@ -213,5 +213,50 @@ describe.skipIf(process.platform === "win32")("ProcessSupervisor", () => {
     expect(outcome.error.code).toBe("ENOENT");
     expect(outcome.commandHash).toMatch(/^[a-f0-9]{64}$/);
     expect(supervisor.identity).toBeUndefined();
+  });
+
+  it.each(["abort", "leader-exit"])("reports denied %s cleanup without waiting for process closure", async (cause) => {
+    const controller = new AbortController();
+    const kill = process.kill.bind(process);
+    const denied = Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+    let identity: ProcessIdentity | undefined;
+    let ready!: () => void;
+    const readiness = new Promise<void>((resolve) => { ready = resolve; });
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
+      if (identity && pid === -identity.processGroupId && signal === "SIGTERM") throw denied;
+      return kill(pid, signal);
+    });
+    const supervisor = new ProcessSupervisor({
+      command: process.execPath,
+      args: ["-e", cause === "abort"
+        ? 'process.stdout.write("ready"); setInterval(() => {}, 1000);'
+        : 'const {spawn}=require("node:child_process"); process.on("SIGUSR1",()=>process.exit(0)); spawn(process.execPath,["-e",\'process.stdout.write("ready");setInterval(()=>{},1000)\'],{stdio:["ignore","inherit","inherit"]}); setInterval(()=>{},1000);'],
+      cwd: tmpdir(),
+      env: {},
+      captureLimitBytesPerStream: 1024,
+      terminationGraceMs: 20,
+      signal: controller.signal,
+      onSpawn: (spawned) => { identity = spawned; },
+      onOutput: ({ data }) => { if (data.includes("ready")) ready(); },
+    });
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const outcome = supervisor.run().catch((error: unknown) => error);
+    try {
+      await readiness;
+      if (cause === "abort") controller.abort();
+      else kill(identity!.pid, "SIGUSR1");
+      const observed = await Promise.race([
+        outcome,
+        new Promise((resolve) => { timeout = setTimeout(() => resolve("unsettled"), 1000); }),
+      ]);
+      expect(observed).toBe(denied);
+      expect(supervisor.identity).toEqual(identity);
+      if (cause === "abort") expect(ProcessSupervisor.verifyOwnedProcess(identity!).status).toBe("owned");
+    } finally {
+      clearTimeout(timeout);
+      killSpy.mockRestore();
+      if (identity) kill(-identity.processGroupId, "SIGKILL");
+      await outcome;
+    }
   });
 });

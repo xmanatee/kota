@@ -464,6 +464,16 @@ export class ProcessSupervisor {
       const removeAbortListener = () => {
         this.#options.signal?.removeEventListener("abort", onAbort);
       };
+      const fail = (error: unknown) => {
+        settled = true;
+        removeAbortListener();
+        reject(error);
+      };
+      const trackTermination = (pending: Promise<ProcessTerminationOutcome>) => {
+        termination = pending;
+        // A denied signal may leave the child alive, so close cannot own errors.
+        void pending.catch(fail);
+      };
       const finish = (exitCode: number | null, signal: NodeJS.Signals | null) => {
         if (settled) return;
         settled = true;
@@ -488,33 +498,29 @@ export class ProcessSupervisor {
                 : { status: "completed", ...output },
             );
           } catch (error) {
-            reject(error);
+            fail(error);
           }
         })();
       };
       const onAbort = () => {
         if (aborted) return;
         aborted = true;
-        termination = ProcessSupervisor.terminateOwnedProcess(
+        trackTermination(ProcessSupervisor.terminateOwnedProcess(
           identity,
           this.#options.terminationGraceMs,
-        );
+        ));
       };
       this.#options.signal?.addEventListener("abort", onAbort, { once: true });
       if (this.#options.signal?.aborted) onAbort();
       child.once("exit", () => {
         if (termination === undefined) {
-          termination = terminateRemainingProcessGroup(
+          trackTermination(terminateRemainingProcessGroup(
             identity.processGroupId,
             this.#options.terminationGraceMs,
-          );
+          ));
         }
       });
-      child.once("error", (error) => {
-        settled = true;
-        removeAbortListener();
-        reject(error);
-      });
+      child.once("error", fail);
       child.once("close", (exitCode, signal) => {
         finish(exitCode, signal);
       });
