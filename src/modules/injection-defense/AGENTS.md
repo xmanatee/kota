@@ -7,8 +7,7 @@ tool does not become safer because its output was screened.
 
 ## Contract
 
-- Registers tool middleware at priority 40 (after retry, before custom user
-  middleware).
+- Registers result-screening middleware before custom user middleware.
 - Post-processes content-ingest tool output (`web_fetch`, `web_search`,
   `http_request`, `read_document`, browser text-ingest surfaces) and
   tool results marked with external-content provenance before they reach

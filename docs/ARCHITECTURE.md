@@ -34,6 +34,8 @@ adding a parallel surface.
 - `trigger` = the condition or producer that queues a workflow run: typed
   event, cron schedule, interval, file watch, webhook, or a trigger step.
 - `schedule` = a trigger producer. Schedules are not agent properties.
+- `reminder` = a notification scheduled by time or event. The daemon stores its
+  state in the scope database and owns delivery; executing agent work uses workflows.
 - `step` = an ordered executor inside a workflow: code, agent, tool, approval,
   await-event, emit, trigger, parallel, branch, or foreach.
 - `client` = an operator or user-facing app that talks to the daemon's control
@@ -194,9 +196,9 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Concept | Canonical Mechanism | Boundary |
 | --- | --- | --- |
 | Scope | `ScopeRegistry`, `ScopeLifecycleService`, `ScopeAuthorityService`, `ScopeOnboardingService`, and `ScopedEventBus` in `src/core/daemon/` and `src/core/events/scope.ts`. | `scopeId` names every runtime boundary. The registry owns directory-scope identity and lifecycle; one machine-owned, revisioned authority transaction owns trust and policy. External directory onboarding composes those owners through one durable inspect/plan/apply transaction, and repo config cannot write authority. |
-| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scoped events carry one `scopeId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
+| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scoped events carry one `scopeId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon forwarding declaration owns both bus subscriptions and generated SSE event types. The SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
 | Durable event data | `EventJournal` in `src/core/events/event-journal.ts` wraps emitted events with identity, scope lineage, causality, trace, idempotency, retention, and redacted projection metadata. | The journal records event occurrence and replay metadata. It does not replace the live bus, duplicate workflow run logs, or own future dedupe and dead-letter queue semantics. |
-| Module | `KotaModule` in `src/core/modules/module-types.ts`. | Modules are the only integration unit. Provider-specific tools, workflows, channels, routes, setup requirements, effects, and stores stay module-owned. |
+| Module | `KotaModule` and `ModuleLoader` in `src/core/modules/`. | Modules are the only integration unit. The loader owns admission, activation and exact registration lifetimes; executable contributions are withdrawn before asynchronous disposal. `module_factory` edits saved declarations for the next runtime load. Provider-specific capabilities stay module-owned. |
 | Tool and action | `ToolDef` plus `ToolEffect` guardrail metadata. | External writes must be represented as typed tools or action adapters with explicit effect metadata; prose approval is not an execution contract. |
 | Agent | `AgentDef` in `src/core/agents/agent-types.ts` plus workflow agent steps in `src/core/workflow/step-types.ts`. | Agent definitions declare role, prompt, model, effort, skills, tool policy, and write scope. Agent steps resolve through a harness; adapter-private options stay under the harness key. |
 | Delegation | The `delegate` tool in `src/core/tools/delegate.ts`, the `handoff_agent` tool in `src/core/tools/handoff-agent.ts`, and workflow trigger chaining. | Agents can delegate through generic explore/execute/research modes, hand work to registered named agents with trace links and scoped tool/write policy, and chain workflow runs. |

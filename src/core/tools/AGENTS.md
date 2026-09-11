@@ -1,137 +1,84 @@
 # Tools
 
-This directory contains tool runtime infrastructure and core-hosted runtime
-primitives.
+Core owns the agent/session tool pipeline, guardrails, daemon coordination and
+module lifecycle. General-purpose capabilities belong in modules.
 
-## Boundary
+## Ownership
 
-Core tools stay here only when they are part of the agent/session loop,
-guardrails, daemon coordination, or module lifecycle — not general-purpose
-conveniences. New capabilities should prefer module-owned tools.
+- `index.ts` installs core tool declarations. Implementations consume
+  `tool-registry.ts`; registry reads do not initialize implementations. Registrations return exact
+  disposers; module labels are metadata, not cleanup authority.
+- `tool-runner` owns admission, input/output validation, approvals and execution.
+  It enforces agent write scope and isolated output roots before local writes,
+  failing closed on opaque targets. Nested calls inherit its permissions,
+  scope and session context; module callbacks alone grant no tool authority.
+- `tool-middleware` provides one continuation per invocation. Retry and caching
+  belong to the capability that knows an operation's effects and resource identity.
+- `guardrails-config.ts` owns configuration decoding and policy snapshots;
+  `guardrails.ts` and `guardrails-classify.ts` assess execution risk.
+- `audit-store` owns audit records and approval-review redaction.
+  `protected-project-paths` owns the credential boundary shared by filesystem
+  tools and native CLI sandboxes.
+- `session-environment` owns live session/scope credential overlays. Registration
+  owns teardown; stale approvals cannot recreate an ended session's overlay.
+- Executable approvals snapshot the registry generation and declaration/effect.
+  Preflight leases that exact definition and runner, rather than looking up a name.
 
-## Core tools and rationale
+## Core capabilities
 
-- `agent_status` — Runtime introspection of tools, modules, providers, groups.
-- `approval` — Guardrails: review/resolve queued tool calls from the daemon approval queue.
-- `ask_owner` — Asynchronous operator escalation. Enqueue-only.
-- `ask_user` — Session loop: interactive terminal I/O.
-- `confirm` — Session coordination: human approval for high-stakes actions.
-- `delegate` — Agent/session loop: sub-agent spawning.
-- `checkpoint` — Session management: track and undo file changes within a session.
-- `todo` — Session state: provider-backed task tracking injected into the system prompt via context.
-- `custom_tool` — Tool extensibility: bidirectional coupling with the core registry via `initCustomToolRegistry`.
-- `module_factory` — Module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
+- `agent_status`: inspect runtime tools, modules, providers, groups and config.
+- `approval`: review and resolve the daemon's queued tool calls.
+- `ask_user`: interactive terminal input. `ask_owner`: asynchronous escalation.
+- `confirm`: session confirmation for high-stakes actions.
+- `delegate`: sub-agent execution through the harness protocol.
+- `checkpoint`: track and undo session file changes.
+- `todo`: provider-backed task state contributed to session context.
+- `module_factory`: edits saved manifests. Discovery, trust, activation and
+  unload belong to `ModuleLoader`; saved files do not imply live registration.
 
-## Runtime infrastructure
+## Owner questions
 
-- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — hosted tool pipeline; enforces agent write scope and isolated output roots before local writes, failing closed on opaque targets. Confirmation and destructive-action policy still apply.
-- `session-environment` — live session- and scope-keyed credential overlays for execution tools; registrations own teardown and stale approvals cannot recreate an ended session's overlay.
-- `guardrails`, `guardrails-classify`, `audit-store`, `protected-project-paths` — risk assessment, audit storage, approval-review redaction, and the canonical project credential boundary shared by filesystem tools and native CLI sandboxes.
-- Local executable approvals snapshot generation plus declaration/effect;
-  preflight leases that exact definition and runner, never a name lookup.
-- `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
+`ask_owner` validates through the review gate, enqueues a question and returns
+its id immediately. It does not hold the agent loop open or poll for an answer.
 
-## ask_owner contract
+Workflow callers use `askOwnerSteps` from `#core/workflow/ask-owner-step.js`:
+ask, wait for `owner.question.resolved` matched by question id, then consume the
+queue's terminal result and screen its content. The workflow runtime persists
+that wait under the run's `awaits/` directory and restores it after restart.
+Interactive sessions use `ask_user` for direct input and `ask_owner` for an
+answer that may arrive after the current turn ends.
 
-The `ask_owner` tool is **enqueue-only**. `runAskOwner` validates the
-question through the review gate, places it on the OwnerQuestionQueue, and
-returns the question id immediately. The agent's tool loop is never held
-inside an `await` waiting for an answer.
+## Autonomy
 
-- Workflow callers compose the step-pattern recipe `askOwnerSteps` from
-  `#core/workflow/ask-owner-step.js`. The recipe expands into three steps —
-  `ask`, `wait` (an `await-event` on `owner.question.resolved` matched by
-  question id), and `consume` (a typed code step that reads the queue's
-  terminal state and screens the answer through the structural injection
-  detector). The wait is owned by the workflow runtime, persisted under
-  `.kota/runs/<run-id>/awaits/`, and survives a daemon restart mid-wait.
-- Interactive (non-workflow) sessions get a fire-and-forget result. The
-  tool surfaces the question id and a one-line note that the runtime owns
-  the wait. Agents in interactive sessions should prefer `ask_user` for
-  direct conversational input; `ask_owner` is reserved for asynchronous
-  operator escalation that may be answered after the current turn ends.
-- There is no parallel polling path. `POLL_INTERVAL_MS` and the held-await
-  loop have been removed; reintroducing them would re-create the
-  recorded-and-expired waste that drove the original autonomous-workflow
-  ban (see `src/modules/autonomy/AGENTS.md`).
+Every session boundary declares its autonomy mode. `resolveAutonomyGate` runs
+before per-tool guardrails:
 
-## Autonomy mode
+- `passive`: deny non-safe tools.
+- `supervised`: queue non-safe tools for operator approval.
+- `autonomous`: apply the configured guardrail policy.
 
-Session autonomy is an independent axis from per-tool risk classification. Each
-session declares an `autonomyMode` at construction (`passive`, `supervised`, or
-`autonomous`). The tool runner consults `resolveAutonomyGate` before the
-guardrail policy:
+Workflow steps translate mode into neutral harness options (`permissionMode`,
+`allowedTools`, `disallowedTools`). Passive mode uses `permissionMode: "default"`
+and a read-only tool set because subprocess harnesses cannot see this pipeline.
+Autonomous mode leaves the neutral permission mode unset; each adapter owns its
+mapping, including Claude's default `bypassPermissions`. Explicit per-harness
+options follow the contract in `src/core/agent-harness/AGENTS.md`.
 
-- `passive` — denies any non-safe tool. Read-only sessions.
-- `supervised` — queues any non-safe tool for operator approval, regardless of
-  the guardrail policy. The approval queue is the operator's single point of
-  control.
-- `autonomous` — falls through to the normal guardrail policy.
+Only the operator control API changes mode. Session user messages and untrusted
+tool/web output cannot escalate it; injection defense screens external content.
+The loop reads current mode each tool batch, so changes apply to future calls,
+not work already in flight. Per-tool approval does not change session mode.
+Clients omitting an explicit mode use `config.serve.defaultAutonomyMode`; other
+session boundaries have no hidden compile-time fallback.
 
-Autonomy mode is required at every session boundary (CLI, channels, server,
-workflow agent steps). It is not optional, and there is no silent fallback.
-Workflow agent steps map their mode through the neutral harness-run options
-(`AgentHarnessRunOptions.permissionMode`, `allowedTools`, `disallowedTools`).
-Passive mode forces `permissionMode: "default"` and restricts tools to a
-read-only list because the subprocess SDK cannot see the KOTA tool-runner.
-Autonomous mode leaves `permissionMode` undefined on the neutral boundary and
-the claude-agent-sdk adapter applies its default (`"bypassPermissions"`); a
-step may override that default per-harness through its `harnessOptions`
-carve-out (see `src/core/agent-harness/AGENTS.md`).
+## Code execution
 
-Mode is an operator control, orthogonal to the per-tool approval queue.
-Operators change a running session's mode through the daemon control API
-(PATCH /sessions/:id); the agent never sees mode-change events directly, only
-the effective tool gating on the next tool call. A mid-run switch from
-`autonomous` to `supervised` applies to the next tool call, not to calls
-already in flight — the loop reads the session's current mode fresh each tool
-batch.
+Manifest-defined tools declare Python or Node.js code. Core owns
+schemas, validation, persistence and conversion to `KotaModule`; executor
+modules implement the neutral `CodeRunner` protocol in `code-runner.ts`.
+They register on load and deregister on unload. `runCode(language, code,
+params, timeoutMs?)` delegates parameter wrapping, timeout defaults and output
+truncation to that runner.
 
-The default for a fresh interactive session comes from the
-`config.serve.defaultAutonomyMode` knob when clients do not request an
-explicit mode. There is no compile-time default anywhere else.
-
-### Chain of command at the session boundary
-
-Autonomy mode sits inside a four-tier instruction hierarchy at the session
-boundary:
-
-- Anthropic SDK system prompt + KOTA core safety rails ≈ Root / System.
-- operator-set autonomy mode + module-contributed prompt state ≈ Developer.
-- channel / session user message ≈ User.
-- tool / web outputs ≈ untrusted content with no authority by default
-  (enforced by the `injection-defense` module).
-
-A user message or tool output is never a legitimate source of autonomy-mode
-escalation: a lower tier cannot promote the session's mode above what the
-operator set, and `injection-defense` already strips authority claims out of
-ingested payloads. Mode changes flow only through the operator control path
-(daemon control API). See the OpenAI Research Distillation entry in
-`src/modules/autonomy/AGENTS.md` for the evidence anchor.
-
-## Logical clusters
-
-- Delegate: `delegate.ts`, `delegate-harness.ts`, `delegate-config.ts`, `delegate-format.ts`, `delegate-turn.ts` — sub-agent spawning.
-- Custom tools: `custom-tool.ts`, `custom-tool-handlers.ts`, `custom-tool-persistence.ts` — user-defined tool extensibility.
-- Guardrails: `guardrails.ts`, `guardrails-classify.ts`, `audit-store.ts` —
-  risk classification and audit trail.
-
-## Code-runner protocol
-
-Custom tools and manifest-defined tools execute agent-authored Python or
-Node.js code. Core owns the declarative surface (schema, validation,
-persistence, manifest → `KotaModule` conversion) but does not depend on any
-executor module. `code-runner.ts` defines the neutral `CodeRunner` protocol;
-executor modules (today: `execution`) register runners at load via
-`registerCodeRunner` and deregister on unload. Core callers invoke
-`runCode(language, code, params, timeoutMs?)` — parameter wrapping, default
-timeout, and output truncation are the runner's responsibility.
-
-Zero registered runners is a tolerated state: `runCode` returns a loud error
-result at invocation time (`No code runner registered for language "<lang>".
-…`). Custom tool creation and manifest module loading remain no-ops with
-respect to execution.
-
-Core does not depend on executor implementations. Keep imports pointed at the
-neutral `CodeRunner` protocol; architecture review should treat a reverse
-dependency from core into an executor module as a design error.
+Without a registered runner, invocation returns an explicit error. Loading a manifest does not execute it. Core never imports an
+executor implementation.

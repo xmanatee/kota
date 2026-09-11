@@ -1,6 +1,5 @@
 # Module Factory
 
-This directory contains module-factory definitions, scripts, logs, actions, and state helpers.
-
-- Keep runtime-generated module behavior disciplined and schema-backed.
-- Avoid re-implementing generic module logic here if it belongs in shared module infrastructure.
+This directory owns the authoring tool schema, saved-manifest actions and module-log
+queries. Shared manifest infrastructure owns validation and persistence; the normal
+module loader owns runtime activation.

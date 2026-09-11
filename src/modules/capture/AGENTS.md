@@ -34,6 +34,10 @@ The selected store remains the write owner.
   route/client boundary; default-provider fallbacks are not valid multi-scope
   behavior.
 
+Scope resolution for both cross-store surfaces is composed in
+`src/modules/store-scope-context.ts`; memory and knowledge retain their own
+provider and storage boundaries.
+
 ## Boundaries
 
 - Do not restore a contributor registry. The four shipped targets are one

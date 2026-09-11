@@ -10,5 +10,5 @@ pass executes it against a narrow tool set with adaptive replanning.
   is gone entirely.
 - Plugs into the session loop through the generic pre-send hook registered
   via `ctx.registerPreSendHook`. Core does not reference this module by name.
-- Keep plan/verify behavior explicit and testable. The architect and editor
-  prompts should stay focused on their narrow roles.
+- The editor advertises its narrow tool set and invokes the session-supplied
+  guarded batch executor, which owns tool ordering and concurrency. Planning does not grant additional execution permissions.
