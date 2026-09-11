@@ -45,6 +45,20 @@ function sorterAgentOutputs() {
 }
 
 describe("inbox-sorter workflow", () => {
+  it("binds repeated whole-inbox observations to the same scope-local work resource", () => {
+    const resources = (inboxCount: number) => inboxSorterWorkflow.resources?.({
+      scopeRoot: "/scope",
+      stateDir: "/scope/.kota",
+      workflowName: inboxSorterWorkflow.name,
+      trigger: { event: "autonomy.inbox.available", schemaRef: null, payload: { inboxCount } },
+    });
+    const first = resources(1);
+    expect(first).toHaveLength(1);
+    expect(first?.[0].startsWith("global:")).toBe(false);
+    expect(resources(1)).toEqual(first);
+    expect(resources(2)).toEqual(first);
+  });
+
   it("skips sorting when inbox is empty", async () => {
     const workspaceRoot = createInboxRepo();
     const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {

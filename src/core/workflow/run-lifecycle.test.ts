@@ -128,6 +128,72 @@ afterEach(() => {
 });
 
 describe("RunLifecycle", () => {
+  test("resumes yielded work after restart and reconciles newer intent before publishing once", async () => {
+    const value = fixture("yield-resume", "write");
+    write(value.root, "captures/AGENTS.md", "Keep rough captures here.\n");
+    write(value.root, "captures/first.md", "Original intent\n");
+    write(value.root, "tasks/owner.md", "Owner wording\n");
+    commit(value.root, "capture baseline");
+    let workspace = "";
+    const suspended = await lifecycle(value, async (context) => {
+      workspace = context.sandbox.workspaceDir;
+      write(workspace, "tasks/first.md", readFileSync(join(workspace, "captures/first.md"), "utf8"));
+      rmSync(join(workspace, "captures/first.md"));
+      return {
+        kind: "suspended", state: "waiting",
+        wait: { kind: "continuation", decision: "preserve-yield",
+          decidedAt: "2026-08-25T10:00:03.000Z", blockerResources: ["task:urgent"] },
+      };
+    }).execute(value.run, new AbortController().signal);
+    if (suspended.kind !== "suspended") throw new Error("expected yielded writer");
+    value.store.suspendRun({ runId: value.run.id, epoch: value.epoch,
+      state: suspended.state, wait: suspended.wait, suspendedAt: "2026-08-25T10:00:03.000Z" });
+    const stateDir = dirname(value.store.path);
+    value.store.close();
+    value.store = new RunStateDatabase(stateDir);
+    value.epoch = value.store.beginDaemonSession("2026-08-25T10:00:04.000Z").epoch;
+    expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:00.000Z")).toEqual([]);
+    expect(readFileSync(join(value.root, "captures/first.md"), "utf8")).toBe("Original intent\n");
+
+    value.store.admitRun({ id: "urgent", scopeId: value.run.scopeId, workflow: "urgent", repository: "none",
+      trigger: { event: "manual", schemaRef: null, payload: {} }, resources: ["task:urgent"],
+      admittedAt: "2026-08-25T11:00:01.000Z" });
+    value.store.startRun("urgent", value.epoch, "2026-08-25T11:00:02.000Z");
+    write(value.root, "captures/new.md", "New capture\n");
+    write(value.root, "tasks/owner.md", "Owner correction\n");
+    commit(value.root, "new inbox and owner intent while yielded");
+    value.store.finishRun("urgent", value.epoch, "succeeded", "2026-08-25T11:00:03.000Z");
+    expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:04.000Z")).toEqual([value.run.id]);
+    value.store.startRun(value.run.id, value.epoch, "2026-08-25T11:00:05.000Z");
+    const validations: string[] = [];
+    const runtime = new RunLifecycle({
+      store: value.store, daemonEpoch: value.epoch, createResourceAllocator,
+      continueIntegration: async (_context, issue) => { throw new Error(JSON.stringify(issue)); },
+      executeWorkflow: async (context) => {
+        expect(context.sandbox.workspaceDir).toBe(workspace);
+        expect(readFileSync(join(workspace, "tasks/first.md"), "utf8")).toBe("Original intent\n");
+        expect(existsSync(join(workspace, "captures/first.md"))).toBe(false);
+        return { kind: "completed", commitMessage: "sort retained capture" };
+      },
+      validate: async (_context, input) => {
+        expect(readFileSync(join(input.workspaceDir, "captures/new.md"), "utf8")).toBe("New capture\n");
+        expect(readFileSync(join(input.workspaceDir, "tasks/owner.md"), "utf8")).toBe("Owner correction\n");
+        validations.push(input.workspaceDir);
+        return { status: "passed", evidence: ["current intent preserved"] };
+      },
+    });
+    const outcome = await runtime.execute(value.store.getRun(value.run.id)!, new AbortController().signal);
+    expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
+    value.store.finishRun(value.run.id, value.epoch, "succeeded", "2026-08-25T11:00:06.000Z");
+    expect(validations.length).toBeGreaterThan(0);
+    expect(readFileSync(join(value.root, "tasks/first.md"), "utf8")).toBe("Original intent\n");
+    expect(existsSync(join(value.root, "captures/first.md"))).toBe(false);
+    expect(readFileSync(join(value.root, "captures/new.md"), "utf8")).toBe("New capture\n");
+    expect(readFileSync(join(value.root, "tasks/owner.md"), "utf8")).toBe("Owner correction\n");
+    expect(git(value.root, "log", "--format=%s").split("\n").filter((subject) => subject === "sort retained capture")).toHaveLength(1);
+    expect(existsSync(workspace)).toBe(false);
+  });
+
   test.each([false, true])("reexecutes a semantically rejected writer in its retained sandbox (changed: %s)", async (changed) => {
     const value = fixture(`semantic-retry-${changed}`, "write");
     let accepted = false;

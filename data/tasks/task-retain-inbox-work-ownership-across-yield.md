@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Retain inbox work ownership across yield and resume
@@ -54,3 +54,57 @@ the observed duplicate runs, not a redo of the broader continuation-policy task.
 - Use focused admission/yield/recovery proof and an attributable live inventory
   showing no new equivalent runs, safe cleanup and eventual inbox progress.
   Preserve the original capture and owner-authored task edits throughout.
+
+## Retained implementation
+
+Inbox-sorter now declares one scope-local `autonomy:inbox-triage` resource.
+Existing runtime ownership holds it across yield/restart and releases it only
+through normal completion or cancellation. The shared latest-observation queue
+keeps one pending successor, which cannot start or allocate a replacement
+checkout while the original owner holds the resource. Other scopes and task
+resources remain independent. New captures remain pending for fresh inspection;
+normal integration reconciles retained changes with current published intent.
+
+Focused proof covers workflow binding; event coalescing before/after yield and
+restart; no cooldown-based retry of an unchanged wait; scope isolation; priority
+blocker completion; retained checkout adoption; preservation of a new capture
+and owner correction at integration; single publication and checkout cleanup;
+and successor eligibility after success/cancellation. Run evidence is under
+`2026-09-11T15-54-55-003Z-builder-cfxg15` (including test logs and
+`reconciliation-assessment.json`). No capture or other task contract was edited.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Attributable runtime-owned inventory and reconciliation of the existing inbox owners, followed by retained resume, publication and safe cleanup; equivalent scoped exports are accepted.
+
+Canonical runtime reconciliation and live acceptance evidence remain outstanding.
+This writer has no exposed scoped runtime inspection/cancellation capability.
+Direct reads of the two cited host run metadata paths returned `Operation not
+permitted`; the normal client's daemon discovery uses an explicitly denied
+control file. These restrictions do not establish that the host lacks capability
+or credentials. No daemon-control or database authority was read or changed.
+
+The runtime-provided `issue-evidence.json`, captured at 2026-09-11 16:16:27 UTC,
+contains only the first and latest cited runs. Both were waiting, attempt 1,
+with no resources and empty workspace diffs at their continuation decision.
+Neither has current writer evidence in that export. This is insufficient to
+classify all eleven current checkouts or safely select cancellations. All
+existing run identities, worktrees, capture contents and owner edits are retained.
+
+Resume with an attributable scoped runtime inventory covering all eleven runs
+and any later equivalent runs, current writer diffs/artifacts, and normal
+runtime cancellation/recovery results. Activate the declaration through the
+normal integration/runtime owner, reconcile old resource-less admissions without
+rewriting their claims, preserve ambiguous/dirty work, and observe the remaining
+owner resume after its real prerequisite clears, publish inbox progress, and
+release ownership. Record a later inventory showing no new equivalent executing
+owners and terminally authorized cleanup. Candidate code must not receive host
+authority. The task is not complete until these operational outcomes are shown.
+
+The static gate passed. Local behavior suites also expose execution restrictions:
+one existing inbox scenario cannot launch its validator because `/bin/ps` is
+denied; two process-tree restart cases report `spawn-failed`. These proofs need
+an execution environment supporting the existing subprocess inspection contract;
+no production guard or test expectation was weakened to conceal the failures.

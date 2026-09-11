@@ -111,8 +111,8 @@ describe("RunStateDatabase", () => {
   });
 
   test("preserves a yielded resource and resumes its lineage after priority blockers finish", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    let store = createStore();
+    let { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-yielded",
       scopeId: "scope-a",
@@ -161,6 +161,21 @@ describe("RunStateDatabase", () => {
       attempt: 1,
       sandbox,
     });
+
+    store.admitRun(run("successor", { resources: ["task:current"] }));
+    const stateDir = dirname(store.path);
+    store.close();
+    store = openStore(stateDir);
+    epoch = store.beginDaemonSession("2026-08-25T10:00:03.100Z").epoch;
+    expect(store.getRun("run-yielded")).toMatchObject({ state: "waiting", sandbox });
+    expect(store.listDispatchableRuns({ now: later, limit: 10, excludedScopeIds: [] })).toEqual([]);
+    expect(store.resumeSatisfiedContinuationRuns(later)).toEqual([]);
+    expect(store.getRun("successor")).toMatchObject({ state: "queued", attempt: 0 });
+
+    store.registerScope({ id: "scope-b", rootPath: "/scope-b", createdAt: later });
+    store.admitRun(run("other-scope", { scopeId: "scope-b", resources: ["task:current"] }));
+    expect(store.startRun("other-scope", epoch, later)).toBe(1);
+    store.finishRun("other-scope", epoch, "succeeded", later);
 
     store.admitRun({
       id: "run-urgent",
@@ -212,6 +227,8 @@ describe("RunStateDatabase", () => {
       "succeeded",
       "2026-08-25T10:00:08.000Z",
     );
+    expect(store.getRun("run-yielded")?.resources).toEqual([]);
+    expect(store.startRun("successor", epoch, "2026-08-25T10:00:09.000Z")).toBe(1);
     expect(store.listPendingPublications()).toEqual([
       expect.objectContaining({
         runId: "run-yielded",

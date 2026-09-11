@@ -108,6 +108,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
   repository: "write",
   integration: taskQueueIntegrationPolicy(),
+  resources: () => ["autonomy:inbox-triage"],
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],

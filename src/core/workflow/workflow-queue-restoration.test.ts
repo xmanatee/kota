@@ -91,6 +91,70 @@ describe("durable workflow queue restoration", () => {
     rmSync(scopeRoot, { recursive: true, force: true });
   });
 
+  it.each(["succeeded", "cancelled"] as const)("coalesces observations behind a yielded owner until it is %s", async (terminalState) => {
+    const definition = validateWorkflowDefinitions([
+      registerWorkflowDefinition("test/triage.ts", {
+        name: "triage",
+        repository: "read",
+        resources: () => ["triage:whole-scope"],
+        triggers: [{ event: "captures.available", cooldownMs: 30_000 }],
+        steps: [{ id: "inspect", type: "code", run: () => null }],
+      }),
+    ], scopeRoot)[0];
+    const queueForCurrentSession = () => new WorkflowQueueManager({
+      store: new WorkflowRunStore(scopeRoot), runState, coordinator,
+      scopeId: SCOPE_ID, scopeRoot, getScopeId: () => SCOPE_ID,
+      getActiveBackoff: () => null, workflowUsesAgent: () => false,
+      getDefinitions: () => [definition], log: () => {},
+    });
+    let queue = queueForCurrentSession();
+    let observation = 0;
+    const observe = (count: number) => queue.enqueue(definition, definition.triggers[0], {
+      event: "captures.available", schemaRef: null,
+      eventId: `observation-${++observation}`, payload: { count },
+    });
+    observe(1);
+    const owner = queue.getRuns()[0].runId!;
+    runState.startRun(owner, runState.getEpoch(), new Date().toISOString());
+    observe(1);
+    const successor = queue.getRuns()[0].runId!;
+    runState.suspendRun({
+      runId: owner, epoch: runState.getEpoch(), state: "waiting",
+      suspendedAt: new Date().toISOString(),
+      wait: { kind: "continuation", decision: "preserve-yield",
+        decidedAt: new Date().toISOString(), blockerResources: ["task:urgent"] },
+    });
+    observe(1);
+    await coordinator.dispose();
+    runState.close();
+    runState = new RunStateDatabase(join(scopeRoot, ".kota"));
+    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+    coordinator = new RunCoordinator({ store: runState, daemonEpoch: epoch,
+      concurrency: 1, execute: async () => ({ kind: "terminal", state: "succeeded" }) });
+    coordinator.pauseGlobalAdmission();
+    queue = queueForCurrentSession();
+    queue.restorePending();
+    observe(2);
+    observe(2);
+    const afterCooldown = new Date(Date.now() + 60_000).toISOString();
+    expect(runState.resumeSatisfiedContinuationRuns(afterCooldown)).toEqual([]);
+    expect(runState.listDispatchableRuns({ now: afterCooldown, limit: 10, excludedScopeIds: [] })).toEqual([]);
+    expect(runState.listRuns(SCOPE_ID)).toHaveLength(2);
+    expect(runState.getRun(owner)).toMatchObject({ state: "waiting", attempt: 1, resources: ["triage:whole-scope"] });
+    expect(queue.getRuns()).toMatchObject([{ runId: successor, trigger: { payload: { count: 2 } } }]);
+    expect(runState.getRun(successor)).toMatchObject({ attempt: 0 });
+    if (terminalState === "cancelled") {
+      expect(coordinator.cancel(owner)).toEqual({ cancelled: true });
+      await coordinator.whenIdle();
+    } else {
+      runState.resumeRun(owner, afterCooldown);
+      runState.startRun(owner, epoch, afterCooldown);
+      runState.finishRun(owner, epoch, terminalState, afterCooldown);
+    }
+    expect(runState.getRun(owner)).toMatchObject({ state: terminalState, resources: [] });
+    expect(runState.listDispatchableRuns({ now: afterCooldown, limit: 10, excludedScopeIds: [] }).map((run) => run.id)).toEqual([successor]);
+  });
+
   it("revalidates durable queued runs without reordering durable admission", () => {
     const definition = workflow(scopeRoot);
     const admittedAt = "2026-08-25T10:00:00.000Z";
