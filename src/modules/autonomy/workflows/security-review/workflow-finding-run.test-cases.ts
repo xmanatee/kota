@@ -21,12 +21,14 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
     afterEach(() => fixture.cleanup());
     const path = "src/modules/example.ts";
 
-    it("publishes confirmed evidence through the task writer and keeps rejected findings in the review", async () => {
+    it("preserves credential terminology through domain finalization and publication while redacting diagnostics", async () => {
       fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
       fixture.commitProjectState();
       const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
       const { verdict: _verdict, rationale: _rationale, ...finding } = fixture.confirmedFindingForClaim("Task writes lack authority");
       finding.candidateId = `task-workflow-mutation:${path}:1`;
+      finding.id = "standalone-instance-lock-credential-disclosure";
+      finding.violatedInvariant = "runtime-credentials-must-not-enter-agent-context";
       const investigation = { coverage: [{ path, disposition: "reviewed", rationale: "Inspected writer entry point and callers" }], findings: [finding, { ...finding, id: "rejected", evidenceIdentity: "hypothetical" }] };
       const result = await new WorkflowScenarioDriver(workflow, {
         workspaceRoot: fixture.workspaceRoot, ports: { runCommand: runGitEvidenceCommand, state }, trigger: { event: "autonomy.security-review.requested", payload: {} },
@@ -38,6 +40,11 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       expect(result.status, result.error).toBe("success");
       const after = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
       expect(after.pending).toHaveLength(1);
+      expect(after.pending[0]?.finding).toMatchObject(finding);
+      const metadata = JSON.parse(readFileSync(join(result.runDirPath, "metadata.json"), "utf8"));
+      expect(metadata.steps.find((step: { id: string }) => step.id === "investigate-candidates").output.findings[0]).toMatchObject({
+        id: "[redacted]", violatedInvariant: "[redacted]",
+      });
       expect(after.reviewed[path]).toBeTruthy();
       expect(readFileSync(join(result.runDirPath, "security-review-revalidation.json"), "utf8")).toContain("No second reachable sink");
       const taskId = resolveSecurityFindingTaskTarget(fixture.workspaceRoot, after.pending[0]!.finding).id;
@@ -129,7 +136,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       const contract = readFileSync(taskPath, "utf8");
       const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
       const original = { ...fixture.confirmedFindingForClaim("Pending database bypass"), existingTaskId: taskId, candidateId: `reported-boundary:${path}:1` };
-      const { unavailable: _unavailable, ...initial } = decodeSecurityReviewState(null);
+      const { unavailable: _unavailable, recovery: _recovery, ...initial } = decodeSecurityReviewState(null);
       const legacyPending = [original, { ...original, id: "synonymous-pending", productionOwner: "core/native-sandbox", violatedInvariant: "database-confidentiality", evidence: [{ path, line: 99, excerpt: "Retained second excerpt" }] }]
         .map(({ evidenceLineage: _lineage, ...finding }, index) => ({ runId: `legacy-review-${index}`, finding }));
       state.compareAndSet(SECURITY_REVIEW_STATE_KEY, state.read(SECURITY_REVIEW_STATE_KEY).revision, { ...initial, version: 1, pending: legacyPending });

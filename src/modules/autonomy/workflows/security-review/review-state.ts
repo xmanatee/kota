@@ -23,7 +23,7 @@ const legacyStateSchema = z.object({
   lastReview: z.object({ runId: z.string(), head: z.string().regex(/^[a-f0-9]{40,64}$/), completedAt: z.string().datetime() }).strict().nullable(),
   pending: z.array(z.object({ runId: z.string(), finding: pendingFindingSchema.omit({ evidenceLineage: true }) }).strict()),
 }).strict();
-const stateSchema = legacyStateSchema.extend({
+const versionTwoSchema = legacyStateSchema.extend({
   version: z.literal(2),
   pending: z.array(z.object({ runId: z.string(), finding: pendingFindingSchema }).strict()),
   unavailable: z.record(z.string(), z.object({
@@ -31,17 +31,54 @@ const stateSchema = legacyStateSchema.extend({
     prerequisites: z.record(z.string(), z.string().min(1)),
   }).strict()),
 });
+export const pendingSecurityEvidenceSchema = versionTwoSchema.shape.pending.element;
+const recoveryBaseSchema = z.object({
+  original: z.json(),
+  reason: z.string().min(1),
+}).strict();
+const artifactReferenceSchema = z.object({ runId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+const recoverySchema = z.discriminatedUnion("disposition", [
+  recoveryBaseSchema.extend({ disposition: z.literal("parked-invalid-evidence"), attemptError: z.string().optional() }),
+  recoveryBaseSchema.extend({ disposition: z.literal("reconciled-from-source-artifacts"), source: z.object({
+    investigation: artifactReferenceSchema, revalidation: artifactReferenceSchema,
+    entry: pendingSecurityEvidenceSchema,
+  }).strict() }),
+]);
+const stateSchema = versionTwoSchema.extend({
+  version: z.literal(3),
+  recovery: z.array(recoverySchema),
+});
 export type SecurityReviewState = z.infer<typeof stateSchema>;
-export function decodeSecurityReviewState(value: unknown): SecurityReviewState {
-  if (value === null) return { version: 2, reviewed: {}, unreviewedSurfaces: {}, evidenceRequests: [], reviewedEvidenceIds: [], lastReview: null, pending: [], unavailable: {} };
-  const legacy = legacyStateSchema.safeParse(value);
-  if (legacy.success) return {
-    ...legacy.data, version: 2, unavailable: {},
-    // Absence of lineage is not evidence of novelty. The materializer verifies
-    // legacy revisions against retained task evidence before allowing mutation.
-    pending: legacy.data.pending.map((entry) => ({ ...entry, finding: { ...entry.finding, evidenceLineage: null } })),
-  };
+
+/** New control state must be fully valid; only retained reads may quarantine. */
+export function validateSecurityReviewState(value: unknown): SecurityReviewState {
   return stateSchema.parse(value);
+}
+
+export function decodeSecurityReviewState(value: unknown): SecurityReviewState {
+  if (value === null) return { version: 3, reviewed: {}, unreviewedSurfaces: {}, evidenceRequests: [], reviewedEvidenceIds: [], lastReview: null, pending: [], unavailable: {}, recovery: [] };
+  const envelope = z.discriminatedUnion("version", [
+    legacyStateSchema.extend({ pending: z.array(z.json()) }),
+    versionTwoSchema.extend({ pending: z.array(z.json()) }),
+    stateSchema.extend({ pending: z.array(z.json()) }),
+  ]).parse(value);
+  const pending: SecurityReviewState["pending"] = [];
+  const recovery: SecurityReviewState["recovery"] = envelope.version === 3 ? [...envelope.recovery] : [];
+  for (const original of envelope.pending) {
+    const entry = envelope.version === 1
+      ? legacyStateSchema.shape.pending.element.safeParse(original)
+      : pendingSecurityEvidenceSchema.safeParse(original);
+    if (!entry.success) {
+      recovery.push({ original, disposition: "parked-invalid-evidence",
+        reason: entry.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "),
+      });
+      continue;
+    }
+    pending.push({ ...entry.data, finding: { evidenceLineage: null, ...entry.data.finding } });
+  }
+  return validateSecurityReviewState({ ...envelope, version: 3, pending, recovery,
+    unavailable: envelope.version === 1 ? {} : envelope.unavailable,
+  });
 }
 
 export function securityReviewPathUnavailable(

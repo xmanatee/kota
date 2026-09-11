@@ -57,6 +57,17 @@ Lineage-required identities remain available for subsequent revalidation, not
 publication; validated evidence can publish to the same task independently.
 Reconciliation remains with the existing task identity and publication owners.
 
+Investigation, revalidation and publication receipts reload domain values from
+integrity-checked run artifacts; diagnostic step projections are not control
+inputs. New state publications validate the complete domain shape. Retained
+invalid pending entries park with their original projection and source provenance,
+so they cannot authorize task publication or block unrelated dispatch. Dispatcher
+collects legacy source evidence through the shared worker and reconciles it in
+the success transaction only when the scoped successful run, full recorded
+projections and independently revalidated artifacts agree. Missing or ambiguous
+provenance remains inspectable in the recovery disposition; recovery never
+reruns a completed investigation or changes an existing task owner's contract.
+
 Confirmed evidence stages into runtime state until the existing writer runtime
 can publish under its task resource. Dispatcher retries pending publication when
 ownership clears. Active and retained builders keep their task contracts.

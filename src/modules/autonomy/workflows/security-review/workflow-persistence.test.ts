@@ -12,6 +12,33 @@ import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
 let fixture: SecurityReviewProjectFixture;
 afterEach(() => fixture?.cleanup());
 
+it.each(["investigation", "revalidation"])("rejects changed %s artifacts at atomic finalization", async (artifact) => {
+  fixture = new SecurityReviewProjectFixture();
+  const path = "src/modules/example.ts";
+  fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+  fixture.commitProjectState();
+  const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+  const { verdict: _verdict, rationale: _rationale, ...finding } = fixture.confirmedFindingForClaim("Task writes lack authority");
+  finding.candidateId = `task-workflow-mutation:${path}:1`;
+  const result = await new WorkflowScenarioDriver({
+    ...workflow,
+    steps: [...workflow.steps, { id: "change-source-artifact", type: "code", run: (ctx) => {
+      const artifactPath = join(ctx.workflow.runDirPath, `security-review-${artifact}.json`);
+      writeFileSync(artifactPath, `${readFileSync(artifactPath, "utf8")} `);
+      return null;
+    } }],
+  }, {
+    workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
+    stepOutputs: {
+      "investigate-candidates": { findings: [finding], coverage: [{ path, disposition: "reviewed", rationale: "Examined boundary" }] },
+      "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "Independent reproduction" }], summary: "Confirmed" },
+    },
+  }).run();
+  expect(result.status).toBe("failed");
+  expect(result.error).toContain("integrity mismatch");
+  expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value)).toEqual(decodeSecurityReviewState(null));
+});
+
 it("preserves repository-sized identity through persisted outputs, failed review and current-head retry", async () => {
   fixture = new SecurityReviewProjectFixture();
   const paths = Array.from({ length: 2500 }, (_, i) =>

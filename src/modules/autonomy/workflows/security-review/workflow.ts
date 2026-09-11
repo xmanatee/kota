@@ -15,6 +15,7 @@ import {
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
   finalizeSecurityReview,
+  recordedInvestigation,
   recordInvestigationFindings,
   recordRevalidation,
 } from "./finding-steps.js";
@@ -76,7 +77,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => (scanCandidates.output(ctx)?.candidateCount ?? 0) > 0,
     },
     recordInvestigationFindings,
-      {
+    {
       id: "revalidate-findings",
       type: "agent",
       agentName: agent.name,
@@ -88,7 +89,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       outputSchema: securityRevalidationOutputSchema,
       validate: decodeSecurityRevalidationVerdictOutput,
       when: (ctx) =>
-        (recordInvestigationFindings.output(ctx)?.findings.length ?? 0) > 0,
+        (recordedInvestigation(ctx)?.findings.length ?? 0) > 0,
     },
     recordRevalidation,
   ],

@@ -37,6 +37,10 @@ The reference must be a `security evidence` key retained in the nominated task
 predecessor is unchanged or how the new exploit differs. A different excerpt is
 not a new revision. Use a new evidenceIdentity for a new variant or regression.
 
+The recorded investigation step supplies an integrity reference. Read
+`security-review-investigation.json` from the referenced source run alongside
+the current run to obtain the original finding identities for revalidation.
+
 For independent revalidation, return `findings` and a top-level `summary`.
 Return one verdict per investigation finding with only `id`, `verdict`
 (`confirmed`, `rejected`, `follow-up-needed`), and `rationale`. Inspect the actual

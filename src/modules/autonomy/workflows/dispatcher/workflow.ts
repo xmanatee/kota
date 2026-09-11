@@ -28,7 +28,8 @@ import {
   type SecurityReviewGitEvidence,
 } from "../security-review/due-check.js";
 import { securityFindingPublicationRequested } from "../security-review/events.js";
-import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, type SecurityReviewState } from "../security-review/review-state.js";
+import { reconcileSecurityEvidenceRecovery, securityEvidenceRecoveryOperation } from "../security-review/evidence-recovery.js";
+import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, type SecurityReviewState, validateSecurityReviewState } from "../security-review/review-state.js";
 import { resolvePendingSecurityFindings } from "../security-review/security-review-task-identity.js";
 import { type DispatcherInspection, dispatcherInspectionOperation } from "./inspection.js";
 import {
@@ -47,6 +48,7 @@ type DispatcherObservation = {
   progressState: unknown;
   scopeImprovementState: ScopeImprovementState;
   securityState: SecurityReviewState;
+  securityEvidenceRecovery: SecurityReviewState["recovery"];
   securityReviewGitEvidence: SecurityReviewGitEvidence;
 };
 
@@ -56,7 +58,7 @@ export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
   const { scopeRoot, stateDir, scopeId, state } = ctx;
   const observation = expectStructuredOutput<DispatcherObservation>(
     readOptionalJsonFile(join(stateDir, "runs", ctx.runId, "dispatcher-observation.json")),
-    ["inspection", "progressBoundary", "progressState", "scopeImprovementState", "securityState", "securityReviewGitEvidence"],
+    ["inspection", "progressBoundary", "progressState", "scopeImprovementState", "securityState", "securityEvidenceRecovery", "securityReviewGitEvidence"],
   );
   const progressState = state.read<ProgressBoundaryState>(PROGRESS_BOUNDARY_STATE_KEY);
   const consumptionSnapshot = state.read(PROGRESS_REVIEW_STATE_KEY);
@@ -76,9 +78,10 @@ export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
     git: observation.securityReviewGitEvidence, inspection: observation.inspection.securityReviewDue, stateDir,
   });
   const securityState = security.nextState;
+  reconcileSecurityEvidenceRecovery(securityState, observation.securityEvidenceRecovery, join(stateDir, "runs", ctx.runId));
   const securityReviewDue = security.due;
-  if (!isDeepStrictEqual(securityState, currentSecurityState)) {
-    state.compareAndSet(SECURITY_REVIEW_STATE_KEY, securitySnapshot.revision, securityState);
+  if (!isDeepStrictEqual(securityState, securitySnapshot.value)) {
+    state.compareAndSet(SECURITY_REVIEW_STATE_KEY, securitySnapshot.revision, validateSecurityReviewState(securityState));
   }
   const { queue, researchRetryAvailability, builderTasks } = observation.inspection;
   if (
@@ -213,6 +216,7 @@ export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
     researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
     securityReviewDue: securityReviewPayload,
     parkedSecurityPublications,
+    securityEvidenceRecovery: securityState.recovery,
     progressBoundary: {
       shouldEmit: progressBoundary.shouldEmit,
       reason: progressBoundary.reason,
@@ -288,7 +292,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           runCommand,
           reviewState: securityState,
         });
-        const [inspection, progressBoundary] = await Promise.all([
+        const [inspection, progressBoundary, securityEvidenceRecovery] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
             workspaceRoot: scopeRoot,
             scopeRoot,
@@ -309,10 +313,11 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             consumedRevision: consumptionState.lastConsumedRevision,
             runCommand,
           }),
+          runBlocking(securityEvidenceRecoveryOperation, { state: securityState, stateDir, runtimeStateDir, scopeId }),
         ]);
         const observation: DispatcherObservation = {
           inspection, progressBoundary, progressState: progressState.value,
-          scopeImprovementState, securityState, securityReviewGitEvidence,
+          scopeImprovementState, securityState, securityReviewGitEvidence, securityEvidenceRecovery,
         };
         writeJsonFileAtomic(join(workflow.runDirPath, "dispatcher-observation.json"), observation);
         return { availableTasks: inspection.builderTasks.length };

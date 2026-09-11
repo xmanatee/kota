@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p0
 ---
 # Restore dispatcher routing when retained security evidence fails validation
@@ -72,3 +72,55 @@ Evidence:
 - dead-letter: .kota/dead-letter-queue/items.json#dlq-a3adccf0-be89-4fe8-bda4-e33179b1fc1e
 - run: .kota/runs/2026-09-11T07-53-45-796Z-dispatcher-8240rg/metadata.json
 - run: .kota/runs/2026-09-11T08-14-13-780Z-dispatcher-tl4eej/metadata.json
+
+## Implementation and verification (2026-09-11)
+
+The retained builder changes now separate investigation, revalidation and
+publication receipts from redacted diagnostic step outputs. Their consumers
+reload schema-validated, integrity-checked run artifacts, and atomic state
+publication validates the complete security-review domain shape.
+
+The state owner migrates invalid pending entries into an inspectable recovery
+disposition retaining the complete original projection and source run. Dispatcher
+continues ordinary routing and collects recovery through the shared worker.
+Reconciliation requires the successful source run in the selected scope, matching
+complete legacy step projections, consistent investigation/revalidation, and
+unchanged artifact hashes at finalization. Unavailable or mismatched evidence
+stays parked and cannot authorize task publication. Recovered evidence returns to
+the existing publication/resource owner; no retained builder contract is edited.
+
+The focused regressions establish credential-word identity preservation, redacted
+diagnostics, malformed-entry parking and routing across restarted runtime
+sessions, scoped provenance checks, artifact-change rejection, and atomic rollback
+of review consumption. The existing security-family task remains the owner of
+publication/cohort acceptance; this task does not duplicate that work.
+
+Run evidence is under
+`.kota/runtime/2026-09-11t09-43-00-380z-builder-300f747831b0954b014321d3b1bb904a43d49389335ab70f68967d7d69ed915e/agent/`.
+`dispatcher-reproduction.json` replays the exact corrupted finding projection
+from the supplied scope `8nrg1m` export through production SQLite and two
+`runtime.idle` sessions. Both route independent work, retain the original
+projection and emit no security publication. This is an attributable local
+reproduction, not recovery of canonical pending entry 2. `source-artifact-access.json`
+records denied reads of the cited canonical metadata, investigation and
+revalidation artifacts. The supplied export contains diagnostic projections;
+it cannot reconstruct the lost identifiers authoritatively.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs
+description: Host-owned activation and security-state reconciliation of the retained scope 8nrg1m entry, followed by an attributable scoped dispatcher/recovery export; use existing authorized runtime/evidence owners or equivalent exports.
+```
+
+After runtime-owned integration/activation, the next ordinary dispatcher run can
+park the actual invalid entry and reconcile it if its successful source run and
+original artifacts verify. Acceptance still requires its persisted disposition,
+continued eligible routing and task-resource preservation in the actual scope,
+plus the supervised publication proof that this sandbox cannot execute because
+its process-identity probe receives `spawnSync /bin/ps EPERM`. No canonical state,
+daemon process or other retained writer was changed. Sandbox denial does not
+establish that the host lacks these capabilities; equivalent attributable scoped
+evidence can satisfy the remaining acceptance without a new investigation or
+renewed authorization.

@@ -143,3 +143,7 @@ export function decodeSecurityRevalidationOutputForInvestigation(
     summary: output.summary,
   };
 }
+
+export function decodeSecurityRevalidationOutput(raw: unknown): SecurityRevalidationOutput {
+  return revalidationOutputSchema.parse(raw);
+}

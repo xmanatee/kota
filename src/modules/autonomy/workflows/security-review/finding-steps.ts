@@ -1,11 +1,12 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
-import { refreshedReviewInputArtifact } from "./review-input-artifact.js";
-import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable } from "./review-state.js";
+import { type ReviewInputReference, refreshedReviewInputArtifact, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
+import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable, validateSecurityReviewState } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
   decodeSecurityRevalidationOutputForInvestigation,
@@ -13,7 +14,16 @@ import {
   type SecurityRevalidationOutput,
   writeJsonArtifact,
 } from "./security-review.js";
+import { decodeSecurityRevalidationOutput } from "./security-review-output.js";
 import { resolvePendingSecurityFindings, resolveSecurityFindingTaskTarget, securityFindingFamilyKey } from "./security-review-task-identity.js";
+
+export const investigationArtifact = securityReviewArtifact("security-review-investigation.json", decodeSecurityInvestigationOutput);
+export const revalidationArtifact = securityReviewArtifact("security-review-revalidation.json", decodeSecurityRevalidationOutput);
+
+export function recordedInvestigation(ctx: WorkflowStepContext): SecurityInvestigationOutput | undefined {
+  const reference = recordInvestigationFindings.output(ctx);
+  return reference && investigationArtifact.read(ctx.workflow.runDirPath, reference);
+}
 
 function investigationOutput(
   ctx: WorkflowStepContext,
@@ -23,17 +33,12 @@ function investigationOutput(
   return raw === undefined ? undefined : decodeSecurityInvestigationOutput(raw);
 }
 
-export const recordInvestigationFindings = typedCodeStep<
-  SecurityInvestigationOutput & { artifactPath: string }
->({
+export const recordInvestigationFindings = typedCodeStep<ReviewInputReference>({
   id: "record-investigation-findings",
   type: "code",
   exposeOutputToAgent: true,
   when: stepSucceeded("investigate-candidates"),
-  validate: (raw) =>
-    expectStructuredOutput<
-      SecurityInvestigationOutput & { artifactPath: string }
-    >(raw, ["findings", "artifactPath"]),
+  validate: (raw) => reviewInputReferenceSchema.parse(raw),
   run: (ctx) => {
     const output = investigationOutput(ctx);
     if (!output) throw new Error("Security investigation is missing");
@@ -48,12 +53,7 @@ export const recordInvestigationFindings = typedCodeStep<
     for (const finding of output.findings) {
       if (!packet.candidates.some((candidate) => candidate.id === finding.candidateId)) throw new Error("Security finding cites an unknown candidate");
     }
-    const artifactPath = writeJsonArtifact(
-      ctx.workflow.runDirPath,
-      "security-review-investigation.json",
-      output,
-    );
-    return { ...output, artifactPath };
+    return investigationArtifact.write(ctx.workflow.runDirPath, output);
   },
 });
 
@@ -63,45 +63,41 @@ function revalidationOutput(
   if (!stepSucceeded("revalidate-findings")(ctx)) return undefined;
   const raw = ctx.stepOutputs["revalidate-findings"];
   if (raw === undefined) return undefined;
-  const investigation = recordInvestigationFindings.output(ctx);
+  const investigation = recordedInvestigation(ctx);
   if (!investigation) {
     throw new Error("Security revalidation requires recorded investigation findings.");
   }
   return decodeSecurityRevalidationOutputForInvestigation(raw, investigation);
 }
 
-export const recordRevalidation = typedCodeStep<
-  SecurityRevalidationOutput & { artifactPath: string }
->({
+export const recordRevalidation = typedCodeStep<ReviewInputReference>({
   id: "record-revalidation",
   type: "code",
   exposeOutputToAgent: true,
   when: stepSucceeded("revalidate-findings"),
-  validate: (raw) =>
-    expectStructuredOutput<
-      SecurityRevalidationOutput & { artifactPath: string }
-    >(raw, ["findings", "summary", "artifactPath"]),
+  validate: (raw) => reviewInputReferenceSchema.parse(raw),
   run: (ctx) => {
     const output = revalidationOutput(ctx) ?? {
       findings: [],
       summary: "No findings.",
     };
-    const artifactPath = writeJsonArtifact(
-      ctx.workflow.runDirPath,
-      "security-review-revalidation.json",
-      output,
-    );
-    return { ...output, artifactPath };
+    return revalidationArtifact.write(ctx.workflow.runDirPath, output);
   },
 });
 
 /** Consumption and pending publication commit atomically only on successful review. */
 export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
-  const investigation = recordInvestigationFindings.output(ctx);
-  if (!investigation) return;
+  const reference = recordInvestigationFindings.output(ctx);
+  if (!reference) return;
   const runDirPath = join(ctx.stateDir, "runs", ctx.runId);
+  const investigation = investigationArtifact.read(runDirPath, reference);
   const packet = scanCandidates.outputRequired(ctx);
-  const revalidation = recordRevalidation.output(ctx);
+  const revalidationReference = recordRevalidation.output(ctx);
+  const revalidation = revalidationReference && revalidationArtifact.read(runDirPath, revalidationReference);
+  if (revalidation) {
+    const expected = decodeSecurityRevalidationOutputForInvestigation({ findings: revalidation.findings.map(({ id, verdict, rationale }) => ({ id, verdict, rationale })), summary: revalidation.summary }, investigation);
+    if (!isDeepStrictEqual(expected, revalidation)) throw new Error("Security revalidation differs from its investigation");
+  }
   if (investigation.findings.length && !revalidation) throw new Error("Cannot consume findings without independent revalidation");
   const snapshot = ctx.state.read(SECURITY_REVIEW_STATE_KEY);
   const state = decodeSecurityReviewState(snapshot.value);
@@ -216,7 +212,7 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
     }
   }
   state.lastReview = { runId: ctx.runId, head: packet.head, completedAt: new Date().toISOString() };
-  ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, state);
+  ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, validateSecurityReviewState(state));
   writeJsonArtifact(runDirPath, "security-review-outcome.json", {
     outcome: state.pending.length ? "publication-pending" : "no-op", head: packet.head,
     coverage: investigation.coverage, selectedPaths, revisitedUnavailablePaths, deferredUnavailablePaths, reviewedPaths, pendingFindingCount: state.pending.length, lineageReconciliations, parkedFindings,

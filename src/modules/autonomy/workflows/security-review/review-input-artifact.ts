@@ -30,10 +30,10 @@ export type ReviewInputReference = z.infer<typeof reviewInputReferenceSchema>;
 
 // The ordinary step output carries a bounded reference. Retry replay retains
 // its source run, while refreshed evidence is written under the current run.
-function inputArtifact<T>(filename: string, schema: z.ZodType<T>) {
+export function securityReviewArtifact<T>(filename: string, decode: (value: unknown) => T) {
   return {
     write(runDirPath: string, input: T): ReviewInputReference {
-      const path = writeJsonArtifact(runDirPath, filename, schema.parse(input));
+      const path = writeJsonArtifact(runDirPath, filename, decode(input));
       return reviewInputReferenceSchema.parse({
         runId: basename(runDirPath),
         sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
@@ -46,10 +46,10 @@ function inputArtifact<T>(filename: string, schema: z.ZodType<T>) {
       if (createHash("sha256").update(content).digest("hex") !== ref.sha256) {
         throw new Error(`Security review input integrity mismatch: ${path}`);
       }
-      return schema.parse(JSON.parse(content.toString("utf8")));
+      return decode(JSON.parse(content.toString("utf8")));
     },
   };
 }
 
-export const retainedReviewInputArtifact = inputArtifact("security-review-retained-input.json", retainedInputSchema);
-export const refreshedReviewInputArtifact = inputArtifact("security-review-input.json", refreshedInputSchema);
+export const retainedReviewInputArtifact = securityReviewArtifact("security-review-retained-input.json", (value) => retainedInputSchema.parse(value));
+export const refreshedReviewInputArtifact = securityReviewArtifact("security-review-input.json", (value) => refreshedInputSchema.parse(value));

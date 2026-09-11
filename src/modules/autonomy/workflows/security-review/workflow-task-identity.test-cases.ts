@@ -57,7 +57,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       fixture.writeLegacySecurityFindingTask({ id: "task-database", state: "open", runId: "original", claim: "Database read confinement" });
       const first = { ...fixture.confirmedFindingForClaim("Non-writer database read"), existingTaskId: "task-database", productionOwner: "core/agent-harness/native-cli-sandbox", violatedInvariant: "daemon-database-read-isolation", evidenceIdentity: "native-nonwriter-database-read" };
       const second = { ...first, productionOwner: "src/core/agent-harness/native-cli-sandbox", violatedInvariant: "nonwriter-daemon-database-confidentiality", evidence: [{ path: first.affectedPath, line: 21, excerpt: "Another excerpt boundary for unchanged evidence" }] };
-      const { unavailable: _unavailable, ...initial } = decodeSecurityReviewState(null);
+      const { unavailable: _unavailable, recovery: _recovery, ...initial } = decodeSecurityReviewState(null);
       const pending = [first, second].map(({ evidenceLineage: _lineage, ...finding }, index) => ({ runId: `observed-${index}`, finding }));
       const migrated = decodeSecurityReviewState({ ...initial, version: 1, pending });
       expect(migrated.pending.map((entry) => entry.runId)).toEqual(["observed-0", "observed-1"]);
@@ -112,7 +112,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
         .replace(/^security evidence: .+$/m, `security evidence: ${evidence}`)
         .replace(/^evidence identity: .+\n/m, ""));
       const before = readFileSync(path, "utf8");
-      const { unavailable: _unavailable, ...initial } = decodeSecurityReviewState(null);
+      const { unavailable: _unavailable, recovery: _recovery, ...initial } = decodeSecurityReviewState(null);
       const { evidenceLineage: _lineage, ...legacyFinding } = original;
       const migrated = decodeSecurityReviewState({ ...initial, version: 1, pending: [{ runId: "legacy-repeat", finding: {
         ...legacyFinding, existingTaskId: id, productionOwner: "src/core/native-sandbox", violatedInvariant: "database-confidentiality",

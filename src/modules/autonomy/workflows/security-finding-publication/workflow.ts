@@ -8,20 +8,23 @@ import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { createSecurityFindingTasksOperation } from "../security-review/blocking-operations.js";
 import { securityFindingPublicationRequested } from "../security-review/events.js";
-import { decodeSecurityReviewState, SECURITY_REVIEW_RESOURCE, SECURITY_REVIEW_STATE_KEY, type SecurityReviewState } from "../security-review/review-state.js";
+import { reviewInputReferenceSchema, securityReviewArtifact } from "../security-review/review-input-artifact.js";
+import { decodeSecurityReviewState, pendingSecurityEvidenceSchema, SECURITY_REVIEW_RESOURCE, SECURITY_REVIEW_STATE_KEY, validateSecurityReviewState } from "../security-review/review-state.js";
 import { resolvePendingSecurityFindings } from "../security-review/security-review-task-identity.js";
 
+const receiptArtifact = securityReviewArtifact("security-publication-receipt.json", (value) => z.array(pendingSecurityEvidenceSchema).parse(value));
 const requestSchema = z.object({ taskId: z.string().regex(/^task-[a-z0-9][a-z0-9-]*$/) });
 const workflow: WorkflowDefinitionInput = {
   name: "security-finding-publication",
   repository: "write",
   finalize: (ctx) => {
-    const receipt = expectStructuredOutput<{ publishedFindings: SecurityReviewState["pending"] }>(ctx.stepOutputs["publish-findings"], ["publishedFindings"]);
+    const output = expectStructuredOutput<{ receipt: unknown }>(ctx.stepOutputs["publish-findings"], ["receipt"]);
+    const receipt = receiptArtifact.read(join(ctx.stateDir, "runs", ctx.runId), reviewInputReferenceSchema.parse(output.receipt));
     const snapshot = ctx.state.read(SECURITY_REVIEW_STATE_KEY);
     const state = decodeSecurityReviewState(snapshot.value);
-    const pending = state.pending.filter((entry) => !receipt.publishedFindings.some((published) => isDeepStrictEqual(published, entry)));
+    const pending = state.pending.filter((entry) => !receipt.some((published) => isDeepStrictEqual(published, entry)));
     if (pending.length !== state.pending.length) {
-      ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, { ...state, pending });
+      ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, validateSecurityReviewState({ ...state, pending }));
     }
   },
   integration: taskQueueIntegrationPolicy({
@@ -70,7 +73,7 @@ const workflow: WorkflowDefinitionInput = {
       if (results.some((result) => result.createdTaskIds.length + result.updatedTaskIds.length > 0)) {
         writeFileSync(join(ctx.workflow.runDirPath, "commit-message.txt"), `security-review: reconcile confirmed evidence for ${taskId}\n`);
       }
-      return { taskId, results, parkedFindings: parked, publishedFindings: settled };
+      return { taskId, results, parkedFindings: parked, receipt: receiptArtifact.write(ctx.workflow.runDirPath, settled) };
     },
   }],
 };
