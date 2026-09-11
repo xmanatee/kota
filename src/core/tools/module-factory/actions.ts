@@ -7,22 +7,10 @@ import {
 	listManifestModules,
 	loadManifest,
 	type ModuleManifest,
-	manifestToModule,
 	saveManifest,
 	validateManifest,
 } from "#core/manifest/index.js";
-import { resolveModuleTools } from "#core/modules/module-types.js";
-import type { ToolResult } from "#core/tools/index.js";
-import { deregisterModuleTools, registerTool } from "#core/tools/index.js";
-import {
-	addLoadedModule,
-	isModuleLoaded,
-	loadedModuleCount,
-	loadedModuleNames,
-	MAX_MANIFEST_MODULES,
-	removeLoadedModule,
-} from "./state.js";
-
+import type { ToolResult } from "#core/tools/tool-registry.js";
 // ─── Create ──────────────────────────────────────────────────────────
 
 export function handleCreate(
@@ -38,9 +26,7 @@ export function handleCreate(
 
 	const errors = validateManifest(rawManifest);
 	if (errors.length > 0) {
-		const details = errors
-			.map((e) => `  ${e.field}: ${e.message}`)
-			.join("\n");
+		const details = errors.map((e) => `  ${e.field}: ${e.message}`).join("\n");
 		return {
 			content: `Manifest validation failed:\n${details}`,
 			is_error: true,
@@ -49,107 +35,43 @@ export function handleCreate(
 
 	const manifest = rawManifest as unknown as ModuleManifest;
 
-	if (
-		loadedModuleCount() >= MAX_MANIFEST_MODULES &&
-		!isModuleLoaded(manifest.name)
-	) {
+	try {
+		saveManifest(manifest, cwd);
+	} catch (error) {
 		return {
-			content: `Error: maximum ${MAX_MANIFEST_MODULES} custom modules reached. Remove one first.`,
+			content: `Failed to save module "${manifest.name}": ${error instanceof Error ? error.message : String(error)}`,
 			is_error: true,
 		};
 	}
-
-	// If replacing, unload existing
-	if (isModuleLoaded(manifest.name)) {
-		deregisterModuleTools(manifest.name);
-		removeLoadedModule(manifest.name);
-	}
-
-	// Convert to KotaModule and register tools
-	const mod = manifestToModule(manifest);
-	const tools = resolveModuleTools(mod);
-	if (tools.length > 0) {
-		for (const def of tools) {
-			try {
-				registerTool(def.tool, def.runner, manifest.name, {
-					effect: def.effect,
-					...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
-				});
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				deregisterModuleTools(manifest.name);
-				return {
-					content: `Error registering tool "${def.tool.name}": ${msg}`,
-					is_error: true,
-				};
-			}
-		}
-	}
-
-	// Persist to disk
-	try {
-		saveManifest(manifest, cwd);
-	} catch (err) {
-		const msg = err instanceof Error ? err.message : String(err);
-		addLoadedModule(manifest.name);
-		return {
-			content:
-				`Module "${manifest.name}" created (session-only — failed to persist: ${msg}). ` +
-				`${tools.length} tool(s) registered.`,
-		};
-	}
-
-	addLoadedModule(manifest.name);
-
-	const toolNames = tools.map((t) => t.tool.name).join(", ") || "none";
+	const toolNames =
+		manifest.tools?.map((tool) => tool.name).join(", ") || "none";
 	return {
-		content:
-			`Module "${manifest.name}" created and saved.\n` +
-			`Tools: ${toolNames}\n` +
-			`Version: ${manifest.version || "1.0.0"}`,
+		content: `Module "${manifest.name}" saved. Changes take effect when the runtime next loads modules.\nTools: ${toolNames}\nVersion: ${manifest.version || "1.0.0"}`,
 	};
 }
 
-// ─── List ────────────────────────────────────────────────────────────
-
 export function handleList(cwd?: string): ToolResult {
 	const saved = listManifestModules(cwd);
-
-	if (saved.length === 0 && loadedModuleCount() === 0) {
+	if (saved.length === 0)
 		return {
 			content:
 				"No custom modules. Use module_factory(create, manifest: {...}) to create one.",
 		};
-	}
-
-	const lines: string[] = [];
-	const seen = new Set<string>();
-
-	for (const { name, manifest } of saved) {
-		seen.add(name);
-		const loaded = isModuleLoaded(name);
-		const toolCount = manifest.tools?.length || 0;
-		const status = loaded ? "active" : "saved (loads on restart)";
-		lines.push(
-			`- ${name} v${manifest.version || "1.0.0"} [${status}]: ${manifest.description || "(no description)"} (${toolCount} tools)`,
-		);
-	}
-
-	// Show session-only modules (created but not persisted)
-	for (const name of loadedModuleNames()) {
-		if (!seen.has(name)) {
-			lines.push(`- ${name} [session-only]: (not persisted to disk)`);
-		}
-	}
-
+	const lines = saved.map(
+		({ name, manifest }) =>
+			`- ${name} v${manifest.version || "1.0.0"} [saved]: ${manifest.description || "(no description)"} (${manifest.tools?.length ?? 0} tools)`,
+	);
 	return {
-		content: `Custom modules (${lines.length}):\n${lines.join("\n")}`,
+		content: `Saved custom modules (${lines.length}):\n${lines.join("\n")}`,
 	};
 }
 
 // ─── Remove ──────────────────────────────────────────────────────────
 
-export function handleRemove(name: string | undefined, cwd?: string): ToolResult {
+export function handleRemove(
+	name: string | undefined,
+	cwd?: string,
+): ToolResult {
 	if (!name) {
 		return {
 			content: "Error: name is required for remove action",
@@ -157,23 +79,14 @@ export function handleRemove(name: string | undefined, cwd?: string): ToolResult
 		};
 	}
 
-	const wasLoaded = isModuleLoaded(name);
-	const wasOnDisk = deleteManifest(name, cwd);
-
-	if (!wasLoaded && !wasOnDisk) {
+	if (!deleteManifest(name, cwd)) {
 		return {
 			content: `Error: no custom module named "${name}"`,
 			is_error: true,
 		};
 	}
-
-	if (wasLoaded) {
-		deregisterModuleTools(name);
-		removeLoadedModule(name);
-	}
-
 	return {
-		content: `Module "${name}" removed.${wasLoaded ? " Tools deregistered." : ""}${wasOnDisk ? " Manifest deleted from disk." : ""}`,
+		content: `Module "${name}" manifest removed. Changes take effect when the runtime next loads modules.`,
 	};
 }
 
@@ -189,23 +102,17 @@ export function handleInfo(name: string | undefined, cwd?: string): ToolResult {
 
 	const manifest = loadManifest(name, cwd);
 	if (!manifest) {
-		if (isModuleLoaded(name)) {
-			return {
-				content: `Module "${name}" is loaded (session-only, not persisted to disk).`,
-			};
-		}
 		return {
 			content: `Error: no custom module named "${name}"`,
 			is_error: true,
 		};
 	}
 
-	const loaded = isModuleLoaded(name);
 	const parts: string[] = [
 		`Module: ${manifest.name}`,
 		`Version: ${manifest.version || "1.0.0"}`,
 		`Description: ${manifest.description || "(none)"}`,
-		`Status: ${loaded ? "active" : "saved (loads on restart)"}`,
+		"Status: saved",
 	];
 
 	if (manifest.tools && manifest.tools.length > 0) {
@@ -216,8 +123,7 @@ export function handleInfo(name: string | undefined, cwd?: string): ToolResult {
 						(t.parameters as Record<string, unknown>).properties || {},
 					)
 				: [];
-			const paramStr =
-				params.length > 0 ? `(${params.join(", ")})` : "()";
+			const paramStr = params.length > 0 ? `(${params.join(", ")})` : "()";
 			parts.push(
 				`  - ${t.name}${paramStr} [${t.language || "python"}]: ${t.description}`,
 			);

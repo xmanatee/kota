@@ -246,7 +246,8 @@ export type ModuleManifestEffectLookup = ModuleManifestEffectProjection & {
   moduleName: string;
 };
 
-const MANIFEST_ID_PATTERN = /^[a-z][a-z0-9.-]*$/;
+// Generated IDs include accepted module and tool names, including underscores.
+const MANIFEST_ID_PATTERN = /^[a-z][a-z0-9_.-]*$/;
 const MANIFEST_SCOPES = ["global", "scope", "daemon", "external"] as const;
 const MANIFEST_SCOPE_POLICY_HOOKS = [
   "autonomy",

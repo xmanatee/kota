@@ -2313,6 +2313,30 @@ describe("source reimport", () => {
     expect(mod2.default.description).toBe("v2");
   });
 
+  it("rejects failed installed reloads without reporting stale activation as success", async () => {
+    const modDir = join(tmpDir, ".kota", "modules", "disk-mod");
+    mkdirSync(modDir, { recursive: true });
+    const manifestPath = join(modDir, "manifest.json");
+    writeFileSync(manifestPath, JSON.stringify({ name: "disk-mod", description: "original" }));
+    const loader = new ModuleLoader({}, false, { globalConfigPath });
+    loader.setCwd(tmpDir);
+    const { reimportInstalledModule } = await import("./module-discovery.js");
+    const mod = await reimportInstalledModule("disk-mod", tmpDir, { globalConfigPath });
+    await loader.loadAll([], [mod!]);
+    try {
+      writeFileSync(manifestPath, "{");
+      await expect(loader.reload("disk-mod")).rejects.toThrow();
+      expect(loader.getLoadedModules()).toEqual(["disk-mod"]);
+      writeFileSync(manifestPath, JSON.stringify({ name: "disk-mod", description: "updated" }));
+      writeFileSync(globalConfigPath, "{}");
+      await expect(loader.reload("disk-mod")).rejects.toThrow("cannot be reloaded");
+      writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
+      expect(await loader.reload("disk-mod")).toBe(true);
+    } finally {
+      await loader.unloadAll();
+    }
+  });
+
   it("ModuleLoader.reload re-imports installed module from disk", async () => {
     const modDir = join(tmpDir, ".kota", "modules", "disk-mod");
     mkdirSync(modDir, { recursive: true });

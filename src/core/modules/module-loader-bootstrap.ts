@@ -166,11 +166,13 @@ export async function reimportModule(
   cwd: string,
   configOptions: LoadConfigOptions = {},
 ): Promise<KotaModule | null> {
+  if (source === "installed") {
+    const mod = await reimportInstalledModule(name, cwd, configOptions);
+    if (!mod) throw new Error(`Installed module "${name}" cannot be reloaded: source is absent or scope is untrusted`);
+    return mod;
+  }
   try {
     if (source === "bundled") return await reimportBundledModule(name);
-    if (source === "installed") {
-      return await reimportInstalledModule(name, cwd, configOptions);
-    }
     return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

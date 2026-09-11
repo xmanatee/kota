@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	deleteManifest,
-	discoverManifestModules,
 	listManifestModules,
 	loadManifest,
 	saveManifest,
@@ -25,6 +24,13 @@ describe("manifest persistence edge cases", () => {
 
 	const minimal: ModuleManifest = { name: "test-mod" };
 
+  it("rejects traversal at the persistence boundary", () => {
+    expect(() => loadManifest("../outside", tmpDir)).toThrow("Invalid module name");
+    expect(() => deleteManifest("../outside", tmpDir)).toThrow("Invalid module name");
+    expect(() => saveManifest({ name: "../outside" }, tmpDir)).toThrow("Invalid module name");
+    expect(existsSync(join(tmpDir, ".kota", "outside"))).toBe(false);
+  });
+
 	it("saveManifest creates nested directory structure", () => {
 		const path = saveManifest(minimal, tmpDir);
 		expect(existsSync(path)).toBe(true);
@@ -39,11 +45,11 @@ describe("manifest persistence edge cases", () => {
 		expect(loaded?.description).toBe("updated");
 	});
 
-	it("loadManifest returns null for malformed JSON", () => {
+	it("loadManifest reports malformed JSON", () => {
 		const dir = join(tmpDir, ".kota", "modules", "bad-json");
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(join(dir, "manifest.json"), "{invalid json");
-		expect(loadManifest("bad-json", tmpDir)).toBeNull();
+		expect(() => loadManifest("bad-json", tmpDir)).toThrow();
 	});
 
 	it("deleteManifest returns false when directory exists but no manifest.json", () => {
@@ -68,25 +74,7 @@ describe("manifest persistence edge cases", () => {
 		expect(existsSync(join(tmpDir, ".kota", "modules", "test-mod"))).toBe(true);
 	});
 
-	it("discoverManifestModules skips directories without manifest.json", () => {
-		saveManifest(minimal, tmpDir);
-		const emptyDir = join(tmpDir, ".kota", "modules", "empty-mod");
-		mkdirSync(emptyDir, { recursive: true });
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
-		expect(modules[0].name).toBe("test-mod");
-	});
 
-	it("discoverManifestModules skips manifests with validation errors", () => {
-		// Save a valid one
-		saveManifest(minimal, tmpDir);
-		// Write an invalid one (name too short)
-		const badDir = join(tmpDir, ".kota", "modules", "x");
-		mkdirSync(badDir, { recursive: true });
-		writeFileSync(join(badDir, "manifest.json"), JSON.stringify({ name: "x" }));
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
-	});
 
 	it("listManifestModules returns empty for non-existent modules dir", () => {
 		const list = listManifestModules(join(tmpDir, "nonexistent"));
@@ -102,6 +90,18 @@ describe("manifest persistence edge cases", () => {
 		const names = list.map((l) => l.name).sort();
 		expect(names).toEqual(["alpha-mod", "beta-mod", "gamma-mod"]);
 	});
+
+  it("ignores files beside module directories", () => {
+    saveManifest(minimal, tmpDir);
+    writeFileSync(join(tmpDir, ".kota", "modules", ".DS_Store"), "metadata");
+    expect(listManifestModules(tmpDir).map(({ name }) => name)).toEqual([minimal.name]);
+  });
+
+  it("rejects a manifest whose identity differs from its directory", () => {
+    const path = saveManifest(minimal, tmpDir);
+    writeFileSync(path, JSON.stringify({ name: "another-mod" }));
+    expect(() => loadManifest(minimal.name, tmpDir)).toThrow("does not match its directory");
+  });
 
 	it("saveManifest with tools preserves tool definitions", () => {
 		const withTools: ModuleManifest = {

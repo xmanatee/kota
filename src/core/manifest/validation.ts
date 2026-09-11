@@ -2,11 +2,14 @@
  * Manifest validation — structural checks for agent-authored module manifests.
  */
 
-import { getCoreRegistrations } from "#core/tools/index.js";
 import { isMcpManagedToolName, mcpManagedToolNameError } from "#core/tools/tool-name-policy.js";
+import { getCoreRegistrations } from "#core/tools/tool-registry.js";
 import type { ValidationError } from "./types.js";
 
 const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
+export function isManifestModuleName(value: string): boolean {
+  return MODULE_NAME_RE.test(value);
+}
 
 const RESERVED_MODULE_NAMES = new Set([
 	"working-memory",
@@ -21,11 +24,8 @@ const RESERVED_MODULE_NAMES = new Set([
 	"registry",
 ]);
 
-// Lazy to avoid circular dependency (tools/module-factory.ts → here → tools/index.ts → tools/module-factory.ts).
-let _reservedToolNames: Set<string> | null = null;
 function getReservedToolNames(): Set<string> {
-	if (!_reservedToolNames) {
-		_reservedToolNames = new Set([
+	return new Set([
 			...getCoreRegistrations().map((r) => r.tool.name),
 			// Execution module tools (always loaded with the installed module set)
 			"shell", "process", "code_exec", "computer_use", "screenshot",
@@ -41,9 +41,7 @@ function getReservedToolNames(): Set<string> {
 			"get_secret",
 			"knowledge",
 			"conversation_recall",
-		]);
-	}
-	return _reservedToolNames;
+	]);
 }
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;
@@ -58,7 +56,7 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 	// Name
 	if (typeof m.name !== "string" || !m.name) {
 		errors.push({ field: "name", message: "name is required (string)" });
-	} else if (!MODULE_NAME_RE.test(m.name)) {
+	} else if (!isManifestModuleName(m.name)) {
 		errors.push({
 			field: "name",
 			message:

@@ -1,15 +1,11 @@
-/**
- * Integration tests for `custom_tool` end-to-end execution against real
- * Python and Node.js REPL sessions. Lives in the execution module because
- * the tests depend on the module's CodeRunner adapter; the matching unit
- * tests stay in `src/core/tools/custom-tool.test.ts` and do not spawn
- * runtimes.
- */
+/** Exercises manifest-defined tools against real Python and Node REPL sessions. */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import { manifestToModule } from "#core/manifest/execution.js";
+import type { ManifestToolDef } from "#core/manifest/types.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { resetCodeRunners } from "#core/tools/code-runner.js";
-import { resetCustomTools, runCustomTool } from "#core/tools/custom-tool.js";
 import { executeTool } from "#core/tools/index.js";
 import {
   deregisterExecutionCodeRunners,
@@ -38,7 +34,10 @@ function restoreEnv(saved: Record<(typeof envKeys)[number], string | undefined>)
   }
 }
 
-describe("custom_tool execution against the execution module runners", () => {
+describe("manifest execution against the execution module runners", () => {
+  let loader: ModuleLoader;
+  const loadCodeTool = (tool: ManifestToolDef) =>
+    loader.load(manifestToModule({ name: tool.name, tools: [tool] }));
   beforeAll(() => {
     resetCodeRunners();
     registerExecutionCodeRunners();
@@ -47,16 +46,19 @@ describe("custom_tool execution against the execution module runners", () => {
   afterAll(() => {
     cleanupSessions();
     deregisterExecutionCodeRunners();
-    resetCustomTools();
   });
 
   beforeEach(() => {
-    resetCustomTools();
+    loader = new ModuleLoader({}, false, { mode: "runtime" });
+    loader.setBus(new EventBus());
   });
 
-  it("executes a Python custom tool", async () => {
-    await runCustomTool({
-      action: "create",
+  afterEach(async () => {
+    await loader.unloadAll();
+  });
+
+  it("executes a Python manifest tool", async () => {
+    await loadCodeTool({
       name: "add_numbers",
       description: "Add two numbers",
       parameters: {
@@ -75,9 +77,8 @@ describe("custom_tool execution against the execution module runners", () => {
     expect(result.content).toContain("10");
   });
 
-  it("executes a Node.js custom tool", async () => {
-    await runCustomTool({
-      action: "create",
+  it("executes a Node.js manifest tool", async () => {
+    await loadCodeTool({
       name: "reverse_string",
       description: "Reverse a string",
       parameters: {
@@ -93,9 +94,8 @@ describe("custom_tool execution against the execution module runners", () => {
     expect(result.content).toContain("olleh");
   });
 
-  it("handles errors in custom tool code gracefully", async () => {
-    await runCustomTool({
-      action: "create",
+  it("handles errors in manifest tool code gracefully", async () => {
+    await loadCodeTool({
       name: "will_fail",
       description: "This will error",
       code: "raise ValueError('intentional error')",
@@ -108,8 +108,7 @@ describe("custom_tool execution against the execution module runners", () => {
   });
 
   it("passes complex parameters correctly", async () => {
-    await runCustomTool({
-      action: "create",
+    await loadCodeTool({
       name: "format_data",
       description: "Format structured data",
       parameters: {
@@ -132,8 +131,7 @@ describe("custom_tool execution against the execution module runners", () => {
   });
 
   it("handles params with special characters", async () => {
-    await runCustomTool({
-      action: "create",
+    await loadCodeTool({
       name: "echo_special",
       description: "Echo text with special chars",
       parameters: {
@@ -151,16 +149,15 @@ describe("custom_tool execution against the execution module runners", () => {
     expect(result.content).toContain("Hello 'world'");
   });
 
-  it("passes context and scrubs telemetry for Python custom tools", async () => {
+  it("passes context and scrubs telemetry for Python manifest tools", async () => {
     const saved = snapshotEnv();
     try {
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
       process.env.OTLP_ENDPOINT = "http://legacy-collector";
       cleanupSessions();
 
-      await runCustomTool({
-        action: "create",
-        name: "env_probe_python",
+      await loadCodeTool({
+          name: "env_probe_python",
         description: "Read selected environment values",
         code: [
           "import os",

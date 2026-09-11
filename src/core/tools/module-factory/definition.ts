@@ -7,9 +7,9 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 export const moduleFactoryTool: KotaTool = {
 	name: "module_factory",
 	description:
-		"Create, list, remove, inspect, or query logs from custom modules. " +
-		"Modules bundle related tools and metadata. " +
-		"Logs capture module operations for observability.",
+		"Save, list, remove, inspect, or query logs from custom module manifests. " +
+		"The runtime loader applies saved changes on its next load. " +
+		"Use code_exec for temporary code; module tools hold reusable code.",
 	input_schema: {
 		type: "object" as const,
 		properties: {
@@ -18,14 +18,15 @@ export const moduleFactoryTool: KotaTool = {
 				enum: ["create", "list", "remove", "info", "logs"],
 				description:
 					"create: define a new module. list: show all custom modules. " +
-					"remove: unload and delete. info: show details of one module. " +
+					"remove: delete a saved manifest. info: show details of one module. " +
 					"logs: query persistent module operation logs.",
 			},
 			manifest: {
 				type: "object",
 				description:
 					'Module manifest (for create). Must include "name" (string). ' +
-					'Optional: "description", "version", "tools" (array), "dependencies" (array).',
+					'Optional: "description", "version", "tools" (array), "dependencies" (array). ' +
+					'Each tool requires "name", "description", "code"; optional "language" (python or node), "parameters" (JSON Schema), "group".',
 			},
 			name: {
 				type: "string",

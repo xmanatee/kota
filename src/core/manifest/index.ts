@@ -6,14 +6,13 @@
  * - validation.ts — validateManifest
  * - steps.ts      — resolveRef, resolveStepInput, evaluateCondition (shared step utilities)
  * - execution.ts  — manifestToModule
- * - persistence.ts — saveManifest, loadManifest, discoverManifestModules
+ * - persistence.ts — saveManifest, loadManifest, listManifestModules
  */
 
 
 export { manifestToModule } from "./execution.js";
 export {
 	deleteManifest,
-	discoverManifestModules,
 	listManifestModules,
 	loadManifest,
 	saveManifest,

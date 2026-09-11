@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import {
   clearRegisteredConfigSlices,
   getRegisteredConfigSlice,
 } from "#core/config/config-slice.js";
+import { loadManifest, saveManifest } from "#core/manifest/persistence.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
@@ -73,6 +74,52 @@ describe("discoverModules", () => {
     writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     expect(await discoverModules(tmpDir)).toHaveLength(1);
     expect(existsSync(importMarker)).toBe(true);
+  });
+
+  it("converts saved tools only in trusted scopes and leaves activation to the loader", async () => {
+    const tool = { name: "saved_probe", description: "Saved code", code: "print('ok')", language: "python" };
+    const directory = join(tmpDir, ".kota", "tools");
+    const source = join(directory, "saved_probe.json");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(source, JSON.stringify(tool));
+    writeFileSync(globalConfigPath, "{}");
+    expect(await discoverModules(tmpDir)).toEqual([]);
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(join(tmpDir, ".kota", "modules"))).toBe(false);
+
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
+    const modules = await discoverModules(tmpDir);
+    expect(modules.map((mod) => mod.name)).toEqual([tool.name]);
+    expect(loadManifest(tool.name, tmpDir)).toEqual({ name: tool.name, tools: [tool] });
+    expect(existsSync(source)).toBe(false);
+    expect(getAllTools().some((item) => item.name === tool.name)).toBe(false);
+    expect(await discoverModules(join(tmpDir, "other-scope"))).toEqual([]);
+    expect((await discoverModules(tmpDir)).map((mod) => mod.name)).toEqual([tool.name]);
+    await loader.loadAll(modules);
+    expect(getAllTools().some((item) => item.name === tool.name)).toBe(true);
+    await loader.unloadAll();
+    expect(getAllTools().some((item) => item.name === tool.name)).toBe(false);
+  });
+
+  it("preserves conflicting or invalid saved definitions and resumes an interrupted conversion", async () => {
+    const tool = { name: "saved_probe", description: "Saved code", code: "print('ok')" };
+    const directory = join(tmpDir, ".kota", "tools");
+    const source = join(directory, "saved_probe.json");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(source, JSON.stringify(tool));
+    const conflicting = { name: tool.name, tools: [{ ...tool, code: "print('different')" }] };
+    saveManifest(conflicting, tmpDir);
+    await expect(discoverModules(tmpDir)).rejects.toThrow("already exists");
+    expect(JSON.parse(readFileSync(source, "utf8"))).toEqual(tool);
+    expect(loadManifest(tool.name, tmpDir)).toEqual(conflicting);
+
+    saveManifest({ name: tool.name, tools: [tool] }, tmpDir);
+    writeFileSync(source, JSON.stringify({ ...tool, code: 42 }));
+    await expect(discoverModules(tmpDir)).rejects.toThrow("tool code is required");
+    expect(existsSync(source)).toBe(true);
+    writeFileSync(source, JSON.stringify(tool));
+    expect(await discoverModules(tmpDir)).toHaveLength(1);
+    expect(existsSync(source)).toBe(false);
   });
 
   it("discovers and loads a simple module with one tool", async () => {

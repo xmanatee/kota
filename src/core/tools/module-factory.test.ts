@@ -2,12 +2,12 @@ import { existsSync, mkdirSync, rmSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { manifestToModule } from "#core/manifest/index.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore, resetModuleLogStore } from "#core/modules/module-log.js";
-import { clearCustomTools } from "./index.js";
+import { clearCustomTools, getAllTools } from "./index.js";
 import {
-	addLoadedModule,
-	loadedModuleCount,
-	resetModuleFactory,
 	runModuleFactory,
 } from "./module-factory/index.js";
 
@@ -25,7 +25,6 @@ beforeEach(() => {
 afterEach(() => {
 	process.chdir(originalCwd);
 	clearCustomTools();
-	resetModuleFactory();
 	try { rmSync(tmpDir, { recursive: true }); } catch { /* */ }
 });
 
@@ -41,7 +40,34 @@ const sampleManifest = {
 };
 
 describe("runModuleFactory — create", () => {
-	it("creates a module and registers its tools", async () => {
+  it("leaves activation and withdrawal to the module loader", async () => {
+    const loader = new ModuleLoader({}, false, { mode: "runtime" });
+    loader.setBus(new EventBus());
+    await loader.load(manifestToModule(sampleManifest));
+    try {
+      const updated = { ...sampleManifest, tools: [{ ...sampleManifest.tools[0], name: "replacement_tool" }] };
+      await runModuleFactory({ action: "create", manifest: updated });
+      expect(getAllTools().some((tool) => tool.name === "test_tool")).toBe(true);
+      expect(getAllTools().some((tool) => tool.name === "replacement_tool")).toBe(false);
+      await runModuleFactory({ action: "remove", name: sampleManifest.name });
+      expect(getAllTools().some((tool) => tool.name === "test_tool")).toBe(true);
+    } finally {
+      await loader.unloadAll();
+    }
+    expect(getAllTools().some((tool) => tool.name === "test_tool")).toBe(false);
+  });
+
+  it("keeps saved declarations within the caller's scope", async () => {
+    const scopeA = { cwd: join(tmpDir, "scope-a"), sessionId: "a" };
+    const scopeB = { cwd: join(tmpDir, "scope-b"), sessionId: "b" };
+    expect((await runModuleFactory({ action: "create", manifest: sampleManifest }, scopeA)).is_error).toBeFalsy();
+    expect((await runModuleFactory({ action: "list" }, scopeB)).content).not.toContain(sampleManifest.name);
+    expect((await runModuleFactory({ action: "remove", name: sampleManifest.name }, scopeB)).is_error).toBe(true);
+    expect(existsSync(join(scopeA.cwd, ".kota", "modules", sampleManifest.name, "manifest.json"))).toBe(true);
+    expect(getAllTools().some((tool) => tool.name === "test_tool")).toBe(false);
+  });
+
+	it("saves a module declaration", async () => {
 		const result = await runModuleFactory({ action: "create", manifest: sampleManifest });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("test-mod");
@@ -77,21 +103,7 @@ describe("runModuleFactory — create", () => {
 		expect(result.content).toContain("test-mod");
 	});
 
-	it("rejects when max modules reached", async () => {
-		// Create 10 modules to hit the limit
-		for (let i = 0; i < 10; i++) {
-			await runModuleFactory({
-				action: "create",
-				manifest: { name: `mod-${String(i).padStart(2, "0")}`, tools: [] },
-			});
-		}
-		const result = await runModuleFactory({
-			action: "create",
-			manifest: { name: "one-too-many", tools: [] },
-		});
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("maximum");
-	});
+
 });
 
 describe("runModuleFactory — list", () => {
@@ -104,7 +116,7 @@ describe("runModuleFactory — list", () => {
 		await runModuleFactory({ action: "create", manifest: sampleManifest });
 		const result = await runModuleFactory({ action: "list" });
 		expect(result.content).toContain("test-mod");
-		expect(result.content).toContain("active");
+		expect(result.content).toContain("saved");
 	});
 });
 
@@ -164,20 +176,6 @@ describe("runModuleFactory — unknown action", () => {
 	});
 });
 
-
-describe("session lifecycle", () => {
-	it("addLoadedModule tracks loaded modules", () => {
-		expect(loadedModuleCount()).toBe(0);
-		addLoadedModule("my-mod");
-		expect(loadedModuleCount()).toBe(1);
-	});
-
-	it("resetModuleFactory clears state", () => {
-		addLoadedModule("my-mod");
-		resetModuleFactory();
-		expect(loadedModuleCount()).toBe(0);
-	});
-});
 
 describe("runModuleFactory — logs", () => {
 	it("returns error when log store not initialized", async () => {

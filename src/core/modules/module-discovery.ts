@@ -21,8 +21,9 @@ import {
   type LoadConfigOptions,
   loadScopeConfigTrustDecision,
 } from "#core/config/config.js";
-import type { ModuleManifest } from "#core/manifest/index.js";
-import { manifestToModule, validateManifest } from "#core/manifest/index.js";
+import { loadManifest, manifestToModule } from "#core/manifest/index.js";
+import { migrateSavedTools } from "#core/manifest/migrate-saved-tools.js";
+import { isManifestModuleName } from "#core/manifest/validation.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
 import { assertModuleDefinition } from "./module-definition.js";
 import type { KotaModule } from "./module-types.js";
@@ -42,7 +43,7 @@ export async function discoverModules(
   const base = cwd || process.cwd();
   const modulesDir = resolve(base, MODULES_DIR);
 
-  if (!existsSync(modulesDir)) return [];
+  if (!existsSync(modulesDir) && !existsSync(join(base, ".kota", "tools"))) return [];
   const trust = loadScopeConfigTrustDecision(base, configOptions);
   if (!trust.trusted) {
     if (verbose) {
@@ -54,6 +55,9 @@ export async function discoverModules(
     return [];
   }
 
+  migrateSavedTools(base);
+  if (!existsSync(modulesDir)) return [];
+
   const entries = readdirSync(modulesDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
@@ -64,7 +68,7 @@ export async function discoverModules(
   for (const name of entries) {
     const moduleDir = join(modulesDir, name);
     try {
-      const module = await loadModuleDirectory(moduleDir, name);
+      const module = await loadModuleDirectory(moduleDir, name, base);
       if (module) {
         assertModuleDefinition(module);
         modules.push(module);
@@ -88,29 +92,12 @@ export async function discoverModules(
  * Checks for manifest.json, index.js/mjs, then package.json (in that order).
  * Returns null for empty or unrecognized directories.
  */
-async function loadModuleDirectory(dir: string, name: string): Promise<KotaModule | null> {
+async function loadModuleDirectory(dir: string, name: string, scopeRoot: string): Promise<KotaModule | null> {
   // 1. Manifest-based module (JSON-defined tools)
   const manifestPath = join(dir, "manifest.json");
   if (existsSync(manifestPath)) {
-    try {
-      const raw = readFileSync(manifestPath, "utf-8");
-      const manifest = JSON.parse(raw) as ModuleManifest;
-      const errors = validateManifest(manifest);
-      if (errors.length > 0) {
-        printTerminalDiagnostic(
-          `[kota] Manifest module "${name}" has validation errors, skipping`,
-          "warn",
-        );
-        return null;
-      }
-      return manifestToModule(manifest);
-    } catch {
-      printTerminalDiagnostic(
-        `[kota] Failed to parse manifest for module "${name}", skipping`,
-        "warn",
-      );
-      return null;
-    }
+    const manifest = loadManifest(name, scopeRoot);
+    return manifest ? manifestToModule(manifest) : null;
   }
 
   // 2. Single-file code module (index.js or index.mjs at directory root)
@@ -179,21 +166,15 @@ export async function reimportInstalledModule(
   configOptions: LoadConfigOptions = {},
 ): Promise<KotaModule | null> {
   const base = cwd || process.cwd();
+  if (!isManifestModuleName(name)) throw new Error(`Invalid module name: ${name}`);
   const moduleDir = resolve(base, MODULES_DIR, name);
   if (!existsSync(moduleDir)) return null;
   if (!loadScopeConfigTrustDecision(base, configOptions).trusted) return null;
 
   const manifestPath = join(moduleDir, "manifest.json");
   if (existsSync(manifestPath)) {
-    try {
-      const raw = readFileSync(manifestPath, "utf-8");
-      const manifest = JSON.parse(raw) as ModuleManifest;
-      const errors = validateManifest(manifest);
-      if (errors.length > 0) return null;
-      return manifestToModule(manifest);
-    } catch {
-      return null;
-    }
+    const manifest = loadManifest(name, base);
+    return manifest ? manifestToModule(manifest) : null;
   }
 
   for (const entry of ["index.js", "index.mjs"]) {

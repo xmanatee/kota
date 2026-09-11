@@ -4,9 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetApprovalQueue, setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import { resetCustomTools } from "#core/tools/custom-tool.js";
 import { clearCustomTools, deregisterTool, type ToolRunnerContext } from "#core/tools/index.js";
-import { resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
@@ -54,9 +52,7 @@ describe("approval execution scope", () => {
   afterEach(() => {
     process.chdir(originalCwd);
     for (const name of REGISTERED_TOOL_NAMES) deregisterTool(name);
-    resetCustomTools();
     clearCustomTools();
-    resetModuleFactory();
     resetPromptStore();
     resetProviderRegistry();
     resetApprovalQueue();
@@ -500,7 +496,7 @@ describe("approval execution scope", () => {
     expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });
 
-  it("executes approved module and custom-tool persistence under the selected scope cwd", async () => {
+  it("executes approved module persistence under the selected scope cwd", async () => {
     scopeB.approvalQueue.enqueue(
       "module_factory",
       {
@@ -520,19 +516,6 @@ describe("approval execution scope", () => {
       "moderate",
       "create selected scope manifest module",
     );
-    scopeB.approvalQueue.enqueue(
-      "custom_tool",
-      {
-        action: "create",
-        name: "approval_scope_custom_tool",
-        description: "Approval scope regression custom tool",
-        code: "print('custom')",
-        persist: true,
-      },
-      "moderate",
-      "create selected scope custom tool",
-    );
-
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
       mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
@@ -569,13 +552,6 @@ describe("approval execution scope", () => {
         ),
       ),
     ).toBe(false);
-    expect(
-      existsSync(join(scopeB.scope.scopeRoot, ".kota", "tools", "approval_scope_custom_tool.json")),
-    ).toBe(true);
-    expect(
-      existsSync(
-        join(defaultEntry.scope.scopeRoot, ".kota", "tools", "approval_scope_custom_tool.json"),
-      ),
-    ).toBe(false);
+
   });
 });
