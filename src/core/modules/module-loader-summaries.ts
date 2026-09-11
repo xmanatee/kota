@@ -1,5 +1,4 @@
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
-import { getModuleToolNames } from "#core/tools/index.js";
 import {
   decodeHealthCheckResult,
   decodeModuleHealth,
@@ -60,7 +59,7 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       version: mod.version,
       description: mod.description,
       dependencies: mod.dependencies ?? [],
-      toolNames: getModuleToolNames(mod.name),
+      toolNames: (state.moduleToolDefs.get(mod.name) ?? []).map((tool) => tool.name),
       workflowNames: (state.moduleWorkflowDefs.get(mod.name) ?? []).map((w) =>
         w.name
       ),

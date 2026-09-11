@@ -165,20 +165,14 @@ describe("ToolMiddlewareRegistry", () => {
 		expect(ran).toBe(false);
 	});
 
-	it("removeByOwner removes all middleware for a module", () => {
-		const reg = new ToolMiddlewareRegistry();
-		reg.add("a", async (_c, next) => next(), { owner: "mod1" });
-		reg.add("b", async (_c, next) => next(), { owner: "mod1" });
-		reg.add("c", async (_c, next) => next(), { owner: "mod2" });
-		expect(reg.removeByOwner("mod1")).toBe(2);
-		expect(reg.size).toBe(1);
-		expect(reg.list()).toEqual(["c"]);
-	});
-
-	it("removeByOwner returns 0 for unknown owner", () => {
-		const reg = new ToolMiddlewareRegistry();
-		expect(reg.removeByOwner("nobody")).toBe(0);
-	});
+  it("an old disposer cannot remove a replacement middleware", () => {
+    const reg = new ToolMiddlewareRegistry();
+    const dispose = reg.add("a", async (_c, next) => next());
+    reg.remove("a");
+    reg.add("a", async (_c, next) => next());
+    dispose();
+    expect(reg.list()).toEqual(["a"]);
+  });
 
 	it("list returns names in priority order", () => {
 		const reg = new ToolMiddlewareRegistry();

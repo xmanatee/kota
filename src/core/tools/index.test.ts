@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { riskFromEffect } from "./effect.js";
-import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
+import { clearCustomTools, deregisterTool, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -293,34 +293,18 @@ describe("registerTool", () => {
   });
 });
 
-describe("deregisterModuleTools", () => {
+describe("tool registration lifetime", () => {
   afterEach(() => clearCustomTools());
 
-  it("removes only tools belonging to the specified module", async () => {
-    registerTool(makeTool("mod_a_tool"), async () => ({ content: "a" }), "mod-a");
-    registerTool(makeTool("mod_b_tool"), async () => ({ content: "b" }), "mod-b");
-
-    deregisterModuleTools("mod-a");
-
-    const ra = await executeTool("mod_a_tool", {});
-    expect(ra.is_error).toBe(true);
-
-    const rb = await executeTool("mod_b_tool", {});
-    expect(rb.content).toBe("b");
-  });
-
-  it("is a no-op for unknown module name", () => {
-    const before = getAllTools().length;
-    deregisterModuleTools("nonexistent");
-    expect(getAllTools().length).toBe(before);
-  });
-
-  it("allows re-registration after deregister", async () => {
-    registerTool(makeTool("reuse_tool"), async () => ({ content: "v1" }), "mod-x");
-    deregisterModuleTools("mod-x");
-
-    registerTool(makeTool("reuse_tool"), async () => ({ content: "v2" }), "mod-x");
-    const r = await executeTool("reuse_tool", {});
-    expect(r.content).toBe("v2");
+  it("an old disposer cannot withdraw a replacement using the same definition and runner", async () => {
+    const tool = makeTool("reuse_tool");
+    const runner = async () => ({ content: "available" });
+    const dispose = registerTool(tool, runner, "owner");
+    deregisterTool(tool.name);
+    const replacement = registerTool(tool, runner, "owner");
+    dispose();
+    expect((await executeTool(tool.name, {})).content).toBe("available");
+    replacement();
+    expect((await executeTool(tool.name, {})).is_error).toBe(true);
   });
 });

@@ -56,7 +56,6 @@ export {
   hasHarnessHooks,
   listHarnessHooks,
   registerHarnessHook,
-  removeHarnessHooks,
   resetHarnessHooks,
 } from "./hooks.js";
 export type {

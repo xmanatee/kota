@@ -25,6 +25,7 @@ export interface LoaderContextDeps {
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
   trackEventSubscription: (unsubscribe: () => void) => () => void;
+  trackRegistration: (dispose: () => void) => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
@@ -50,6 +51,7 @@ export function createLoaderModuleContext(
     moduleStorages: deps.moduleStorages,
     getBus: deps.getBus,
     trackEventSubscription: deps.trackEventSubscription,
+    trackRegistration: deps.trackRegistration,
     getRoutes: deps.getRoutes,
     getContributedControlRoutes: deps.getContributedControlRoutes,
     getContributedWorkflows: deps.getContributedWorkflows,

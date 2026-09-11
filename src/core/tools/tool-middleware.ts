@@ -54,7 +54,6 @@ type MiddlewareEntry = {
 	name: string;
 	fn: ToolMiddlewareFn;
 	priority: number;
-	owner?: string;
 };
 
 export class ToolMiddlewareRegistry {
@@ -64,8 +63,8 @@ export class ToolMiddlewareRegistry {
 	add(
 		name: string,
 		fn: ToolMiddlewareFn,
-		opts?: { priority?: number; owner?: string },
-	): void {
+		opts?: { priority?: number },
+	): () => void {
 		if (this.entries.some((e) => e.name === name)) {
 			throw new Error(`Middleware already registered: ${name}`);
 		}
@@ -73,10 +72,13 @@ export class ToolMiddlewareRegistry {
 			name,
 			fn,
 			priority: opts?.priority ?? 100,
-			owner: opts?.owner,
 		};
 		this.entries.push(entry);
 		this.entries.sort((a, b) => a.priority - b.priority);
+		return () => {
+			const index = this.entries.indexOf(entry);
+			if (index >= 0) this.entries.splice(index, 1);
+		};
 	}
 
 	/** Remove middleware by name. Returns true if found. */
@@ -85,13 +87,6 @@ export class ToolMiddlewareRegistry {
 		if (idx < 0) return false;
 		this.entries.splice(idx, 1);
 		return true;
-	}
-
-	/** Remove all middleware registered by a specific owner (module). */
-	removeByOwner(owner: string): number {
-		const before = this.entries.length;
-		this.entries = this.entries.filter((e) => e.owner !== owner);
-		return before - this.entries.length;
 	}
 
 	/** Execute the middleware chain, calling baseFn at the innermost level. */

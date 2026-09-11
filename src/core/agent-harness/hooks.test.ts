@@ -3,7 +3,6 @@ import {
   hasHarnessHooks,
   listHarnessHooks,
   registerHarnessHook,
-  removeHarnessHooks,
   resetHarnessHooks,
 } from "./hooks.js";
 
@@ -67,14 +66,14 @@ describe("harness hook registry", () => {
     expect(listHarnessHooks("preRun")).toHaveLength(2);
   });
 
-  it("removes every hook owned by a module", () => {
-    registerHarnessHook({
+  it("releases only the acquired hook registrations", () => {
+    const disposeFirst = registerHarnessHook({
       kind: "preRun",
       owner: "mod-a",
       name: "one",
       handler: () => {},
     });
-    registerHarnessHook({
+    const disposeSecond = registerHarnessHook({
       kind: "postRun",
       owner: "mod-a",
       name: "two",
@@ -87,7 +86,9 @@ describe("harness hook registry", () => {
       handler: () => {},
     });
 
-    removeHarnessHooks("mod-a");
+    disposeFirst();
+    disposeSecond();
+    disposeFirst();
 
     expect(listHarnessHooks("preRun")).toHaveLength(1);
     expect(listHarnessHooks("preRun")[0]?.owner).toBe("mod-b");

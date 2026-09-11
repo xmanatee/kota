@@ -1,12 +1,6 @@
-import { removeHarnessHooks } from "#core/agent-harness/hooks.js";
-import { removeCleanupHooks } from "#core/loop/cleanup-hooks.js";
-import { removeDynamicStateProviders } from "#core/loop/dynamic-state.js";
-import { removePreSendHooks } from "#core/loop/pre-send-hooks.js";
-import { deregisterModuleTools } from "#core/tools/index.js";
-import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import { clearModuleEventSubscriptions } from "./module-event-lifecycle.js";
-import type { LoaderState } from "./module-loader-state.js";
+import { type LoaderState, releaseModuleRegistrations } from "./module-loader-state.js";
 import type { KotaModule, ModuleSource } from "./module-types.js";
 import {
   getRenderingProvider,
@@ -69,32 +63,8 @@ export function discardModuleLoadState(
   providerRegistry: ProviderRegistry,
   mode: "commands" | "runtime",
 ): void {
-  for (
-    const dispose of [
-      ...(state.moduleAgentHarnessDisposers.get(moduleName) ?? []),
-    ].reverse()
-  ) {
-    dispose();
-  }
-  for (
-    const dispose of [
-      ...(state.moduleConfigSliceDisposers.get(moduleName) ?? []),
-    ].reverse()
-  ) {
-    dispose();
-  }
-  for (
-    const dispose of [
-      ...(state.moduleEventRegistrationDisposers.get(moduleName) ?? []),
-    ].reverse()
-  ) {
-    dispose();
-  }
+  releaseModuleRegistrations(state, moduleName);
   clearModuleEventSubscriptions(state, moduleName);
-  if (mode === "runtime") {
-    deregisterModuleTools(moduleName);
-    getToolMiddleware().removeByOwner(moduleName);
-  }
 
   const wfDefs = state.moduleWorkflowDefs.get(moduleName);
   if (wfDefs) removeOwnedContributions(state.contributedWorkflows, wfDefs);
@@ -140,9 +110,6 @@ export function discardModuleLoadState(
     }
   }
   state.moduleAgentDefs.delete(moduleName);
-  state.moduleAgentHarnessDisposers.delete(moduleName);
-  state.moduleConfigSliceDisposers.delete(moduleName);
-  state.moduleEventRegistrationDisposers.delete(moduleName);
   state.moduleSetupRequirementDefs.delete(moduleName);
   state.moduleManifests.delete(moduleName);
   state.moduleLocalClientNamespaces.delete(moduleName);
@@ -158,10 +125,6 @@ export function discardModuleLoadState(
     if (owner === moduleName) state.registeredConfigKeys.delete(key);
   }
   if (mode === "runtime") {
-    removeCleanupHooks(moduleName);
-    removeDynamicStateProviders(moduleName);
-    removePreSendHooks(moduleName);
-    removeHarnessHooks(moduleName);
     providerRegistry.unregisterOwner(moduleName);
   }
 }
@@ -183,6 +146,8 @@ export async function unloadModule(
     );
   }
 
+  releaseModuleRegistrations(state, moduleName);
+  clearModuleEventSubscriptions(state, moduleName);
   const activation = state.moduleActivations.get(moduleName);
   if (activation) {
     try {
@@ -216,9 +181,7 @@ export async function unloadAllModules(
   // Withdraw executable contributions synchronously before any disposer can
   // yield. Each remaining contribution is then removed by its owner; unrelated
   // process-owned registries are never reset as a side effect of this host.
-  if (env.mode === "runtime") {
-    for (const mod of loadedModules) deregisterModuleTools(mod.name);
-  }
+  for (const mod of loadedModules) releaseModuleRegistrations(state, mod.name);
   clearModuleEventSubscriptions(state);
   state.modules.splice(0);
 

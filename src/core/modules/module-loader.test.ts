@@ -1812,6 +1812,57 @@ describe("ModuleLoader", () => {
     expect(cmds[0].name()).toBe("my-cmd");
   });
 
+  it("serializes lifecycle mutations and recovers after rejected work", async () => {
+    const loader = new ModuleLoader({});
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let disposedB = false;
+    await loader.load({ name: "queued-a", onLoad: () => ({ dispose: async () => { entered(); await barrier; } }) });
+    await loader.load({ name: "queued-b", onLoad: () => ({ dispose: () => { disposedB = true; } }) });
+    const a = loader.unload("queued-a");
+    await started;
+    const b = loader.unload("queued-b");
+    try {
+      await Promise.resolve();
+      expect(disposedB).toBe(false);
+    } finally {
+      release();
+      await Promise.all([a, b]);
+    }
+    expect(loader.getModuleSummaries()).toEqual([]);
+    await expect(loader.load({ name: "rejected", dependencies: ["missing"] })).rejects.toThrow();
+    await loader.load({ name: "queued-b" });
+    expect(loader.getLoadedModules()).toEqual(["queued-b"]);
+    await loader.unloadAll();
+  });
+
+  it("withdraws executable contributions before awaiting activation disposal", async () => {
+    const loader = new ModuleLoader({});
+    let release!: () => void;
+    let entered!: () => void;
+    const disposing = new Promise<void>((resolve) => { entered = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    await loader.load({
+      name: "disposal-boundary",
+      tools: [makeTool("disposal_boundary_tool")],
+      onLoad: (ctx) => {
+        ctx.registerMiddleware("disposal-boundary", async (_call, next) => next());
+        return { dispose: async () => { entered(); await barrier; } };
+      },
+    });
+    const unloading = loader.unload("disposal-boundary");
+    await disposing;
+    try {
+      expect((await executeTool("disposal_boundary_tool", {})).is_error).toBe(true);
+      expect(getToolMiddleware().list()).not.toContain("disposal-boundary");
+    } finally {
+      release();
+      await unloading;
+    }
+  });
+
   it("commands-loader teardown preserves registrations owned by an active runtime loader", async () => {
     const event = defineDaemonWideModuleEvent<{ id: string }>(
       "concurrent-owner.event",
@@ -1841,6 +1892,17 @@ describe("ModuleLoader", () => {
     const commands = new ModuleLoader({}, false, { mode: "commands" });
     await runtime.load(mod);
     await commands.load(mod);
+
+    const rejected = new ModuleLoader({}, false, { mode: "runtime" });
+    await expect(rejected.load({
+      ...mod,
+      tools: [makeTool("partial_registration"), makeTool("concurrent_owner_tool")],
+    })).rejects.toThrow("Tool already registered");
+    await rejected.unloadAll();
+    expect((await executeTool("partial_registration", {})).is_error).toBe(true);
+    expect((await executeTool("concurrent_owner_tool", {})).content)
+      .toBe("result from concurrent_owner_tool");
+    expect(commands.getModuleSummaries()[0].toolNames).toEqual([]);
 
     await commands.unloadAll();
 

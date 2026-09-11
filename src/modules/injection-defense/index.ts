@@ -33,8 +33,7 @@ import {
 import { injectionDefenseAssessed } from "./events.js";
 
 const MIDDLEWARE_NAME = "injection-defense";
-// Priority 40 — runs after the retry middleware (20) so retried responses are
-// still screened, and before the default third-party middleware band (100+).
+// Screen results before the default third-party middleware band (100+).
 const PRIORITY = 40;
 
 export type InjectionDefenseConfig = {

@@ -28,7 +28,7 @@ import {
   runModuleLoadPhases,
 } from "./module-loader-load-phases.js";
 import { refreshImportedSkills } from "./module-loader-skills.js";
-import { createLoaderState, type LoaderState } from "./module-loader-state.js";
+import { createLoaderState, type LoaderState, trackModuleRegistration } from "./module-loader-state.js";
 import {
   collectModuleSummaries,
   findModuleAgent,
@@ -75,6 +75,7 @@ type RuntimeOnlyGetter = "getRoutes" | "getContributedControlRoutes" | "probeHea
 
 export class ModuleLoader {
   private readonly state: LoaderState = createLoaderState();
+  private lifecycleTail: Promise<void> = Promise.resolve();
   private readonly verbose: boolean;
   private readonly config: KotaConfig;
   private readonly mode: ModuleLoaderMode;
@@ -141,6 +142,7 @@ export class ModuleLoader {
         config: this.config,
         moduleStorages: this.state.moduleStorages,
         getBus: () => this.bus,
+        trackRegistration: (dispose) => trackModuleRegistration(this.state, moduleName ?? "_default", dispose),
         trackEventSubscription: (unsubscribe) => trackModuleEventSubscription(this.state, moduleName, unsubscribe),
         getRoutes: () => this.getRoutes(),
         getContributedControlRoutes: () => this.getContributedControlRoutes(),
@@ -159,7 +161,18 @@ export class ModuleLoader {
     );
   }
 
-  async load(mod: KotaModule, source: ModuleSource = "bundled"): Promise<void> {
+  private mutate<T>(run: () => Promise<T>): Promise<T> {
+    const result = this.lifecycleTail.then(run);
+    // The caller receives the rejection; a failed mutation must not poison later work.
+    this.lifecycleTail = result.then(() => {}, () => {});
+    return result;
+  }
+
+  load(mod: KotaModule, source: ModuleSource = "bundled"): Promise<void> {
+    return this.mutate(() => this.loadOne(mod, source));
+  }
+
+  private async loadOne(mod: KotaModule, source: ModuleSource): Promise<void> {
     assertModuleDefinition(mod);
     this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const state = this.state;
@@ -183,14 +196,18 @@ export class ModuleLoader {
     }
   }
 
-  async loadAll(bundledModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
+  loadAll(bundledModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
+    return this.mutate(() => this.loadBatch(bundledModules, installedModules));
+  }
+
+  private async loadBatch(bundledModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
     this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const eventOwnersBeforeLoad = new Set(this.state.moduleEventSubscriptions.keys());
     try {
       await loadAllModules(
         this.state,
         this.loadAllEnv,
-        (mod, source) => this.load(mod, source),
+        (mod, source) => this.loadOne(mod, source),
         () => this.getToolCount(),
         bundledModules,
         installedModules,
@@ -204,15 +221,15 @@ export class ModuleLoader {
   }
 
   async unload(moduleName: string): Promise<boolean> {
-    return await unloadModule(moduleName, this.state, this.lifecycleEnv);
+    return this.mutate(() => unloadModule(moduleName, this.state, this.lifecycleEnv));
   }
 
   async unloadAll(): Promise<void> {
-    await unloadAllModules(this.state, this.lifecycleEnv);
+    await this.mutate(() => unloadAllModules(this.state, this.lifecycleEnv));
   }
 
   async reload(moduleName: string): Promise<boolean> {
-    return await reloadModule(
+    return this.mutate(() => reloadModule(
       moduleName,
       this.state,
       {
@@ -220,9 +237,9 @@ export class ModuleLoader {
         verbose: this.verbose,
         globalConfigPath: this.globalConfigPath,
       },
-      (mod, source) => this.load(mod, source),
-      (name) => this.unload(name),
-    );
+      (mod, source) => this.loadOne(mod, source),
+      (name) => unloadModule(name, this.state, this.lifecycleEnv),
+    ));
   }
 
   getDependents(moduleName: string): string[] {

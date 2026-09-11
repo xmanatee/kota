@@ -48,7 +48,7 @@ export type HarnessHookRegistration =
   | { kind: "preRun"; owner: string; name: string; handler: PreRunHook }
   | { kind: "postRun"; owner: string; name: string; handler: PostRunHook };
 
-export function registerHarnessHook(registration: HarnessHookRegistration): void {
+export function registerHarnessHook(registration: HarnessHookRegistration): () => void {
   const kind = registration.kind;
   const list = registry[kind];
   if (!list) {
@@ -59,31 +59,20 @@ export function registerHarnessHook(registration: HarnessHookRegistration): void
       `Harness hook already registered: kind=${kind} owner="${registration.owner}" name="${registration.name}"`,
     );
   }
-  if (kind === "preRun") {
-    registry.preRun.push({
-      owner: registration.owner,
-      name: registration.name,
-      handler: registration.handler,
-    });
-  } else {
-    registry.postRun.push({
-      owner: registration.owner,
-      name: registration.name,
-      handler: registration.handler,
-    });
+  if (registration.kind === "preRun") {
+    registry.preRun.push(registration);
+    return () => {
+      const index = registry.preRun.indexOf(registration);
+      if (index >= 0) registry.preRun.splice(index, 1);
+    };
   }
+  registry.postRun.push(registration);
+  return () => {
+    const index = registry.postRun.indexOf(registration);
+    if (index >= 0) registry.postRun.splice(index, 1);
+  };
 }
 
-export function removeHarnessHooks(owner: string): void {
-  for (const kind of Object.keys(registry) as HarnessHookKind[]) {
-    const list = registry[kind];
-    let i = list.length - 1;
-    while (i >= 0) {
-      if (list[i]?.owner === owner) list.splice(i, 1);
-      i -= 1;
-    }
-  }
-}
 
 export function resetHarnessHooks(): void {
   for (const kind of Object.keys(registry) as HarnessHookKind[]) {
