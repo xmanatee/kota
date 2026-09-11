@@ -54,14 +54,4 @@ describe('DaemonClient transport extensions', () => {
     await expect(client().deleteSession('broken')).rejects.toThrow('500');
   });
 
-  test('session URLs encode external identifiers and cursors', () => {
-    const daemon = client();
-    expect(daemon.chatUrl('session/one')).toBe(
-      `${baseUrl}/sessions/session%2Fone/chat`,
-    );
-    expect(daemon.sseUrl('event/one')).toBe(
-      `${baseUrl}/events?since=event%2Fone`,
-    );
-    expect(daemon.authHeader).toBe(`Bearer ${token}`);
-  });
 });

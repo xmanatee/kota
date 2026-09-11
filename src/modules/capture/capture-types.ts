@@ -1,13 +1,9 @@
-import type { ScopeId } from "#core/daemon/scope-registry.js";
+
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
-import type {
-  KnowledgeProvider,
-  MemoryProvider,
-} from "#core/modules/provider-types.js";
-import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import type { StoreScopeContext } from "#modules/store-scope-context.js";
 import type {
   CaptureFilter,
   CaptureResult,
@@ -31,13 +27,7 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   "inbox",
 ] as const;
 
-export type CaptureScopeContext = {
-  scopeId: ScopeId;
-  scopeRoot: string;
-  memory: MemoryProvider;
-  knowledge: KnowledgeProvider;
-  getWorkflowDispatcher: () => WorkflowDispatcher | null;
-};
+export type CaptureScopeContext = StoreScopeContext;
 
 export interface CaptureClassifier {
   classify(input: {

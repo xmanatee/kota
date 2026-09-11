@@ -19,10 +19,12 @@ import type {
   KotaThinkingConfig,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import type { ToolResultEntry, ToolUseBlock } from "#core/tools/tool-runner-types.js";
 import type { CostTracker } from "./cost.js";
 import type { Transport } from "./transport.js";
 
 export type PreSendContext = {
+  executeTools: (blocks: ToolUseBlock[]) => Promise<ToolResultEntry[]>;
   client: ModelClient;
   model: string;
   editorModel: string;
@@ -44,23 +46,20 @@ export type PreSendResult = {
 
 export type PreSendHook = (ctx: PreSendContext) => Promise<PreSendResult | null>;
 
-type HookEntry = { owner: string; name: string; fn: PreSendHook };
+type HookEntry = { name: string; fn: PreSendHook };
 
 const hooks: HookEntry[] = [];
 
-export function registerPreSendHook(owner: string, name: string, fn: PreSendHook): void {
+export function registerPreSendHook(name: string, fn: PreSendHook): () => void {
   if (hooks.some((h) => h.name === name)) {
     throw new Error(`Pre-send hook already registered: "${name}"`);
   }
-  hooks.push({ owner, name, fn });
-}
-
-export function removePreSendHooks(owner: string): void {
-  let i = hooks.length - 1;
-  while (i >= 0) {
-    if (hooks[i]?.owner === owner) hooks.splice(i, 1);
-    i -= 1;
-  }
+  const entry = { name, fn };
+  hooks.push(entry);
+  return () => {
+    const index = hooks.indexOf(entry);
+    if (index >= 0) hooks.splice(index, 1);
+  };
 }
 
 export function resetPreSendHooks(): void {

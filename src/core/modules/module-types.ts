@@ -167,7 +167,6 @@ export type CreateSessionOptions = {
   /** Optional module-owned response transport. */
   transport?: Transport;
   historySource?: "user" | "action";
-  reflectionEnabled?: boolean;
 };
 
 /** A tool definition contributed by a module. */

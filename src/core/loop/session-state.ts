@@ -16,7 +16,6 @@ export type SessionState =
   | "ready"         // Initialized, waiting for user prompt
   | "thinking"      // LLM generating a response
   | "acting"        // Executing tool calls
-  | "reflecting"    // Self-reflection pass
   | "error"         // Recoverable error state
   | "closed";       // Terminal — session ended
 
@@ -25,9 +24,8 @@ const TRANSITIONS: Record<SessionState, readonly SessionState[]> = {
   idle:         ["initializing", "closed"],
   initializing: ["ready", "error", "closed"],
   ready:        ["thinking", "closed"],
-  thinking:     ["acting", "reflecting", "ready", "error", "closed"],
+  thinking:     ["acting", "ready", "error", "closed"],
   acting:       ["thinking", "error", "closed"],
-  reflecting:   ["thinking", "error", "closed"],
   error:        ["ready", "thinking", "closed"],
   closed:       [],
 };
@@ -62,9 +60,9 @@ export class SessionStateMachine {
     return this.state === "closed";
   }
 
-  /** Whether the session is actively processing (thinking, acting, reflecting). */
+  /** Whether the session is actively processing (thinking, acting). */
   isProcessing(): boolean {
-    return this.state === "thinking" || this.state === "acting" || this.state === "reflecting";
+    return this.state === "thinking" || this.state === "acting";
   }
 
   /**

@@ -3,7 +3,6 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
-import { listManifestModules } from "#core/manifest/index.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -18,10 +17,8 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { loadSavedTools } from "#core/tools/custom-tool.js";
 import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
-import { addLoadedModule } from "#core/tools/module-factory/index.js";
 import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
@@ -65,7 +62,6 @@ export interface AgentLoopState {
   mcpServers: Record<string, McpServerConfig> | undefined;
   clientApprovalResolver: ToolApprovalResolver | undefined;
   costTracker: CostTracker;
-  reflectionEnabled: boolean;
   stateMachine: SessionStateMachine;
   guardrailsConfig: GuardrailsConfig;
   guardrailsSnapshot: GuardrailsSnapshot;
@@ -142,7 +138,6 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     const bundledModules = await discoverBundledModules();
     const modules = await discoverModules(state.scopeRoot, state.verbose);
     if (state.closed) return;
-    for (const { name } of listManifestModules(state.scopeRoot)) addLoadedModule(name);
     await state.moduleLoader.loadAll(bundledModules, modules);
   }
 
@@ -154,11 +149,6 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   const skillsPrompt = state.moduleLoader.getSkillsPrompt();
   if (skillsPrompt) {
     state.context.appendSystemPrompt(skillsPrompt);
-  }
-
-  const customToolCount = loadSavedTools(state.scopeRoot);
-  if (customToolCount > 0 && state.verbose) {
-    state.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
   }
 
   state.initialized = true;

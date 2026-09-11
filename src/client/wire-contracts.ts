@@ -9,6 +9,7 @@
 
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
+import type { DaemonSseEventType } from "#core/daemon/daemon-control-events.js";
 import type { ScopePolicyRouteResponse } from "#core/daemon/scope-policy-types.js";
 import type { ScopeRegistryProjection } from "#core/daemon/scope-registry.js";
 import type { ModuleSetupStatusResponse } from "#core/modules/setup-requirements/types.js";
@@ -61,6 +62,7 @@ export type VoiceTranscribeResponse = VoiceTranscribeSuccess | VoiceFailure;
  * stable binding ids referenced by the authored route graph.
  */
 export type DaemonWireContract = {
+  eventType: DaemonSseEventType;
   identity: ClientIdentity;
   scopeRegistry: ScopeRegistryProjection;
   scopePolicy: ScopePolicyRouteResponse;

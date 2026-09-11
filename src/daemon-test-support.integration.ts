@@ -7,8 +7,7 @@ import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import {
   Daemon,
   type DaemonConfig,
-  resetScheduler,
-} from "#core/daemon/index.js";
+  } from "#core/daemon/index.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
@@ -85,13 +84,13 @@ beforeEach(() => {
   });
   initializeFixtureGitRepo();
   resetEventBus();
-  resetScheduler();
+
   mockedExecuteWithAgentSDK.mockReset();
 });
 
 afterEach(async () => {
   for (const daemon of daemons.splice(0)) await daemon.stop();
   resetEventBus();
-  resetScheduler();
+
   rmSync(scopeRoot, { recursive: true, force: true });
 });

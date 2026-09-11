@@ -58,6 +58,6 @@ export async function unregisterSession(
   }
 }
 
-export function events(transport: DaemonTransport): AsyncGenerator<DaemonSseStreamEvent> {
-  return transport.events();
+export function events(transport: DaemonTransport, init?: Parameters<DaemonTransport["events"]>[0]): AsyncGenerator<DaemonSseStreamEvent> {
+  return transport.events(init);
 }

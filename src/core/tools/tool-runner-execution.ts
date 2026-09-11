@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import { truncateToolResult } from "#core/loop/context.js";
 import { maskToolResultSecrets } from "./secret-masking.js";
 import { executeToolCallSchedule } from "./tool-call-schedule.js";
@@ -6,9 +8,11 @@ import {
 	validateToolCallInput,
 	validateToolCallInputAgainstSchema,
 } from "./tool-input-validation.js";
+import type { ToolResult } from "./tool-result.js";
 import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
 import { executeToolBlock } from "./tool-runner-execute-block.js";
 import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
+import { getCurrentToolCallExecutionOptions } from "./tool-runner-runtime.js";
 import type {
 	ToolCallExecutionOptions,
 	ToolResultEntry,
@@ -246,4 +250,19 @@ export async function executeToolCalls(
 		resultSlots[executableIndexes[index]] = result;
 	}
 	return resultSlots.map((result) => truncateAndMaskResult(result, options.resultLimit));
+}
+
+const nestedToolDepth = new AsyncLocalStorage<number>();
+const MAX_NESTED_TOOL_DEPTH = 10;
+
+/** Nested calls inherit the live executor context; no ambient context means no authority. */
+export async function executeNestedTool(name: string, input: unknown): Promise<ToolResult> {
+  const options = getCurrentToolCallExecutionOptions();
+  if (!options) return { content: "Nested tool execution requires an active tool execution context", is_error: true };
+  const depth = nestedToolDepth.getStore() ?? 0;
+  if (depth >= MAX_NESTED_TOOL_DEPTH) return { content: `Tool call depth limit exceeded (max ${MAX_NESTED_TOOL_DEPTH})`, is_error: true };
+  const [entry] = await nestedToolDepth.run(depth + 1, () =>
+    executeToolCalls([{ type: "tool_use", id: randomUUID(), name, input }], options));
+  const { tool_use_id: _id, ...result } = entry;
+  return result;
 }

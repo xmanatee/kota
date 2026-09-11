@@ -1195,10 +1195,6 @@
       "description": "Provider overrides. Keys are service types (e.g. \"memory\"), values are provider names.",
       "type": "object"
     },
-    "reflection": {
-      "description": "Self-reflection — evaluate response quality before delivering. Default: true.",
-      "type": "boolean"
-    },
     "runsGc": {
       "additionalProperties": false,
       "description": "Run artifact retention policy for `.kota/runs/`.",

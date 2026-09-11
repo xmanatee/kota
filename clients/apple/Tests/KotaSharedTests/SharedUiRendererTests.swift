@@ -28,6 +28,25 @@ final class SharedUiRendererTests: XCTestCase {
         super.tearDown()
     }
 
+    func testEndingSessionPropagatesDaemonFailure() async throws {
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "DELETE")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 503,
+                                           httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"error":"session deletion unavailable"}"#.utf8))
+        }
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "https://daemon.example")!, token: "test")
+        let state = AppState(client: client)
+        do {
+            try await state.endSession("session-1")
+            XCTFail("Failed deletion must not report success to the chat view")
+        } catch {
+            XCTAssertTrue(String(describing: error).contains("503"))
+        }
+    }
+
     func testNativeFolderPickerHandsAHostPathToSharedUiForms() async throws {
         let platform = RecordingPlatform()
         let state = AppState(client: DaemonClient(), platform: platform)

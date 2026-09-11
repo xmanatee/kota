@@ -47,9 +47,6 @@ export type CoreKotaConfig = {
   /** Prompt aliases — keys that expand into prefix text when starting a message. */
   aliases?: Record<string, string>;
 
-  /** Self-reflection — evaluate response quality before delivering. Default: true. */
-  reflection?: boolean;
-
   /** Guardrails — risk classification and policy enforcement for tool calls. */
   guardrails?: GuardrailsConfig;
 

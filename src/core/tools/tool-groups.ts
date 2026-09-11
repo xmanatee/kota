@@ -40,59 +40,50 @@ const KNOWN_TOOL_NAMES = new Set<string>();
 
 // --- Group registration ---
 
-const registeredGroupNames = new Set<string>();
-const registeredSignalNames = new Set<string>();
+type GroupRegistration = { tools: string[]; pattern?: RegExp };
+const groupRegistrations = new Map<string, GroupRegistration[]>();
 
-/** Register a tool group (or extend an existing one). Used by modules and core tool init. */
-export function registerCustomGroup(name: string, toolNames: string[], pattern?: RegExp): void {
-  if (!TOOL_GROUPS[name]) {
-    TOOL_GROUPS[name] = [];
-  }
-  registeredGroupNames.add(name);
-  for (const t of toolNames) {
-    if (!TOOL_GROUPS[name].includes(t)) {
-      TOOL_GROUPS[name].push(t);
-      KNOWN_TOOL_NAMES.add(t);
-    }
-  }
-  if (pattern) {
-    GROUP_SIGNALS[name] = pattern;
-    registeredSignalNames.add(name);
-  }
+function projectGroup(name: string): void {
+  const registrations = groupRegistrations.get(name) ?? [];
+  const names = [...new Set(registrations.flatMap((entry) => entry.tools))];
+  if (names.length) TOOL_GROUPS[name] = names;
+  else delete TOOL_GROUPS[name];
+  const pattern = [...registrations].reverse().find((entry) => entry.pattern)?.pattern ?? DEFAULT_GROUP_SIGNALS[name];
+  if (pattern) GROUP_SIGNALS[name] = pattern;
+  else delete GROUP_SIGNALS[name];
+  rebuildKnownNames();
 }
 
-/** Remove specific tools from their groups. Called when a module is unloaded. */
+/** Register a contribution and return the disposer for that exact registration. */
+export function registerCustomGroup(name: string, toolNames: string[], pattern?: RegExp): () => void {
+  const registration: GroupRegistration = { tools: [...toolNames], ...(pattern ? { pattern } : {}) };
+  const entries = groupRegistrations.get(name) ?? [];
+  entries.push(registration);
+  groupRegistrations.set(name, entries);
+  projectGroup(name);
+  return () => {
+    const current = groupRegistrations.get(name);
+    const index = current?.indexOf(registration) ?? -1;
+    if (index < 0) return;
+    current!.splice(index, 1);
+    if (current!.length === 0) groupRegistrations.delete(name);
+    projectGroup(name);
+  };
+}
+
+/** Retiring a tool removes it from every disclosure group. */
 export function deregisterToolsFromGroups(toolNames: Set<string>): void {
-  for (const names of Object.values(TOOL_GROUPS)) {
-    for (let i = names.length - 1; i >= 0; i--) {
-      if (toolNames.has(names[i])) names.splice(i, 1);
-    }
+  for (const [name, entries] of groupRegistrations) {
+    for (const entry of entries) entry.tools = entry.tools.filter((tool) => !toolNames.has(tool));
+    projectGroup(name);
   }
-  // Remove empty groups and any dynamically-registered signal for them
-  for (const name of Object.keys(TOOL_GROUPS)) {
-    if (TOOL_GROUPS[name].length === 0) {
-      delete TOOL_GROUPS[name];
-      registeredGroupNames.delete(name);
-      if (registeredSignalNames.has(name)) {
-        delete GROUP_SIGNALS[name];
-        registeredSignalNames.delete(name);
-      }
-    }
-  }
-  rebuildKnownNames();
 }
 
-/** Remove all dynamically registered groups and rebuild KNOWN_TOOL_NAMES. Used in tests. */
+/** Process teardown/test reset. */
 export function clearCustomGroups(): void {
-  for (const name of registeredGroupNames) {
-    delete TOOL_GROUPS[name];
-  }
-  for (const name of registeredSignalNames) {
-    delete GROUP_SIGNALS[name];
-  }
-  registeredGroupNames.clear();
-  registeredSignalNames.clear();
-  rebuildKnownNames();
+  const names = [...groupRegistrations.keys()];
+  groupRegistrations.clear();
+  for (const name of names) projectGroup(name);
 }
 
 function rebuildKnownNames(): void {
@@ -121,7 +112,7 @@ export function getEnabledGroups(): string[] {
   return [...enabledGroups].sort();
 }
 
-const GROUP_SIGNALS: Record<string, RegExp> = {
+const DEFAULT_GROUP_SIGNALS: Record<string, RegExp> = {
   web: /\b(research|browse|internet|website|online|url|https?:|web.?search|look.up|fetch.*(from|api|endpoint|server)|download|api.?(call|request|endpoint|data)|compare\b.*\b(option|tool|framework|service|provider|solution|platform|approach)|pros?.and.cons|report.on|review.*(option|tool|alternative|approach)|summarize.*(finding|source|article|result)|competitive.analysis|benchmark|what.is.the.best|recommend|find.*(hotel|flight|restaurant|venue|product|service)|latest.*(news|trend|update|release)|how.much.does|price|pricing|current.*(rate|price|status|weather)|look.?into)/i,
   code: /\b(python|calculate|compute|plot|chart|graph|visualiz|analyz|csv|statistic|pandas|numpy|matplotlib|data.analysis|spreadsheet|budget|forecast|convert.*(unit|currency|format)|formula|regression|correlat|aggregate|pivot|histogram|notebook|jupyter|sql\b|\.db\b|sqlite|query\s+the\s+(db|database))/i,
   management: /\b(plan|planning|tasks?|track|tracking|schedule|monitor|remember|remind|reminder|background|watcher?|milestone|deadline|organize|prioritize|checklist|roadmap|project.management|breakdown|to.?do.?list|action.items|itinerary|agenda|timeline|phase|step.by.step|brainstorm|meeting.notes|retrospective|sprint|alarm|notify.me|alert.me|every\s+\d+\s+(minute|hour|day)|knowledge|knowledge.?base|note.?taking|research.findings|decision.log|reference|bookmark)/i,
@@ -129,6 +120,7 @@ const GROUP_SIGNALS: Record<string, RegExp> = {
   gui: /\b(screenshot|screen.?shot|screen|gui|click|desktop|window|browser|image|picture|photo|visual|see\s+the\s+screen|look\s+at\s+(the\s+)?screen|UI|user\s+interface|display|mouse|type\s+in|clipboard|paste|keyboard\s+input)/i,
   orchestration: /\b(in\s+parallel|concurrently|fan.?out|map\s+(over|each|across)|apply\s+.{0,30}to\s+(each|all|every)|for\s+each\s+(file|item|entry|element)|pipe(line)?|chain\s+.{0,15}(together|these|the)|sequentially|compose\s+tools|every\s+(file|item)\s+in)/i,
 };
+const GROUP_SIGNALS = { ...DEFAULT_GROUP_SIGNALS };
 
 /** Detect tool groups that should be auto-enabled based on prompt content. */
 export function detectToolGroups(prompt: string): string[] {

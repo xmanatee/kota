@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { Daemon } from "#core/daemon/daemon.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
@@ -70,7 +69,7 @@ describe("telegram scope integration", () => {
   afterEach(async () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
     resetEventBus();
-    resetScheduler();
+
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     agentSessionOptions.length = 0;

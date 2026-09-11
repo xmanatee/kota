@@ -55,7 +55,6 @@ describe("loadConfig", () => {
       JSON.stringify({
         modelOutputTokenLimits: {
           "operator-model": 12345,
-          "bad-model": 0,
         },
       }),
     );
@@ -105,7 +104,6 @@ describe("loadConfig", () => {
         model: 123,            // wrong type
         maxTokens: -5,         // negative
         thinkingBudget: 100,   // below minimum (1024)
-        autoEnable: "web",     // not an array
         verbose: true,         // valid
       }),
     );
@@ -114,7 +112,6 @@ describe("loadConfig", () => {
     expect(config.model).toBeUndefined();
     expect(config.maxTokens).toBeUndefined();
     expect(config.thinkingBudget).toBeUndefined();
-    expect(config.autoEnable).toBeUndefined();
     expect(config.verbose).toBe(true);
   });
 
@@ -219,16 +216,37 @@ describe("loadConfig", () => {
     expect(config).toEqual({});
   });
 
+  it("preserves an explicit empty scope override while omission inherits", () => {
+    const globalConfigPath = join(tmpDir, "global.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir], autoEnable: ["execution"] }));
+    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
+    const configPath = join(tmpDir, ".kota/config.json");
+    writeFileSync(configPath, "{}");
+    expect(loadConfig(tmpDir, undefined, { globalConfigPath }).autoEnable).toEqual(["execution"]);
+    writeFileSync(configPath, JSON.stringify({ autoEnable: [] }));
+    expect(loadConfig(tmpDir, undefined, { globalConfigPath }).autoEnable).toEqual([]);
+  });
+
+  it.each([
+    [{ autoEnable: "execution" }, "config.autoEnable"],
+    [{ autoEnable: [""] }, "config.autoEnable"],
+    [{ modelOutputTokenLimits: { model: 0 } }, "config.modelOutputTokenLimits.model"],
+  ])("rejects malformed explicit configuration %j", (value, path) => {
+    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
+    writeFileSync(join(tmpDir, ".kota/config.json"), JSON.stringify(value));
+    expect(() => loadTrustedConfig()).toThrow(path);
+  });
+
   it("loads autoEnable as array of strings", () => {
     const configDir = join(tmpDir, ".kota");
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ autoEnable: ["web", "code", 42, "", null] }),
+      JSON.stringify({ autoEnable: ["web", "code"] }),
     );
 
     const config = loadTrustedConfig();
-    expect(config.autoEnable).toEqual(["web", "code"]); // filters invalid entries
+    expect(config.autoEnable).toEqual(["web", "code"]);
   });
 
   it("loads serve and cli autonomy defaults", () => {

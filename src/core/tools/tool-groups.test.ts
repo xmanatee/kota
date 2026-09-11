@@ -24,6 +24,23 @@ function registerBuiltinGroups(): void {
 }
 
 describe("tool-groups", () => {
+  it("releases only its own group contribution and restores the previous pattern", () => {
+    const first = registerCustomGroup("shared", ["first", "shared_tool"], /alpha/);
+    const second = registerCustomGroup("shared", ["second", "shared_tool"], /beta/);
+    first();
+    expect(TOOL_GROUPS.shared).toEqual(["second", "shared_tool"]);
+    expect(detectToolGroups("beta")).toContain("shared");
+    const override = registerCustomGroup("shared", ["override"], /override/);
+    override();
+    expect(detectToolGroups("beta")).toContain("shared");
+    second();
+    const replacement = registerCustomGroup("shared", ["replacement"], /gamma/);
+    first(); second();
+    expect(TOOL_GROUPS.shared).toEqual(["replacement"]);
+    replacement();
+    expect(TOOL_GROUPS.shared).toBeUndefined();
+  });
+
   beforeEach(() => {
     registerBuiltinGroups();
     resetGroups();

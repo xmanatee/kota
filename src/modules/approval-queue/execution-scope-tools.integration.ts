@@ -1,3 +1,4 @@
+import { Scheduler } from "#core/daemon/scheduler.js";
 import {
   deregisterTool,
   registerTool,
@@ -94,6 +95,7 @@ export function registerApprovalScopeProvider(
         ok: true,
         runtime: {
           scope: entry.scope,
+      scheduler: new Scheduler(),
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,

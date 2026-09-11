@@ -11,7 +11,7 @@ import {
   collectLocalClientHandlers,
 } from "./module-loader-clients.js";
 import { attachModuleMetadata } from "./module-loader-metadata-phases.js";
-import type { LoaderState } from "./module-loader-state.js";
+import { type LoaderState, trackModuleRegistration } from "./module-loader-state.js";
 import { moduleToolSnapshots } from "./module-loader-tool-snapshots.js";
 import {
   assertModuleActivation,
@@ -73,16 +73,9 @@ export function registerModuleConfigSlices(
       );
     }
   }
-  const disposers: (() => void)[] = [];
-  try {
-    for (const slice of mod.configSlices) {
-      disposers.push(acquireConfigSlice(slice, mod.name));
-    }
-  } catch (error) {
-    for (const dispose of disposers.reverse()) dispose();
-    throw error;
+  for (const slice of mod.configSlices) {
+    trackModuleRegistration(state, mod.name, acquireConfigSlice(slice, mod.name));
   }
-  state.moduleConfigSliceDisposers.set(mod.name, disposers);
   for (const slice of mod.configSlices) {
     state.registeredConfigKeys.set(slice.key, mod.name);
   }
@@ -91,16 +84,9 @@ export function registerModuleConfigSlices(
 export function registerModuleEvents(state: LoaderState, mod: KotaModule): void {
   if (!mod.events || mod.events.length === 0) return;
   const registry = getModuleEventRegistry() ?? initModuleEventRegistry();
-  const disposers: (() => void)[] = [];
-  try {
-    for (const def of mod.events) {
-      disposers.push(registry.acquire(mod.name, def));
-    }
-  } catch (error) {
-    for (const dispose of disposers.reverse()) dispose();
-    throw error;
+  for (const def of mod.events) {
+    trackModuleRegistration(state, mod.name, registry.acquire(mod.name, def));
   }
-  state.moduleEventRegistrationDisposers.set(mod.name, disposers);
 }
 
 export function prepareModuleTools(
@@ -130,7 +116,7 @@ export function commitModuleTools(
     const manifestEffect = manifest?.effects.find(
       (candidate) => candidate.source === "tool" && candidate.target === def.tool.name,
     );
-    registerTool(def.tool, def.runner, mod.name, {
+    trackModuleRegistration(state, mod.name, registerTool(def.tool, def.runner, mod.name, {
       effect: def.effect,
       moduleName: mod.name,
       ...(manifestEffect
@@ -138,8 +124,8 @@ export function commitModuleTools(
         : {}),
       ...(manifest ? { moduleManifest: manifest } : {}),
       ...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
-    });
-    if (def.group) registerCustomGroup(def.group, [def.tool.name]);
+    }));
+    if (def.group) trackModuleRegistration(state, mod.name, registerCustomGroup(def.group, [def.tool.name]));
   }
   state.moduleToolCounts.set(mod.name, tools.length);
   state.moduleToolDefs.set(
@@ -197,14 +183,9 @@ async function attachModuleAgentHarnesses(
 ): Promise<void> {
   const harnesses = await resolveModuleAgentHarnesses(mod, ctx);
   if (harnesses.length === 0) return;
-  const disposers: (() => void)[] = [];
-  try {
-    for (const harness of harnesses) disposers.push(registerAgentHarness(harness));
-  } catch (error) {
-    for (const dispose of disposers.reverse()) dispose();
-    throw error;
+  for (const harness of harnesses) {
+    trackModuleRegistration(state, mod.name, registerAgentHarness(harness));
   }
-  state.moduleAgentHarnessDisposers.set(mod.name, disposers);
 }
 
 export async function attachModuleUiSurfaces(

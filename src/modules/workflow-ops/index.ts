@@ -358,56 +358,7 @@ function decodeWorkflowTriggerConflict(
   return "already_queued";
 }
 
-/**
- * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
- * workflow namespace methods through the daemon HTTP control routes.
- *
- * Wire contract per method:
- *
- *  - `listRuns(filter)` → `GET /workflow/runs[?workflow=...&limit=...&tag=...&causedByRunId=...]`.
- *    Soft-falls through on transport failure: returns `{ runs: [] }`.
- *  - `status(filter?)` → `GET /workflow/status[?scopeId=...]`. Throws
- *    `"Daemon unreachable while reading workflow status"` on transport
- *    failure and preserves typed unknown-project route errors. Wraps the daemon's
- *    `WorkflowLiveStatus` with `pendingAbort: false` (the daemon-up branch
- *    never observes a stale abort signal file).
- *  - `pause()` / `resume()` → `POST /workflow/pause` / `/workflow/resume`.
- *    Throws on transport failure.
- *  - `abort()` → `POST /workflow/abort`. Throws on transport failure;
- *    success returns `{ status: "applied", count }`. The `signaled` arm is
- *    daemon-down only.
- *  - `reload()` → `POST /workflow/reload`. Throws on transport failure;
- *    success returns `{ status: "applied", count }`. The `signaled` arm is
- *    daemon-down only.
- *  - `enable(name)` / `disable(name)` → `POST
- *    /workflow/definitions/<encodeURIComponent(name)>/enable` / `/disable`.
- *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`.
- *  - `cancelRun(id)` → `DELETE /workflow/runs/<encodeURIComponent(id)>`.
- *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`,
- *    409 → `{ ok: false, reason: "active" }`.
- *  - `abortRun(id)` → `POST /workflow/runs/<encodeURIComponent(id)>/abort`.
- *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`,
- *    409 → `{ ok: false, reason: "queued" }`.
- *  - `getRun(id)` → `GET /workflow/runs/<encodeURIComponent(id)>`. Soft-falls
- *    through on transport failure: returns `{ found: false }`.
- *  - `listDefinitions()` → `GET /workflow/definitions`. Throws on transport
- *    failure; success returns `{ source: "daemon", definitions }`.
- *  - `triggerByName(name, options)` → `POST /workflow/trigger` with body
- *    from `buildOperatorTriggerRequestBody`, preserving event, schema, payload, run id,
- *    tags, and dispatch eligibility in the daemon-owned admission path.
- *    Throws on transport failure; 409 decodes the daemon's typed
- *    `workflow_contract_conflict` reason and otherwise reports
- *    `{ ok: false, reason: "already_queued" }`;
- *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
- *    ...(result.runId !== undefined && { runId: result.runId }) }`.
- *  - `trial(name, options)` → `POST /workflow/trial` with body
- *    `{ name, ...options }`. Transport failure returns the daemon_required arm
- *    so the CLI can use the local isolated-project runner.
- *  - `explain(options)` → `POST /workflow/explain` with workflow/event/sample
- *    body fields. Throws on transport failure.
- *  - `simulate(request)` → `POST /workflow/simulate` with an event,
- *    envelope, or journal selector. Throws on transport failure.
- */
+/** Workflow client adapter. Empty domain results require a successful daemon response. */
 export function buildWorkflowDaemonHandler(
   link: DaemonTransport,
 ): WorkflowClient {
@@ -438,11 +389,11 @@ export function buildWorkflowDaemonHandler(
       if (filter?.causedByRunId) params.set("causedByRunId", filter.causedByRunId);
       if (filter?.scopeId) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
-      const result = await link.request<{ runs: WorkflowRunSummary[] }>(
+      const result = await link.requestStrict<{ runs: WorkflowRunSummary[] }>(
         "GET",
         `/workflow/runs${query}`,
       );
-      return { runs: result?.runs ?? [] };
+      return { runs: result.runs };
     },
     listDeadLetters: async (filter) => {
       const params = new URLSearchParams();
@@ -452,19 +403,18 @@ export function buildWorkflowDaemonHandler(
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.scopeId) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
-      const result = await link.request<Awaited<ReturnType<WorkflowClient["listDeadLetters"]>>>(
+      const result = await link.requestStrict<Awaited<ReturnType<WorkflowClient["listDeadLetters"]>>>(
         "GET",
         `/workflow/dead-letter${query}`,
       );
-      return result ?? { items: [], counts: { open: 0, dismissed: 0, redriven: 0 } };
+      return result;
     },
     getDeadLetter: async (id, scopeId) => {
       const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
-      const resp = await fetchJson(
-        "GET",
+      const resp = await link.fetchRaw(
         `/workflow/dead-letter/${encodeURIComponent(id)}${query}`,
       );
-      if (!resp || resp.status === 404) return { found: false };
+      if (await isMissingWorkflowResource(resp)) return { found: false };
       if (!resp.ok) throw new Error(`Daemon unreachable while reading dead-letter item "${id}"`);
       const result = (await resp.json()) as {
         item: Awaited<ReturnType<WorkflowClient["getDeadLetter"]>> extends { item: infer T }
@@ -503,11 +453,10 @@ export function buildWorkflowDaemonHandler(
     },
     exportDeadLetterDiagnostics: async (id, scopeId) => {
       const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
-      const resp = await fetchJson(
-        "GET",
+      const resp = await link.fetchRaw(
         `/workflow/dead-letter/${encodeURIComponent(id)}/diagnostics${query}`,
       );
-      if (!resp || resp.status === 404) return null;
+      if (await isMissingWorkflowResource(resp)) return null;
       if (!resp.ok) throw new Error(`Daemon unreachable while exporting dead-letter item "${id}"`);
       return (await resp.json()) as Awaited<ReturnType<WorkflowClient["exportDeadLetterDiagnostics"]>>;
     },
@@ -651,11 +600,10 @@ export function buildWorkflowDaemonHandler(
       return { ok: true };
     },
     getRun: async (id, selector) => {
-      const run = await link.request<WorkflowRunDetail>(
-        "GET",
-		`/workflow/runs/${encodeURIComponent(id)}${scopeSelectorQuery(selector)}`,
-      );
-      return run ? { found: true, run } : { found: false };
+      const response = await link.fetchRaw(`/workflow/runs/${encodeURIComponent(id)}${scopeSelectorQuery(selector)}`);
+      if (await isMissingWorkflowResource(response)) return { found: false };
+      if (!response.ok) throw new Error(`Unable to read workflow run "${id}": HTTP ${response.status}`);
+      return { found: true, run: await response.json() as WorkflowRunDetail };
     },
     listDefinitions: async (selector) => {
       const result = await link.request<{
@@ -787,6 +735,13 @@ type WorkflowRouteErrorBody = {
   reason?: string;
   scopeId?: string;
 };
+
+async function isMissingWorkflowResource(response: Response): Promise<boolean> {
+  if (response.status !== 404) return false;
+  const body = await readWorkflowRouteError(response);
+  if (body?.reason === "unknown_scope") throw new Error(`Unknown scope: ${body.scopeId ?? "requested scope"}`);
+  return true;
+}
 
 async function fetchWorkflowStatus(
   link: DaemonTransport,

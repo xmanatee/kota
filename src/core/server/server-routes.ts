@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Scheduler } from "#core/daemon/scheduler.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -21,7 +20,6 @@ import {
 export type ServerContext = {
   port: number;
   pool: SessionPool;
-  scheduler: Scheduler;
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
@@ -97,7 +95,6 @@ export function buildRequestHandler(ctx: ServerContext) {
       jsonResponse(res, 200, {
         status: "ok",
         sessions: ctx.pool.size,
-        pendingSchedules: ctx.scheduler.count(),
       });
       return;
     }
@@ -155,11 +152,20 @@ export function buildRequestHandler(ctx: ServerContext) {
         return;
       }
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
-      const gen = client.events();
-      req.on("close", () => { void gen.return(undefined); });
-      for await (const event of gen) {
-        if (res.destroyed) break;
-        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+      const controller = new AbortController();
+      const after = new URL(req.url ?? "/", "http://localhost").searchParams.get("after");
+      const gen = client.events({ signal: controller.signal, ...(after ? { after } : {}) });
+      res.once("close", () => controller.abort());
+      try {
+        for await (const event of gen) {
+          if (res.destroyed) break;
+          res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) throw error;
+      } finally {
+        controller.abort();
+        res.end();
       }
       return;
     }
@@ -171,7 +177,6 @@ export function buildRequestHandler(ctx: ServerContext) {
         daemon,
         server: {
           sessions: ctx.pool.size,
-          pendingSchedules: ctx.scheduler.count(),
           eventBusListeners: ctx.bus.listenerCount(),
         },
       });

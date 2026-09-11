@@ -1,3 +1,4 @@
+import type { PreSendContext } from "#core/loop/pre-send-hooks.js";
 // Extracted from loop.ts to keep it under 300 lines.
 // Runs the architect/editor two-pass pipeline when architect mode is enabled.
 
@@ -12,6 +13,7 @@ import { runArchitectPass } from "./architect.js";
 import { runEditorLoop } from "./architect-editor.js";
 
 export type ArchitectStepConfig = {
+  executeTools: PreSendContext["executeTools"];
   client: ModelClient;
   model: string;
   editorModel: string;
@@ -51,6 +53,7 @@ export async function runArchitectStep(
   if (!plan) return null;
 
   const editorResult = await runEditorLoop({
+    executeTools: config.executeTools,
     client: config.client,
     model: config.editorModel,
     maxTokens: config.maxTokens,

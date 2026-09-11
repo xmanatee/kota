@@ -1,17 +1,17 @@
 /**
- * Tool Middleware — composable pre/post hooks for tool execution.
- *
- * Modules register middleware via ctx.registerMiddleware(). Each middleware
- * wraps tool execution: it can inspect/modify input, short-circuit, transform
- * results, or add side effects. Middleware runs in priority order (lower first).
- *
- * Example middleware:
- *   (call, next) => {
- *     if (call.name === "shell") log("shell called");
- *     const result = await next();
- *     return { ...result, content: result.content + "\n[cached]" };
- *   }
- */
+* Tool Middleware — composable pre/post hooks for tool execution.
+*
+* Modules register middleware via ctx.registerMiddleware(). Each middleware
+* wraps tool execution: it can inspect/modify input, short-circuit, transform
+* results, or add side effects. Middleware runs in priority order (lower first).
+*
+* Example middleware:
+*   (call, next) => {
+*     if (call.name === "shell") log("shell called");
+*     const result = await next();
+*     return { ...result, content: result.content + "\n[annotated]" };
+*   }
+*/
 
 import type { AutonomyMode } from "./autonomy-mode.js";
 import type { ToolResult } from "./index.js";
@@ -25,12 +25,12 @@ export type ToolResultContentProvenance = {
 };
 
 /**
- * Session-level context that tool-runner attaches to a tool call so middleware
- * can make posture-aware decisions (e.g. injection defense only applies on
- * autonomous runs) or correlate work to a tool-use block. Absent when a caller
- * invokes a tool outside a session (e.g. `ctx.callTool`); middleware must
- * choose a safe default in that case.
- */
+* Session-level context that tool-runner attaches to a tool call so middleware
+* can make posture-aware decisions (e.g. injection defense only applies on
+* autonomous runs) or correlate work to a tool-use block. Absent when a caller
+* invokes middleware directly outside a session; middleware must
+* choose a safe default in that case.
+*/
 export type ToolCallContext = {
 	autonomyMode?: AutonomyMode;
 	sessionId?: string;
@@ -54,7 +54,6 @@ type MiddlewareEntry = {
 	name: string;
 	fn: ToolMiddlewareFn;
 	priority: number;
-	owner?: string;
 };
 
 export class ToolMiddlewareRegistry {
@@ -64,8 +63,8 @@ export class ToolMiddlewareRegistry {
 	add(
 		name: string,
 		fn: ToolMiddlewareFn,
-		opts?: { priority?: number; owner?: string },
-	): void {
+		opts?: { priority?: number },
+	): () => void {
 		if (this.entries.some((e) => e.name === name)) {
 			throw new Error(`Middleware already registered: ${name}`);
 		}
@@ -73,10 +72,13 @@ export class ToolMiddlewareRegistry {
 			name,
 			fn,
 			priority: opts?.priority ?? 100,
-			owner: opts?.owner,
 		};
 		this.entries.push(entry);
 		this.entries.sort((a, b) => a.priority - b.priority);
+		return () => {
+			const index = this.entries.indexOf(entry);
+			if (index >= 0) this.entries.splice(index, 1);
+		};
 	}
 
 	/** Remove middleware by name. Returns true if found. */
@@ -87,27 +89,24 @@ export class ToolMiddlewareRegistry {
 		return true;
 	}
 
-	/** Remove all middleware registered by a specific owner (module). */
-	removeByOwner(owner: string): number {
-		const before = this.entries.length;
-		this.entries = this.entries.filter((e) => e.owner !== owner);
-		return before - this.entries.length;
-	}
-
 	/** Execute the middleware chain, calling baseFn at the innermost level. */
 	async execute(
 		call: ToolCall,
 		baseFn: () => Promise<ToolResult>,
 	): Promise<ToolResult> {
-		if (this.entries.length === 0) return baseFn();
-
-		let idx = 0;
-		const chain = async (): Promise<ToolResult> => {
-			if (idx >= this.entries.length) return baseFn();
-			const entry = this.entries[idx++];
-			return entry.fn(call, chain);
+		// A call retains its chain even if a module unloads while it is in flight.
+		const entries = [...this.entries];
+		const dispatch = async (index: number): Promise<ToolResult> => {
+			const entry = entries[index];
+			if (!entry) return baseFn();
+			let continued = false;
+			return entry.fn(call, () => {
+				if (continued) throw new Error(`Middleware "${entry.name}" called next more than once`);
+				continued = true;
+				return dispatch(index + 1);
+			});
 		};
-		return chain();
+		return dispatch(0);
 	}
 
 	/** Number of registered middleware. */

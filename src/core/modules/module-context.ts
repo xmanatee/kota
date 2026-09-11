@@ -42,6 +42,7 @@ export interface ModuleContextParams {
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
   trackEventSubscription: (unsubscribe: () => void) => () => void;
+  trackRegistration: (dispose: () => void) => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
@@ -147,7 +148,7 @@ function createEventProxy(
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
-  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys, providerRegistry } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, trackRegistration, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys, providerRegistry } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -227,7 +228,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     config,
     storage,
     registerGroup: (name, toolNames, pattern) => {
-      registerCustomGroup(name, toolNames, pattern);
+      trackRegistration(registerCustomGroup(name, toolNames, pattern));
     },
     getRoutes,
     getContributedControlRoutes,
@@ -271,33 +272,33 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     callTool,
     registerMiddleware: (name, fn, priority) => {
-      getToolMiddleware().add(name, fn, { priority, owner: moduleName });
+      trackRegistration(getToolMiddleware().add(name, fn, { priority }));
     },
     registerDynamicStateProvider: (name, fn) => {
-      registerDynamicStateProvider(name, fn, moduleName ?? "_default");
+      trackRegistration(registerDynamicStateProvider(name, fn));
     },
     registerCleanupHook: (fn) => {
-      registerCleanupHook(moduleName ?? "_default", fn);
+      trackRegistration(registerCleanupHook(fn));
     },
     registerPreSendHook: (name, fn) => {
-      registerPreSendHookImpl(moduleName ?? "_default", name, fn);
+      trackRegistration(registerPreSendHookImpl(name, fn));
     },
     registerHarnessHook: (registration) => {
       const owner = moduleName ?? "_default";
       if (registration.kind === "preRun") {
-        registerHarnessHookImpl({
+        trackRegistration(registerHarnessHookImpl({
           kind: "preRun",
           owner,
           name: registration.name,
           handler: registration.handler as PreRunHook,
-        });
+        }));
       } else {
-        registerHarnessHookImpl({
+        trackRegistration(registerHarnessHookImpl({
           kind: "postRun",
           owner,
           name: registration.name,
           handler: registration.handler as PostRunHook,
-        });
+        }));
       }
     },
     resolveAgentDef,

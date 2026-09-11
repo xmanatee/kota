@@ -1,5 +1,4 @@
 import { createServer, type Server } from "node:http";
-import { Scheduler } from "#core/daemon/scheduler.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { buildRequestHandler } from "#core/server/server-routes.js";
@@ -130,7 +129,6 @@ export async function startRouteServer(
   const server = createServer(buildRequestHandler({
     port: 0,
     pool: new SessionPool(),
-    scheduler: new Scheduler(process.cwd(), null),
     bus: new EventBus(),
     moduleRoutes: routes,
     authToken: options.authToken,

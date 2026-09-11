@@ -56,8 +56,6 @@ export type LoopOptions = {
   historySource?: "user" | "action";
   /** Optional label for event bus (e.g. "build-agent", "user-repl"). */
   label?: string;
-  /** Enable self-reflection before delivering final response. Default: true. */
-  reflectionEnabled?: boolean;
   /** Inject a model client (for testing with mock clients or alternative providers). */
   client?: ModelClient;
   /** Show per-turn cost line in terminal output (default: true). */
@@ -136,7 +134,6 @@ export class AgentSession implements AgentLoopState {
   sessionLabel: string | undefined;
   sessionStartTime = 0;
   guardrailsConfig!: GuardrailsConfig;
-  reflectionEnabled!: boolean;
 	approvalQueue!: ApprovalQueue;
   idempotencyStore!: IdempotencyStore;
   modelTiers: ModelTiers | undefined;
@@ -166,7 +163,6 @@ export class AgentSession implements AgentLoopState {
         label: opts.label,
         noHistory: opts.noHistory ?? true,
         historySource: opts.historySource ?? "action",
-        reflectionEnabled: opts.reflectionEnabled ?? false,
         scopeRoot: this.scopeRoot,
         scopeRuntime: options.scopeRuntime,
         moduleLoader: options.moduleLoader,

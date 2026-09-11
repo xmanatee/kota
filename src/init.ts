@@ -2,7 +2,6 @@ import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { detectEnvironment, detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
-import { getScheduler } from "./core/daemon/scheduler.js";
 import {
   getHistoryProvider,
   getKnowledgeProvider,
@@ -111,16 +110,6 @@ function recallTasks(): string | null {
   }
 }
 
-/** Check for pending/overdue scheduled items. */
-function recallSchedules(): string | null {
-  try {
-    const scheduler = getScheduler();
-    return scheduler.getPendingSummary();
-  } catch {
-    return null;
-  }
-}
-
 /** Recall recent knowledge entries relevant to the current workspace. */
 function recallKnowledge(): string | null {
   try {
@@ -198,9 +187,6 @@ export function buildSessionWarmup(cwd?: string): string {
 
   const tasks = recallTasks();
   if (tasks) sections.push(`**Active tasks from previous session**:\n${tasks}`);
-
-  const schedules = recallSchedules();
-  if (schedules) sections.push(`**Scheduled reminders**:\n${schedules}`);
 
   const knowledge = recallKnowledge();
   if (knowledge) sections.push(`**Knowledge base**:\n${knowledge}`);

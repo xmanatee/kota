@@ -1,7 +1,7 @@
 /**
  * Module Factory Tool — router and public API.
  *
- * Implementation split into: definition, state, actions, logs.
+ * Edits persisted declarations; ModuleLoader owns activation.
  */
 
 import { localWriteEffect } from "#core/tools/effect.js";
@@ -12,12 +12,6 @@ import { handleLogs } from "./logs.js";
 
 // Public API
 export { moduleFactoryTool } from "./definition.js";
-export {
-	addLoadedModule,
-	loadedModuleCount,
-	resetModuleFactory,
-} from "./state.js";
-
 // ─── Runner ──────────────────────────────────────────────────────────
 
 export async function runModuleFactory(

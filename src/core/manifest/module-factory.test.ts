@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import {
 	deleteManifest,
-	discoverManifestModules,
 	evaluateCondition,
 	getFieldByPath,
 	listManifestModules,
@@ -370,29 +369,8 @@ describe("manifest persistence", () => {
 		expect(existsSync(storageFile)).toBe(true);
 	});
 
-	it("discoverManifestModules finds saved modules", () => {
-		saveManifest(sampleManifest, tmpDir);
-		saveManifest({ ...sampleManifest, name: "other-mod", tools: [] }, tmpDir);
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(2);
-		const names = modules.map((m) => m.name).sort();
-		expect(names).toEqual(["other-mod", "test-mod"]);
-	});
 
-	it("discoverManifestModules skips invalid manifests", () => {
-		saveManifest(sampleManifest, tmpDir);
-		// Write an invalid manifest
-		const badDir = join(tmpDir, ".kota", "modules", "bad-mod");
-		mkdirSync(badDir, { recursive: true });
-		writeFileSync(join(badDir, "manifest.json"), "not json");
-		const modules = discoverManifestModules(tmpDir);
-		expect(modules).toHaveLength(1);
-	});
 
-	it("discoverManifestModules returns empty for non-existent directory", () => {
-		const modules = discoverManifestModules(join(tmpDir, "nonexistent"));
-		expect(modules).toHaveLength(0);
-	});
 
 	it("listManifestModules returns name and manifest pairs", () => {
 		saveManifest(sampleManifest, tmpDir);

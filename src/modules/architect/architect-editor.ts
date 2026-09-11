@@ -5,10 +5,11 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { CostTracker } from "#core/loop/cost.js";
+import type { PreSendContext } from "#core/loop/pre-send-hooks.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { isRetryable } from "#core/model/streaming.js";
-import { executeTool, getAllTools } from "#core/tools/index.js";
+import { getAllTools } from "#core/tools/index.js";
 import { createFailureTracker, detectReplanTrigger, invokeReplanner, recordStep } from "./replan.js";
 import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
 
@@ -30,6 +31,7 @@ export const MAX_EDITOR_TURNS = 30;
 const EDITOR_RESULT_LIMIT = 30_000;
 
 export type EditorOptions = {
+  executeTools: PreSendContext["executeTools"];
   client: ModelClient;
   model: string;
   maxTokens: number;
@@ -112,29 +114,29 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
     if (toolBlocks.length === 0) { completedNaturally = true; break; }
 
-    const results = await Promise.all(
-      toolBlocks.map(async (block) => {
-        if (block.type !== "tool_use") return null;
-        if (verbose && transport) {
-          transport.emit({ type: "status", message: `[kota] Editor: ${block.name}(${JSON.stringify(block.input).slice(0, 80)})` });
-        }
-        const result = await executeTool(
-          block.name,
-          block.input as Record<string, unknown>,
-        );
-        return {
-          tool_use_id: block.id,
-          name: block.name,
-          content: truncateToolResult(result.content, EDITOR_RESULT_LIMIT),
-          is_error: result.is_error,
-        };
-      }),
-    );
-
-    const filtered = results.filter((r): r is NonNullable<typeof r> => r !== null);
+    const admitted = toolBlocks.filter((block) => EDITOR_TOOL_SET.has(block.name));
+    if (verbose && transport) {
+      for (const block of admitted) {
+        transport.emit({ type: "status", message: `[kota] Editor: ${block.name}(${JSON.stringify(block.input).slice(0, 80)})` });
+      }
+    }
+    const executed = await opts.executeTools(admitted);
+    const byId = new Map(executed.map((result) => [result.tool_use_id, result]));
+    const results = toolBlocks.map((block) => {
+      const result = EDITOR_TOOL_SET.has(block.name)
+        ? byId.get(block.id)
+        : { content: `Tool ${block.name} is not available to the editor`, is_error: true };
+      if (!result) throw new Error(`Tool execution returned no result for ${block.id}`);
+      return {
+        tool_use_id: block.id,
+        name: block.name,
+        content: truncateToolResult(result.content, EDITOR_RESULT_LIMIT),
+        is_error: result.is_error,
+      };
+    });
 
     // Record steps for failure tracking
-    for (const res of filtered) {
+    for (const res of results) {
       recordStep(tracker, {
         tool: res.name,
         error: res.is_error ? res.content : null,
@@ -143,7 +145,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
     messages.push({
       role: "user",
-      content: filtered.map((r) => ({
+      content: results.map((r) => ({
         type: "tool_result" as const,
         tool_use_id: r.tool_use_id,
         content: r.content,

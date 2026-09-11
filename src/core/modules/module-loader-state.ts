@@ -32,6 +32,7 @@ import type { ModuleSetupRequirementContribution } from "./setup-requirements.js
 export interface LoaderState {
   modules: KotaModule[];
   moduleActivations: Map<string, ModuleActivation>;
+  moduleRegistrationDisposers: Map<string, (() => void)[]>;
   moduleStorages: Map<string, ModuleStorage>;
   moduleRegistry: Map<string, KotaModule>;
   moduleToolCounts: Map<string, number>;
@@ -42,7 +43,6 @@ export interface LoaderState {
   moduleSkillDefs: Map<string, readonly SkillDef[]>;
   moduleAgentDefs: Map<string, readonly AgentDef[]>;
   agentsByName: Map<string, { owner: string; definition: AgentDef }>;
-  moduleAgentHarnessDisposers: Map<string, readonly (() => void)[]>;
   moduleSetupRequirementDefs: Map<
     string,
     readonly ModuleSetupRequirementContribution[]
@@ -56,9 +56,7 @@ export interface LoaderState {
   moduleCommandErrors: Map<string, string>;
   moduleControlRouteErrors: Map<string, string>;
   moduleEventSubscriptions: Map<string, Set<() => void>>;
-  moduleEventRegistrationDisposers: Map<string, readonly (() => void)[]>;
   registeredConfigKeys: Map<string, string>;
-  moduleConfigSliceDisposers: Map<string, readonly (() => void)[]>;
   moduleSources: Map<string, ModuleSource>;
   skillContentsByName: Map<string, string>;
   skillDefsByName: Map<string, SkillDef>;
@@ -75,6 +73,7 @@ export function createLoaderState(): LoaderState {
   return {
     modules: [],
     moduleActivations: new Map(),
+    moduleRegistrationDisposers: new Map(),
     moduleStorages: new Map(),
     moduleRegistry: new Map(),
     moduleToolCounts: new Map(),
@@ -85,7 +84,6 @@ export function createLoaderState(): LoaderState {
     moduleSkillDefs: new Map(),
     moduleAgentDefs: new Map(),
     agentsByName: new Map(),
-    moduleAgentHarnessDisposers: new Map(),
     moduleSetupRequirementDefs: new Map(),
     moduleManifests: new Map(),
     moduleRoutes: new Map(),
@@ -96,9 +94,7 @@ export function createLoaderState(): LoaderState {
     moduleCommandErrors: new Map(),
     moduleControlRouteErrors: new Map(),
     moduleEventSubscriptions: new Map(),
-    moduleEventRegistrationDisposers: new Map(),
     registeredConfigKeys: new Map(),
-    moduleConfigSliceDisposers: new Map(),
     moduleSources: new Map(),
     skillContentsByName: new Map(),
     skillDefsByName: new Map(),
@@ -110,4 +106,16 @@ export function createLoaderState(): LoaderState {
     localClientHandlers: {},
     daemonClientFactories: [],
   };
+}
+
+export function trackModuleRegistration(state: LoaderState, owner: string, dispose: () => void): void {
+  const registrations = state.moduleRegistrationDisposers.get(owner) ?? [];
+  registrations.push(dispose);
+  state.moduleRegistrationDisposers.set(owner, registrations);
+}
+
+export function releaseModuleRegistrations(state: LoaderState, owner: string): void {
+  const registrations = state.moduleRegistrationDisposers.get(owner) ?? [];
+  state.moduleRegistrationDisposers.delete(owner);
+  for (const dispose of registrations.reverse()) dispose();
 }

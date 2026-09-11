@@ -1,38 +1,31 @@
 /**
- * Manifest persistence — save, load, delete, and discover manifest-based modules.
+ * Manifest persistence — save, load, delete, and list manifest-based modules.
  */
 
 import {
 	existsSync,
-	mkdirSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
-	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { KotaModule } from "#core/modules/module-types.js";
-import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
-import { manifestToModule } from "./execution.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { ModuleManifest } from "./types.js";
-import { validateManifest } from "./validation.js";
+import { isManifestModuleName, validateManifest } from "./validation.js";
 
 function getModulesDir(cwd?: string): string {
 	return join(cwd || process.cwd(), ".kota", "modules");
 }
 
 function getManifestPath(moduleName: string, cwd?: string): string {
+	if (!isManifestModuleName(moduleName))
+		throw new Error(`Invalid module name: ${moduleName}`);
 	return join(getModulesDir(cwd), moduleName, "manifest.json");
 }
 
-export function saveManifest(
-	manifest: ModuleManifest,
-	cwd?: string,
-): string {
-	const dir = join(getModulesDir(cwd), manifest.name);
-	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-	const path = join(dir, "manifest.json");
-	writeFileSync(path, JSON.stringify(manifest, null, 2), "utf-8");
+export function saveManifest(manifest: ModuleManifest, cwd?: string): string {
+	const path = getManifestPath(manifest.name, cwd);
+	writeJsonFileAtomic(path, manifest);
 	return path;
 }
 
@@ -42,73 +35,39 @@ export function loadManifest(
 ): ModuleManifest | null {
 	const path = getManifestPath(moduleName, cwd);
 	if (!existsSync(path)) return null;
-	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as ModuleManifest;
-	} catch {
-		return null;
-	}
+	const raw: unknown = JSON.parse(readFileSync(path, "utf-8"));
+	const errors = validateManifest(raw);
+	if (errors.length)
+		throw new Error(
+			`Invalid module manifest ${path}: ${errors.map((error) => error.message).join("; ")}`,
+		);
+	const manifest = raw as ModuleManifest;
+	if (manifest.name !== moduleName)
+		throw new Error(`Module name does not match its directory: ${path}`);
+	return manifest;
 }
 
 export function deleteManifest(moduleName: string, cwd?: string): boolean {
-	const dir = join(getModulesDir(cwd), moduleName);
-	if (!existsSync(dir)) return false;
-	const manifestPath = join(dir, "manifest.json");
+	const manifestPath = getManifestPath(moduleName, cwd);
 	if (!existsSync(manifestPath)) return false;
-	try {
-		rmSync(manifestPath);
-		const remaining = readdirSync(dir);
-		if (remaining.length === 0) rmSync(dir, { recursive: true });
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-/**
- * Discover all manifest-based modules saved to `.kota/modules/`.
- * Returns KotaModule[] ready for ModuleLoader.loadAll().
- */
-export function discoverManifestModules(cwd?: string): KotaModule[] {
-	const dir = getModulesDir(cwd);
-	if (!existsSync(dir)) return [];
-
-	const modules: KotaModule[] = [];
-	for (const entry of readdirSync(dir)) {
-		const manifestPath = join(dir, entry, "manifest.json");
-		if (!existsSync(manifestPath)) continue;
-		try {
-			const raw = readFileSync(manifestPath, "utf-8");
-				const manifest = JSON.parse(raw) as ModuleManifest;
-				const errors = validateManifest(manifest);
-				if (errors.length > 0) {
-					printTerminalDiagnostic(
-						`[kota] Manifest module "${entry}" has validation errors, skipping`,
-						"error",
-					);
-					continue;
-				}
-				modules.push(manifestToModule(manifest));
-			} catch {
-				printTerminalDiagnostic(
-					`[kota] Failed to load manifest module "${entry}", skipping`,
-					"error",
-				);
-			}
-	}
-	return modules;
+	rmSync(manifestPath);
+	const dir = join(getModulesDir(cwd), moduleName);
+	if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
+	return true;
 }
 
 /** List all saved manifest module names. */
 export function listManifestModules(
-  cwd?: string,
+	cwd?: string,
 ): { name: string; manifest: ModuleManifest }[] {
 	const dir = getModulesDir(cwd);
 	if (!existsSync(dir)) return [];
 
 	const results: { name: string; manifest: ModuleManifest }[] = [];
-	for (const entry of readdirSync(dir)) {
-		const manifest = loadManifest(entry, cwd);
-		if (manifest) results.push({ name: entry, manifest });
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		if (!entry.isDirectory()) continue;
+		const manifest = loadManifest(entry.name, cwd);
+		if (manifest) results.push({ name: entry.name, manifest });
 	}
 	return results;
 }

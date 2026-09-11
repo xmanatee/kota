@@ -1,14 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
-import { runSchedule } from "./schedule.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { Scheduler } from "#core/daemon/scheduler.js";
+import { runSchedule as executeSchedule } from "./schedule.js";
+
+let scheduler: Scheduler;
+const runSchedule = (input: Record<string, unknown>) => executeSchedule(input, scheduler);
 
 describe("schedule tool", () => {
   beforeEach(() => {
-    initScheduler("/test", null); // in-memory
-  });
-
-  afterEach(() => {
-    resetScheduler();
+    scheduler = new Scheduler();
   });
 
   it("adds a scheduled reminder", async () => {

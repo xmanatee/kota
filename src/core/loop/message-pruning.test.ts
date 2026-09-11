@@ -97,8 +97,8 @@ describe("generateSummary", () => {
   });
 
   it("generates default fallback summary for unknown tool", () => {
-    const summary = generateSummary("custom_tool", {}, "line1\nline2");
-    expect(summary).toContain("custom_tool");
+    const summary = generateSummary("example_tool", {}, "line1\nline2");
+    expect(summary).toContain("example_tool");
     expect(summary).toContain("2 lines");
     expect(summary).toContain("Re-run if needed");
   });

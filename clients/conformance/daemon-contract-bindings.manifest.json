@@ -5,11 +5,11 @@
   "canonicalSources": [
     {
       "path": "src/client/wire-contracts.ts",
-      "sha256": "870888b4aa3b4de1c60a63875b8b050080908a7bf11583031594a84dd900421b"
+      "sha256": "475f83fcfebe401c0e531ca1406f116b4ccbfac11f4821c1a418438314f8a63f"
     },
     {
       "path": "scripts/daemon-contract-graph.mjs",
-      "sha256": "751bb9542b17507588aaeec76808b6db1d152c2f78ef7e11568c9e6374932f22"
+      "sha256": "fe9ae5e9b2993dcd861baf8ea057e64dc24015f0329fd596273ec72647811c22"
     },
     {
       "path": "scripts/kota-client-typescript.mjs",
@@ -161,19 +161,19 @@
   "outputs": [
     {
       "path": "schema/daemon-contract.schema.json",
-      "sha256": "eb81e6e7c7a71b61e98a2375cbec48979e0f6bb15aaa209f6bd84c46013c2a00"
+      "sha256": "d9202723adeea569d10799a1e9315de5186777c3b7ed5b0b77fcdff9f516308a"
     },
     {
       "path": "clients/conformance/daemon-contract.generated.ts",
-      "sha256": "163838abd6c74b90ac0d4e1c0d8e84400942a0ff17f4af251fb3e3181f10c1c1"
+      "sha256": "34430fa478dbbcf171f11ea4b1d288a553528989b92d73abeb41d29d23563f41"
     },
     {
       "path": "src/client/daemon-contract.generated.ts",
-      "sha256": "163838abd6c74b90ac0d4e1c0d8e84400942a0ff17f4af251fb3e3181f10c1c1"
+      "sha256": "34430fa478dbbcf171f11ea4b1d288a553528989b92d73abeb41d29d23563f41"
     },
     {
       "path": "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
-      "sha256": "e504c20d13ce0f2c985d25b8aaf1ffa2df9887d0ae9d324e8d9772662dc59922"
+      "sha256": "0371a5520eb2c03d8a07907d0e5feb4bc3405736334b90006388adb43720fefa"
     },
     {
       "path": "src/client/kota-client.generated.ts",

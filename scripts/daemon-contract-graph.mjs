@@ -122,23 +122,6 @@ export const DAEMON_TYPE_ALIASES = {
   VoiceTranscribeResult: "VoiceTranscribeResponse",
 };
 
-export const DAEMON_EVENT_GRAPH = [
-  "workflow.started",
-  "workflow.completed",
-  "workflow.step.completed",
-  "queue.changed",
-  "approval.changed",
-  "task.changed",
-  "session.registered",
-  "session.unregistered",
-  "workflow.failure.alert",
-  "owner.question.asked",
-  "owner.question.changed",
-  "owner.question.resolved",
-  "owner.question.dismissed",
-  "owner.question.expired",
-];
-
 export const DAEMON_CAPABILITY_GRAPH = ["dashboard", "workflow.trigger"];
 
 export const DAEMON_OPERATION_DESCRIPTORS = [

@@ -6,7 +6,7 @@ import type {
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { resolvePreset, resolveTierModel } from "#core/model/preset.js";
-import type { ToolEffect } from "#core/tools/effect.js";
+import { deleteModuleToolEffect, resolveRegisteredToolEffect } from "#core/tools/tool-effect-registry.js";
 
 type ToolValue =
   | string
@@ -115,9 +115,6 @@ const executeToolMock = vi.hoisted(() =>
 const getAllToolsMock = vi.hoisted(() =>
   vi.fn<() => readonly KotaTool[]>(),
 );
-const getToolEffectMock = vi.hoisted(() =>
-  vi.fn<(name: string, input?: ToolInput) => ToolEffect | undefined>(),
-);
 const maskKnownSecretValuesMock = vi.hoisted(() =>
   vi.fn<(text: string) => string>(),
 );
@@ -139,7 +136,6 @@ export {
   enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
-  getToolEffectMock,
   jsonSchemaMock,
   maskKnownSecretValuesMock,
   stepCountIsMock,
@@ -165,7 +161,7 @@ vi.mock("#core/tools/index.js", () => ({
   ) => executeToolMock(name, input, context),
   getAllTools: () => getAllToolsMock(),
   getToolEffect: (name: string, input?: ToolInput) =>
-    getToolEffectMock(name, input),
+    resolveRegisteredToolEffect(name, input),
 }));
 
 vi.mock("#core/util/confirm.js", () => ({
@@ -207,7 +203,7 @@ beforeEach(async () => {
   }));
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
-  getToolEffectMock.mockReset();
+  deleteModuleToolEffect(TEST_TOOL.name);
   maskKnownSecretValuesMock.mockReset();
   confirmActionMock.mockReset();
   enqueueApprovalMock.mockReset();
@@ -232,6 +228,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  deleteModuleToolEffect(TEST_TOOL.name);
   vi.clearAllMocks();
 });
 

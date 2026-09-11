@@ -4,7 +4,7 @@ import {
   analyzeToolDefDescriptionQuality,
   type ToolDescriptionQualityReport,
 } from "./description-quality.js";
-import { getToolEffect, type ToolRegistration } from "./index.js";
+import { getToolEffect, type ToolRegistration } from "./tool-registry.js";
 
 export type ToolDescriptionQualityProvider = () => readonly ToolDescriptionQualityReport[];
 

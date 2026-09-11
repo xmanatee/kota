@@ -36,7 +36,7 @@ into.
   repair-loop mechanics. Local workflow completion uses the shared synchronous
   `finalize` hook, not child bookkeeping or publication workflows.
 - `agent-harness/` — neutral `AgentHarness` protocol and registry plus the
-  `SDK*` wire-type declarations (`sdk-types.ts`) the workflow runtime, run
+  provider-neutral message declarations (`message-protocol.ts`) the workflow runtime, run
   stores, and step executors consume. Workflow agent steps, the repair loop,
   the agent-harness delegate backend, and the CLI all dispatch through this
   registry. Adapters (claude-agent-sdk, thin, codex, gemini, etc.) ship as

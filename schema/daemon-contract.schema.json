@@ -5,6 +5,9 @@
     "DaemonWireContract": {
       "type": "object",
       "properties": {
+        "eventType": {
+          "$ref": "#/definitions/DaemonSseEventType"
+        },
         "identity": {
           "$ref": "#/definitions/ClientIdentity"
         },
@@ -67,6 +70,7 @@
         }
       },
       "required": [
+        "eventType",
         "identity",
         "scopeRegistry",
         "scopePolicy",
@@ -90,6 +94,27 @@
       ],
       "additionalProperties": false,
       "description": "One schema root for all shared JSON response families. Property names are stable binding ids referenced by the authored route graph."
+    },
+    "DaemonSseEventType": {
+      "type": "string",
+      "enum": [
+        "schedule.fire",
+        "workflow.started",
+        "workflow.completed",
+        "workflow.step.completed",
+        "daemon.config.reload",
+        "scope.lifecycle.changed",
+        "approval.changed",
+        "task.changed",
+        "session.registered",
+        "session.unregistered",
+        "owner.question.asked",
+        "owner.question.changed",
+        "owner.question.resolved",
+        "owner.question.dismissed",
+        "owner.question.expired",
+        "queue.changed"
+      ]
     },
     "ClientIdentity": {
       "type": "object",

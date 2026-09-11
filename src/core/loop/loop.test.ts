@@ -390,7 +390,7 @@ describe("AgentSession", () => {
         assistantText: "hook completed",
         userFollowup: "verify the changes",
       });
-      registerPreSendHook("test-owner", "test-hook", hook);
+      registerPreSendHook("test-hook", hook);
 
       session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("verified"));
@@ -403,7 +403,7 @@ describe("AgentSession", () => {
 
     it("skips applying result when hook returns null", async () => {
       const hook = vi.fn().mockResolvedValue(null);
-      registerPreSendHook("test-owner", "test-hook", hook);
+      registerPreSendHook("test-hook", hook);
 
       session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("direct"));

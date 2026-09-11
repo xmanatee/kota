@@ -1,3 +1,4 @@
+import { subscribeEvents, type EventSubscription } from "./daemon/sse";
 import type { DaemonHttp } from './daemon/http';
 import * as push from './daemon/push';
 import * as sessions from './daemon/sessions';
@@ -64,15 +65,11 @@ export class DaemonClient {
     return voice.voiceSynthesize(this.http, input);
   }
 
-  chatUrl(sessionId: string): string {
-    return sessions.chatUrl(this.http, sessionId);
+  streamChat(sessionId: string, message: string, onText: (chunk: string) => void, onDone: () => void, onError: (error: string) => void): () => void {
+    return sessions.streamChat(this.http, sessionId, message, onText, onDone, onError);
   }
 
-  sseUrl(since?: string): string {
-    return sessions.sseUrl(this.http, since);
-  }
-
-  get authHeader(): string {
-    return `Bearer ${this.http.token}`;
+  subscribeEvents(callbacks: EventSubscription): () => void {
+    return subscribeEvents(this.http, callbacks);
   }
 }

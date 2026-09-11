@@ -35,6 +35,10 @@ The selected store remains the removal owner.
 - Task retraction means a repo-task transition to `dropped`; it is not a delete.
   Inbox removal must remain inside the verified inbox parent.
 
+Scope resolution for both cross-store surfaces is composed in
+`src/modules/store-scope-context.ts`; memory and knowledge retain their own
+provider and storage boundaries.
+
 ## Boundaries
 
 - Do not restore a contributor registry or target-specific public request

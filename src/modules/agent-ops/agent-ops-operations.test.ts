@@ -110,7 +110,7 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
             promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             model: "claude-opus-4-7",
             effort: "xhigh",
-            skills: ["tool-cache"],
+            skills: ["working-memory"],
             tools: { allowed: ["Read"], disallowed: ["Bash"] },
             writeScope: [],
           },
@@ -120,9 +120,9 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
           channelNames: ["telegram"],
           skills: [
             {
-              name: "tool-cache",
-              description: "Cache read-only tool results.",
-              promptPath: "src/modules/tool-cache/tool-cache.md",
+              name: "working-memory",
+              description: "Keep a working memory scratchpad.",
+              promptPath: "src/modules/working-memory/working-memory.md",
               roles: ["builder"],
             },
           ],
@@ -137,7 +137,7 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
               workflows: ["builder"],
               workflowTriggers: [],
               channels: ["telegram"],
-              skills: ["tool-cache"],
+              skills: ["working-memory"],
               agents: ["builder"],
               commands: [],
               routes: [],
@@ -188,13 +188,13 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
       sourcePaths: [
         "src/modules/autonomy",
         "src/modules/autonomy/workflows/builder/prompt.md",
-        "src/modules/tool-cache/tool-cache.md",
+        "src/modules/working-memory/working-memory.md",
       ],
       resolvedSkills: [
         {
-          name: "tool-cache",
+          name: "working-memory",
           source: "autonomy",
-          promptPath: "src/modules/tool-cache/tool-cache.md",
+          promptPath: "src/modules/working-memory/working-memory.md",
         },
       ],
       toolPolicy: {

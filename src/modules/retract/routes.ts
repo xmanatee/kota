@@ -5,9 +5,9 @@ import type {
 } from "#core/modules/module-types.js";
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { ResolveStoreScopeContext } from "#modules/store-scope-context.js";
 import type { RetractRequest, RetractTarget } from "./client.js";
 import { RETRACT_TARGET_ORDER, type RetractProvider } from "./retract-types.js";
-import type { ResolveRetractScopeContext } from "./scope-context.js";
 
 type RequestParseResult =
   | { ok: true; request: RetractRequest }
@@ -50,7 +50,7 @@ export function parseRetractRequestBody(value: unknown): RequestParseResult {
 
 export function createRetractRouteHandler(
   resolveProvider: () => RetractProvider,
-  resolveScopeContext: ResolveRetractScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     let body: unknown;
@@ -88,7 +88,7 @@ export function createRetractRouteHandler(
 
 export function retractControlRoutes(
   resolveProvider: () => RetractProvider,
-  resolveScopeContext: ResolveRetractScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): ControlRouteRegistration[] {
   return [{
     method: "POST",
@@ -100,7 +100,7 @@ export function retractControlRoutes(
 
 export function retractApiRoutes(
   resolveProvider: () => RetractProvider,
-  resolveScopeContext: ResolveRetractScopeContext,
+  resolveScopeContext: ResolveStoreScopeContext,
 ): RouteRegistration[] {
   return [{
     method: "POST",

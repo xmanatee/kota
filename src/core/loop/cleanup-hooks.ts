@@ -1,20 +1,16 @@
 type CleanupHook = {
-  owner: string;
   run: () => void;
 };
 
 const cleanupHooks: CleanupHook[] = [];
 
-export function registerCleanupHook(owner: string, run: () => void): void {
-  cleanupHooks.push({ owner, run });
-}
-
-export function removeCleanupHooks(owner: string): void {
-  let index = cleanupHooks.length - 1;
-  while (index >= 0) {
-    if (cleanupHooks[index]?.owner === owner) cleanupHooks.splice(index, 1);
-    index -= 1;
-  }
+export function registerCleanupHook(run: () => void): () => void {
+  const entry = { run };
+  cleanupHooks.push(entry);
+  return () => {
+    const index = cleanupHooks.indexOf(entry);
+    if (index >= 0) cleanupHooks.splice(index, 1);
+  };
 }
 
 export function runCleanupHooks(): void {

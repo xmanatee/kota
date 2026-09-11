@@ -4,6 +4,7 @@
 import Foundation
 
 struct DaemonWireContract: Codable, Equatable {
+    let eventType: DaemonSseEventType
     let identity: ClientIdentity
     let scopeRegistry: ScopeRegistryProjection
     let scopePolicy: ScopePolicyRouteResponse
@@ -24,6 +25,25 @@ struct DaemonWireContract: Codable, Equatable {
     let digest: DigestResponse
     let voiceTranscribe: VoiceTranscribeResponse
     let voiceFailure: VoiceFailure
+}
+
+enum DaemonSseEventType: String, Codable, Equatable, CaseIterable {
+    case scheduleFire = "schedule.fire"
+    case workflowStarted = "workflow.started"
+    case workflowCompleted = "workflow.completed"
+    case workflowStepCompleted = "workflow.step.completed"
+    case daemonConfigReload = "daemon.config.reload"
+    case scopeLifecycleChanged = "scope.lifecycle.changed"
+    case approvalChanged = "approval.changed"
+    case taskChanged = "task.changed"
+    case sessionRegistered = "session.registered"
+    case sessionUnregistered = "session.unregistered"
+    case ownerQuestionAsked = "owner.question.asked"
+    case ownerQuestionChanged = "owner.question.changed"
+    case ownerQuestionResolved = "owner.question.resolved"
+    case ownerQuestionDismissed = "owner.question.dismissed"
+    case ownerQuestionExpired = "owner.question.expired"
+    case queueChanged = "queue.changed"
 }
 
 struct ClientIdentity: Codable, Equatable {

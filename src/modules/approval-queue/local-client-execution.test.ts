@@ -8,6 +8,7 @@ import {
 	ApprovalQueue,
 	resetApprovalQueue,
 } from "#core/daemon/approval-queue.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
 	buildDirectoryScope,
@@ -61,6 +62,7 @@ describe("approval-queue local client execution", () => {
 				ok: true,
 				runtime: {
 					scope,
+      scheduler: new Scheduler(),
 					approvalQueue: queue,
 					secretStore: {} as never,
 					ownerDecisionStore: {} as never,

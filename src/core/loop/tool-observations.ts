@@ -217,8 +217,6 @@ export function formatMaskedToolObservation(
       return `${MASKED_OBSERVATION_PREFIX} enabled tools${status}]`;
     case "get_secret":
       return `${MASKED_OBSERVATION_PREFIX} got secret${status}]`;
-    case "custom_tool":
-      return `${MASKED_OBSERVATION_PREFIX} custom tool${status}]`;
     case "screenshot":
       return `${MASKED_OBSERVATION_PREFIX} screenshot${status}]`;
     default:

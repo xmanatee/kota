@@ -115,7 +115,6 @@ describe("daemon config reload live-session guardrails", () => {
       policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
     };
     subject = await startDaemonWithLiveSessionReload({
-      reflection: false,
       guardrails: permissiveGuardrails,
       serve: { defaultAutonomyMode: "autonomous" },
     });
@@ -134,7 +133,6 @@ describe("daemon config reload live-session guardrails", () => {
       .toMatchObject({ tool: "shell", risk: "dangerous", policy: "allow" });
 
     const reload = await reloadConfig(subject.port, {
-      reflection: false,
       guardrails: strictGuardrails,
       serve: { defaultAutonomyMode: "autonomous" },
     });
@@ -165,7 +163,6 @@ describe("daemon config reload live-session guardrails", () => {
       policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
     };
     subject = await startDaemonWithLiveSessionReload({
-      reflection: false,
       guardrails,
       serve: { defaultAutonomyMode: "autonomous" },
       modules: { git: { token: "old" } },
@@ -174,7 +171,6 @@ describe("daemon config reload live-session guardrails", () => {
     const beforeSnapshot = await getSessionSnapshot(subject.port, sessionId);
 
     const reload = await reloadConfig(subject.port, {
-      reflection: false,
       guardrails,
       serve: { defaultAutonomyMode: "autonomous" },
       modules: { git: { token: "new" } },

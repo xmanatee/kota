@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { Scheduler } from "#core/daemon/scheduler.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
   buildScopeRegistryProjection,
@@ -52,6 +53,7 @@ export function registerDaemonScopeProvider(
         ok: true,
         runtime: {
           scope,
+      scheduler: new Scheduler(),
           approvalQueue: {} as never,
           secretStore: {} as never,
           ownerDecisionStore: {} as never,

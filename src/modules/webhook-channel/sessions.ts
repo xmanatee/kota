@@ -37,7 +37,6 @@ export function createAgentSession({
     label,
     noHistory: false,
     historySource: "action",
-    reflectionEnabled: false,
   });
   return {
     send: (prompt) => agent.send(prompt),

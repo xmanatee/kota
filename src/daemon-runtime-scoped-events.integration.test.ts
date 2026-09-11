@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { EventJournal } from "#core/events/event-journal.js";
@@ -29,13 +28,13 @@ describe("daemon runtime scoped autonomy events", () => {
     stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
   });
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     resetProviderRegistry();
     rmSync(rootDir, { recursive: true, force: true });
   });

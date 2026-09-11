@@ -1,7 +1,6 @@
 import {
   DAEMON_CAPABILITY_GRAPH,
   DAEMON_CONTRACT_VERSION,
-  DAEMON_EVENT_GRAPH,
   DAEMON_ROUTE_GRAPH,
   DAEMON_TYPE_ALIASES,
   DAEMON_WIRE_SOURCE,
@@ -207,12 +206,17 @@ ${parsers.join("\n\n")}
 `;
 }
 
-function emitTransportGraph() {
+function emitTransportGraph(schema) {
+  const eventType = schema.definitions.DaemonWireContract.properties.eventType;
+  const eventSchema = eventType.$ref ? schema.definitions[referenceName(eventType.$ref)] : eventType;
+  if (!Array.isArray(eventSchema.enum) || !eventSchema.enum.every((value) => typeof value === "string")) {
+    throw new Error("Daemon event types must resolve to a string enum");
+  }
   const routes = Object.fromEntries(DAEMON_ROUTE_GRAPH.map(({ id, method, path }) => [id, { method, path }]));
   return [
     `export const DAEMON_CONTRACT_VERSION = ${JSON.stringify(DAEMON_CONTRACT_VERSION)} as const;`,
     `export const DAEMON_ROUTES = ${JSON.stringify(routes, null, 2)} as const;`,
-    `export const DAEMON_EVENT_TYPES = ${JSON.stringify(DAEMON_EVENT_GRAPH, null, 2)} as const;`,
+    `export const DAEMON_EVENT_TYPES = ${JSON.stringify(eventSchema.enum, null, 2)} as const;`,
     `export type DaemonEventType = (typeof DAEMON_EVENT_TYPES)[number];`,
     `export const DAEMON_CAPABILITY_IDS = ${JSON.stringify(DAEMON_CAPABILITY_GRAPH, null, 2)} as const;`,
   ].join("\n\n");
@@ -225,7 +229,7 @@ export function generateDaemonTypeScriptBinding(schema) {
     "",
     emitTypes(schema),
     "",
-    emitTransportGraph(),
+    emitTransportGraph(schema),
     emitRuntime(schema),
   ].join("\n");
 }

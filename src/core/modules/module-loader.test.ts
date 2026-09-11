@@ -55,6 +55,7 @@ import {
   getToolMiddleware,
   resetToolMiddleware,
 } from "#core/tools/tool-middleware.js";
+import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
@@ -1811,6 +1812,57 @@ describe("ModuleLoader", () => {
     expect(cmds[0].name()).toBe("my-cmd");
   });
 
+  it("serializes lifecycle mutations and recovers after rejected work", async () => {
+    const loader = new ModuleLoader({});
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let disposedB = false;
+    await loader.load({ name: "queued-a", onLoad: () => ({ dispose: async () => { entered(); await barrier; } }) });
+    await loader.load({ name: "queued-b", onLoad: () => ({ dispose: () => { disposedB = true; } }) });
+    const a = loader.unload("queued-a");
+    await started;
+    const b = loader.unload("queued-b");
+    try {
+      await Promise.resolve();
+      expect(disposedB).toBe(false);
+    } finally {
+      release();
+      await Promise.all([a, b]);
+    }
+    expect(loader.getModuleSummaries()).toEqual([]);
+    await expect(loader.load({ name: "rejected", dependencies: ["missing"] })).rejects.toThrow();
+    await loader.load({ name: "queued-b" });
+    expect(loader.getLoadedModules()).toEqual(["queued-b"]);
+    await loader.unloadAll();
+  });
+
+  it("withdraws executable contributions before awaiting activation disposal", async () => {
+    const loader = new ModuleLoader({});
+    let release!: () => void;
+    let entered!: () => void;
+    const disposing = new Promise<void>((resolve) => { entered = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    await loader.load({
+      name: "disposal-boundary",
+      tools: [makeTool("disposal_boundary_tool")],
+      onLoad: (ctx) => {
+        ctx.registerMiddleware("disposal-boundary", async (_call, next) => next());
+        return { dispose: async () => { entered(); await barrier; } };
+      },
+    });
+    const unloading = loader.unload("disposal-boundary");
+    await disposing;
+    try {
+      expect((await executeTool("disposal_boundary_tool", {})).is_error).toBe(true);
+      expect(getToolMiddleware().list()).not.toContain("disposal-boundary");
+    } finally {
+      release();
+      await unloading;
+    }
+  });
+
   it("commands-loader teardown preserves registrations owned by an active runtime loader", async () => {
     const event = defineDaemonWideModuleEvent<{ id: string }>(
       "concurrent-owner.event",
@@ -1840,6 +1892,17 @@ describe("ModuleLoader", () => {
     const commands = new ModuleLoader({}, false, { mode: "commands" });
     await runtime.load(mod);
     await commands.load(mod);
+
+    const rejected = new ModuleLoader({}, false, { mode: "runtime" });
+    await expect(rejected.load({
+      ...mod,
+      tools: [makeTool("partial_registration"), makeTool("concurrent_owner_tool")],
+    })).rejects.toThrow("Tool already registered");
+    await rejected.unloadAll();
+    expect((await executeTool("partial_registration", {})).is_error).toBe(true);
+    expect((await executeTool("concurrent_owner_tool", {})).content)
+      .toBe("result from concurrent_owner_tool");
+    expect(commands.getModuleSummaries()[0].toolNames).toEqual([]);
 
     await commands.unloadAll();
 
@@ -2248,6 +2311,30 @@ describe("source reimport", () => {
     const cacheBustedUrl = `${url1}?v=${Date.now()}`;
     const mod2 = await import(cacheBustedUrl);
     expect(mod2.default.description).toBe("v2");
+  });
+
+  it("rejects failed installed reloads without reporting stale activation as success", async () => {
+    const modDir = join(tmpDir, ".kota", "modules", "disk-mod");
+    mkdirSync(modDir, { recursive: true });
+    const manifestPath = join(modDir, "manifest.json");
+    writeFileSync(manifestPath, JSON.stringify({ name: "disk-mod", description: "original" }));
+    const loader = new ModuleLoader({}, false, { globalConfigPath });
+    loader.setCwd(tmpDir);
+    const { reimportInstalledModule } = await import("./module-discovery.js");
+    const mod = await reimportInstalledModule("disk-mod", tmpDir, { globalConfigPath });
+    await loader.loadAll([], [mod!]);
+    try {
+      writeFileSync(manifestPath, "{");
+      await expect(loader.reload("disk-mod")).rejects.toThrow();
+      expect(loader.getLoadedModules()).toEqual(["disk-mod"]);
+      writeFileSync(manifestPath, JSON.stringify({ name: "disk-mod", description: "updated" }));
+      writeFileSync(globalConfigPath, "{}");
+      await expect(loader.reload("disk-mod")).rejects.toThrow("cannot be reloaded");
+      writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
+      expect(await loader.reload("disk-mod")).toBe(true);
+    } finally {
+      await loader.unloadAll();
+    }
   });
 
   it("ModuleLoader.reload re-imports installed module from disk", async () => {
@@ -2659,7 +2746,10 @@ describe("Module SDK — storage, config, skills", () => {
   });
 });
 
-describe("ctx.callTool — direct tool invocation", () => {
+describe("ctx.callTool — inherited tool invocation", () => {
+  const invoke = <T>(run: () => T): T => withToolCallExecutionOptions({
+    resultLimit: 30000, verbose: false, autonomyMode: "autonomous",
+  }, run);
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
@@ -2687,7 +2777,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("helper_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("helper_tool", {}));
     expect(result.content).toBe("result from helper_tool");
     expect(result.is_error).toBeFalsy();
   });
@@ -2702,9 +2792,9 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("nonexistent_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("nonexistent_tool", {}));
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Unknown tool");
+    expect(result.content).toContain("no registered input schema");
   });
 
   it("returns error when tool runner throws", async () => {
@@ -2732,7 +2822,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("throws_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("throws_tool", {}));
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("boom");
   });
@@ -2757,7 +2847,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("recursive_tool", {});
+    const result = await invoke(() => capturedCtx.callTool("recursive_tool", {}));
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("depth limit exceeded");
   });
@@ -2778,9 +2868,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     });
 
     // Multiple sequential calls should all succeed (depth resets)
-    const r1 = await capturedCtx.callTool("simple_tool", {});
-    const r2 = await capturedCtx.callTool("simple_tool", {});
-    const r3 = await capturedCtx.callTool("simple_tool", {});
+    const r1 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
+    const r2 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
+    const r3 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
     expect(r1.content).toBe("result from simple_tool");
     expect(r2.content).toBe("result from simple_tool");
     expect(r3.content).toBe("result from simple_tool");
@@ -2814,7 +2904,7 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("echo_tool", { msg: "hello" });
+    const result = await invoke(() => capturedCtx.callTool("echo_tool", { msg: "hello" }));
     expect(result.content).toBe("echo: hello");
   });
 
@@ -2857,11 +2947,11 @@ describe("ctx.callTool — direct tool invocation", () => {
       },
     });
 
-    const result = await capturedCtx.callTool("tool_a", {});
+    const result = await invoke(() => capturedCtx.callTool("tool_a", {}));
     expect(result.content).toBe("chained: leaf result");
   });
 
-  it("callTool works from event handlers via captured context", async () => {
+  it("event callbacks without an active executor have no tool authority", async () => {
     const bus = new EventBus();
     const loader = new ModuleLoader({});
     let eventResult: any;
@@ -2885,7 +2975,8 @@ describe("ctx.callTool — direct tool invocation", () => {
     bus.emit("test.trigger", {});
     // Wait for async handler
     await new Promise((r) => setTimeout(r, 10));
-    expect(eventResult?.content).toBe("result from event_target");
+    expect(eventResult?.is_error).toBe(true);
+    expect(eventResult?.content).toContain("active tool execution context");
   });
 
   it("probeHealthChecks collects results from modules with healthCheck", async () => {

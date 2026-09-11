@@ -13,7 +13,6 @@ import type {
   DaemonLiveStatus,
   HealthStatus,
 } from "#core/daemon/daemon-control.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import type { BlockingFixtureOutput } from "#core/workflow/testing/blocking-operation-fixture.js";
 import { runCpuBlockingFixture } from "#core/workflow/testing/blocking-operation-fixture.js";
@@ -36,7 +35,7 @@ describe("daemon control responsiveness during workflow execution", () => {
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     for (const root of roots.splice(0)) {
       rmSync(root, { recursive: true, force: true });
     }
@@ -49,7 +48,6 @@ describe("daemon control responsiveness during workflow execution", () => {
     const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
-    resetScheduler();
 
     const daemon = new Daemon({
       scopeRoot,

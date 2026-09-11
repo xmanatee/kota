@@ -19,7 +19,6 @@ import {
   getOwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "./owner-question-queue.js";
-import { getScheduler, resetScheduler } from "./scheduler.js";
 import {
   buildDirectoryScope,
   type DirectoryScope,
@@ -79,7 +78,7 @@ afterEach(() => {
 
 function resetSingletons(): void {
   resetTaskStore();
-  resetScheduler();
+
   resetModuleLogStore();
   resetApprovalQueue();
   resetIdempotencyStore();
@@ -198,7 +197,6 @@ describe("createScopeRuntime", () => {
     runInfrastructure.attach(bundleB);
 
     expect(getTaskStore()).toBe(bundleA.taskStore);
-    expect(getScheduler()).toBe(bundleA.scheduler);
     expect(getModuleLogStore()).toBe(bundleA.moduleLogStore);
     expect(getApprovalQueue()).toBe(bundleA.approvalQueue);
     expect(getIdempotencyStore()).toBe(bundleA.idempotencyStore);

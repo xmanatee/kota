@@ -1,14 +1,16 @@
 # Scheduler Module
 
-This directory owns the `scheduler` repo module — timed reminders, recurring tasks, and event-triggered automations.
+This directory owns the `scheduler` repo module — timed, recurring, and event-triggered reminders.
 
 - Registers the `schedule` tool in the `management` tool group.
-- Owns the `NotificationHub` singleton. Module routes resolve it through
-  `getNotificationHub()`; `onLoad` also registers the same instance under
-  `NOTIFICATION_HUB_PROVIDER_TYPE` so the HTTP server can wire the scheduler
-  bus and timer to it without importing module code.
-- Contributes the `/api/schedules` and `/api/notifications` HTTP routes via
-  `KotaModule.routes`.
+- The daemon scope runtime owns reminder state in its existing database and is
+  the sole timer/event delivery owner. Scope composition imports legacy JSON
+  once before starting delivery. Standalone clients do not open reminder stores.
+- The tool resolves the module host's daemon scope provider at invocation time.
+  It exposes reminder commands only; the daemon retains timer and firing APIs.
+  It requires a daemon-hosted session; unknown scopes fail explicitly.
+- Reminder delivery uses `schedule.fire` on the daemon's existing event stream,
+  including its scope ID and replay cursor.
 
 Weekly quota policy is opt-in through scheduler configuration. The workflow
 runtime owns its independent admission hold; the selected harness reads the

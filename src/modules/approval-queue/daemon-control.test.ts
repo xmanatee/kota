@@ -16,6 +16,7 @@ import {
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
   buildDirectoryScope,
@@ -192,6 +193,7 @@ function registerScopeQueueProvider(
         ok: true,
         runtime: {
           scope: entry.scope,
+      scheduler: new Scheduler(),
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,

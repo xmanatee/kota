@@ -32,7 +32,6 @@ function createTestSession(
 		transport,
 		model: "claude-haiku-4-5-20251001",
 		noHistory: true,
-		reflectionEnabled: false,
 		verbose: opts?.verbose ?? false,
 		config: opts?.architectMode
 			? { modules: { architect: { enabled: true } } }

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { localDestructiveEffect } from "#core/tools/effect.js";
+import { setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
 import {
   captureStreamTextArgs,
   confirmActionMock,
@@ -7,7 +9,6 @@ import {
   enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
-  getToolEffectMock,
   maskKnownSecretValuesMock,
   streamTextMock,
   TEST_TOOL,
@@ -17,12 +18,7 @@ import { runAndCaptureToolExecute } from "./adapter-tool-test-support.js";
 
 describe("vercelAgentHarness — guardrails", () => {
   const useDangerousToolEffect = (): void => {
-    getToolEffectMock.mockReturnValue({
-      kind: "destructive",
-      scope: "local-fs",
-      idempotent: false,
-      openWorld: false,
-    });
+    setModuleToolEffect(TEST_TOOL.name, { effect: localDestructiveEffect() });
   };
 
   it("blocks a dangerous tool under a deny policy through the shared runner", async () => {

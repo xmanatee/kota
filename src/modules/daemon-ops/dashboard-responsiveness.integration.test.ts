@@ -12,7 +12,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { localDaemonStop } from "./daemon-ops-operations.js";
@@ -71,7 +70,7 @@ describe("foreground dashboard responsiveness", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     resetEventBus();
-    resetScheduler();
+
     if (scopeRoot) rmSync(scopeRoot, { recursive: true, force: true });
   });
 
@@ -79,7 +78,7 @@ describe("foreground dashboard responsiveness", () => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-dashboard-responsive-"));
     initializeLargeQueueRepo(scopeRoot);
     resetEventBus();
-    resetScheduler();
+
     const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
 

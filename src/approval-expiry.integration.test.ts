@@ -15,10 +15,6 @@ import {
 	resetOwnerQuestionQueue,
 	setOwnerQuestionQueueInstance,
 } from "./core/daemon/owner-question-queue.js";
-import {
-	resetScheduler,
-	setSchedulerInstance,
-} from "./core/daemon/scheduler.js";
 import { buildDirectoryScope } from "./core/daemon/scope-registry.js";
 import type { ScopeRuntime } from "./core/daemon/scope-runtime.js";
 import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
@@ -51,7 +47,7 @@ describe("approval expiry × event bus integration", () => {
 		rmSync(dir, { recursive: true, force: true });
 		clearApprovalExecutionTestTools();
 		resetOwnerQuestionQueue();
-		resetScheduler();
+
 		resetEventBus();
 		vi.useRealTimers();
 	});
@@ -169,7 +165,7 @@ describe("approval expiry × event bus integration", () => {
 		mkdirSync(scopeRootB, { recursive: true });
 		const runtimeA = createTestScopeRuntime(scopeRootA);
 		const runtimeB = createTestScopeRuntime(scopeRootB);
-		setSchedulerInstance(runtimeA.scheduler);
+
 		setOwnerQuestionQueueInstance(runtimeA.ownerQuestionQueue);
 		const executeTool = vi.fn<ToolRunner>();
 		registerApprovalExecutionTestTools(executeTool);

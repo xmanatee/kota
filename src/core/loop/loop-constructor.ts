@@ -6,7 +6,6 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { setIdempotencyStoreInstance } from "#core/daemon/idempotency-singleton.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
-import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
@@ -104,7 +103,6 @@ export function initAgentSession(
     ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
   state.guardrailsConfig = cloneGuardrailsConfig(initialGuardrailsConfig);
   state.guardrailsSnapshot = createGuardrailsSnapshot(state.guardrailsConfig, 0);
-  state.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
   state.modelTiers = options.config?.modelTiers;
   state.modelOutputTokenLimits = options.config?.modelOutputTokenLimits;
   state.channelIdentity = options.channelIdentity;
@@ -136,14 +134,12 @@ export function initAgentSession(
       );
     }
     setTaskStoreInstance(options.scopeRuntime.taskStore);
-    setSchedulerInstance(options.scopeRuntime.scheduler);
     setModuleLogStoreInstance(options.scopeRuntime.moduleLogStore);
     setIdempotencyStoreInstance(options.scopeRuntime.idempotencyStore);
     setOwnerQuestionQueueInstance(options.scopeRuntime.ownerQuestionQueue);
     state.idempotencyStore = options.scopeRuntime.idempotencyStore;
   } else {
     initTaskStore(scopeRoot);
-    initScheduler(scopeRoot);
     initModuleLogStore(scopeRoot);
     const idempotencyStore = new IdempotencyStore(
       join(scopeRoot, ".kota", "idempotency"),
@@ -202,7 +198,6 @@ export function initAgentSession(
   state.historyEnabled = !options.noHistory && (!state.sessionPath || !!options.resumeConversation);
   state.historyProvider = options.historyProvider;
   state.historySource = options.historySource ?? "user";
-
 
   if (state.ownsModuleRuntime) {
     state.moduleLoader.setCwd(scopeRoot);

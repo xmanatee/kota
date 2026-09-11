@@ -142,7 +142,7 @@ export class DaemonControlClient extends KotaClientNamespaceHost {
   unregisterSession(id: string): Promise<boolean> {
     return methods.unregisterSession(this.transport, id);
   }
-  events(): AsyncGenerator<DaemonSseStreamEvent> {
-    return methods.events(this.transport);
+  events(init?: Parameters<DaemonTransport["events"]>[0]): AsyncGenerator<DaemonSseStreamEvent> {
+    return methods.events(this.transport, init);
   }
 }

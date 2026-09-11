@@ -1,7 +1,7 @@
 /**
  * Core code-runner protocol.
  *
- * `custom_tool` and manifest-defined tools execute agent-authored Python or
+ * Manifest-defined tools execute agent-authored Python or
  * Node.js code. Core owns the declarative surface (tool schema, manifest
  * parsing, persistence) but must not depend on any specific executor module.
  * Executors — the `execution` module today, any future runtime-module

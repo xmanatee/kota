@@ -47,7 +47,6 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { ApprovalQueue } from "./approval-queue.js";
 import { Daemon } from "./daemon.js";
 import { OwnerQuestionQueue } from "./owner-question-queue.js";
-import { resetScheduler } from "./scheduler.js";
 import {
   deriveDirectoryScopeId,
   loadRegistryFileFromDisk,
@@ -100,7 +99,7 @@ describe("Daemon — two-scope isolation across emit/persist/session boundaries"
 
   beforeEach(() => {
     resetEventBus();
-    resetScheduler();
+
     stateDir = mkdtempSync(join(tmpdir(), "kota-multi-scope-isolation-"));
     daemonStateDir = join(stateDir, "daemon-state");
     mkdirSync(daemonStateDir, { recursive: true });
@@ -120,7 +119,7 @@ describe("Daemon — two-scope isolation across emit/persist/session boundaries"
       }
     }
     resetEventBus();
-    resetScheduler();
+
     rmSync(stateDir, { recursive: true, force: true });
   });
 

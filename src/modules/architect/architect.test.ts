@@ -27,11 +27,21 @@ vi.mock("#core/tools/index.js", () => ({
     { name: "ask_user", description: "ask", input_schema: { type: "object", properties: {} } },
   ],
   executeTool: mockExecuteTool,
+  getToolEffect: (...args: Parameters<typeof resolveRegisteredToolEffect>) => resolveRegisteredToolEffect(...args),
 }));
 
+import { localWriteEffect, readOnlyLocalEffect } from "#core/tools/effect.js";
+import { deleteModuleToolEffect, resolveRegisteredToolEffect, setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
 import { enableGroup, resetGroups } from "#core/tools/tool-groups.js";
+import { executeToolCalls } from "#core/tools/tool-runner-execution.js";
 import { runArchitectPass } from "./architect.js";
-import { runEditorLoop } from "./architect-editor.js";
+import { type EditorOptions, runEditorLoop as executeEditorLoop } from "./architect-editor.js";
+
+const runEditorLoop = (options: Omit<EditorOptions, "executeTools">) =>
+  executeEditorLoop({ ...options, executeTools: async (blocks) => Promise.all(blocks.map(async (block) => ({
+    tool_use_id: block.id,
+    ...await mockExecuteTool(block.name, block.input),
+  }))) });
 
 // --- Helpers ---
 
@@ -224,6 +234,45 @@ describe("runEditorLoop", () => {
     });
 
     expect(result).toEqual({ text: "All changes complete." });
+  });
+
+  it("preserves write-before-read ordering through the session executor", async () => {
+    client.messages.stream
+      .mockReturnValueOnce(createMockStream({ content: toolUseContent([
+        { id: "write", name: "file_write", input: { path: "example.txt" } },
+        { id: "forbidden", name: "delegate", input: {} },
+        { id: "read", name: "file_read", input: { path: "example.txt" } },
+      ]) }))
+      .mockReturnValueOnce(createMockStream({ _text: "Done." }));
+    let written = false;
+    let readBeforeWrite = false;
+    mockExecuteTool.mockImplementation(async (name: string) => {
+      if (name === "file_write") {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        written = true;
+      } else {
+        readBeforeWrite = !written;
+      }
+      return { content: written ? "updated" : "stale" };
+    });
+    setModuleToolEffect("file_write", { effect: localWriteEffect() });
+    setModuleToolEffect("file_read", { effect: readOnlyLocalEffect() });
+    try {
+      await executeEditorLoop({
+        client, model: "test", maxTokens: 1000, plan: "Write then read",
+        executeTools: (blocks) => executeToolCalls(blocks, {
+          resultLimit: 30000, verbose: false, autonomyMode: "autonomous",
+        }),
+      });
+      expect(readBeforeWrite).toBe(false);
+      expect(mockExecuteTool.mock.calls.map(([name]) => name)).toEqual(["file_write", "file_read"]);
+      const results = client.messages.stream.mock.calls[1][0].messages[2].content;
+      expect(results.map((result: { tool_use_id: string }) => result.tool_use_id)).toEqual(["write", "forbidden", "read"]);
+      expect(results[1].is_error).toBe(true);
+    } finally {
+      deleteModuleToolEffect("file_write");
+      deleteModuleToolEffect("file_read");
+    }
   });
 
   it("executes tools and continues until model stops", async () => {

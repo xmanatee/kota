@@ -1,13 +1,9 @@
-import type { ScopeId } from "#core/daemon/scope-registry.js";
+
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
-import type {
-  KnowledgeProvider,
-  MemoryProvider,
-} from "#core/modules/provider-types.js";
-import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import type { StoreScopeContext } from "#modules/store-scope-context.js";
 import type {
   RetractRequest,
   RetractResult,
@@ -31,13 +27,7 @@ export const RETRACT_TARGET_ORDER: ReadonlyArray<RetractTarget> = [
   "inbox",
 ] as const;
 
-export type RetractScopeContext = {
-  scopeId: ScopeId;
-  scopeRoot: string;
-  memory: MemoryProvider;
-  knowledge: KnowledgeProvider;
-  getWorkflowDispatcher: () => WorkflowDispatcher | null;
-};
+export type RetractScopeContext = StoreScopeContext;
 
 export interface RetractProvider {
   retract(

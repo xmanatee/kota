@@ -1,3 +1,4 @@
+import "./index.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defineProviderToken, initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import {

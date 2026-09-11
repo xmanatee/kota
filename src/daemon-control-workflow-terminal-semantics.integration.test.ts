@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
-import { resetScheduler } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import type { RecoveringFixtureOutput } from "#core/workflow/testing/blocking-operation-fixture.js";
 import {
@@ -24,7 +23,7 @@ describe("blocking workflow operation terminal semantics", () => {
 
   afterEach(() => {
     resetEventBus();
-    resetScheduler();
+
     for (const root of roots.splice(0)) {
       rmSync(root, { recursive: true, force: true });
     }
@@ -37,7 +36,6 @@ describe("blocking workflow operation terminal semantics", () => {
     const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
-    resetScheduler();
 
     const daemon = new Daemon({
       scopeRoot,
