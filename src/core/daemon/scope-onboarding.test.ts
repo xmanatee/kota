@@ -14,7 +14,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
@@ -28,8 +28,10 @@ import {
 } from "./scope-authority-operator-token.js";
 import { ScopeAuthorityService } from "./scope-authority-service.js";
 import { ScopeAuthorityStore } from "./scope-authority-store.js";
+import type { ScopeImprovementAuthorityProjection } from "./scope-improvement-authority-provider.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
 import {
+  type ScopeOnboardingChoices,
   type ScopeOnboardingOperation,
   ScopeOnboardingService,
 } from "./scope-onboarding.js";
@@ -39,11 +41,7 @@ import { ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(() => vi.restoreAllMocks());
 
 function initializeGitRepository(root: string): void {
   execFileSync("git", ["init", "--quiet"], { cwd: root });
@@ -65,147 +63,76 @@ function initializeGitRepository(root: string): void {
 }
 
 describe("ScopeOnboardingService", () => {
-  it("resolves the three improvement postures into existing authority rails", async () => {
+  it.each([
+    ["observe", "passive", "owner-questions", "disabled"],
+    ["propose", "supervised", "task-proposals", "disabled"],
+    ["build", "autonomous", "task-proposals", "enabled"],
+  ] as const)("resolves %s into the existing authority rails", async (posture, autonomy, review, builder) => {
     const fixture = await createFixture();
     const target = join(fixture.root, "postures");
     mkdirSync(target);
     initializeGitRepository(target);
-
-    const observed = await fixture.service.plan(target, { trust: true });
-    const proposed = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    const built = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "build",
-      writes: { mode: "paths", paths: ["src"] },
-    });
-
-    expect(observed).toMatchObject({
-      ok: true,
-      plan: {
-        permissions: {
-          autonomy: "passive",
-          writes: { mode: "none" },
-          improvement: {
-            posture: "observe",
-            review: "owner-questions",
-            builder: "disabled",
-          },
-        },
-      },
-    });
-    expect(proposed).toMatchObject({
-      ok: true,
-      plan: {
-        permissions: {
-          autonomy: "supervised",
-          improvement: { posture: "propose", builder: "disabled" },
-        },
-      },
-    });
-    expect(built).toMatchObject({
-      ok: true,
-      plan: {
-        permissions: {
-          autonomy: "autonomous",
-          writes: { mode: "paths", paths: ["src"] },
-          improvement: { posture: "build", builder: "enabled" },
-        },
-      },
-    });
+    const writes = posture === "observe"
+      ? { mode: "none" as const }
+      : { mode: "scope-directory" as const };
     expect(await fixture.service.plan(target, {
-      improvementPosture: "build",
-      writes: { mode: "scope-directory" },
-    })).toMatchObject({ ok: false, reason: "invalid_choices" });
-    await fixture.close();
-  });
-
-  it("parks propose onboarding until an unborn Git repository has a commit", async () => {
-    const fixture = await createFixture();
-    const target = join(fixture.root, "unborn-repository");
-    mkdirSync(target);
-    execFileSync("git", ["init", "--quiet"], { cwd: target });
-
-    try {
-      const planned = await fixture.service.plan(target, {
-        trust: true,
-        improvementPosture: "propose",
-        writes: { mode: "scope-directory" },
-      });
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
-      expect(planned.plan.blockers).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          code: "repository_commit_unavailable",
-          capability: "scope-improvement-actions",
-        }),
-      ]));
-
-      const applied = await fixture.service.apply(
-        planned.plan,
-        operatorAction(fixture.authorityConfigPath, true),
-      );
-      expect(applied).toMatchObject({
-        ok: true,
-        operation: {
-          state: "succeeded",
-          readiness: {
-            workflowReady: false,
-            blocked: true,
-            reasons: expect.arrayContaining([
-              expect.objectContaining({ code: "repository_commit_unavailable" }),
-            ]),
-          },
-        },
-      });
-      expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
-      expect(fixture.runState.listRuns(planned.plan.scopeId)).toEqual([]);
-      expect(fixture.onboardingTransitions).toEqual([]);
-    } finally {
-      await fixture.close();
-    }
-  });
-
-  it("keeps task-proposal onboarding closed when policy excludes the task queue", async () => {
-    const fixture = await createFixture();
-    const target = join(fixture.root, "task-queue-denied");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "build",
-      writes: { mode: "paths", paths: ["src"] },
+      trust: true, improvementPosture: posture, writes,
+    })).toMatchObject({
+      ok: true,
+      plan: { permissions: { autonomy, writes, improvement: { posture, review, builder } } },
     });
+  });
+
+  it("rejects build authority without explicit trust", async () => {
+    const fixture = await createFixture();
+    expect(await fixture.service.plan(fixture.root, {
+      improvementPosture: "build", writes: { mode: "scope-directory" },
+    })).toMatchObject({ ok: false, reason: "invalid_choices" });
+  });
+
+  it.each([
+    ["unborn Git repository", "repository_commit_unavailable"],
+    ["excluded task queue", "scope_improver_write_denied"],
+    ["malformed improvement configuration", "scope_improvement_inspection_failed"],
+    ["failed workflow probe", "workflow_inspection_failed"],
+  ] as const)("keeps activation closed for %s", async (_scenario, reason) => {
+    const fixture = await createFixture(reason === "scope_improvement_inspection_failed"
+      ? { getImprovementAuthority: () => { throw new Error("Malformed improvement config"); } }
+      : {});
+    const target = join(fixture.root, "parked");
+    mkdirSync(target);
+    if (reason === "repository_commit_unavailable") {
+      execFileSync("git", ["init", "--quiet"], { cwd: target });
+    } else {
+      initializeGitRepository(target);
+    }
+    const choices: ScopeOnboardingChoices = {
+      trust: true, improvementPosture: "propose",
+      writes: reason === "scope_improver_write_denied"
+        ? { mode: "paths", paths: ["src"] }
+        : { mode: "scope-directory" },
+    };
+    const planned = await fixture.service.plan(target, choices);
     expect(planned.ok).toBe(true);
     if (!planned.ok) return;
-
+    if (reason === "workflow_inspection_failed") {
+      fixture.workflowProbeFailureScopes.add(planned.plan.scopeId);
+    }
     expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
+      planned.plan, operatorAction(fixture.authorityConfigPath, true),
     )).toMatchObject({
-      ok: true,
-      operation: {
+      ok: true, operation: {
         state: "succeeded",
         readiness: {
-          workflowReady: false,
-          blocked: true,
-          improvement: { posture: "build", builder: "enabled" },
-          reasons: expect.arrayContaining([
-            expect.objectContaining({
-              code: "scope_improver_write_denied",
-              capability: "scope-improvement-actions",
-            }),
-          ]),
+          registered: true, workflowReady: false, blocked: true,
+          reasons: expect.arrayContaining([expect.objectContaining({ code: reason })]),
         },
       },
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
+    expect(fixture.service.isActivationAllowed(planned.plan.scopeId)).toBe(false);
     expect(fixture.runState.listRuns(planned.plan.scopeId)).toEqual([]);
     expect(fixture.onboardingTransitions).toEqual([]);
-    await fixture.close();
   });
 
   it("parks a build scope on builder runtime readiness without blocking an observe sibling", async () => {
@@ -275,7 +202,6 @@ describe("ScopeOnboardingService", () => {
       operation: { readiness: { workflowReady: true, blocked: false } },
     });
     expect(fixture.lifecycle.getHostingState(observePlan.plan.scopeId)).toBe("hosted");
-    await fixture.close();
   });
 
   it("parks disabled improvement onboarding and activates it after configuration recovers", async () => {
@@ -330,247 +256,79 @@ describe("ScopeOnboardingService", () => {
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
     expect(fixture.onboardingTransitions).toEqual(["onboarding-completed"]);
-    await fixture.close();
   });
 
-  it("rechecks current writer readiness before activating an accepted observe scope", async () => {
-    let improvementEnabled = false;
-    const fixture = await createFixture({
-      getImprovementAuthority: (_scopeRoot, _stateDir, policy) => {
-        const build = policy.autonomy.maxMode === "autonomous";
-        const taskWriteAllowed = policy.writes.mode !== "paths" ||
-          policy.writes.paths.includes("data/tasks");
-        return {
-          enabled: improvementEnabled,
-          configuredPosture: build ? "build" : "observe",
-          posture: build ? "build" : "observe",
-          review: improvementEnabled
-            ? build ? "task-proposals" : "owner-questions"
-            : "disabled",
-          builder: improvementEnabled && build ? "enabled" : "disabled",
-          taskProposalDecision: {
-            outcome: taskWriteAllowed ? "allow" : "deny",
-            reason: "fixture task authority",
-          },
-          builderDecision: {
-            outcome: build ? "allow" : "deny",
-            reason: "fixture builder authority",
-          },
-        };
-      },
-    });
-    const target = join(fixture.root, "observe-to-task-denied-build");
+  it.each([
+    ["parked observe to task-denied build", "observe", "build", false],
+    ["parked build to observe", "build", "observe", false],
+    ["active build to observe", "build", "observe", true],
+  ] as const)("projects current authority for %s", async (_scenario, before, after, initiallyEnabled) => {
+    let projection: ScopeImprovementAuthorityProjection = {
+      enabled: initiallyEnabled,
+      configuredPosture: before, posture: before,
+      review: initiallyEnabled ? "task-proposals" : "disabled",
+      builder: initiallyEnabled ? "enabled" : "disabled",
+      taskProposalDecision: { outcome: "allow", reason: "Initial task-queue grant" },
+      builderDecision: { outcome: "allow", reason: "Initial builder grant" },
+    };
+    const provider = vi.fn(() => projection);
+    const fixture = await createFixture({ getImprovementAuthority: provider });
+    const target = join(fixture.root, "changed-authority");
     mkdirSync(target);
     initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, { trust: true });
+    const planned = await fixture.service.plan(target, {
+      trust: true, improvementPosture: before,
+      writes: before === "observe" ? { mode: "none" } : { mode: "scope-directory" },
+    });
     expect(planned.ok).toBe(true);
     if (!planned.ok) return;
     expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
+      planned.plan, operatorAction(fixture.authorityConfigPath, true),
     )).toMatchObject({
-      ok: true,
-      operation: { readiness: { workflowReady: false } },
+      ok: true, operation: { readiness: { workflowReady: initiallyEnabled } },
     });
-
+    const writes = after === "observe"
+      ? { mode: "none" as const }
+      : { mode: "paths" as const, paths: ["src"] };
+    const autonomy = after === "observe" ? "passive" : "autonomous";
     expect(await fixture.authority.apply(planned.plan.scopeId, {
-      expectedRevision: fixture.authority.currentRevision(),
-      reason: "Enable builds without granting task-queue writes.",
-      trust: true,
+      expectedRevision: fixture.authority.currentRevision(), trust: true,
+      reason: "Revise accepted scope authority",
       policy: {
-        scopeId: planned.plan.scopeId,
-        reason: "Current build authority excludes the task queue.",
-        autonomy: { defaultMode: "autonomous", maxMode: "autonomous" },
-        writes: { mode: "paths", paths: ["src"] },
+        scopeId: planned.plan.scopeId, reason: "Current scope authority",
+        autonomy: { defaultMode: autonomy, maxMode: autonomy }, writes,
       },
-    }, operatorAction(fixture.authorityConfigPath, true))).toMatchObject({ ok: true });
-    improvementEnabled = true;
-
+    }, operatorAction(fixture.authorityConfigPath, after === "build"))).toMatchObject({ ok: true });
+    projection = {
+      enabled: true, configuredPosture: after, posture: after,
+      review: after === "observe" ? "owner-questions" : "task-proposals",
+      builder: after === "observe" ? "disabled" : "enabled",
+      taskProposalDecision: { outcome: "deny", reason: "Current authority excludes task writes" },
+      builderDecision: {
+        outcome: after === "observe" ? "deny" : "allow", reason: "Current builder authority",
+      },
+    };
+    if (after === "observe") rmSync(join(target, ".git"), { recursive: true });
+    const ready = after === "observe";
     expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
       readiness: {
-        workflowReady: false,
-        blocked: true,
-        improvement: { posture: "build" },
-        reasons: expect.arrayContaining([
+        workflowReady: ready, blocked: !ready,
+        improvement: {
+          posture: after, review: projection.review, builder: projection.builder,
+          autonomyMode: autonomy, writes,
+        },
+        reasons: ready ? [] : expect.arrayContaining([
           expect.objectContaining({ code: "scope_improver_write_denied" }),
         ]),
       },
     });
-    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
-    expect(fixture.onboardingTransitions).toEqual([]);
-    await fixture.close();
-  });
-
-  it("activates a current observe scope without stale writer prerequisites", async () => {
-    let improvementEnabled = false;
-    const fixture = await createFixture({
-      getImprovementAuthority: (_scopeRoot, _stateDir, policy) => {
-        const observe = policy.autonomy.maxMode === "passive";
-        return {
-          enabled: improvementEnabled,
-          configuredPosture: observe ? "observe" : "build",
-          posture: observe ? "observe" : "build",
-          review: improvementEnabled
-            ? observe ? "owner-questions" : "task-proposals"
-            : "disabled",
-          builder: improvementEnabled && !observe ? "enabled" : "disabled",
-          taskProposalDecision: {
-            outcome: observe ? "deny" : "allow",
-            reason: "fixture task authority",
-          },
-          builderDecision: {
-            outcome: observe ? "deny" : "allow",
-            reason: "fixture builder authority",
-          },
-        };
-      },
-    });
-    const target = join(fixture.root, "build-to-observe");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "build",
-      writes: { mode: "scope-directory" },
-    });
-    expect(planned.ok).toBe(true);
-    if (!planned.ok) return;
-    expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({
-      ok: true,
-      operation: { readiness: { workflowReady: false } },
-    });
-
-    expect(await fixture.authority.apply(planned.plan.scopeId, {
-      expectedRevision: fixture.authority.currentRevision(),
-      reason: "Restrict the parked scope to observation.",
-      trust: true,
-      policy: {
-        scopeId: planned.plan.scopeId,
-        reason: "Current authority is observe-only.",
-        autonomy: { defaultMode: "passive", maxMode: "passive" },
-        writes: { mode: "none" },
-      },
-    }, operatorAction(fixture.authorityConfigPath, false))).toMatchObject({ ok: true });
-    rmSync(join(target, ".git"), { recursive: true, force: true });
-    improvementEnabled = true;
-
-    expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
-      readiness: {
-        workflowReady: true,
-        blocked: false,
-        improvement: { posture: "observe", review: "owner-questions" },
-      },
-    });
-    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
-    expect(fixture.onboardingTransitions).toEqual(["onboarding-completed"]);
-    await fixture.close();
-  });
-
-  it("parks onboarding when improvement configuration cannot be inspected", async () => {
-    const fixture = await createFixture({
-      getImprovementAuthority: () => {
-        throw new Error("scope-improvement config is malformed");
-      },
-    });
-    const target = join(fixture.root, "malformed-improvement");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    expect(planned.ok).toBe(true);
-    if (!planned.ok) return;
-
-    expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({
-      ok: true,
-      operation: {
-        state: "succeeded",
-        readiness: {
-          workflowReady: false,
-          reasons: expect.arrayContaining([
-            expect.objectContaining({
-              code: "scope_improvement_inspection_failed",
-              message: "scope-improvement config is malformed",
-            }),
-          ]),
-        },
-      },
-    });
-    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
-    expect(fixture.onboardingTransitions).toEqual([]);
-    await fixture.close();
-  });
-
-  it("projects current resolved authority instead of the accepted onboarding choices", async () => {
-    const fixture = await createFixture({
-      getImprovementAuthority: (_scopeRoot, _stateDir, policy) => {
-        const observe = policy.writes.mode === "none" ||
-          policy.autonomy.maxMode === "passive";
-        return {
-          enabled: true,
-          configuredPosture: observe ? "observe" : "build",
-          posture: observe ? "observe" : "build",
-          review: observe ? "owner-questions" : "task-proposals",
-          builder: observe ? "disabled" : "enabled",
-          taskProposalDecision: {
-            outcome: observe ? "deny" : "allow",
-            reason: "fixture task authority",
-          },
-          builderDecision: {
-            outcome: observe ? "deny" : "allow",
-            reason: "fixture builder authority",
-          },
-        };
-      },
-    });
-    const target = join(fixture.root, "current-authority");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-      improvementPosture: "build",
-      writes: { mode: "scope-directory" },
-    });
-    expect(planned.ok).toBe(true);
-    if (!planned.ok) return;
-    expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({ ok: true });
-
-    const changed = await fixture.authority.apply(planned.plan.scopeId, {
-      expectedRevision: fixture.authority.currentRevision(),
-      reason: "Restrict the live scope after onboarding.",
-      trust: true,
-      policy: {
-        scopeId: planned.plan.scopeId,
-        reason: "Current authority is observe-only.",
-        autonomy: { defaultMode: "passive", maxMode: "passive" },
-        writes: { mode: "none" },
-      },
-    }, operatorAction(fixture.authorityConfigPath, false));
-    expect(changed.ok).toBe(true);
-
-    expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
-      readiness: {
-        improvement: {
-          posture: "observe",
-          review: "owner-questions",
-          builder: "disabled",
-          autonomyMode: "passive",
-          writes: { mode: "none" },
-        },
-      },
-    });
-    await fixture.close();
+    expect(provider).toHaveBeenLastCalledWith(target, join(target, ".kota"),
+      expect.objectContaining({
+        writes: expect.objectContaining(writes),
+        autonomy: expect.objectContaining({ defaultMode: autonomy, maxMode: autonomy }),
+      }));
+    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe(ready ? "hosted" : "inactive");
+    expect(fixture.onboardingTransitions).toEqual(ready ? ["onboarding-completed"] : []);
   });
 
   it("onboards repositories and empty directories through one resumable transaction", async () => {
@@ -587,157 +345,162 @@ describe("ScopeOnboardingService", () => {
     );
     fixture.missingSetupRoots.add(emptyDirectory);
 
-    try {
-      const repositoryInspection = await fixture.service.inspect(repository);
-      expect(repositoryInspection).toMatchObject({
-        kind: "git-repository",
-        registered: false,
-        trust: null,
-        existing: { guidance: ["AGENTS.md"], taskQueue: false },
-      });
-      expect(existsSync(join(repository, "data"))).toBe(false);
+    const repositoryInspection = await fixture.service.inspect(repository);
+    expect(repositoryInspection).toMatchObject({
+      kind: "git-repository",
+      registered: false,
+      trust: null,
+      existing: { guidance: ["AGENTS.md"], taskQueue: false },
+    });
+    expect(existsSync(join(repository, "data"))).toBe(false);
 
-      const repositoryPlan = await fixture.service.plan(repository, {
-        trust: true,
-        improvementPosture: "propose",
-        writes: { mode: "scope-directory" },
-      });
-      expect(repositoryPlan.ok).toBe(true);
-      if (!repositoryPlan.ok) return;
-      expect(repositoryPlan.plan.permissions).toEqual({
-        trusted: true,
-        autonomy: "supervised",
-        writes: { mode: "scope-directory" },
-        improvement: {
-          posture: "propose",
-          review: "task-proposals",
-          builder: "disabled",
-        },
-      });
-      expect(repositoryPlan.plan.changes).toEqual(expect.arrayContaining([
-        expect.objectContaining({ owner: "machine", kind: "register-scope" }),
-        expect.objectContaining({ owner: "machine", kind: "set-authority", trust: true }),
-        expect.objectContaining({ owner: "scope", kind: "create-runtime-directory" }),
-      ]));
-      const repositoryRuntimeDirectories = repositoryPlan.plan.changes.flatMap((change) =>
-        change.owner === "scope" ? [change.path] : []
-      );
+    const repositoryPlan = await fixture.service.plan(repository, {
+      trust: true,
+      improvementPosture: "propose",
+      writes: { mode: "scope-directory" },
+    });
+    expect(repositoryPlan.ok).toBe(true);
+    if (!repositoryPlan.ok) return;
+    expect(repositoryPlan.plan.permissions).toEqual({
+      trusted: true,
+      autonomy: "supervised",
+      writes: { mode: "scope-directory" },
+      improvement: {
+        posture: "propose",
+        review: "task-proposals",
+        builder: "disabled",
+      },
+    });
+    expect(repositoryPlan.plan.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ owner: "machine", kind: "register-scope" }),
+      expect.objectContaining({ owner: "machine", kind: "set-authority", trust: true }),
+      expect.objectContaining({ owner: "scope", kind: "create-runtime-directory" }),
+    ]));
+    const repositoryRuntimeDirectories = repositoryPlan.plan.changes.flatMap((change) =>
+      change.owner === "scope" ? [change.path] : []
+    );
 
-      const repositoryApplied = await fixture.service.apply(
-        repositoryPlan.plan,
-        operatorAction(fixture.authorityConfigPath, true),
-      );
-      expect(repositoryApplied.ok).toBe(true);
-      if (!repositoryApplied.ok) return;
-      expect(repositoryApplied.operation.readiness).toMatchObject({
+    const repositoryApplied = await fixture.service.apply(
+      repositoryPlan.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    );
+    expect(repositoryApplied.ok).toBe(true);
+    if (!repositoryApplied.ok) return;
+    expect(repositoryApplied.operation.readiness).toMatchObject({
+      registered: true,
+      configured: true,
+      trusted: true,
+      workflowReady: true,
+      blocked: false,
+      partiallyApplied: false,
+    });
+    expect(repositoryApplied.operation.mutations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "activate-scope", status: "applied" }),
+    ]));
+    expect(repositoryRuntimeDirectories.every((path) =>
+      existsSync(join(repository, path))
+    )).toBe(true);
+
+
+    const duplicateApply = await fixture.service.apply(
+      repositoryPlan.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    );
+    expect(duplicateApply).toMatchObject({
+      ok: true, operation: {
+        operationId: repositoryApplied.operation.operationId,
+        attempts: repositoryApplied.operation.attempts,
+        mutations: repositoryApplied.operation.mutations,
+        readiness: repositoryApplied.operation.readiness,
+      },
+    });
+    expect(fixture.authority.inspect(repositoryPlan.plan.scopeId)).toMatchObject({
+      audit: [expect.objectContaining({ revision: 1 })],
+    });
+    expect((await fixture.service.inspect(repository)).registered).toBe(true);
+
+    const emptyInspection = await fixture.service.inspect(emptyDirectory);
+    expect(emptyInspection).toMatchObject({
+      kind: "directory",
+      registered: false,
+      existing: { kotaState: true, scopeConfig: true, taskQueue: false },
+      blockers: [],
+      setup: [expect.objectContaining({ state: "missing" })],
+    });
+    const emptyPlan = await fixture.service.plan(emptyDirectory);
+    expect(emptyPlan.ok).toBe(true);
+    if (!emptyPlan.ok) return;
+    expect(emptyPlan.plan.permissions).toEqual({
+      trusted: false,
+      autonomy: "passive",
+      writes: { mode: "none" },
+      improvement: {
+        posture: "observe",
+        review: "owner-questions",
+        builder: "disabled",
+      },
+    });
+
+    const failed = await fixture.service.apply(emptyPlan.plan);
+    expect(failed).toMatchObject({
+      ok: false,
+      reason: "operator_action_required",
+      operation: {
+        state: "incomplete",
+        readiness: { registered: false, workflowReady: false },
+      },
+    });
+    const emptyRuntimeDirectories = emptyPlan.plan.changes.flatMap((change) =>
+      change.owner === "scope" ? [change.path] : []
+    );
+    expect(emptyRuntimeDirectories.every((path) =>
+      existsSync(join(emptyDirectory, path))
+    )).toBe(true);
+    expect(existsSync(join(emptyDirectory, ".kota", "config.json"))).toBe(true);
+    expect(fixture.host.hostedCount()).toBe(2);
+
+    const retried = await fixture.service.retry(
+      emptyPlan.plan.operationId,
+      operatorAction(fixture.authorityConfigPath, false),
+    );
+    expect(retried.ok).toBe(true);
+    if (!retried.ok) return;
+    expect(retried.operation).toMatchObject({
+      state: "succeeded",
+      attempts: 2,
+      readiness: {
         registered: true,
         configured: true,
-        trusted: true,
-        workflowReady: true,
-        blocked: false,
-        partiallyApplied: false,
-      });
-      expect(repositoryApplied.operation.mutations).toEqual(expect.arrayContaining([
-        expect.objectContaining({ kind: "activate-scope", status: "applied" }),
-      ]));
-      expect(repositoryRuntimeDirectories.every((path) =>
-        existsSync(join(repository, path))
-      )).toBe(true);
-      expect(listRuntimeDirectories(repository)).toEqual(
-        expect.arrayContaining(repositoryRuntimeDirectories),
-      );
-
-      const duplicateApply = await fixture.service.apply(
-        repositoryPlan.plan,
-        operatorAction(fixture.authorityConfigPath, true),
-      );
-      expect(duplicateApply).toEqual(repositoryApplied);
-      expect(fixture.authority.inspect(repositoryPlan.plan.scopeId)).toMatchObject({
-        audit: [expect.objectContaining({ revision: 1 })],
-      });
-      expect((await fixture.service.inspect(repository)).registered).toBe(true);
-
-      const emptyInspection = await fixture.service.inspect(emptyDirectory);
-      expect(emptyInspection).toMatchObject({
-        kind: "directory",
-        registered: false,
-        existing: { kotaState: true, scopeConfig: true, taskQueue: false },
-        blockers: [],
-        setup: [expect.objectContaining({ state: "missing" })],
-      });
-      const emptyPlan = await fixture.service.plan(emptyDirectory);
-      expect(emptyPlan.ok).toBe(true);
-      if (!emptyPlan.ok) return;
-      expect(emptyPlan.plan.permissions).toEqual({
         trusted: false,
-        autonomy: "passive",
-        writes: { mode: "none" },
-        improvement: {
-          posture: "observe",
-          review: "owner-questions",
-          builder: "disabled",
-        },
-      });
+        workflowReady: false,
+        blocked: true,
+        reasons: expect.arrayContaining([
+          expect.objectContaining({ code: "scope_untrusted" }),
+        ]),
+      },
+    });
+    expect(fixture.lifecycle.getHostingState(emptyPlan.plan.scopeId)).toBe("inactive");
+    expect(fixture.service.isActivationAllowed(emptyPlan.plan.scopeId)).toBe(false);
+    expect(fixture.runState.listRuns(emptyPlan.plan.scopeId)).toEqual([]);
+    expect(retried.operation.mutations).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "activate-scope" }),
+    ]));
+    expect(fixture.host.hostedCount()).toBe(3);
 
-      const failed = await fixture.service.apply(emptyPlan.plan);
-      expect(failed).toMatchObject({
-        ok: false,
-        reason: "operator_action_required",
-        operation: {
-          state: "incomplete",
-          readiness: { registered: false, workflowReady: false },
-        },
-      });
-      expect(failed.operation?.mutations).toEqual(expect.arrayContaining([
-        expect.objectContaining({ kind: "rollback", status: "rolled-back" }),
-      ]));
-      expect(existsSync(join(emptyDirectory, ".kota", "config.json"))).toBe(true);
-      expect(fixture.host.hostedCount()).toBe(2);
-
-      const retried = await fixture.service.retry(
-        emptyPlan.plan.operationId,
-        operatorAction(fixture.authorityConfigPath, false),
-      );
-      expect(retried.ok).toBe(true);
-      if (!retried.ok) return;
-      expect(retried.operation).toMatchObject({
-        state: "succeeded",
-        attempts: 2,
-        readiness: {
-          registered: true,
-          configured: true,
-          trusted: false,
-          workflowReady: false,
-          blocked: true,
-          reasons: expect.arrayContaining([
-            expect.objectContaining({ code: "scope_untrusted" }),
-          ]),
-        },
-      });
-      expect(fixture.lifecycle.getHostingState(emptyPlan.plan.scopeId)).toBe("inactive");
-      expect(fixture.service.isActivationAllowed(emptyPlan.plan.scopeId)).toBe(false);
-      expect(fixture.runState.listRuns(emptyPlan.plan.scopeId)).toEqual([]);
-      expect(retried.operation.mutations).not.toEqual(expect.arrayContaining([
-        expect.objectContaining({ kind: "activate-scope" }),
-      ]));
-      expect(fixture.host.hostedCount()).toBe(3);
-
-      expect(await fixture.service.status(emptyPlan.plan.operationId)).toEqual(retried.operation);
-      const artifactPath = join(
-        fixture.stateDir,
-        "scope-onboarding",
-        `${emptyPlan.plan.operationId}.json`,
-      );
-      const artifact = readFileSync(artifactPath, "utf8");
-      expect(JSON.parse(artifact)).toMatchObject({
-        acceptedPlan: { planId: emptyPlan.plan.planId },
-        readiness: { scopeId: emptyPlan.plan.scopeId },
-        provenance: { actor: "operator" },
-      });
-      expect(artifact).not.toContain("secretValues");
-    } finally {
-      await fixture.close();
-    }
+    expect(await fixture.service.status(emptyPlan.plan.operationId)).toMatchObject({
+      state: "succeeded", attempts: 2, readiness: retried.operation.readiness,
+    });
+    const artifactPath = join(
+      fixture.stateDir,
+      "scope-onboarding",
+      `${emptyPlan.plan.operationId}.json`,
+    );
+    const artifact = readFileSync(artifactPath, "utf8");
+    expect(JSON.parse(artifact)).toMatchObject({
+      acceptedPlan: { planId: emptyPlan.plan.planId },
+      readiness: { scopeId: emptyPlan.plan.scopeId },
+      provenance: { actor: "operator" },
+    });
   });
 
   it("keeps unrelated module setup visible without blocking the selected scope chain", async () => {
@@ -746,35 +509,31 @@ describe("ScopeOnboardingService", () => {
     mkdirSync(target);
     fixture.missingSetupRoots.add(realpathSync.native(target));
 
-    try {
-      const inspection = await fixture.service.inspect(target);
-      expect(inspection).toMatchObject({
-        setup: [expect.objectContaining({
-          moduleName: "fixture-provider",
-          state: "missing",
-        })],
-        blockers: [],
-      });
-      const planned = await fixture.service.plan(target, {
-        trust: true,
-        improvementPosture: "observe",
-        writes: { mode: "none" },
-      });
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
-      expect(await fixture.service.apply(
-        planned.plan,
-        operatorAction(fixture.authorityConfigPath, true),
-      )).toMatchObject({
-        ok: true,
-        operation: {
-          state: "succeeded",
-          readiness: { workflowReady: true, blocked: false },
-        },
-      });
-    } finally {
-      await fixture.close();
-    }
+    const inspection = await fixture.service.inspect(target);
+    expect(inspection).toMatchObject({
+      setup: [expect.objectContaining({
+        moduleName: "fixture-provider",
+        state: "missing",
+      })],
+      blockers: [],
+    });
+    const planned = await fixture.service.plan(target, {
+      trust: true,
+      improvementPosture: "observe",
+      writes: { mode: "none" },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(await fixture.service.apply(
+      planned.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    )).toMatchObject({
+      ok: true,
+      operation: {
+        state: "succeeded",
+        readiness: { workflowReady: true, blocked: false },
+      },
+    });
   });
 
   it("rejects a nested Git directory whose writer sandbox would escape the scope", async () => {
@@ -784,31 +543,27 @@ describe("ScopeOnboardingService", () => {
     mkdirSync(nestedDirectory, { recursive: true });
     initializeGitRepository(repositoryRoot);
 
-    try {
-      expect(await fixture.service.inspect(nestedDirectory)).toMatchObject({
-        directoryRoot: nestedDirectory,
-        kind: "git-repository",
-        registered: false,
-        blockers: [expect.objectContaining({
-          code: "repository_root_required",
-          capability: "scope-improver",
-          message: expect.stringContaining(repositoryRoot),
-        })],
-      });
-      expect(await fixture.service.plan(nestedDirectory, {
-        trust: true,
-        improvementPosture: "propose",
-        writes: { mode: "scope-directory" },
-      })).toMatchObject({
-        ok: false,
-        reason: "invalid_directory",
+    expect(await fixture.service.inspect(nestedDirectory)).toMatchObject({
+      directoryRoot: nestedDirectory,
+      kind: "git-repository",
+      registered: false,
+      blockers: [expect.objectContaining({
+        code: "repository_root_required",
+        capability: "scope-improver",
         message: expect.stringContaining(repositoryRoot),
-      });
-      expect(fixture.registry.getByRoot(nestedDirectory)).toBeUndefined();
-      expect(existsSync(join(nestedDirectory, ".kota"))).toBe(false);
-    } finally {
-      await fixture.close();
-    }
+      })],
+    });
+    expect(await fixture.service.plan(nestedDirectory, {
+      trust: true,
+      improvementPosture: "propose",
+      writes: { mode: "scope-directory" },
+    })).toMatchObject({
+      ok: false,
+      reason: "invalid_directory",
+      message: expect.stringContaining(repositoryRoot),
+    });
+    expect(fixture.registry.getByRoot(nestedDirectory)).toBeUndefined();
+    expect(existsSync(join(nestedDirectory, ".kota"))).toBe(false);
   });
 
   it("leaves task-queue directory creation to the repo-task domain", async () => {
@@ -816,21 +571,15 @@ describe("ScopeOnboardingService", () => {
     const target = join(fixture.root, "target");
     mkdirSync(join(target, "data"), { recursive: true });
     writeFileSync(join(target, "data", "tasks"), "not a directory");
-    try {
-      const planned = await fixture.service.plan(target);
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
-      expect(planned.plan.changes
-        .filter((change) => change.owner === "scope")
-        .every((change) => change.path === ".kota" || change.path.startsWith(".kota/"))).toBe(true);
-      expect(await fixture.service.apply(
-        planned.plan,
-        operatorAction(fixture.authorityConfigPath, false),
-      )).toMatchObject({ ok: true });
-      expect(readFileSync(join(target, "data", "tasks"), "utf8")).toBe("not a directory");
-    } finally {
-      await fixture.close();
-    }
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+
+    expect(await fixture.service.apply(
+      planned.plan,
+      operatorAction(fixture.authorityConfigPath, false),
+    )).toMatchObject({ ok: true });
+    expect(readFileSync(join(target, "data", "tasks"), "utf8")).toBe("not a directory");
   });
 
   it("does not delete an ambiguously owned directory after a write-ahead crash", async () => {
@@ -880,7 +629,6 @@ describe("ScopeOnboardingService", () => {
       operation: { state: "cancelled" },
     });
     expect(existsSync(join(target, ".kota"))).toBe(true);
-    await fixture.close();
   });
 
   it("cancels legacy schema-two ownership and accepts a fresh identity-bound plan", async () => {
@@ -949,7 +697,6 @@ describe("ScopeOnboardingService", () => {
       freshPlan.plan,
       operatorAction(fixture.authorityConfigPath, true),
     )).toMatchObject({ ok: true, operation: { state: "succeeded" } });
-    await fixture.close();
   });
 
   it("migrates schema-one supervised operations before retry without widening authority", async () => {
@@ -982,6 +729,8 @@ describe("ScopeOnboardingService", () => {
       JSON.stringify(asLegacySupervisedOperation(interrupted.operation), null, 2),
     );
 
+    const retained = join(target, ".kota", "owner-questions", "retained.json");
+    writeFileSync(retained, '{"question":"preserve"}');
     const retried = await fixture.restartService().retry(
       planned.plan.operationId,
       operatorAction(fixture.authorityConfigPath, true),
@@ -1021,7 +770,53 @@ describe("ScopeOnboardingService", () => {
       },
     });
     expect(persisted).not.toContain("initialAutomationMode");
-    await fixture.close();
+    expect(readFileSync(retained, "utf8")).toBe('{"question":"preserve"}');
+  });
+
+  it("rejects directories created after an unsuccessful initialization attempt", async () => {
+    const mutate = vi.fn(mutateAnchoredScopeRuntimeDirectories)
+      .mockImplementationOnce(() => { throw new Error("Filesystem helper unavailable"); });
+    const fixture = await createFixture({ mutateRuntimeDirectories: mutate });
+    const target = join(fixture.root, "concurrent-directory");
+    mkdirSync(target);
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(await fixture.service.apply(planned.plan)).toMatchObject({
+      ok: false, reason: "apply_failed",
+    });
+    mkdirSync(join(target, ".kota"));
+    writeFileSync(join(target, ".kota", "sentinel"), "operator state");
+    expect(await fixture.restartService().retry(
+      planned.plan.operationId, operatorAction(fixture.authorityConfigPath, false),
+    )).toMatchObject({ ok: false, reason: "plan_changed" });
+    expect(readFileSync(join(target, ".kota", "sentinel"), "utf8")).toBe("operator state");
+    expect(fixture.registry.get(planned.plan.scopeId)).toBeUndefined();
+    expect(fixture.authority.currentRevision()).toBe(0);
+  });
+
+  it("rejects a retained directory replaced by a symlink before retry", async () => {
+    const fixture = await createFixture();
+    const target = join(fixture.root, "retry-symlink");
+    const outside = join(fixture.root, "outside");
+    mkdirSync(target);
+    mkdirSync(outside);
+    writeFileSync(join(outside, "sentinel"), "outside state");
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(await fixture.service.apply(planned.plan)).toMatchObject({
+      ok: false, reason: "operator_action_required",
+    });
+    rmSync(join(target, ".kota", "runs"), { recursive: true });
+    symlinkSync(outside, join(target, ".kota", "runs"), "dir");
+    expect(await fixture.restartService().retry(
+      planned.plan.operationId, operatorAction(fixture.authorityConfigPath, false),
+    )).toMatchObject({ ok: false, reason: "apply_failed" });
+    expect(readdirSync(outside)).toEqual(["sentinel"]);
+    expect(readFileSync(join(outside, "sentinel"), "utf8")).toBe("outside state");
+    expect(fixture.registry.get(planned.plan.scopeId)).toBeUndefined();
+    expect(fixture.authority.currentRevision()).toBe(0);
   });
 
   it("accepts a freshly validated plan after cancellation", async () => {
@@ -1045,7 +840,6 @@ describe("ScopeOnboardingService", () => {
       replacementPlan.plan,
       operatorAction(fixture.authorityConfigPath, false),
     )).toMatchObject({ ok: true, operation: { state: "succeeded" } });
-    await fixture.close();
   });
 
   it("reactivates from a fresh plan after removing an originally registered partial scope", async () => {
@@ -1060,12 +854,6 @@ describe("ScopeOnboardingService", () => {
     });
     expect(existingRegistration).toMatchObject({ ok: true, status: "registered" });
     if (!existingRegistration.ok) return;
-    await vi.waitFor(() => {
-      const runs = fixture.runState.listRuns(existingRegistration.scope.scopeId);
-      expect(runs.filter((run) =>
-        ["queued", "running", "waiting", "integrating", "needs_attention"].includes(run.state)
-      )).toEqual([]);
-    });
     const planned = await fixture.service.plan(target, {
       trust: true,
       improvementPosture: "propose",
@@ -1165,10 +953,12 @@ describe("ScopeOnboardingService", () => {
       },
     });
     expect(fixture.registry.get(planned.plan.scopeId)?.scopeRoot).toBe(target);
+    expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
+      readiness: { workflowReady: true, blocked: false },
+    });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
     expect(existsSync(missingAfterRemoval)).toBe(true);
     expect(readFileSync(retainedState, "utf8")).toBe("operator-owned\n");
-    await fixture.close();
   });
 
   it.each(["file", "symlink"] as const)(
@@ -1213,7 +1003,6 @@ describe("ScopeOnboardingService", () => {
       } else {
         expect(lstatSync(conflict).isSymbolicLink()).toBe(true);
       }
-      await fixture.close();
     },
   );
 
@@ -1257,24 +1046,20 @@ describe("ScopeOnboardingService", () => {
     mkdirSync(join(outside, "runs"), { recursive: true });
     writeFileSync(join(outside, "runs", "sentinel"), "outside\n");
 
-    try {
-      const planned = await fixture.service.plan(target);
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
 
-      expect(await fixture.service.apply(planned.plan)).toMatchObject({
-        ok: false,
-        reason: "apply_failed",
-      });
-      expect(replaced).toBe(true);
-      expect(readFileSync(join(outside, "runs", "sentinel"), "utf8")).toBe(
-        "outside\n",
-      );
-      expect(existsSync(join(outside, "approvals"))).toBe(false);
-      expect(existsSync(join(parkedKota, "runs"))).toBe(false);
-    } finally {
-      await fixture.close();
-    }
+    expect(await fixture.service.apply(planned.plan)).toMatchObject({
+      ok: false,
+      reason: "apply_failed",
+    });
+    expect(replaced).toBe(true);
+    expect(readFileSync(join(outside, "runs", "sentinel"), "utf8")).toBe(
+      "outside\n",
+    );
+    expect(existsSync(join(outside, "approvals"))).toBe(false);
+    expect(existsSync(join(parkedKota, "runs"))).toBe(false);
   });
 
   it("does not move a replacement directory while compensating a failed apply", async () => {
@@ -1295,41 +1080,36 @@ describe("ScopeOnboardingService", () => {
     target = join(fixture.root, "runtime-leaf-replacement");
     mkdirSync(target);
 
-    try {
-      const planned = await fixture.service.plan(target);
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
 
-      expect(await fixture.service.apply(planned.plan)).toMatchObject({
-        ok: false,
-        reason: "apply_failed",
-        operation: {
-          mutations: expect.arrayContaining([
-            expect.objectContaining({
-              kind: "rollback",
-              target: "runtime-directory:.kota/runs",
-              status: "rolled-back",
-              message: expect.stringContaining("without mutating"),
-            }),
-          ]),
-        },
-      });
-      expect(mutationCalls).toBe(1);
-      expect(readFileSync(join(target, ".kota", "runs", "sentinel"), "utf8"))
-        .toBe("replacement\n");
-      expect(existsSync(parkedCreatedDirectory)).toBe(true);
-      expect(readdirSync(target).some((entry) =>
-        entry.startsWith(".kota-runtime-directory-quarantine-")
-      )).toBe(false);
-    } finally {
-      await fixture.close();
-    }
+    expect(await fixture.service.apply(planned.plan)).toMatchObject({
+      ok: false,
+      reason: "apply_failed",
+      operation: {
+        mutations: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "rollback",
+            target: "runtime-directory:.kota/runs",
+            status: "rolled-back",
+            message: expect.stringContaining("without mutating"),
+          }),
+        ]),
+      },
+    });
+    expect(mutationCalls).toBe(1);
+    expect(readFileSync(join(target, ".kota", "runs", "sentinel"), "utf8"))
+      .toBe("replacement\n");
+    expect(existsSync(parkedCreatedDirectory)).toBe(true);
+    expect(readdirSync(target).some((entry) =>
+      entry.startsWith(".kota-runtime-directory-quarantine-")
+    )).toBe(false);
   });
 
-  it("rejects ancestor replacement at the atomic mutation boundary", () => {
-    if (process.platform !== "darwin") return;
+  it.skipIf(process.platform !== "darwin")("rejects ancestor replacement at the atomic mutation boundary", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-atomic-runtime-")));
-    roots.push(root);
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }));
     const target = join(root, "target");
     const outside = join(root, "outside");
     const parkedKota = join(target, ".kota-parked");
@@ -1385,10 +1165,9 @@ describe("ScopeOnboardingService", () => {
     expect(existsSync(join(outside, "approvals"))).toBe(false);
   });
 
-  it("does not follow a moved direct staging leaf during atomic creation", () => {
-    if (process.platform !== "darwin") return;
+  it.skipIf(process.platform !== "darwin")("does not follow a moved direct staging leaf during atomic creation", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-staging-race-")));
-    roots.push(root);
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }));
     const target = join(root, "target");
     const outside = join(root, "outside");
     const parkedStaging = join(root, "parked-staging");
@@ -1451,60 +1230,52 @@ describe("ScopeOnboardingService", () => {
     const acceptedRoot = join(fixture.root, "accepted-scope-root");
     mkdirSync(target);
 
-    try {
-      const planned = await fixture.service.plan(target);
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
+    const planned = await fixture.service.plan(target);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
 
-      renameSync(target, acceptedRoot);
-      mkdirSync(target);
+    renameSync(target, acceptedRoot);
+    mkdirSync(target);
 
-      expect(await fixture.service.apply(planned.plan)).toMatchObject({
-        ok: false,
-        reason: "plan_changed",
-      });
-      expect(existsSync(join(target, ".kota"))).toBe(false);
-      expect(existsSync(join(acceptedRoot, ".kota"))).toBe(false);
-    } finally {
-      await fixture.close();
-    }
+    expect(await fixture.service.apply(planned.plan)).toMatchObject({
+      ok: false,
+      reason: "plan_changed",
+    });
+    expect(existsSync(join(target, ".kota"))).toBe(false);
+    expect(existsSync(join(acceptedRoot, ".kota"))).toBe(false);
   });
 
   it("runs observe review without treating an empty .git directory as Git", async () => {
     const fixture = await createFixture();
     const target = join(fixture.root, "fake-repository");
     mkdirSync(join(target, ".git"), { recursive: true });
-    try {
-      expect(await fixture.service.inspect(target)).toMatchObject({ kind: "directory" });
-      const planned = await fixture.service.plan(target, {
-        trust: true,
-        writes: { mode: "none" },
-      });
-      expect(planned.ok).toBe(true);
-      if (!planned.ok) return;
-      expect(planned.plan.blockers).toEqual([]);
-      const applied = await fixture.service.apply(
-        planned.plan,
-        operatorAction(fixture.authorityConfigPath, true),
-      );
-      expect(applied).toMatchObject({
-        ok: true,
-        operation: {
-          readiness: {
-            blocked: false,
-            workflowReady: true,
-            reasons: [],
-            improvement: {
-              posture: "observe",
-              review: "owner-questions",
-              builder: "disabled",
-            },
+    expect(await fixture.service.inspect(target)).toMatchObject({ kind: "directory" });
+    const planned = await fixture.service.plan(target, {
+      trust: true,
+      writes: { mode: "none" },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(planned.plan.blockers).toEqual([]);
+    const applied = await fixture.service.apply(
+      planned.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    );
+    expect(applied).toMatchObject({
+      ok: true,
+      operation: {
+        readiness: {
+          blocked: false,
+          workflowReady: true,
+          reasons: [],
+          improvement: {
+            posture: "observe",
+            review: "owner-questions",
+            builder: "disabled",
           },
         },
-      });
-    } finally {
-      await fixture.close();
-    }
+      },
+    });
   });
 
   it("keeps prepared registration closed until authority commits", async () => {
@@ -1566,7 +1337,6 @@ describe("ScopeOnboardingService", () => {
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
     authoritySpy.mockRestore();
-    await fixture.close();
   });
 
   it("compensates authority before rolling back a failed activation", async () => {
@@ -1623,7 +1393,6 @@ describe("ScopeOnboardingService", () => {
     ]);
     expect(fixture.runState.getScopeIdByRootPath(target)).toBeNull();
     activationSpy.mockRestore();
-    await fixture.close();
   });
 
   it("rolls back onboarding authority after an unrelated scope authority commit", async () => {
@@ -1678,127 +1447,46 @@ describe("ScopeOnboardingService", () => {
     });
     expect(fixture.registry.get(planned.plan.scopeId)).toBeUndefined();
     activationSpy.mockRestore();
-    await fixture.close();
   });
 
-  it("reports a workflow readiness probe failure without claiming readiness", async () => {
-    const fixture = await createFixture();
-    const target = join(fixture.root, "readiness-failure");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-        improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    expect(planned.ok).toBe(true);
-    if (!planned.ok) return;
-    fixture.workflowProbeFailureScopes.add(planned.plan.scopeId);
-
-    const applied = await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    );
-
-    expect(applied).toMatchObject({
-      ok: true,
-      operation: {
-        state: "succeeded",
-        readiness: {
-          registered: true,
-          workflowReady: false,
-          blocked: true,
-          reasons: expect.arrayContaining([
-            expect.objectContaining({ code: "workflow_inspection_failed" }),
-          ]),
-        },
-      },
-    });
-    expect(fixture.registry.get(planned.plan.scopeId)).toBeDefined();
-    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
-    expect(fixture.service.isActivationAllowed(planned.plan.scopeId)).toBe(false);
-    expect(fixture.runState.listRuns(planned.plan.scopeId)).toEqual([]);
-    expect(applied.ok && applied.operation.mutations).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "activate-scope" }),
-    ]));
-    await fixture.close();
-  });
-
-  it("publishes newly unblocked successful onboarding through status or retry exactly once", async () => {
-    const fixture = await createFixture();
-    const statusTarget = join(fixture.root, "readiness-status-recovery");
-    mkdirSync(statusTarget);
-    initializeGitRepository(statusTarget);
-    const statusPlan = await fixture.service.plan(statusTarget, {
-      trust: true,
-        improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    expect(statusPlan.ok).toBe(true);
-    if (!statusPlan.ok) return;
-    fixture.workflowProbeFailureScopes.add(statusPlan.plan.scopeId);
-    expect(await fixture.service.apply(
-      statusPlan.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({
-      ok: true,
-      operation: { state: "succeeded", readiness: { workflowReady: false } },
-    });
-    expect(fixture.lifecycle.getHostingState(statusPlan.plan.scopeId)).toBe("inactive");
-
-    fixture.workflowProbeFailureScopes.delete(statusPlan.plan.scopeId);
-    expect(await fixture.service.status(statusPlan.plan.operationId)).toMatchObject({
-      state: "succeeded",
-      readiness: { workflowReady: true, blocked: false },
-      mutations: expect.arrayContaining([
-        expect.objectContaining({ kind: "activate-scope", status: "applied" }),
-        expect.objectContaining({ kind: "complete-onboarding", status: "applied" }),
-      ]),
-    });
-    expect(fixture.lifecycle.getHostingState(statusPlan.plan.scopeId)).toBe("hosted");
-    expect(fixture.service.isActivationAllowed(statusPlan.plan.scopeId)).toBe(true);
-    expect(await fixture.service.status(statusPlan.plan.operationId)).toMatchObject({
-      readiness: { workflowReady: true },
-    });
-    expect(fixture.onboardingTransitions).toHaveLength(1);
-
-    const retryTarget = join(fixture.root, "readiness-retry-recovery");
-    mkdirSync(retryTarget);
-    initializeGitRepository(retryTarget);
-    const retryPlan = await fixture.service.plan(retryTarget, {
-      trust: true,
-        improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    expect(retryPlan.ok).toBe(true);
-    if (!retryPlan.ok) return;
-    fixture.workflowProbeFailureScopes.add(retryPlan.plan.scopeId);
-    expect(await fixture.service.apply(
-      retryPlan.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({
-      ok: true,
-      operation: { readiness: { workflowReady: false } },
-    });
-    expect(fixture.lifecycle.getHostingState(retryPlan.plan.scopeId)).toBe("inactive");
-
-    fixture.workflowProbeFailureScopes.delete(retryPlan.plan.scopeId);
-    expect(await fixture.service.retry(retryPlan.plan.operationId)).toMatchObject({
-      ok: true,
-      operation: {
-        readiness: { workflowReady: true, blocked: false },
-        mutations: expect.arrayContaining([
-          expect.objectContaining({ kind: "activate-scope", status: "applied" }),
-        ]),
-      },
-    });
-    expect(await fixture.service.retry(retryPlan.plan.operationId)).toMatchObject({
-      ok: true,
-      operation: { readiness: { workflowReady: true } },
-    });
-    expect(fixture.onboardingTransitions).toHaveLength(2);
-    await fixture.close();
-  });
+  it.each(["status", "retry", "startup"] as const)(
+    "publishes newly unblocked onboarding once through %s",
+    async (recovery) => {
+      const fixture = await createFixture();
+      const target = join(fixture.root, "readiness-recovery");
+      mkdirSync(target);
+      initializeGitRepository(target);
+      const planned = await fixture.service.plan(target, {
+        trust: true, improvementPosture: "propose", writes: { mode: "scope-directory" },
+      });
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+      const { scopeId, operationId } = planned.plan;
+      fixture.workflowProbeFailureScopes.add(scopeId);
+      expect(await fixture.service.apply(
+        planned.plan, operatorAction(fixture.authorityConfigPath, true),
+      )).toMatchObject({
+        ok: true, operation: { state: "succeeded", readiness: { workflowReady: false } },
+      });
+      expect(fixture.lifecycle.getHostingState(scopeId)).toBe("inactive");
+      expect(fixture.runState.listRuns(scopeId)).toEqual([]);
+      fixture.workflowProbeFailureScopes.delete(scopeId);
+      const service = recovery === "startup" ? fixture.restartService() : fixture.service;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (recovery === "startup") expect(await service.recoverForStartup(scopeId)).toBe(true);
+        else if (recovery === "retry") {
+          expect(await service.retry(operationId)).toMatchObject({ ok: true });
+        }
+        expect(await service.status(operationId)).toMatchObject({
+          state: "succeeded", readiness: { workflowReady: true, blocked: false },
+        });
+        expect(fixture.lifecycle.getHostingState(scopeId)).toBe("hosted");
+        expect(service.isActivationAllowed(scopeId)).toBe(true);
+        expect(fixture.onboardingTransitions).toEqual(["onboarding-completed"]);
+        expect(fixture.runState.listRuns(scopeId)).toHaveLength(1);
+      }
+    },
+  );
 
   it("closes and removes an activated runtime when its lifecycle notification fails", async () => {
     const fixture = await createFixture();
@@ -1837,19 +1525,22 @@ describe("ScopeOnboardingService", () => {
     expect(fixture.host.isHosted(planned.plan.scopeId)).toBe(false);
     expect(fixture.runState.getScopeIdByRootPath(target)).toBeNull();
     stopThrowing();
-    await fixture.close();
   });
 
-  it("refreshes every actionable readiness reason for an incomplete operation", async () => {
+  it("refreshes actionable readiness reasons while cancellation is incomplete", async () => {
     const fixture = await createFixture();
     const target = join(fixture.root, "incomplete-readiness");
     mkdirSync(target);
-    initializeGitRepository(target);
     const planned = await fixture.service.plan(target);
     expect(planned.ok).toBe(true);
     if (!planned.ok) return;
+    fixture.workflowProbeFailureScopes.add(planned.plan.scopeId);
+    const rollback = vi.spyOn(fixture.lifecycle, "rollbackPreparedScope").mockResolvedValue({
+      ok: false, reason: "rollback_failed", scopeId: planned.plan.scopeId,
+      message: "Registry cannot yet release the prepared scope",
+    });
     expect(await fixture.service.apply(planned.plan)).toMatchObject({
-      ok: false, reason: "operator_action_required",
+      ok: false, reason: "rollback_failed",
     });
     expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
       state: "incomplete",
@@ -1861,9 +1552,8 @@ describe("ScopeOnboardingService", () => {
         ]),
       },
     });
-
+    rollback.mockRestore();
     expect(await fixture.service.cancel(planned.plan.operationId)).toMatchObject({ ok: true });
-    await fixture.close();
   });
 
   it("applies a planned display name to an existing registration", async () => {
@@ -1895,7 +1585,6 @@ describe("ScopeOnboardingService", () => {
     )).toMatchObject({ ok: true });
     expect(fixture.registry.get(registered.scope.scopeId)?.displayName).toBe("Research notes");
     expect(fixture.onboardingTransitions).toContain("onboarding-completed");
-    await fixture.close();
   });
 
   it("preserves unrelated authority restrictions on an existing scope", async () => {
@@ -1976,7 +1665,6 @@ describe("ScopeOnboardingService", () => {
         externalEffects: baseline.externalEffects,
       },
     });
-    await fixture.close();
   });
 
   it("retries a write-ahead completion publication without duplicate admission", async () => {
@@ -2057,49 +1745,6 @@ describe("ScopeOnboardingService", () => {
     });
     expect(fixture.runState.listRuns(planned.plan.scopeId)
       .filter((run) => run.workflow === "scope-improvement-onboarding")).toHaveLength(1);
-    await fixture.close();
-  });
-
-  it("recovers a succeeded completion publication at startup without operator action", async () => {
-    const fixture = await createFixture();
-    const target = join(fixture.root, "completion-publication-startup-recovery");
-    mkdirSync(target);
-    initializeGitRepository(target);
-    const planned = await fixture.service.plan(target, {
-      trust: true,
-        improvementPosture: "propose",
-      writes: { mode: "scope-directory" },
-    });
-    expect(planned.ok).toBe(true);
-    if (!planned.ok) return;
-    fixture.workflowProbeFailureScopes.add(planned.plan.scopeId);
-    expect(await fixture.service.apply(
-      planned.plan,
-      operatorAction(fixture.authorityConfigPath, true),
-    )).toMatchObject({
-      ok: true,
-      operation: { state: "succeeded", readiness: { workflowReady: false } },
-    });
-    expect(fixture.onboardingTransitions).toHaveLength(0);
-
-    fixture.workflowProbeFailureScopes.delete(planned.plan.scopeId);
-    const restarted = fixture.restartService();
-    expect(await restarted.recoverForStartup(planned.plan.scopeId)).toBe(true);
-    expect(fixture.onboardingTransitions).toHaveLength(1);
-    expect(fixture.runState.listRuns(planned.plan.scopeId)
-      .filter((run) => run.workflow === "scope-improvement-onboarding")).toHaveLength(1);
-    expect(await restarted.status(planned.plan.operationId)).toMatchObject({
-      state: "succeeded",
-      readiness: { workflowReady: true, blocked: false },
-      mutations: expect.arrayContaining([
-        expect.objectContaining({
-          kind: "complete-onboarding",
-          status: "applied",
-        }),
-      ]),
-    });
-    expect(fixture.onboardingTransitions).toHaveLength(1);
-    await fixture.close();
   });
 
   it("keeps pre-existing scopes active and recoverable after restart", async () => {
@@ -2156,7 +1801,6 @@ describe("ScopeOnboardingService", () => {
     });
     expect(restarted.isActivationAllowed(cancelRegistration.scope.scopeId)).toBe(true);
     expect(fixture.lifecycle.getHostingState(cancelRegistration.scope.scopeId)).toBe("hosted");
-    await fixture.close();
   });
 
   it("restores pre-existing authority before startup reopens an interrupted scope", async () => {
@@ -2195,6 +1839,7 @@ describe("ScopeOnboardingService", () => {
     expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
       state: "applying",
       registeredByOperation: false,
+      authorityApplied: { revision: 1, auditId: expect.any(String) },
     });
     expect(fixture.authority.inspect(planned.plan.scopeId)).toMatchObject({
       trust: { trusted: true },
@@ -2220,7 +1865,6 @@ describe("ScopeOnboardingService", () => {
       policyFragment: null,
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
-    await fixture.close();
   });
 
   it("resumes after restart between registry persistence and registration checkpoint", async () => {
@@ -2296,7 +1940,6 @@ describe("ScopeOnboardingService", () => {
       },
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
-    await fixture.close();
   });
 
   it("keeps cancellation incomplete when registry rollback fails", async () => {
@@ -2336,14 +1979,11 @@ describe("ScopeOnboardingService", () => {
     });
     if (cancelled.ok) throw new Error("rollback failure fixture unexpectedly cancelled");
     expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
-      operationId: planned.plan.operationId,
-      state: "incomplete",
-      error: { code: "rollback_failed" },
+      state: "incomplete", error: cancelled.operation?.error,
       readiness: { partiallyApplied: true, blocked: true },
     });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
     rollbackSpy.mockRestore();
-    await fixture.close();
   });
 
   it("rejects accepted plans when machine authority changes concurrently", async () => {
@@ -2368,7 +2008,6 @@ describe("ScopeOnboardingService", () => {
       ok: false,
       reason: "plan_changed",
     });
-    await fixture.close();
   });
 });
 
@@ -2379,28 +2018,8 @@ async function createFixture(
     | "getImprovementAuthority"
     | "inspectImprovementRuntimeReadiness"
   >> = {},
-): Promise<{
-  root: string;
-  stateDir: string;
-  authorityConfigPath: string;
-  authority: ScopeAuthorityService;
-  bus: EventBus;
-  registry: ScopeRegistry;
-  runState: RunStateDatabase;
-  service: ScopeOnboardingService;
-  host: ScopeRuntimeHost;
-  lifecycle: ScopeLifecycleService;
-  missingSetupRoots: Set<string>;
-  workflowProbeFailureScopes: Set<string>;
-  onboardingTransitions: string[];
-  disableWorkflow: (
-    scopeId: string,
-    workflowName: string,
-  ) => { ok: boolean; notFound?: boolean };
-  restartService: () => ScopeOnboardingService;
-  close: () => Promise<void>;
-}> {
-  const root = temporaryRoot("fixture");
+) {
+  const root = mkdtempSync(join(tmpdir(), "kota-scope-onboarding-"));
   const defaultScope = join(root, "default-scope");
   const stateDir = join(root, "state");
   const authorityConfigPath = join(root, "machine", "config.json");
@@ -2460,6 +2079,11 @@ async function createFixture(
     bus,
     pollIntervalMs: 60_000,
     onDueItems: () => {},
+  });
+  onTestFinished(async () => {
+    await host.stopAll(runtimes, 0);
+    runState.close();
+    rmSync(root, { recursive: true, force: true });
   });
   await host.startInitial(runtimes);
   const lifecycle = new ScopeLifecycleService({
@@ -2532,34 +2156,10 @@ async function createFixture(
     missingSetupRoots,
     workflowProbeFailureScopes,
     onboardingTransitions,
-    disableWorkflow: (scopeId, workflowName) =>
+    disableWorkflow: (scopeId: string, workflowName: string) =>
       runtimes.get(scopeId).workflowRuntime.disableWorkflow(workflowName),
     restartService: () => new ScopeOnboardingService(serviceOptions),
-    close: async () => {
-      await host.stopAll(runtimes, 0);
-      runState.close();
-    },
   };
-}
-
-function temporaryRoot(label: string): string {
-  const root = mkdtempSync(join(tmpdir(), `kota-scope-onboarding-${label}-`));
-  roots.push(root);
-  return root;
-}
-
-function listRuntimeDirectories(scopeRoot: string): string[] {
-  const directories: string[] = [];
-  const visit = (relativePath: string): void => {
-    const absolutePath = join(scopeRoot, relativePath);
-    if (!existsSync(absolutePath)) return;
-    directories.push(relativePath);
-    for (const entry of readdirSync(absolutePath, { withFileTypes: true })) {
-      if (entry.isDirectory()) visit(join(relativePath, entry.name));
-    }
-  };
-  visit(".kota");
-  return directories.sort();
 }
 
 function asLegacySupervisedOperation(operation: ScopeOnboardingOperation): unknown {

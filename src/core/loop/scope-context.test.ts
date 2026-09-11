@@ -1,9 +1,10 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findScopeContextFiles, loadScopeContext } from "./scope-context.js";
 
-const TEST_ROOT = join(process.cwd(), ".test-scope-context");
+const TEST_ROOT = mkdtempSync(join(tmpdir(), "kota-scope-context-"));
 const CHILD = join(TEST_ROOT, "level1");
 const GRANDCHILD = join(TEST_ROOT, "level1", "level2");
 

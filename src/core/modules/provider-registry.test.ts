@@ -1,340 +1,127 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
+import { getTaskStore, resetTaskStore } from "#core/daemon/task-store.js";
 import {
-	getHistoryProvider,
-	getKnowledgeProvider,
-	getMemoryProvider,
-	getProviderRegistry,
-	getTaskCollection,
-	getTaskProviderRegistration,
-	HISTORY_PROVIDER_TOKEN,
-	type HistoryProvider,
-	initProviderRegistry,
-	KNOWLEDGE_PROVIDER_TOKEN,
-	type KnowledgeProvider,
-	MEMORY_PROVIDER_TOKEN,
-	type MemoryProvider,
-	ProviderRegistry,
-	registerDefaultProviders,
-	resetProviderRegistry,
-	TASK_PROVIDER_TOKEN,
-	TaskCollection,
+  getHistoryProvider, getKnowledgeProvider, getMemoryProvider, getProviderRegistry,
+  getTaskCollection, getTaskProviderRegistration, HISTORY_PROVIDER_TOKEN,
+  initProviderRegistry, KNOWLEDGE_PROVIDER_TOKEN, MEMORY_PROVIDER_TOKEN,
+  ProviderRegistry, registerDefaultProviders, resetProviderRegistry,
+  TASK_PROVIDER_TOKEN, TaskCollection,
 } from "./provider-registry.js";
 import { defineProviderToken } from "./provider-token.js";
 
-const TEST_SVC_TOKEN = defineProviderToken<{ id: string }>("svc");
-const TEST_UNKNOWN_TOKEN = defineProviderToken<unknown>("unknown");
+const token = defineProviderToken<{ id: string }>("service");
+const otherToken = defineProviderToken<{ id: string }>("other");
+afterEach(() => { resetProviderRegistry(); resetTaskStore(); });
 
-// --- ProviderRegistry unit tests ---
+it("selects, replaces, and enumerates providers without changing other token selections", () => {
+  const registry = new ProviderRegistry();
+  const first = { id: "first" };
+  const second = { id: "second" };
+  const replacement = { id: "replacement" };
+  registry.register(token, "first", first);
+  registry.register(token, "second", second);
+  registry.register(otherToken, "first", replacement);
+  expect(registry.get(token)).toBe(first);
+  expect(registry.getActiveName(token)).toBe("first");
+  expect(registry.getByName(token, "second")).toBe(second);
+  expect(registry.list(token)).toEqual(["first", "second"]);
+  expect(registry.listTokenIds()).toEqual([token, otherToken]);
 
-describe("ProviderRegistry", () => {
-	it("register and get a provider", () => {
-		const reg = new ProviderRegistry();
-		const provider: MemoryProvider = makeMemoryProvider();
-		reg.register(MEMORY_PROVIDER_TOKEN, "test", provider);
-		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBe(provider);
-	});
-
-	it("first registered becomes active by default", () => {
-		const reg = new ProviderRegistry();
-		const first = makeMemoryProvider();
-		const second = makeMemoryProvider();
-		reg.register(MEMORY_PROVIDER_TOKEN, "first", first);
-		reg.register(MEMORY_PROVIDER_TOKEN, "second", second);
-		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBe(first);
-		expect(reg.getActiveName(MEMORY_PROVIDER_TOKEN)).toBe("first");
-	});
-
-	it("setActive switches the active provider", () => {
-		const reg = new ProviderRegistry();
-		const a = { id: "a" };
-		const b = { id: "b" };
-		reg.register(TEST_SVC_TOKEN, "a", a);
-		reg.register(TEST_SVC_TOKEN, "b", b);
-		expect(reg.get(TEST_SVC_TOKEN)).toBe(a);
-
-		const ok = reg.setActive(TEST_SVC_TOKEN, "b");
-		expect(ok).toBe(true);
-		expect(reg.get(TEST_SVC_TOKEN)).toBe(b);
-	});
-
-	it("setActive returns false for unregistered provider", () => {
-		const reg = new ProviderRegistry();
-		reg.register(TEST_SVC_TOKEN, "a", { id: "a" });
-		expect(reg.setActive(TEST_SVC_TOKEN, "nope")).toBe(false);
-	});
-
-	it("setActive returns false for unregistered token", () => {
-		const reg = new ProviderRegistry();
-		expect(reg.setActive(TEST_SVC_TOKEN, "a")).toBe(false);
-	});
-
-	it("getByName retrieves a specific named provider", () => {
-		const reg = new ProviderRegistry();
-		const a = { id: "a" };
-		const b = { id: "b" };
-		reg.register(TEST_SVC_TOKEN, "a", a);
-		reg.register(TEST_SVC_TOKEN, "b", b);
-		expect(reg.getByName(TEST_SVC_TOKEN, "a")).toBe(a);
-		expect(reg.getByName(TEST_SVC_TOKEN, "b")).toBe(b);
-		expect(reg.getByName(TEST_SVC_TOKEN, "c")).toBeNull();
-	});
-
-	it("list returns provider names for a token", () => {
-		const reg = new ProviderRegistry();
-		reg.register(TEST_SVC_TOKEN, "alpha", { id: "alpha" });
-		reg.register(TEST_SVC_TOKEN, "beta", { id: "beta" });
-		expect(reg.list(TEST_SVC_TOKEN)).toEqual(["alpha", "beta"]);
-		expect(reg.list(TEST_UNKNOWN_TOKEN)).toEqual([]);
-	});
-
-	it("listTokenIds returns all registered token ids", () => {
-		const reg = new ProviderRegistry();
-		reg.register(MEMORY_PROVIDER_TOKEN, "default", makeMemoryProvider());
-		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "default", makeKnowledgeProvider());
-		expect(reg.listTokenIds().sort()).toEqual(["knowledge", "memory"]);
-	});
-
-	it("register replaces an existing provider with the same name", () => {
-		const reg = new ProviderRegistry();
-		const v1 = { id: "v1" };
-		const v2 = { id: "v2" };
-		reg.register(TEST_SVC_TOKEN, "impl", v1);
-		expect(reg.get(TEST_SVC_TOKEN)).toBe(v1);
-
-		reg.register(TEST_SVC_TOKEN, "impl", v2);
-		expect(reg.get(TEST_SVC_TOKEN)).toBe(v2);
-		expect(reg.list(TEST_SVC_TOKEN)).toEqual(["impl"]);
-	});
-
-	it("get returns null for unregistered token", () => {
-		const reg = new ProviderRegistry();
-		expect(reg.get(TEST_UNKNOWN_TOKEN)).toBeNull();
-	});
-
-	it("clear removes all providers", () => {
-		const reg = new ProviderRegistry();
-		reg.register(MEMORY_PROVIDER_TOKEN, "a", makeMemoryProvider());
-		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "b", makeKnowledgeProvider());
-		reg.clear();
-		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBeNull();
-		expect(reg.get(KNOWLEDGE_PROVIDER_TOKEN)).toBeNull();
-		expect(reg.listTokenIds()).toEqual([]);
-	});
+  expect(registry.setActive(token, "second")).toBe(true);
+  expect(registry.get(token)).toBe(second);
+  expect(registry.get(otherToken)).toBe(replacement);
+  registry.register(token, "second", replacement);
+  expect(registry.get(token)).toBe(replacement);
+  expect(registry.list(token)).toEqual(["first", "second"]);
+  expect(registry.setActive(token, "missing")).toBe(false);
+  expect(registry.get(token)).toBe(replacement);
+  expect(registry.getByName(token, "missing")).toBeNull();
 });
 
-// --- Singleton tests ---
-
-describe("provider singleton", () => {
-	afterEach(() => resetProviderRegistry());
-
-	it("initProviderRegistry creates a registry", () => {
-		expect(getProviderRegistry()).toBeNull();
-		const reg = initProviderRegistry();
-		expect(reg).toBeInstanceOf(ProviderRegistry);
-		expect(getProviderRegistry()).toBe(reg);
-	});
-
-	it("resetProviderRegistry clears the registry", () => {
-		initProviderRegistry();
-		expect(getProviderRegistry()).not.toBeNull();
-		resetProviderRegistry();
-		expect(getProviderRegistry()).toBeNull();
-	});
+it("clears contributions and active selections so an empty registry can be reused", () => {
+  const registry = new ProviderRegistry();
+  registry.register(token, "old", { id: "old" });
+  registry.register(otherToken, "other", { id: "other" });
+  registry.clear();
+  expect(registry.get(token)).toBeNull();
+  expect(registry.get(otherToken)).toBeNull();
+  expect(registry.getActiveName(token)).toBeNull();
+  expect(registry.getByName(token, "old")).toBeNull();
+  expect(registry.list(token)).toEqual([]);
+  expect(registry.listTokenIds()).toEqual([]);
+  expect(registry.setActive(token, "old")).toBe(false);
+  const fresh = { id: "fresh" };
+  registry.register(token, "new", fresh);
+  expect(registry.get(token)).toBe(fresh);
 });
 
-// --- Convenience getter tests ---
-
-describe("convenience getters", () => {
-	afterEach(() => resetProviderRegistry());
-
-	it("getMemoryProvider throws when no provider registered", () => {
-		resetProviderRegistry();
-		expect(() => getMemoryProvider()).toThrow(
-			/No memory provider registered/,
-		);
-	});
-
-	it("getMemoryProvider throws when registry exists but no memory provider registered", () => {
-		initProviderRegistry();
-		expect(() => getMemoryProvider()).toThrow(
-			/No memory provider registered/,
-		);
-	});
-
-	it("getKnowledgeProvider throws when no provider registered", () => {
-		resetProviderRegistry();
-		expect(() => getKnowledgeProvider()).toThrow(
-			/No knowledge provider registered/,
-		);
-	});
-
-	it("getKnowledgeProvider throws when registry exists but no knowledge provider registered", () => {
-		initProviderRegistry();
-		expect(() => getKnowledgeProvider()).toThrow(
-			/No knowledge provider registered/,
-		);
-	});
-
-	it("getMemoryProvider returns custom provider when registered", () => {
-		const reg = initProviderRegistry();
-		const custom: MemoryProvider = {
-			save: () => "custom-id",
-			search: () => [],
-			list: () => [],
-			update: () => true,
-			delete: () => true,
-		};
-		reg.register(MEMORY_PROVIDER_TOKEN, "custom", custom);
-		reg.setActive(MEMORY_PROVIDER_TOKEN, "custom");
-
-		const provider = getMemoryProvider();
-		expect(provider).toBe(custom);
-		expect(provider.save("test")).toBe("custom-id");
-	});
-
-	it("getKnowledgeProvider returns custom provider when registered", () => {
-		const reg = initProviderRegistry();
-		const custom: KnowledgeProvider = {
-			create: () => "custom-id",
-			read: () => null,
-			update: () => true,
-			delete: () => true,
-			search: () => [],
-			list: () => [],
-			count: () => 42,
-		};
-		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "custom", custom);
-		reg.setActive(KNOWLEDGE_PROVIDER_TOKEN, "custom");
-
-		const provider = getKnowledgeProvider();
-		expect(provider).toBe(custom);
-		expect(provider.count()).toBe(42);
-	});
-
-	it("getTaskCollection returns TaskStore collection when no registry", () => {
-		resetProviderRegistry();
-		const collection = getTaskCollection();
-		expect(collection).toBe(getTaskProviderRegistration().collection);
-	});
-
-	it("getTaskCollection returns custom collection when registered", () => {
-		const reg = initProviderRegistry();
-		const custom = new TaskCollection();
-		reg.register(TASK_PROVIDER_TOKEN, "custom", { collection: custom });
-		reg.setActive(TASK_PROVIDER_TOKEN, "custom");
-
-		const collection = getTaskCollection();
-		expect(collection).toBe(custom);
-		expect(collection.count()).toBe(0);
-	});
-
-	it("getTaskCollection returns default when registry exists but has no task provider", () => {
-		initProviderRegistry();
-		const collection = getTaskCollection();
-		expect(collection).toBe(getTaskProviderRegistration().collection);
-	});
-
-	it("getHistoryProvider throws when no provider registered", () => {
-		resetProviderRegistry();
-		expect(() => getHistoryProvider()).toThrow(
-			/No history provider registered/,
-		);
-	});
-
-	it("getHistoryProvider throws when registry exists but no history provider registered", () => {
-		initProviderRegistry();
-		expect(() => getHistoryProvider()).toThrow(
-			/No history provider registered/,
-		);
-	});
-
-	it("getHistoryProvider returns custom provider when registered", () => {
-		const reg = initProviderRegistry();
-		const custom: HistoryProvider = {
-			create: () => "custom-id",
-			save: () => {},
-			load: () => null,
-			list: () => [],
-			getMostRecent: () => null,
-			findByPrefix: () => null,
-			remove: () => false,
-			cleanup: () => 0,
-		};
-		reg.register(HISTORY_PROVIDER_TOKEN, "custom", custom);
-		reg.setActive(HISTORY_PROVIDER_TOKEN, "custom");
-
-		const provider = getHistoryProvider();
-		expect(provider).toBe(custom);
-		expect(provider.create("model", "/tmp")).toBe("custom-id");
-	});
-
+it("owns the CLI process registry between initialization and reset", () => {
+  expect(getProviderRegistry()).toBeNull();
+  const registry = initProviderRegistry();
+  expect(getProviderRegistry()).toBe(registry);
+  resetProviderRegistry();
+  expect(getProviderRegistry()).toBeNull();
+  expect(() => registerDefaultProviders()).not.toThrow();
+  expect(getProviderRegistry()).toBeNull();
 });
 
-// --- registerDefaultProviders tests ---
-
-describe("registerDefaultProviders", () => {
-	afterEach(() => resetProviderRegistry());
-
-	it("registers default providers for core-owned service types", () => {
-		const reg = initProviderRegistry();
-		registerDefaultProviders();
-		expect(reg.list(MEMORY_PROVIDER_TOKEN)).toEqual([]);
-		expect(reg.list(TASK_PROVIDER_TOKEN)).toEqual(["default"]);
-		expect(reg.list(HISTORY_PROVIDER_TOKEN)).toEqual([]);
-		expect(reg.list(KNOWLEDGE_PROVIDER_TOKEN)).toEqual([]);
-		expect(reg.getActiveName(TASK_PROVIDER_TOKEN)).toBe("default");
-	});
-
-	it("default task registration declares mutation and maintenance capabilities", () => {
-		initProviderRegistry();
-		registerDefaultProviders();
-		const task = getTaskProviderRegistration();
-		expect(task.mutations).toBeDefined();
-		expect(task.maintenance).toBeDefined();
-	});
-
-	it("does nothing when registry not initialized", () => {
-		resetProviderRegistry();
-		// Should not throw
-		registerDefaultProviders();
-	});
-
-	it("custom provider overrides default when setActive", () => {
-		const reg = initProviderRegistry();
-		registerDefaultProviders();
-
-		const custom: MemoryProvider = {
-			save: () => "from-custom",
-			search: () => [],
-			list: () => [],
-			update: () => true,
-			delete: () => true,
-		};
-		reg.register(MEMORY_PROVIDER_TOKEN, "my-module", custom);
-		reg.setActive(MEMORY_PROVIDER_TOKEN, "my-module");
-
-		expect(getMemoryProvider()).toBe(custom);
-	});
+it.each([
+  ["memory", getMemoryProvider],
+  ["knowledge", getKnowledgeProvider],
+  ["history", getHistoryProvider],
+] as const)("requires a loaded %s provider with either an absent or empty registry", (name, get) => {
+  expect(() => get()).toThrow(`No ${name} provider registered`);
+  initProviderRegistry();
+  expect(() => get()).toThrow(`No ${name} provider registered`);
 });
 
-function makeMemoryProvider(): MemoryProvider {
-	return {
-		save: () => "id",
-		search: () => [],
-		list: () => [],
-		update: () => true,
-		delete: () => true,
-	};
-}
+it("resolves module providers by identity without constructing defaults", () => {
+  const registry = initProviderRegistry();
+  const memory = {
+    save: () => "id", search: () => [], list: () => [], update: () => true, delete: () => true,
+  };
+  const knowledge = {
+    create: () => "id", read: () => null, update: () => true, delete: () => true,
+    search: () => [], list: () => [], count: () => 0,
+  };
+  const history = {
+    create: () => "id", save: () => {}, load: () => null, list: () => [],
+    getMostRecent: () => null, findByPrefix: () => null, remove: () => false, cleanup: () => 0,
+  };
+  registry.register(MEMORY_PROVIDER_TOKEN, "custom", memory);
+  registry.register(KNOWLEDGE_PROVIDER_TOKEN, "custom", knowledge);
+  registry.register(HISTORY_PROVIDER_TOKEN, "custom", history);
+  expect(getMemoryProvider()).toBe(memory);
+  expect(getKnowledgeProvider()).toBe(knowledge);
+  expect(getHistoryProvider()).toBe(history);
+});
 
-function makeKnowledgeProvider(): KnowledgeProvider {
-	return {
-		create: () => "id",
-		read: () => null,
-		update: () => true,
-		delete: () => true,
-		search: () => [],
-		list: () => [],
-		count: () => 0,
-	};
-}
+it("resolves default task collections from the store and preserves custom collection capabilities", async () => {
+  const collection = getTaskStore().collection;
+  expect(getTaskCollection()).toBe(collection);
+  const registry = initProviderRegistry();
+  expect(getTaskCollection()).toBe(collection);
+  registerDefaultProviders();
+  expect(registry.get(TASK_PROVIDER_TOKEN)?.collection).toBe(collection);
+  expect(getTaskCollection()).toBe(collection);
+  const defaults = getTaskProviderRegistration();
+  const task = await defaults.mutations!.add("provider wiring", { notes: "forwarded" });
+  expect(collection.get(task.id)).toMatchObject({ task: "provider wiring", notes: "forwarded" });
+  await defaults.mutations!.update(task.id, { status: "done" });
+  expect(collection.get(task.id)?.status).toBe("done");
+  expect(await defaults.maintenance!.archiveCompleted()).toBe(1);
+  expect(collection.get(task.id)).toBeUndefined();
+  await defaults.mutations!.add("clear through provider");
+  await defaults.maintenance!.clear();
+  expect(collection.count()).toBe(0);
+  const custom = { collection: new TaskCollection() };
+  registry.register(TASK_PROVIDER_TOKEN, "custom", custom);
+  expect(registry.setActive(TASK_PROVIDER_TOKEN, "custom")).toBe(true);
+  expect(getTaskProviderRegistration()).toBe(custom);
+  expect(getTaskCollection()).toBe(custom.collection);
+  expect(getTaskProviderRegistration().mutations).toBeUndefined();
+  expect(getTaskProviderRegistration().maintenance).toBeUndefined();
+  registerDefaultProviders();
+  expect(registry.getByName(TASK_PROVIDER_TOKEN, "default")?.collection).toBe(collection);
+  expect(getTaskProviderRegistration()).toBe(custom);
+});

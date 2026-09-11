@@ -1,445 +1,113 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConversationHistory, generateTitle } from "./history.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConversationMessage } from "#core/modules/provider-types.js";
+import { ConversationHistory } from "./history.js";
+import { MAX_ACTION_CONVERSATIONS, MAX_USER_CONVERSATIONS } from "./history-utils.js";
+
+let dir: string;
+let history: ConversationHistory;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "kota-history-"));
+  history = new ConversationHistory(dir);
+});
+afterEach(() => {
+  vi.useRealTimers();
+  rmSync(dir, { recursive: true, force: true });
+});
 
 describe("ConversationHistory", () => {
-  let dir: string;
-  let history: ConversationHistory;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "kota-history-"));
-    history = new ConversationHistory(dir);
-  });
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("creates a new conversation and lists it", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp/project");
-    expect(id).toBeTruthy();
-
-    const list = history.list();
-    expect(list).toHaveLength(1);
-    expect(list[0].id).toBe(id);
-    expect(list[0].title).toBe("(new conversation)");
-    expect(list[0].model).toBe("claude-sonnet-4-6");
-    expect(list[0].cwd).toBe("/tmp/project");
-  });
-
-  it("saves and loads conversation data", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp/project");
-
-    const messages = [
-      { role: "user" as const, content: "Hello, help me with a task" },
-      { role: "assistant" as const, content: "Sure, what do you need?" },
+  it("persists resume state and preserves its original title across compaction", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01"));
+    const id = history.create("model", "/scope");
+    expect(history.load(id)).toMatchObject({
+      record: { id, model: "model", cwd: "/scope", source: "user", messageCount: 0 },
+      messages: [], compactionCount: 0, lastInputTokens: 0,
+    });
+    history.save(id, [{ role: "user", content: "Original\n  title" }], 0, 10);
+    vi.setSystemTime(new Date("2026-01-02"));
+    const messages: ConversationMessage[] = [
+      { role: "user", content: "Compacted context" },
+      { role: "assistant", content: "Reply" },
     ];
-    history.save(id, messages, 0, 5000);
-
-    const loaded = history.load(id);
-    expect(loaded).not.toBeNull();
-    expect(loaded!.messages).toHaveLength(2);
-    expect(loaded!.record.messageCount).toBe(2);
-    expect(loaded!.record.title).toBe("Hello, help me with a task");
-    expect(loaded!.compactionCount).toBe(0);
-    expect(loaded!.lastInputTokens).toBe(5000);
-  });
-
-  it("auto-titles from first user message", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp/project");
-
-    history.save(
-      id,
-      [{ role: "user" as const, content: "Analyze the quarterly revenue data" }],
-      0,
-      1000,
-    );
-
-    const list = history.list();
-    expect(list[0].title).toBe("Analyze the quarterly revenue data");
-  });
-
-  it("does not overwrite title once set", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    history.save(
-      id,
-      [{ role: "user" as const, content: "First message" }],
-      0,
-      100,
-    );
-
-    history.save(
-      id,
-      [
-        { role: "user" as const, content: "First message" },
-        { role: "assistant" as const, content: "Reply" },
-        { role: "user" as const, content: "Second message" },
-      ],
-      0,
-      200,
-    );
-
-    const list = history.list();
-    expect(list[0].title).toBe("First message");
-  });
-
-  it("filters by cwd", () => {
-    history.create("claude-sonnet-4-6", "/scope-a");
-    history.create("claude-sonnet-4-6", "/scope-b");
-    history.create("claude-sonnet-4-6", "/scope-a");
-
-    const results = history.list({ cwd: "/scope-a" });
-    expect(results).toHaveLength(2);
-    expect(results.every((r) => r.cwd === "/scope-a")).toBe(true);
-  });
-
-  it("filters by search term", () => {
-    const id1 = history.create("claude-sonnet-4-6", "/tmp");
-    history.save(id1, [{ role: "user" as const, content: "Fix the auth bug" }], 0, 0);
-
-    const id2 = history.create("claude-sonnet-4-6", "/tmp");
-    history.save(id2, [{ role: "user" as const, content: "Write a blog post" }], 0, 0);
-
-    const results = history.list({ search: "auth" });
-    expect(results).toHaveLength(1);
-    expect(results[0].title).toContain("auth");
-  });
-
-  it("returns most recent conversation", () => {
-    history.create("claude-sonnet-4-6", "/scope-a");
-    const id2 = history.create("claude-sonnet-4-6", "/scope-a");
-
-    const recent = history.getMostRecent("/scope-a");
-    expect(recent).not.toBeNull();
-    expect(recent!.id).toBe(id2);
-  });
-
-  it("removes a conversation", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-    expect(history.list()).toHaveLength(1);
-
-    const removed = history.remove(id);
-    expect(removed).toBe(true);
-    expect(history.list()).toHaveLength(0);
-    expect(history.load(id)).toBeNull();
-  });
-
-  it("returns false when removing non-existent conversation", () => {
-    expect(history.remove("nonexistent")).toBe(false);
-  });
-
-  it("returns null when loading non-existent conversation", () => {
-    expect(history.load("nonexistent")).toBeNull();
-  });
-
-  it("limits list results", () => {
-    for (let i = 0; i < 10; i++) {
-      history.create("claude-sonnet-4-6", "/tmp");
-    }
-
-    const limited = history.list({ limit: 3 });
-    expect(limited).toHaveLength(3);
-  });
-
-  it("prunes old conversations beyond limit", () => {
-    // Create 55 conversations (limit is 50)
-    const ids: string[] = [];
-    for (let i = 0; i < 55; i++) {
-      ids.push(history.create("claude-sonnet-4-6", "/tmp"));
-    }
-
-    const list = history.list({ limit: 100 });
-    expect(list.length).toBeLessThanOrEqual(50);
-  });
-
-  it("stores source field on creation", () => {
-    const userId = history.create("claude-sonnet-4-6", "/tmp", "user");
-    const actionId = history.create("claude-sonnet-4-6", "/tmp", "action");
-
-    const list = history.list({ limit: 100 });
-    const userEntry = list.find((c) => c.id === userId);
-    const actionEntry = list.find((c) => c.id === actionId);
-
-    expect(userEntry?.source).toBe("user");
-    expect(actionEntry?.source).toBe("action");
-  });
-
-  it("defaults source to 'user' when not specified", () => {
-    const _id = history.create("claude-sonnet-4-6", "/tmp");
-    const list = history.list();
-    expect(list[0].source).toBe("user");
-  });
-
-  it("filters by source", () => {
-    history.create("claude-sonnet-4-6", "/tmp", "user");
-    history.create("claude-sonnet-4-6", "/tmp", "action");
-    history.create("claude-sonnet-4-6", "/tmp", "user");
-    history.create("claude-sonnet-4-6", "/tmp", "action");
-
-    const userOnly = history.list({ source: "user", limit: 100 });
-    expect(userOnly).toHaveLength(2);
-    expect(userOnly.every((c) => c.source === "user")).toBe(true);
-
-    const actionOnly = history.list({ source: "action", limit: 100 });
-    expect(actionOnly).toHaveLength(2);
-    expect(actionOnly.every((c) => c.source === "action")).toBe(true);
-  });
-
-  it("prunes action conversations independently from user conversations", () => {
-    // Create 25 action conversations (limit is 20)
-    for (let i = 0; i < 25; i++) {
-      history.create("claude-sonnet-4-6", "/tmp", "action");
-    }
-    // Create 5 user conversations
-    for (let i = 0; i < 5; i++) {
-      history.create("claude-sonnet-4-6", "/tmp", "user");
-    }
-
-    const all = history.list({ limit: 100 });
-    const actions = all.filter((c) => c.source === "action");
-    const users = all.filter((c) => c.source === "user");
-
-    // Action conversations should be pruned to 20
-    expect(actions.length).toBeLessThanOrEqual(20);
-    // User conversations should NOT be affected by action pruning
-    expect(users).toHaveLength(5);
-  });
-
-  it("action overflow does not evict user conversations", () => {
-    // Create 45 user conversations (under the 50 limit)
-    const userIds: string[] = [];
-    for (let i = 0; i < 45; i++) {
-      userIds.push(history.create("claude-sonnet-4-6", "/tmp", "user"));
-    }
-
-    // Now create 30 action conversations (exceeds action limit of 20)
-    for (let i = 0; i < 30; i++) {
-      history.create("claude-sonnet-4-6", "/tmp", "action");
-    }
-
-    const all = history.list({ limit: 200 });
-    const users = all.filter((c) => (c.source ?? "user") === "user");
-    const actions = all.filter((c) => c.source === "action");
-
-    // All 45 user conversations should still be present
-    expect(users).toHaveLength(45);
-    // Actions should be capped at 20
-    expect(actions.length).toBeLessThanOrEqual(20);
-  });
-
-  it("cleans up orphaned files", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-    // Load to verify it exists
-    expect(history.load(id)).not.toBeNull();
-    // Remove from index only (simulate orphan)
-    history.remove(id);
-    // The file should have been removed by remove(), so cleanup returns 0
-    const cleaned = history.cleanup();
-    expect(cleaned).toBe(0);
-  });
-
-  it("lists most recent first", () => {
-    const id1 = history.create("claude-sonnet-4-6", "/tmp");
-    const id2 = history.create("claude-sonnet-4-6", "/tmp");
-    const id3 = history.create("claude-sonnet-4-6", "/tmp");
-
-    const list = history.list();
-    expect(list[0].id).toBe(id3);
-    expect(list[1].id).toBe(id2);
-    expect(list[2].id).toBe(id1);
-  });
-
-  it("limit: 0 returns empty array, not default 20", () => {
-    for (let i = 0; i < 5; i++) {
-      history.create("claude-sonnet-4-6", "/tmp");
-    }
-
-    const results = history.list({ limit: 0 });
-    expect(results).toHaveLength(0);
-  });
-
-  it("auto-titles from array-content user message with text block", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    history.save(
-      id,
-      [{
-        role: "user" as const,
-        content: [{ type: "text" as const, text: "Analyze the data for me" }],
-      }],
-      0,
-      1000,
-    );
-
-    const list = history.list();
-    expect(list[0].title).toBe("Analyze the data for me");
-  });
-
-  it("does not title from tool_result-only user messages", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    history.save(
-      id,
-      [{
-        role: "user" as const,
-        content: [{
-          type: "tool_result" as const,
-          tool_use_id: "tool_123",
-          content: "some tool output",
-        }],
-      }],
-      0,
-      1000,
-    );
-
-    const list = history.list();
-    expect(list[0].title).toBe("(new conversation)");
-  });
-
-  it("does not count tool_result-only user messages", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    history.save(
-      id,
-      [
-        {
-          role: "user" as const,
-          content: [{
-            type: "tool_result" as const,
-            tool_use_id: "tool_123",
-            content: "output",
-          }],
-        },
-        { role: "assistant" as const, content: "I see the result" },
-      ],
-      0,
-      1000,
-    );
-
-    const loaded = history.load(id);
-    // Only the assistant message should be counted (tool_result is excluded)
-    expect(loaded!.record.messageCount).toBe(1);
-  });
-
-  it("counts user messages with array content blocks", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    const messages = [
-      {
-        role: "user" as const,
-        content: [{ type: "text" as const, text: "Hello" }],
+    history.save(id, messages, 2, 1234);
+    const reopened = new ConversationHistory(dir);
+    expect(reopened.load(id)).toEqual({
+      record: {
+        id, model: "model", cwd: "/scope", source: "user", title: "Original title",
+        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", messageCount: 2,
       },
-      { role: "assistant" as const, content: "Hi there" },
-      { role: "user" as const, content: "Follow up" },
-    ];
-    history.save(id, messages, 0, 1000);
-
-    const loaded = history.load(id);
-    // All 3 messages should be counted (2 user + 1 assistant)
-    expect(loaded!.record.messageCount).toBe(3);
+      messages, compactionCount: 2, lastInputTokens: 1234,
+    });
+    expect(reopened.list()).toEqual([reopened.load(id)?.record]);
   });
 
-  it("updates updatedAt on save", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-
-    const before = Date.now();
-    history.save(
-      id,
-      [{ role: "user" as const, content: "test" }],
-      0,
-      100,
-    );
-    const after = Date.now();
-
-    const list = history.list();
-    const updatedMs = new Date(list[0].updatedAt).getTime();
-    expect(updatedMs).toBeGreaterThanOrEqual(before);
-    expect(updatedMs).toBeLessThanOrEqual(after);
-  });
-});
-
-describe("findByPrefix", () => {
-  let dir: string;
-  let history: ConversationHistory;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "kota-prefix-"));
-    history = new ConversationHistory(dir);
+  it.each<{ content: ConversationMessage["content"]; title: string; count: number }>([
+    { content: "Hello", title: "Hello", count: 1 },
+    { content: "x".repeat(100), title: `${"x".repeat(77)}...`, count: 1 },
+    { content: [
+      { type: "tool_result", tool_use_id: "t", content: "not a title" },
+      { type: "text", text: "First text" }, { type: "text", text: "Second text" },
+    ], title: "First text", count: 1 },
+    { content: [{ type: "tool_result", tool_use_id: "t", content: "tool output" }], title: "(new conversation)", count: 0 },
+    { content: [], title: "(new conversation)", count: 0 },
+  ])("projects user text into title and count: $title / $count", ({ content, title, count }) => {
+    const id = history.create("model", "/scope");
+    history.save(id, [{ role: "user", content }, { role: "assistant", content: "reply" }], 0, 0);
+    expect(history.load(id)?.record).toMatchObject({ title, messageCount: count + 1 });
   });
 
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
+  it("combines filters before limiting and returns the newest matching record", () => {
+    const first = history.create("model", "/Alpha");
+    const action = history.create("model", "/Alpha", "action");
+    const last = history.create("model", "/Beta");
+    history.save(first, [{ role: "user", content: "Needle" }], 0, 0);
+    expect(history.list().map((r) => r.id)).toEqual([last, action, first]);
+    expect(history.list({ cwd: "/Alpha", source: "user", limit: 1 }).map((r) => r.id)).toEqual([first]);
+    expect(history.list({ search: "NEEDLE" }).map((r) => r.id)).toEqual([first]);
+    expect(history.list({ search: "alpha" }).map((r) => r.id)).toEqual([action, first]);
+    expect(history.list({ limit: 0 })).toEqual([]);
+    expect(history.getMostRecent("/Alpha")?.id).toBe(action);
+    expect(history.getMostRecent("/absent")).toBeNull();
   });
 
-  it("finds by exact ID", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-    const found = history.findByPrefix(id);
-    expect(found).not.toBeNull();
-    expect(found!.id).toBe(id);
-  });
-
-  it("finds by unique prefix", () => {
-    const id = history.create("claude-sonnet-4-6", "/tmp");
-    // Use first 5 chars as prefix — should be unique with one conversation
-    const found = history.findByPrefix(id.slice(0, 5));
-    expect(found).not.toBeNull();
-    expect(found!.id).toBe(id);
-  });
-
-  it("returns null for no match", () => {
-    history.create("claude-sonnet-4-6", "/tmp");
-    expect(history.findByPrefix("zzz-nonexistent")).toBeNull();
-  });
-
-  it("throws on ambiguous prefix", () => {
-    const id1 = history.create("claude-sonnet-4-6", "/tmp");
-    const id2 = history.create("claude-sonnet-4-6", "/tmp");
-
-    // Both IDs share the same base36 timestamp prefix (created in same ms)
-    // Use just the first char which should match both
-    const commonPrefix = id1[0];
-    if (id2.startsWith(commonPrefix)) {
-      expect(() => history.findByPrefix(commonPrefix)).toThrow("Ambiguous");
+  it("prunes oldest files independently for user and action retention", () => {
+    const users = Array.from({ length: MAX_USER_CONVERSATIONS + 1 }, () => history.create("model", "/scope"));
+    const actions = Array.from({ length: MAX_ACTION_CONVERSATIONS + 1 }, () => history.create("model", "/scope", "action"));
+    for (const [source, ids] of [["user", users], ["action", actions]] as const) {
+      expect(history.list({ source, limit: ids.length }).map((r) => r.id)).toEqual(ids.slice(1).reverse());
+      expect(history.load(ids[0])).toBeNull();
+      expect(existsSync(join(dir, `${ids[0]}.json`))).toBe(false);
+      for (const id of ids.slice(1)) expect(history.load(id)?.record.id).toBe(id);
     }
   });
 
-  it("returns null for empty prefix instead of throwing Ambiguous", () => {
-    history.create("claude-sonnet-4-6", "/tmp");
-    history.create("claude-sonnet-4-6", "/tmp");
-
-    // Empty string should return null (no valid ID), not match everything
-    expect(history.findByPrefix("")).toBeNull();
+  it("removes indexed data and cleans actual orphans without deleting other files", () => {
+    const removed = history.create("model", "/scope");
+    const kept = history.create("model", "/scope");
+    expect(history.remove(removed)).toBe(true);
+    expect(history.remove(removed)).toBe(false);
+    expect(history.load(removed)).toBeNull();
+    writeFileSync(join(dir, "orphan.json"), "{}");
+    writeFileSync(join(dir, "notes.txt"), "retain");
+    expect(history.cleanup()).toBe(1);
+    expect(history.cleanup()).toBe(0);
+    expect(readdirSync(dir).sort()).toEqual([`${kept}.json`, "index.json", "notes.txt"].sort());
+    expect(new ConversationHistory(dir).list().map((r) => r.id)).toEqual([kept]);
   });
 
-  it("returns null for whitespace-only prefix", () => {
-    history.create("claude-sonnet-4-6", "/tmp");
-    expect(history.findByPrefix("  ")).toBeNull();
-  });
-
-  it("prefers exact match over prefix", () => {
-    const id1 = history.create("claude-sonnet-4-6", "/tmp");
-    // Even if the exact ID is a prefix of another ID, exact match wins
-    const found = history.findByPrefix(id1);
-    expect(found!.id).toBe(id1);
-  });
-});
-
-describe("generateTitle", () => {
-  it("returns short messages as-is", () => {
-    expect(generateTitle("Fix the bug")).toBe("Fix the bug");
-  });
-
-  it("truncates long messages", () => {
-    const long = "a".repeat(100);
-    const title = generateTitle(long);
-    expect(title.length).toBeLessThanOrEqual(80);
-    expect(title.endsWith("...")).toBe(true);
-  });
-
-  it("normalizes whitespace", () => {
-    expect(generateTitle("Hello\n\nWorld\n  foo")).toBe("Hello World foo");
+  it("rejects ambiguous prefixes while preferring exact identity and tolerating empty lookup", () => {
+    // Author a persisted boundary example: generated IDs cannot deliberately have this relationship.
+    const id = history.create("model", "/scope");
+    const record = history.load(id)!.record;
+    writeFileSync(join(dir, "index.json"), JSON.stringify({
+      conversations: ["chat-a", "chat-abc"].map((id) => ({ ...record, id })),
+    }));
+    expect(history.findByPrefix(" chat-a ")?.id).toBe("chat-a");
+    expect(history.findByPrefix("chat-ab")?.id).toBe("chat-abc");
+    expect(() => history.findByPrefix("chat-")).toThrow("Ambiguous");
+    for (const query of ["", "  ", "missing"]) expect(history.findByPrefix(query)).toBeNull();
   });
 });

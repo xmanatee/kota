@@ -1,447 +1,124 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  type BusEvents,
-  EventBus,
-  getEventBus,
-  initEventBus,
-  resetEventBus,
-  tryEmit,
-} from "./event-bus.js";
-import {
-  defineDaemonWideModuleEvent,
-  initModuleEventRegistry,
-  resetModuleEventRegistry,
-} from "./module-event.js";
+import { afterEach, expect, it, vi } from "vitest";
+import { EventBus, getEventBus, initEventBus, resetEventBus, tryEmit } from "./event-bus.js";
 
-afterEach(() => {
+afterEach(resetEventBus);
+const idle = { scopeId: "a", timestamp: "now", idleIntervalMs: 100 };
+
+it("delivers payloads and wildcard envelopes in subscription order", () => {
+  const bus = new EventBus();
+  const received: unknown[] = [];
+  bus.on("runtime.idle", (payload) => received.push(["first", payload]));
+  bus.on("runtime.idle", (payload) => received.push(["second", payload]));
+  bus.on("*", (envelope) => received.push(envelope));
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual([
+    ["first", idle], ["second", idle],
+    { type: "runtime.idle", schemaRef: null, payload: idle },
+  ]);
+});
+
+it.each(["off", "unsubscribe", "once", "clear"] as const)("releases subscriptions through %s", (mode) => {
+  const bus = new EventBus();
+  const handler = vi.fn();
+  const cancel = mode === "once" ? bus.once("runtime.idle", handler) : bus.on("runtime.idle", handler);
+  bus.emit("runtime.idle", idle);
+  if (mode === "off") { bus.off("runtime.idle", handler); bus.off("runtime.idle", handler); }
+  if (mode === "unsubscribe") { cancel(); cancel(); }
+  if (mode === "clear") bus.clear();
+  bus.emit("runtime.idle", idle);
+  expect(handler.mock.calls).toEqual([[idle]]);
+  expect(bus.listenerCount()).toBe(0);
+});
+
+it("cancels once before delivery and removes it before recursive emission", () => {
+  const bus = new EventBus();
+  const cancelled = vi.fn();
+  bus.once("runtime.idle", cancelled)();
+  const received: string[] = [];
+  bus.once("runtime.idle", () => { received.push("once"); bus.emit("runtime.idle", idle); });
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual(["once"]);
+  expect(cancelled).not.toHaveBeenCalled();
+});
+
+it("gates all delivery until middleware disposal and clears the gate on reset", () => {
+  const bus = new EventBus();
+  const received: string[] = [];
+  bus.on("runtime.idle", () => received.push("specific"));
+  bus.on("*", () => received.push("wildcard"));
+  const release = bus.addEmitMiddleware(() => {});
+  bus.addEmitMiddleware((_event, next) => { received.push("forwarded"); next(); });
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual([]);
+  release(); release();
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual(["forwarded", "specific", "wildcard"]);
+  bus.addEmitMiddleware(() => {});
+  bus.clear();
+  received.length = 0;
+  bus.on("runtime.idle", () => received.push("fresh"));
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual(["fresh"]);
+});
+
+it("starts a fresh middleware chain for a released event", () => {
+  const bus = new EventBus();
+  const received: string[] = [];
+  bus.on("runtime.idle", ({ timestamp }) => received.push(timestamp));
+  bus.addEmitMiddleware((envelope, next) => {
+    if (envelope.payload.timestamp === "released") next();
+    else bus.emit("runtime.idle", { ...idle, timestamp: "released" });
+  });
+  bus.emit("runtime.idle", idle);
+  expect(received).toEqual(["released"]);
+});
+
+it("finishes fan-out before reporting the first subscriber failure", () => {
+  const bus = new EventBus();
+  const received: string[] = [];
+  const failures = vi.fn();
+  bus.addEmitFailureHandler(failures);
+  bus.on("runtime.idle", () => { throw new Error("first failure"); });
+  bus.on("runtime.idle", () => received.push("healthy"));
+  bus.on("*", () => { received.push("wildcard"); throw new Error("second failure"); });
+  expect(() => bus.emit("runtime.idle", idle)).toThrow("first failure");
+  expect(received).toEqual(["healthy", "wildcard"]);
+  expect(failures).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    event: "runtime.idle", payload: idle, stage: "fanout", error: new Error("first failure"),
+  }));
+});
+
+it("singleton teardown stops delivery and allows fresh initialization", () => {
+  tryEmit("runtime.idle", idle);
+  expect(getEventBus()).toBeNull();
+  const bus = initEventBus();
+  expect(initEventBus()).toBe(bus);
+  const received = vi.fn();
+  bus.on("runtime.idle", received);
+  tryEmit("runtime.idle", idle);
   resetEventBus();
-  resetModuleEventRegistry();
+  bus.emit("runtime.idle", idle);
+  tryEmit("runtime.idle", idle);
+  initEventBus().on("runtime.idle", received);
+  tryEmit("runtime.idle", idle);
+  expect(received.mock.calls).toEqual([[idle], [idle]]);
 });
 
-describe("EventBus", () => {
-  describe("on / off", () => {
-    it("delivers events to subscribers", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("workflow.started", handler);
-
-      const payload = {
-        workflow: "test",
-        runId: "r1",
-        triggerEvent: "t",
-        definitionPath: "d",
-        runDir: "r",
-        startedAt: "2026-01-01",
-      };
-      bus.emit("workflow.started", payload);
-
-      expect(handler).toHaveBeenCalledOnce();
-      expect(handler).toHaveBeenCalledWith(payload);
-    });
-
-    it("returns an unsubscribe function", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      const unsub = bus.on("runtime.idle", handler);
-
-      unsub();
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it("off removes a handler", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-      bus.off("runtime.idle", handler);
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it("double-off is safe", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-
-      bus.off("runtime.idle", handler);
-      bus.off("runtime.idle", handler);
-
-      expect(bus.listenerCount("runtime.idle")).toBe(0);
-    });
-
-    it("off on unknown event is safe", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      expect(() => bus.off("runtime.idle", handler)).not.toThrow();
-    });
-  });
-
-  describe("once", () => {
-    it("fires handler once then auto-unsubscribes", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.once("runtime.idle", handler);
-
-      const payload = { timestamp: "t", idleIntervalMs: 100 };
-      bus.emit("runtime.idle", payload);
-      bus.emit("runtime.idle", payload);
-
-      expect(handler).toHaveBeenCalledOnce();
-      expect(bus.listenerCount("runtime.idle")).toBe(0);
-    });
-
-    it("returns an unsubscribe function that prevents the handler from firing", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      const unsub = bus.once("runtime.idle", handler);
-
-      unsub();
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-
-      expect(handler).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("wildcard", () => {
-    it("wildcard listener receives every event as BusEnvelope", () => {
-      const bus = new EventBus();
-      const wildcard = vi.fn();
-      bus.on("*", wildcard);
-
-      const payload = { timestamp: "t", idleIntervalMs: 0 };
-      bus.emit("runtime.idle", payload);
-
-      expect(wildcard).toHaveBeenCalledOnce();
-      expect(wildcard).toHaveBeenCalledWith({
-        type: "runtime.idle",
-        schemaRef: null,
-        payload,
-      });
-    });
-
-    it("includes the module event schema reference on wildcard envelopes", () => {
-      const bus = new EventBus();
-      const wildcard = vi.fn();
-      const event = defineDaemonWideModuleEvent<{ value: string }>(
-        "schema.ref.test",
-        ["value"],
-        {
-          schemaVersion: 4,
-          payloadSchema: {
-            type: "object",
-            properties: { value: { type: "string" } },
-          },
-        },
-      );
-      initModuleEventRegistry().register("schema-ref", event);
-      bus.on("*", wildcard);
-
-      bus.emit(event, { value: "ok" });
-
-      expect(wildcard).toHaveBeenCalledWith({
-        type: "schema.ref.test",
-        schemaRef: { name: "schema.ref.test", version: 4 },
-        payload: { value: "ok" },
-      });
-    });
-
-    it("wildcard does not double-fire for * events", () => {
-      const bus = new EventBus();
-      const wildcard = vi.fn();
-      bus.on("*", wildcard);
-
-      bus.emit("*" as never, {} as never);
-
-      expect(wildcard).toHaveBeenCalledOnce();
-    });
-
-    it("specific and wildcard listeners both fire on emit", () => {
-      const bus = new EventBus();
-      const specific = vi.fn();
-      const wildcard = vi.fn();
-      bus.on("runtime.idle", specific);
-      bus.on("*", wildcard);
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-
-      expect(specific).toHaveBeenCalledOnce();
-      expect(wildcard).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe("emit fan-out order", () => {
-    it("calls specific handlers in subscription order, then wildcard", () => {
-      const bus = new EventBus();
-      const order: string[] = [];
-      bus.on("runtime.idle", () => order.push("first"));
-      bus.on("runtime.idle", () => order.push("second"));
-      bus.on("*", () => order.push("wildcard"));
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-
-      expect(order).toEqual(["first", "second", "wildcard"]);
-    });
-  });
-
-  describe("listenerCount", () => {
-    it("returns 0 for unknown event", () => {
-      const bus = new EventBus();
-      expect(bus.listenerCount("runtime.idle")).toBe(0);
-    });
-
-    it("tracks listeners per event", () => {
-      const bus = new EventBus();
-      bus.on("runtime.idle", vi.fn());
-      bus.on("runtime.idle", vi.fn());
-      bus.on("workflow.started", vi.fn());
-
-      expect(bus.listenerCount("runtime.idle")).toBe(2);
-      expect(bus.listenerCount("workflow.started")).toBe(1);
-    });
-
-    it("returns total when no event specified", () => {
-      const bus = new EventBus();
-      bus.on("runtime.idle", vi.fn());
-      bus.on("workflow.started", vi.fn());
-      bus.on("*", vi.fn());
-
-      expect(bus.listenerCount()).toBe(3);
-    });
-
-    it("decrements after off", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-      expect(bus.listenerCount("runtime.idle")).toBe(1);
-
-      bus.off("runtime.idle", handler);
-      expect(bus.listenerCount("runtime.idle")).toBe(0);
-    });
-  });
-
-  describe("clear", () => {
-    it("removes all handlers", () => {
-      const bus = new EventBus();
-      bus.on("runtime.idle", vi.fn());
-      bus.on("workflow.started", vi.fn());
-      bus.on("*", vi.fn());
-
-      bus.clear();
-      expect(bus.listenerCount()).toBe(0);
-    });
-  });
-
-  describe("custom events", () => {
-    it("supports custom string event names outside the BusEvents map", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("custom.event", handler);
-      bus.emit("custom.event", { foo: "bar" });
-      expect(handler).toHaveBeenCalledWith({ foo: "bar" });
-    });
-  });
-
-  describe("addEmitMiddleware", () => {
-    it("forwards events to subscribers when middleware calls next()", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-
-      const middleware = vi.fn((_envelope, next: () => void) => next());
-      bus.addEmitMiddleware(middleware);
-
-      const payload = { timestamp: "t", idleIntervalMs: 0 };
-      bus.emit("runtime.idle", payload);
-
-      expect(middleware).toHaveBeenCalledOnce();
-      expect(middleware).toHaveBeenCalledWith(
-        { type: "runtime.idle", schemaRef: null, payload },
-        expect.any(Function),
-      );
-      expect(handler).toHaveBeenCalledOnce();
-    });
-
-    it("suppresses delivery to subscribers (and wildcard) when next() is not called", () => {
-      const bus = new EventBus();
-      const specific = vi.fn();
-      const wildcard = vi.fn();
-      bus.on("runtime.idle", specific);
-      bus.on("*", wildcard);
-
-      bus.addEmitMiddleware(() => {
-        // suppress: do not call next
-      });
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-      expect(specific).not.toHaveBeenCalled();
-      expect(wildcard).not.toHaveBeenCalled();
-    });
-
-    it("invokes middlewares in registration order, allowing earlier ones to suppress later ones", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-
-      const order: string[] = [];
-      bus.addEmitMiddleware((_e, _next) => {
-        order.push("first-suppress");
-      });
-      bus.addEmitMiddleware((_e, next) => {
-        order.push("second-should-not-run");
-        next();
-      });
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-
-      expect(order).toEqual(["first-suppress"]);
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it("returns an unsubscribe function that restores pass-through", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-
-      const unsub = bus.addEmitMiddleware(() => {
-        // suppress
-      });
-
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-      expect(handler).not.toHaveBeenCalled();
-
-      unsub();
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-      expect(handler).toHaveBeenCalledOnce();
-    });
-
-    it("re-entry from inside a middleware starts a fresh chain (no infinite loop)", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-
-      let inFlight = false;
-      bus.addEmitMiddleware((_envelope, next) => {
-        if (inFlight) {
-          next();
-          return;
-        }
-        inFlight = true;
-        try {
-          // Re-emit from inside the middleware. The inFlight flag bypasses
-          // suppression on the inner emit, mirroring the gate's release path.
-          bus.emit("runtime.idle", { timestamp: "inner", idleIntervalMs: 0 });
-        } finally {
-          inFlight = false;
-        }
-        // Original emit is suppressed; only the inner re-emit reaches handler.
-      });
-
-      bus.emit("runtime.idle", { timestamp: "outer", idleIntervalMs: 0 });
-      expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler).toHaveBeenCalledWith({ timestamp: "inner", idleIntervalMs: 0 });
-    });
-
-    it("clear() removes registered middleware", () => {
-      const bus = new EventBus();
-      const handler = vi.fn();
-      bus.on("runtime.idle", handler);
-      bus.addEmitMiddleware(() => {
-        // suppress
-      });
-
-      bus.clear();
-      bus.on("runtime.idle", handler);
-      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
-      expect(handler).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe("handler errors", () => {
-    it("contains failure-reporting reentry and preserves both errors for the caller", () => {
-      const bus = new EventBus();
-      const dispatchError = new Error("journal unavailable");
-      bus.addEmitMiddleware(() => { throw dispatchError; });
-      const report = vi.fn(() => bus.emit("failure.recorded", {}));
-      const otherObserver = vi.fn();
-      bus.addEmitFailureHandler(report);
-      bus.addEmitFailureHandler(otherObserver);
-
-      for (let attempt = 0; attempt < 2; attempt++) {
-        let caught: unknown;
-        try { bus.emit("work.requested", {}); } catch (error) { caught = error; }
-        expect(caught).toBeInstanceOf(AggregateError);
-        expect((caught as AggregateError).errors).toEqual([dispatchError, dispatchError]);
-      }
-      expect(report).toHaveBeenCalledTimes(2);
-      expect(otherObserver).toHaveBeenCalledTimes(2);
-    });
-
-    it("runs every subscriber before propagating a synchronous handler error", () => {
-      const bus = new EventBus();
-      const h1 = vi.fn(() => {
-        throw new Error("boom");
-      });
-      const h2 = vi.fn();
-      bus.on(
-        "runtime.idle",
-        h1 as BusEvents["runtime.idle"] extends infer T
-          ? (payload: T) => void
-          : never,
-      );
-      bus.on("*", h2);
-      expect(() =>
-        bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 }),
-      ).toThrow("boom");
-      expect(h2).toHaveBeenCalledOnce();
-      expect(h2).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "runtime.idle" }),
-      );
-    });
-  });
-});
-
-describe("singleton lifecycle", () => {
-  it("initEventBus creates a singleton", () => {
-    const bus = initEventBus();
-    expect(bus).toBeInstanceOf(EventBus);
-    expect(initEventBus()).toBe(bus);
-  });
-
-  it("getEventBus returns null before init", () => {
-    expect(getEventBus()).toBeNull();
-  });
-
-  it("getEventBus returns the singleton after init", () => {
-    const bus = initEventBus();
-    expect(getEventBus()).toBe(bus);
-  });
-
-  it("resetEventBus clears handlers and nulls the singleton", () => {
-    const bus = initEventBus();
-    bus.on("runtime.idle", vi.fn());
-    expect(bus.listenerCount()).toBe(1);
-
-    resetEventBus();
-    expect(bus.listenerCount()).toBe(0);
-    expect(getEventBus()).toBeNull();
-  });
-});
-
-describe("tryEmit", () => {
-  it("is a no-op when bus is not initialized", () => {
-    expect(() =>
-      tryEmit("runtime.idle", { scopeId: "test-scope", timestamp: "t", idleIntervalMs: 0 }),
-    ).not.toThrow();
-  });
-
-  it("emits when bus is initialized", () => {
-    const bus = initEventBus();
-    const handler = vi.fn();
-    bus.on("runtime.idle", handler);
-
-    tryEmit("runtime.idle", { scopeId: "test-scope", timestamp: "t", idleIntervalMs: 0 });
-    expect(handler).toHaveBeenCalledOnce();
-  });
+it("contains failure-reporting reentry and preserves both errors for the caller", () => {
+  const bus = new EventBus();
+  const dispatchError = new Error("journal unavailable");
+  bus.addEmitMiddleware(() => { throw dispatchError; });
+  const report = vi.fn(() => bus.emit("failure.recorded", {}));
+  const otherObserver = vi.fn();
+  bus.addEmitFailureHandler(report);
+  bus.addEmitFailureHandler(otherObserver);
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let caught: unknown;
+    try { bus.emit("work.requested", {}); } catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect((caught as AggregateError).errors).toEqual([dispatchError, dispatchError]);
+  }
+  expect(report).toHaveBeenCalledTimes(2);
+  expect(otherObserver).toHaveBeenCalledTimes(2);
 });

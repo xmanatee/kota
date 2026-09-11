@@ -1,4 +1,4 @@
-import { decodeEntities } from "./html-extract.js";
+import { decodeEntities } from "./html-extract-utils.js";
 
 export type SearchResult = {
   title: string;

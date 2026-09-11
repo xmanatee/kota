@@ -11,7 +11,6 @@ import type {
 import {
   listFullRepoTasks,
   REPO_TASKS_DIR,
-  type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { type CriticVerdict, getCriticPromptHash } from "./critic.js";
 import { CRITIC_REVIEW_ARTIFACT, decodeCriticVerdict } from "./critic-verdict.js";
@@ -23,12 +22,12 @@ import {
 } from "./evaluator-calibration-types.js";
 import { readBuilderTaskPayload } from "./workflows/builder/task-contract.js";
 
-export type CalibrationCriticVerdict = CriticVerdict & {
+type CalibrationCriticVerdict = CriticVerdict & {
   /** Prompt identity captured when the critic made this verdict. */
   reviewerPromptHash: string | null;
 };
 
-export function readCalibrationCriticVerdict(
+function readCalibrationCriticVerdict(
   runDir: string,
 ): CalibrationCriticVerdict | null {
   const path = join(runDir, CRITIC_REVIEW_ARTIFACT);
@@ -62,25 +61,10 @@ export function isCalibrationSourceFile(path: string): boolean {
   );
 }
 
-type FindTaskFinalState = (
-  workspaceRoot: string,
-  taskId: string,
-) => RepoTaskState | null;
-
-export function findCalibrationTaskFinalState(
-  workspaceRoot: string,
-  taskId: string,
-): RepoTaskState | null {
-  return listFullRepoTasks(workspaceRoot).find((task) => task.id === taskId)?.state ?? null;
-}
-
 export type WriteCalibrationArtifactOptions = {
   /** Workspace-local directory where the critic wrote its final verdict. */
   criticVerdictRunDir: string;
   agentStepId?: string;
-  findTaskFinalState?: FindTaskFinalState;
-  /** Deterministic prompt-hash override for tests. */
-  criticPromptHash?: string;
 };
 
 type CalibrationReviewSignals = Pick<
@@ -93,7 +77,7 @@ type CalibrationReviewSignals = Pick<
   | "criticFailureCount"
 >;
 
-export function deriveCalibrationReviewSignals(
+function deriveCalibrationReviewSignals(
   buildOutput: WorkflowStepResult["output"],
   criticVerdict: CriticVerdict | null,
 ): CalibrationReviewSignals {
@@ -129,11 +113,12 @@ export function deriveCalibrationReviewSignals(
 
 /** Persist review signals before runtime-owned writer integration. */
 export function writeCalibrationArtifact(
-  ctx: WorkflowStepContext,
+  ctx: Pick<WorkflowStepContext,
+    "workspaceRoot" | "scopeRoot" | "workflow" | "trigger" | "stepOutputs" | "stepResults"
+  >,
   options: WriteCalibrationArtifactOptions,
 ): EvaluatorCalibrationArtifact {
   const agentStepId = options.agentStepId ?? "build";
-  const findTaskFinalState = options.findTaskFinalState ?? findCalibrationTaskFinalState;
   const runDir = ctx.workflow.runDirPath;
 
   const criticVerdict = readCalibrationCriticVerdict(
@@ -161,12 +146,11 @@ export function writeCalibrationArtifact(
     terminalRunStatus,
     taskId,
     taskFinalState: taskId
-      ? findTaskFinalState(ctx.workspaceRoot, taskId)
+      ? listFullRepoTasks(ctx.workspaceRoot).find((task) => task.id === taskId)?.state ?? null
       : null,
     sourceRevision: null,
     sourceFilesChanged: [],
     criticPromptHash:
-      options.criticPromptHash ??
       criticVerdict?.reviewerPromptHash ??
       getCriticPromptHash(ctx.scopeRoot),
   };

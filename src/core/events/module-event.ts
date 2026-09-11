@@ -27,7 +27,6 @@
  * picking one or the other.
  */
 
-import type { BusEnvelope } from "./event-bus-types.js";
 import { validatePayloadAgainstSchema } from "./module-event-payload-validation.js";
 import {
   buildModuleEventSchemaContract,
@@ -138,7 +137,7 @@ export function defineDaemonWideModuleEvent<TPayload extends object>(
  * `tryEmit(def, payload)`) so callers cannot accidentally leak a
  * scope-scoped module event onto the bus without identity.
  */
-export function assertModuleEventPayloadScope(
+function assertModuleEventPayloadScope(
   def: ModuleEventDef,
   payload: ModuleEventPayloadObject,
 ): void {
@@ -282,8 +281,6 @@ export function resetModuleEventRegistry(): void {
   if (instance) instance.clear();
   instance = undefined;
 }
-
-export type WildcardEventHandler = (envelope: BusEnvelope) => void;
 
 function registrationFromDef(
   moduleName: string,

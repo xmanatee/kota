@@ -116,7 +116,5 @@ Every loader host owns a complete lifecycle. Metadata-only commands loaders
 must unload after taking their snapshot, including failure paths; callers do
 not retain a loader merely to keep declarative contributions registered.
 
-Tests and hosts declare their mode and bind runtime test loaders explicitly:
-commands-mode callers may read static contributions but not `getRoutes()`,
-`getContributedControlRoutes()`, or `probeHealthChecks()`; runtime-mode
-callers may read every accessor; event tests supply an authority.
+Tests declare their loader mode, bind runtime hosts explicitly, and supply an
+event authority. Commands-mode access remains limited to static contributions.

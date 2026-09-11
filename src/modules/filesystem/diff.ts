@@ -10,7 +10,7 @@ const CONTEXT_LINES = 2;
 const MAX_DIFF_LINES = 40;
 
 /** Find the 1-based line number where `substring` first appears in `content`. */
-export function findLineNumber(content: string, substring: string): number {
+function findLineNumber(content: string, substring: string): number {
   const idx = content.indexOf(substring);
   if (idx === -1) return 1;
   return content.slice(0, idx).split("\n").length;

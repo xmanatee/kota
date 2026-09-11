@@ -33,7 +33,7 @@ type WorkingState = {
  * Deterministically extract structured state from conversation messages.
  * Preserves exact facts that an LLM summary would lose.
  */
-export function extractWorkingState(messages: Message[]): WorkingState {
+function extractWorkingState(messages: Message[]): WorkingState {
   const fileSet = new Set<string>();
   const commandsRun: string[] = [];
   const errors: string[] = [];
@@ -319,7 +319,7 @@ function buildConversationText(
   return lines.join("\n");
 }
 
-export const COMPACTION_PROMPT =
+const COMPACTION_PROMPT =
   "Summarize this conversation concisely. Preserve:\n" +
   "1. The user's goal and any sub-goals\n" +
   "2. Key decisions made and their rationale\n" +

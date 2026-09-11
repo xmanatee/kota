@@ -34,3 +34,9 @@ are global-config only. Always strip them from scope config and caller
 overrides, including for an otherwise trusted scope; daemon mutations go
 through `ScopeAuthorityStore` so trust, policy, revision, and audit remain one
 atomic transaction.
+
+Secret files are untrusted input: providers expose only decoded string values.
+Keychain commands pass literal arguments to the process boundary, and validate
+replacement input before any destructive effect. Tests control that external
+process port; unavailable host keychain access must not silently skip rejection
+proof.

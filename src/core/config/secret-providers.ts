@@ -2,7 +2,7 @@
  * Secret provider implementations — env file, JSON file, and macOS keychain.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { platform } from "node:os";
 import { SecretFileStorage } from "./secret-file-storage.js";
@@ -85,7 +85,8 @@ export class FileProvider implements SecretProvider {
   }
 
   get(key: string): string | null {
-    return this.load()[key] ?? null;
+    const data = this.load();
+    return Object.hasOwn(data, key) ? data[key]! : null;
   }
 
   set(key: string, value: string): void {
@@ -95,7 +96,7 @@ export class FileProvider implements SecretProvider {
 
   remove(key: string): boolean {
     const data = { ...this.load() };
-    if (!(key in data)) return false;
+    if (!Object.hasOwn(data, key)) return false;
     delete data[key];
     this.save(data);
     return true;
@@ -113,9 +114,11 @@ export class FileProvider implements SecretProvider {
       return this.data;
     }
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
       this.data = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-        ? parsed
+        ? Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, string] =>
+          typeof entry[1] === "string"
+        ))
         : {};
     } catch {
       this.data = {};
@@ -142,9 +145,10 @@ export class KeychainProvider implements SecretProvider {
   get(key: string): string | null {
     if (!this.isAvailable()) return null;
     try {
-      const result = execSync(
-        `security find-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" -w 2>/dev/null`,
-        { encoding: "utf-8", timeout: 5000 },
+      this.validateInput(key);
+      const result = execFileSync(
+        "security", ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", key, "-w"],
+        { encoding: "utf-8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] },
       );
       return result.trim();
     } catch {
@@ -153,10 +157,12 @@ export class KeychainProvider implements SecretProvider {
   }
 
   set(key: string, value: string): void {
+    this.validateInput(key);
+    this.validateInput(value);
     if (!this.isAvailable()) throw new Error("Keychain not available");
     this.remove(key);
-    execSync(
-      `security add-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" -w "${this.escapeArg(value)}"`,
+    execFileSync(
+      "security", ["add-generic-password", "-s", KEYCHAIN_SERVICE, "-a", key, "-w", value],
       { timeout: 5000 },
     );
   }
@@ -164,9 +170,10 @@ export class KeychainProvider implements SecretProvider {
   remove(key: string): boolean {
     if (!this.isAvailable()) return false;
     try {
-      execSync(
-        `security delete-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" 2>/dev/null`,
-        { timeout: 5000 },
+      this.validateInput(key);
+      execFileSync(
+        "security", ["delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", key],
+        { timeout: 5000, stdio: "ignore" },
       );
       return true;
     } catch {
@@ -183,7 +190,7 @@ export class KeychainProvider implements SecretProvider {
     this.available = platform() === "darwin";
     if (this.available) {
       try {
-        execSync("security help 2>/dev/null", { timeout: 3000 });
+        execFileSync("security", ["help"], { timeout: 3000, stdio: "ignore" });
       } catch {
         this.available = false;
       }
@@ -191,11 +198,10 @@ export class KeychainProvider implements SecretProvider {
     return this.available;
   }
 
-  private escapeArg(s: string): string {
+  private validateInput(s: string): void {
     if (/[\n\r\0]/.test(s)) {
       throw new Error("Secret key/value must not contain newlines or null bytes");
     }
-    return s.replace(/["\\$`]/g, "\\$&");
   }
 }
 

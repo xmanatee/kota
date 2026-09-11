@@ -2,7 +2,7 @@
  * Normalize whitespace for tolerant matching: trim each line, collapse blank lines.
  * Preserves the non-whitespace content for comparison.
  */
-export function normalizeWhitespace(s: string): string {
+function normalizeWhitespace(s: string): string {
   return s
     .split("\n")
     .map((line) => line.trim())

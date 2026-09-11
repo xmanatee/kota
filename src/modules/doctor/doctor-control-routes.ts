@@ -2,7 +2,7 @@
  * Daemon-control HTTP routes for the `doctor` namespace.
  *
  * Both the daemon-control server and the local-side handler reach the
- * same `runDoctorChecks` / `runDoctorFixes` helpers so daemon-up and
+ * same `runDoctorReport` / `runDoctorFixes` owners so daemon-up and
  * daemon-down callers see the same results for the same operator
  * project state.
  */
@@ -12,7 +12,8 @@ import type {
   ModuleContext,
 } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { runDoctorFixes, runDoctorReport } from "./doctor-checks.js";
+import { runDoctorReport } from "./doctor-checks.js";
+import { runDoctorFixes } from "./doctor-fixes.js";
 
 export function doctorControlRoutes(ctx: ModuleContext): ControlRouteRegistration[] {
   return [

@@ -33,14 +33,6 @@ import {
   normalizeResult,
 } from "./tool-adapters-zod.js";
 
-export {
-  type DetectedExportFormat,
-  detectExportFormat,
-  type KotaModuleShape,
-} from "./tool-adapter-detection.js";
-export type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
-export { extractJsonSchema, normalizeResult, zodDefToJsonSchema } from "./tool-adapters-zod.js";
-
 // --- Adapters ---
 
 function externalFormatEffect(input: {

@@ -74,7 +74,7 @@ function escapeGlob(s: string): string {
  * Bigram (Dice coefficient) similarity between two strings.
  * Returns 0-1 where 1 is exact match. Case-insensitive.
  */
-export function nameSimilarity(a: string, b: string): number {
+function nameSimilarity(a: string, b: string): number {
   const la = a.toLowerCase();
   const lb = b.toLowerCase();
   if (la === lb) return 1;

@@ -169,17 +169,18 @@ function readRunEntries(
   return runs;
 }
 
-function groupRunsByWorkflow(runs: RunEntry[]): Record<string, RunEntry[]> {
-  const byWorkflow: Record<string, RunEntry[]> = {};
+function groupRunsByWorkflow(runs: RunEntry[]): Map<string, RunEntry[]> {
+  const byWorkflow = new Map<string, RunEntry[]>();
   for (const run of runs) {
-    if (!byWorkflow[run.workflow]) byWorkflow[run.workflow] = [];
-    byWorkflow[run.workflow].push(run);
+    const group = byWorkflow.get(run.workflow);
+    if (group) group.push(run);
+    else byWorkflow.set(run.workflow, [run]);
   }
   return byWorkflow;
 }
 
 function selectRunsToPrune(opts: {
-  byWorkflow: Record<string, RunEntry[]>;
+  byWorkflow: ReadonlyMap<string, RunEntry[]>;
   minKeepPerWorkflow: number;
   nowMs: number;
   protectedIds: Set<string>;
@@ -187,7 +188,7 @@ function selectRunsToPrune(opts: {
 }): RunEntry[] {
   const toDelete: RunEntry[] = [];
 
-  for (const wfRuns of Object.values(opts.byWorkflow)) {
+  for (const wfRuns of opts.byWorkflow.values()) {
     wfRuns.sort((a, b) => b.startedAtMs - a.startedAtMs);
     for (let i = 0; i < wfRuns.length; i++) {
       const run = wfRuns[i];

@@ -10,7 +10,8 @@ Embedding-backed semantic search over the repo task queue.
   `## Desired Outcome`, `## Constraints`, `## Source / Intent`, and
   `## Initiative`. `## Plan` and `## Acceptance Evidence` are excluded because
   they churn faster than intent.
-- Declares `reindex` and `search` capabilities (mutation and deletion are undeclared because tasks are persisted directly in `data/tasks/`).
+- Exposes search and reindex through the typed semantic-search capability. Task
+  mutations remain with the repo-task domain; this provider only updates sidecars.
 - Registers itself as the `repo-tasks` provider selected by config.
 - `SemanticIndexManager` owns index load, reconciliation, ranking, background
   update failure handling, persistence, and reindex lifecycle. This module

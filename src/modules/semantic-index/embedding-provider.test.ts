@@ -1,176 +1,64 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
-import {
-	createEmbeddingProvider,
-	HttpEmbeddingProvider,
-	readEmbeddingProviderConfig,
-} from "./embedding-provider.js";
+import { createEmbeddingProvider, HttpEmbeddingProvider, readEmbeddingProviderConfig } from "./embedding-provider.js";
 
-function requestPort(
-	fetchMock: Mock<(url: string, init: RequestInit) => Promise<Response>>,
-) {
-	return outboundHttpRequestPort((request) =>
-		fetchMock(String(request.url), {
-			method: request.method,
-			headers: request.headers,
-			body: request.body,
-			signal: request.signal,
-		})
-	);
-}
+describe("embedding provider boundary", () => {
+  beforeEach(() => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("VOYAGE_API_KEY", "test-voyage-key");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
-describe("HttpEmbeddingProvider", () => {
-	beforeEach(() => {
-		process.env.OPENAI_API_KEY = "test-openai-key";
-		process.env.VOYAGE_API_KEY = "test-voyage-key";
-	});
+  it("rejects missing credentials", () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    expect(() => createEmbeddingProvider({ provider: "openai", model: "m" })).toThrow(/No API key/);
+  });
 
-	afterEach(() => {
-		delete process.env.OPENAI_API_KEY;
-		delete process.env.VOYAGE_API_KEY;
-	});
+  it.each([
+    { provider: "openai" as const, url: "https://api.openai.com/v1/embeddings", key: "test-openai-key" },
+    { provider: "voyage" as const, url: "https://api.voyageai.com/v1/embeddings", key: "test-voyage-key" },
+  ])("sends the configured model, inputs, and credentials to $provider", async ({ provider, url, key }) => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ data: [{ index: 0, embedding: [1, 2] }] })));
+    const client = new HttpEmbeddingProvider({ provider, model: "chosen-model" }, outboundHttpRequestPort(request));
+    expect(await client.embed(["authored input"])).toEqual([[1, 2]]);
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({
+      url, method: "POST", headers: expect.objectContaining({ Authorization: `Bearer ${key}` }),
+      body: JSON.stringify({ input: ["authored input"], model: "chosen-model" }),
+    }));
+  });
 
-	it("throws when no API key is provided", () => {
-		delete process.env.OPENAI_API_KEY;
-		expect(() =>
-			createEmbeddingProvider({ provider: "openai", model: "text-embedding-3-small" }),
-		).toThrow(/No API key/);
-	});
+  it("honors endpoint and credential overrides and restores response input order", async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ data: [
+      { index: 1, embedding: [2] }, { index: 0, embedding: [1] },
+    ] })));
+    const client = new HttpEmbeddingProvider({
+      provider: "openai", model: "m", baseUrl: "http://localhost:11434/v1/", apiKey: "override-key",
+    }, outboundHttpRequestPort(request));
+    expect(await client.embed(["a", "b"])).toEqual([[1], [2]]);
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({
+      url: "http://localhost:11434/v1/embeddings",
+      headers: expect.objectContaining({ Authorization: "Bearer override-key" }),
+    }));
+  });
 
-	it("defaults to the OpenAI base URL when no override given", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({ data: [{ index: 0, embedding: [0.1, 0.2] }] }),
-				{ status: 200, headers: { "Content-Type": "application/json" } },
-			),
-		);
+  it("avoids an empty request and propagates an HTTP failure for nonempty input", async () => {
+    const request = vi.fn(async () => new Response("boom", { status: 500, statusText: "Server Error" }));
+    const client = new HttpEmbeddingProvider({ provider: "openai", model: "m" }, outboundHttpRequestPort(request));
+    expect(await client.embed([])).toEqual([]);
+    expect(request).not.toHaveBeenCalled();
+    await expect(client.embed(["x"])).rejects.toThrow(/500/);
+  });
 
-		const provider = new HttpEmbeddingProvider({
-			provider: "openai",
-			model: "text-embedding-3-small",
-		}, requestPort(fetchMock));
-		const result = await provider.embed(["hello"]);
-		expect(result).toEqual([[0.1, 0.2]]);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe("https://api.openai.com/v1/embeddings");
-		const parsed = JSON.parse((init as RequestInit).body as string);
-		expect(parsed).toEqual({ input: ["hello"], model: "text-embedding-3-small" });
-		expect((init as RequestInit).headers).toMatchObject({
-			Authorization: "Bearer test-openai-key",
-		});
-	});
+  it.each([undefined, {}, { provider: "openai" }, { provider: "bogus", model: "m" }, { provider: "openai", model: "" }])(
+    "rejects missing or invalid configuration: %j", (input) => {
+      expect(readEmbeddingProviderConfig(input)).toBeNull();
+    },
+  );
 
-	it("uses the voyage preset when provider is voyage", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({ data: [{ index: 0, embedding: [1, 0] }] }),
-				{ status: 200, headers: { "Content-Type": "application/json" } },
-			),
-		);
-		const provider = new HttpEmbeddingProvider({
-			provider: "voyage",
-			model: "voyage-3",
-		}, requestPort(fetchMock));
-		await provider.embed(["hi"]);
-		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe("https://api.voyageai.com/v1/embeddings");
-		expect((init as RequestInit).headers).toMatchObject({
-			Authorization: "Bearer test-voyage-key",
-		});
-	});
-
-	it("honors baseUrl and explicit apiKey overrides", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ data: [{ index: 0, embedding: [1] }] }), { status: 200 }),
-		);
-		const provider = new HttpEmbeddingProvider({
-			provider: "openai",
-			model: "m",
-			baseUrl: "http://localhost:11434/v1/",
-			apiKey: "override-key",
-		}, requestPort(fetchMock));
-		await provider.embed(["x"]);
-		expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:11434/v1/embeddings");
-		expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({
-			Authorization: "Bearer override-key",
-		});
-	});
-
-	it("returns vectors in the order of the input", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					data: [
-						{ index: 1, embedding: [2] },
-						{ index: 0, embedding: [1] },
-					],
-				}),
-				{ status: 200 },
-			),
-		);
-
-		const provider = new HttpEmbeddingProvider(
-			{ provider: "openai", model: "m" },
-			requestPort(fetchMock),
-		);
-		const result = await provider.embed(["a", "b"]);
-		expect(result).toEqual([[1], [2]]);
-	});
-
-	it("throws on HTTP error", async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response("boom", { status: 500, statusText: "Server Error" }),
-		);
-
-		const provider = new HttpEmbeddingProvider(
-			{ provider: "openai", model: "m" },
-			requestPort(fetchMock),
-		);
-		await expect(provider.embed(["x"])).rejects.toThrow(/500/);
-	});
-
-	it("returns [] for empty input without hitting the API", async () => {
-		const fetchMock = vi.fn();
-
-		const provider = new HttpEmbeddingProvider(
-			{ provider: "openai", model: "m" },
-			requestPort(fetchMock),
-		);
-		expect(await provider.embed([])).toEqual([]);
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-});
-
-describe("readEmbeddingProviderConfig", () => {
-	it("returns null for missing or invalid config", () => {
-		expect(readEmbeddingProviderConfig(undefined)).toBeNull();
-		expect(readEmbeddingProviderConfig({})).toBeNull();
-		expect(readEmbeddingProviderConfig({ provider: "openai" })).toBeNull();
-		expect(readEmbeddingProviderConfig({ provider: "bogus", model: "m" })).toBeNull();
-		expect(readEmbeddingProviderConfig({ provider: "openai", model: "" })).toBeNull();
-	});
-
-	it("parses valid config with required fields", () => {
-		expect(readEmbeddingProviderConfig({ provider: "openai", model: "m" })).toEqual({
-			provider: "openai",
-			model: "m",
-		});
-	});
-
-	it("passes through optional overrides", () => {
-		expect(
-			readEmbeddingProviderConfig({
-				provider: "voyage",
-				model: "voyage-3",
-				apiKey: "sk-x",
-				baseUrl: "https://custom.example/v1",
-			}),
-		).toEqual({
-			provider: "voyage",
-			model: "voyage-3",
-			apiKey: "sk-x",
-			baseUrl: "https://custom.example/v1",
-		});
-	});
+  it.each([
+    { provider: "openai", model: "m" },
+    { provider: "voyage", model: "m", apiKey: "override-key", baseUrl: "https://custom.example/v1" },
+  ])("propagates valid configuration: %j", (input) => {
+    expect(readEmbeddingProviderConfig(input)).toEqual(input);
+  });
 });

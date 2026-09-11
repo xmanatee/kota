@@ -207,18 +207,7 @@ export function resetProviderRegistry(): void {
 /** Register the in-process default stores for core-owned service types. */
 export function registerDefaultProviders(target: ProviderRegistry | null = registry): void {
 	if (!target) return;
-	const store = getTaskStore();
-	target.register(TASK_PROVIDER_TOKEN, "default", {
-		collection: store.collection,
-		mutations: {
-			add: async (task, options) => store.add(task, options),
-			update: async (id, changes) => store.update(id, changes),
-		},
-		maintenance: {
-			clear: async () => store.clear(),
-			archiveCompleted: async () => store.archiveCompleted(),
-		},
-	});
+	target.register(TASK_PROVIDER_TOKEN, "default", getTaskProviderRegistration(null));
 }
 
 /**
@@ -264,7 +253,7 @@ export function getTaskProviderRegistration(
 	if (registered) return registered;
 	const store = getTaskStore();
 	return {
-		collection: store.collection ?? (store as unknown as TaskCollection),
+		collection: store.collection,
 		mutations: {
 			add: async (task, options) => store.add(task, options),
 			update: async (id, changes) => store.update(id, changes),

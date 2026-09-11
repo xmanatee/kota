@@ -1,341 +1,80 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { formatCountOutput, runGrep } from "./grep.js";
 
-const TEST_DIR = join(process.cwd(), ".test-grep");
+let root: string;
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "grep-"));
+  mkdirSync(join(root, "src"));
+  writeFileSync(join(root, "main.ts"), "before\nconst x = 42;\nconst y = 42;\nafter");
+  writeFileSync(join(root, "src", "nested.py"), "def world():\n    return 42");
+});
+afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
 
-beforeAll(() => {
-  mkdirSync(TEST_DIR, { recursive: true });
-  writeFileSync(join(TEST_DIR, "hello.ts"), "const x = 42;\nconst y = 99;\nfunction hello() {}");
-  writeFileSync(join(TEST_DIR, "world.py"), "def world():\n    return 42\n# comment");
-  mkdirSync(join(TEST_DIR, "sub"), { recursive: true });
-  writeFileSync(join(TEST_DIR, "sub", "nested.ts"), "import { hello } from '#modules/hello';\n");
+it.each([{}, { files_only: true }, { count_only: true }])("searches nested files and applies filtering in mode %j", async (mode) => {
+  const all = await runGrep({ pattern: "42", ...mode }, { cwd: root });
+  expect(all.is_error).toBeUndefined();
+  expect(all.content).toContain("main.ts");
+  expect(all.content).toContain("nested.py");
+  if ("files_only" in mode) expect(all.content).not.toMatch(/:\d+:/);
+  else if ("count_only" in mode) expect(all.content).toContain("Total: 3 matches in 2 files");
+  else expect(all.content).toContain("main.ts:2:const x = 42;");
+  const filtered = await runGrep({ pattern: "42", file_glob: "*.py", ...mode }, { cwd: root });
+  expect(filtered.content).toContain("nested.py");
+  expect(filtered.content).not.toContain("main.ts");
+  expect(await runGrep({ pattern: "absent", ...mode }, { cwd: root })).toEqual({ content: "No matches found." });
+  expect(await runGrep({ pattern: "[invalid", ...mode }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("Search error") });
 });
 
-afterAll(() => {
-  rmSync(TEST_DIR, { recursive: true, force: true });
+it("propagates regex, line context and a non-vacuous result limit", async () => {
+  const result = await runGrep({ pattern: "const [xy]", path: "main.ts", max_results: 1, context_lines: 1 }, { cwd: root });
+  expect(result.is_error).toBeUndefined();
+  expect(result.content).toContain("before");
+  expect(result.content).toContain("const x");
+  const limited = await runGrep({ pattern: "const [xy]", path: "main.ts", max_results: 1 }, { cwd: root });
+  expect(limited.content).toContain("const x");
+  expect(limited.content).not.toContain("const y");
+  expect((await runGrep({ pattern: "def world\\(\\)" }, { cwd: root })).content).toContain("def world()");
 });
 
-describe("grep: input validation", () => {
-  it("returns error when pattern is empty", async () => {
-    const result = await runGrep({ pattern: "" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("pattern is required");
-  });
-
-  it("rejects string max_results without executing shell metacharacters", async () => {
-    const probeDir = mkdtempSync(join(tmpdir(), "kota-grep-max-results-"));
-    const marker = join(probeDir, "injected");
-    try {
-      const result = await runGrep({
-        pattern: "42",
-        path: TEST_DIR,
-        max_results: `1; touch ${marker} #`,
-      });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("max_results must be a finite integer");
-      expect(existsSync(marker)).toBe(false);
-    } finally {
-      rmSync(probeDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects string context_lines without executing shell metacharacters", async () => {
-    const probeDir = mkdtempSync(join(tmpdir(), "kota-grep-context-lines-"));
-    const marker = join(probeDir, "injected");
-    try {
-      const result = await runGrep({
-        pattern: "42",
-        path: TEST_DIR,
-        context_lines: `1; touch ${marker} #`,
-      });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("context_lines must be a finite integer");
-      expect(existsSync(marker)).toBe(false);
-    } finally {
-      rmSync(probeDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects non-integer and out-of-range numeric options", async () => {
-    const invalidInputs = [
-      { max_results: 0 },
-      { max_results: 1.5 },
-      { max_results: 10_001 },
-      { context_lines: -1 },
-      { context_lines: 1.5 },
-      { context_lines: 101 },
-    ];
-
-    for (const invalidInput of invalidInputs) {
-      const result = await runGrep({
-        pattern: "42",
-        path: TEST_DIR,
-        ...invalidInput,
-      });
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("must be a finite integer");
-    }
-  });
-
-  it("denies direct searches of the daemon control credential file", async () => {
-    const result = await runGrep({
-      pattern: "token",
-      path: ".kota/daemon-control.json",
-    });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("protected scope runtime credential");
-  });
-
-  it("denies direct searches of project secrets and env files", async () => {
-    for (const path of [".kota/secrets.json", ".env", ".env.local"]) {
-      const result = await runGrep({
-        pattern: "token",
-        path,
-      });
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("protected scope runtime credential");
-    }
-  });
-
-  it("excludes cased .kota credential aliases from recursive searches", async () => {
-    const originalCwd = process.cwd();
-    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-grep-protected-"));
-    try {
-      mkdirSync(join(scopeRoot, ".KOTA"), { recursive: true });
-      writeFileSync(join(scopeRoot, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
-      writeFileSync(join(scopeRoot, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
-      process.chdir(scopeRoot);
-
-      const result = await runGrep({ pattern: "secret-token", path: ".KOTA" });
-
-      expect(result.is_error).toBeUndefined();
-      expect(result.content).toBe("No matches found.");
-    } finally {
-      process.chdir(originalCwd);
-      rmSync(scopeRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("excludes an environment-selected arbitrary operator token from recursive searches", async () => {
-    const root = mkdtempSync(join(tmpdir(), "kota-grep-authority-token-"));
-    const operatorDir = join(root, "operator");
-    const scopeRoot = join(root, "project");
-    const tokenPath = join(operatorDir, "machine[proof]*.dat");
-    const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
-    try {
-      mkdirSync(operatorDir, { recursive: true });
-      mkdirSync(scopeRoot, { recursive: true });
-      writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
-      process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
-
-      const result = await runGrep(
-        { pattern: "a".repeat(64), path: operatorDir },
-        { cwd: scopeRoot, authorityConfigPath: join(operatorDir, "config.json") },
-      );
-
-      expect(result.is_error).toBeUndefined();
-      expect(result.content).toBe("No matches found.");
-    } finally {
-      if (priorTokenPath === undefined) {
-        delete process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
-      } else {
-        process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = priorTokenPath;
-      }
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
+it.each(["max_results", "context_lines"])("rejects injection in %s without executing it", async (field) => {
+  const marker = join(root, "injected");
+  expect(await runGrep({ pattern: "42", [field]: `1; touch ${marker} #` }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining(`${field} must be a finite integer`) });
+  expect(existsSync(marker)).toBe(false);
 });
 
-describe("grep: basic search", () => {
-  it("finds matches in files", async () => {
-    const result = await runGrep({ pattern: "42", path: TEST_DIR });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("42");
-  });
-
-  it("returns 'No matches found' for non-matching pattern", async () => {
-    const result = await runGrep({ pattern: "zzzznotfound", path: TEST_DIR });
-    expect(result.content).toBe("No matches found.");
-  });
-
-  it("includes line numbers in output", async () => {
-    const result = await runGrep({ pattern: "const y", path: TEST_DIR });
-    expect(result.content).toMatch(/:\d+:/); // file:line: format
-  });
-
-  it("searches recursively by default", async () => {
-    const result = await runGrep({ pattern: "hello", path: TEST_DIR });
-    expect(result.content).toContain("hello");
-    // Should find it in both hello.ts and sub/nested.ts
-    expect(result.content).toContain("hello.ts");
-  });
+it.each([
+  { max_results: 0 }, { max_results: 1.5 }, { max_results: 10001 },
+  { context_lines: -1 }, { context_lines: 1.5 }, { context_lines: 101 },
+])("rejects invalid numeric options %j", async (input) => {
+  expect(await runGrep({ pattern: "42", ...input }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("must be a finite integer") });
 });
 
-describe("grep: filtering", () => {
-  it("filters by file glob", async () => {
-    const result = await runGrep({
-      pattern: "42",
-      path: TEST_DIR,
-      file_glob: "*.py",
-    });
-    expect(result.content).toContain("42");
-    expect(result.content).toContain(".py");
-    expect(result.content).not.toContain(".ts");
-  });
-
-  it("respects max_results limit", async () => {
-    // Create a file with many distinct lines
-    writeFileSync(join(TEST_DIR, "many.txt"), Array.from({ length: 20 }, (_, i) => `match_${i}`).join("\n"));
-    const all = await runGrep({ pattern: "match_", path: join(TEST_DIR, "many.txt"), max_results: 50 });
-    const limited = await runGrep({ pattern: "match_", path: join(TEST_DIR, "many.txt"), max_results: 3 });
-    const allLines = all.content!.split("\n").filter((l: string) => l.includes("match_"));
-    const limitedLines = limited.content!.split("\n").filter((l: string) => l.includes("match_"));
-    expect(limitedLines.length).toBeLessThan(allLines.length);
-    expect(limitedLines.length).toBeLessThanOrEqual(3);
-  });
+it("rejects an empty search pattern", async () => {
+  expect(await runGrep({ pattern: "" }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("pattern is required") });
 });
 
-describe("grep: context lines", () => {
-  it("shows context around matches when requested", async () => {
-    const result = await runGrep({
-      pattern: "const y",
-      path: TEST_DIR,
-      context_lines: 1,
-    });
-    // Should include surrounding lines
-    expect(result.content).toContain("const x");
-  });
+it.each([".kota/daemon-control.json", ".kota/secrets.json", ".env", ".env.local"])("rejects direct credential search %s", async (path) => {
+  expect(await runGrep({ path, pattern: "token" }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("protected scope runtime credential") });
 });
 
-describe("grep: regex support", () => {
-  it("supports regex patterns", async () => {
-    const result = await runGrep({ pattern: "const [xy]", path: TEST_DIR });
-    expect(result.content).toContain("const");
-  });
-
-  it("handles special characters in patterns", async () => {
-    const result = await runGrep({ pattern: "def world\\(\\)", path: TEST_DIR });
-    expect(result.content).toContain("def world");
-  });
+it("excludes case aliases and custom operator credentials from recursive search", async () => {
+  mkdirSync(join(root, ".KOTA"));
+  for (const name of ["daemon-control.json", "secrets.json"]) writeFileSync(join(root, ".KOTA", name), "synthetic-secret");
+  const token = join(root, "machine[proof]*.dat");
+  writeFileSync(token, "synthetic-secret");
+  writeFileSync(join(root, "public.txt"), "public-observation");
+  vi.stubEnv("KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH", token);
+  const context = { cwd: root, authorityConfigPath: join(root, "config.json") };
+  expect(await runGrep({ pattern: "synthetic-secret", path: ".KOTA" }, context)).toEqual({ content: "No matches found." });
+  expect(await runGrep({ pattern: "synthetic-secret" }, context)).toEqual({ content: "No matches found." });
+  expect((await runGrep({ pattern: "public-observation" }, context)).content).toContain("public.txt");
 });
 
-describe("grep: files_only mode", () => {
-  it("returns only file paths, no line content", async () => {
-    const result = await runGrep({ pattern: "42", path: TEST_DIR, files_only: true });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("hello.ts");
-    expect(result.content).toContain("world.py");
-    // Should NOT have line numbers or content
-    expect(result.content).not.toMatch(/:\d+:/);
-  });
-
-  it("returns 'No matches found' when nothing matches", async () => {
-    const result = await runGrep({ pattern: "zzzznotfound", path: TEST_DIR, files_only: true });
-    expect(result.content).toBe("No matches found.");
-  });
-});
-
-describe("grep: count_only mode", () => {
-  it("returns match counts per file with total", async () => {
-    const result = await runGrep({ pattern: "42", path: TEST_DIR, count_only: true });
-    expect(result.is_error).toBeUndefined();
-    // Should contain file:count format
-    expect(result.content).toMatch(/:\d+$/m);
-    expect(result.content).toContain("Total:");
-    expect(result.content).toContain("matches in");
-  });
-
-  it("returns 'No matches found' when nothing matches", async () => {
-    const result = await runGrep({ pattern: "zzzznotfound", path: TEST_DIR, count_only: true });
-    expect(result.content).toBe("No matches found.");
-  });
-});
-
-describe("grep: files_only + file_glob filter", () => {
-  it("returns only matching files filtered by glob", async () => {
-    const result = await runGrep({
-      pattern: "42",
-      path: TEST_DIR,
-      files_only: true,
-      file_glob: "*.py",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("world.py");
-    expect(result.content).not.toContain("hello.ts");
-  });
-
-  it("returns no matches when glob excludes all matching files", async () => {
-    const result = await runGrep({
-      pattern: "42",
-      path: TEST_DIR,
-      files_only: true,
-      file_glob: "*.md",
-    });
-    expect(result.content).toBe("No matches found.");
-  });
-});
-
-describe("grep: count_only + file_glob filter", () => {
-  it("returns counts only for files matching glob", async () => {
-    const result = await runGrep({
-      pattern: "42",
-      path: TEST_DIR,
-      count_only: true,
-      file_glob: "*.py",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("world.py");
-    expect(result.content).not.toContain("hello.ts");
-    expect(result.content).toContain("Total:");
-  });
-});
-
-describe("grep: invalid regex handling", () => {
-  it("returns error for invalid regex in default mode", async () => {
-    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Search error");
-  });
-
-  it("returns error for invalid regex in files_only mode", async () => {
-    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR, files_only: true });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Search error");
-  });
-
-  it("returns error for invalid regex in count_only mode", async () => {
-    const result = await runGrep({ pattern: "[invalid", path: TEST_DIR, count_only: true });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Search error");
-  });
-});
-
-describe("formatCountOutput", () => {
-  it("sums counts and filters zero-count entries", () => {
-    const raw = "src/a.ts:5\nsrc/b.ts:0\nsrc/c.ts:3";
-    const out = formatCountOutput(raw);
-    expect(out).toContain("src/a.ts:5");
-    expect(out).not.toContain("src/b.ts:0");
-    expect(out).toContain("src/c.ts:3");
-    expect(out).toContain("Total: 8 matches in 2 files");
-  });
-
-  it("returns no matches for all-zero input", () => {
-    expect(formatCountOutput("src/a.ts:0\nsrc/b.ts:0")).toBe("No matches found.");
-  });
-
-  it("handles empty input", () => {
-    expect(formatCountOutput("")).toBe("No matches found.");
-  });
+it("normalizes count output from grep backends including empty and zero-count entries", () => {
+  expect(formatCountOutput("a.ts:5\nb.ts:0\nc.ts:3")).toBe("a.ts:5\nc.ts:3\n\nTotal: 8 matches in 2 files");
+  expect(formatCountOutput("a.ts:0\nb.ts:0")).toBe("No matches found.");
+  expect(formatCountOutput("")).toBe("No matches found.");
 });

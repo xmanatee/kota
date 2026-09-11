@@ -1,131 +1,39 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { checkFreshness, recordRead } from "#core/file-tracking/file-tracker.js";
 import { runFileWrite } from "./file-write.js";
 
-const TEST_DIR = mkdtempSync(join(tmpdir(), "kota-file-write-"));
+let root: string;
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), "file-write-")); });
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-afterAll(() => {
-  rmSync(TEST_DIR, { recursive: true, force: true });
+it.each([
+  [{ content: "hello" }, "path is required"],
+  [{ path: "", content: "hello" }, "path is required"],
+  [{ path: "input.txt" }, "content is required"],
+  [{ path: "input.txt", content: null }, "content is required"],
+])("rejects invalid write %j", async (input, error) => {
+  expect(await runFileWrite(input, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining(error) });
+  expect(existsSync(join(root, "input.txt"))).toBe(false);
 });
 
-describe("file_write: validation", () => {
-  it("rejects missing path", async () => {
-    const result = await runFileWrite({ content: "hello" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("path is required");
-  });
-
-  it("rejects empty path", async () => {
-    const result = await runFileWrite({ path: "", content: "hello" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("path is required");
-  });
-
-  it("rejects missing content", async () => {
-    const result = await runFileWrite({ path: join(TEST_DIR, "no-content.txt") });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("content is required");
-  });
-
-  it("rejects null content", async () => {
-    const result = await runFileWrite({ path: join(TEST_DIR, "null.txt"), content: null });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("content is required");
-  });
+it.each(["", "one\ntwo\nthree"])("creates nested files relative to the selected scope: %s", async (content) => {
+  const result = await runFileWrite({ path: "nested/file.txt", content }, { cwd: root });
+  expect(result.is_error).toBeUndefined();
+  expect(result.content).toContain(`${content.split("\n").length} lines`);
+  expect(readFileSync(join(root, "nested/file.txt"), "utf8")).toBe(content);
 });
 
-describe("file_write: creating new files", () => {
-  it("creates a new file", async () => {
-    const path = join(TEST_DIR, "new-file.txt");
-    const result = await runFileWrite({ path, content: "hello world" });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("1 lines");
-    expect(readFileSync(path, "utf-8")).toBe("hello world");
-  });
-
-  it("creates a multi-line file and reports correct line count", async () => {
-    const path = join(TEST_DIR, "multi-line.txt");
-    const content = "line1\nline2\nline3";
-    const result = await runFileWrite({ path, content });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("3 lines");
-    expect(readFileSync(path, "utf-8")).toBe(content);
-  });
-
-  it("creates parent directories automatically", async () => {
-    const path = join(TEST_DIR, "nested", "deep", "file.txt");
-    const result = await runFileWrite({ path, content: "deep content" });
-    expect(result.is_error).toBeUndefined();
-    expect(existsSync(path)).toBe(true);
-    expect(readFileSync(path, "utf-8")).toBe("deep content");
-  });
-
-  it("resolves relative paths against context cwd", async () => {
-    const scopeRoot = join(TEST_DIR, "context-project");
-    const result = await runFileWrite(
-      { path: "scoped.txt", content: "scoped content" },
-      { cwd: scopeRoot },
-    );
-
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(join(scopeRoot, "scoped.txt"), "utf-8")).toBe("scoped content");
-    expect(existsSync(join(process.cwd(), "scoped.txt"))).toBe(false);
-  });
-
-  it("creates an empty file", async () => {
-    const path = join(TEST_DIR, "empty.txt");
-    const result = await runFileWrite({ path, content: "" });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe("");
-  });
-});
-
-describe("file_write: overwriting existing files", () => {
-  it("overwrites an existing file", async () => {
-    const path = join(TEST_DIR, "overwrite.txt");
-    writeFileSync(path, "old content", "utf-8");
-    const result = await runFileWrite({ path, content: "new content" });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe("new content");
-  });
-});
-
-describe("file_write: unfinished content", () => {
-  it("keeps new files with unfinished JSON", async () => {
-    const path = join(TEST_DIR, "bad-new.json");
-    const result = await runFileWrite({ path, content: "{invalid json,,}" });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe("{invalid json,,}");
-  });
-
-  it("keeps unfinished overwrites of existing files", async () => {
-    const path = join(TEST_DIR, "bad-existing.json");
-    writeFileSync(path, '{"valid": true}', "utf-8");
-    const result = await runFileWrite({ path, content: "{broken,,}" });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe("{broken,,}");
-  });
-
-  it("accepts valid JSON", async () => {
-    const path = join(TEST_DIR, "good.json");
-    const content = '{"name": "test", "value": 42}';
-    const result = await runFileWrite({ path, content });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe(content);
-  });
-
-  it("records unfinished overwrites without false stale warnings", async () => {
-    const path = join(TEST_DIR, "stale-write.json");
-    writeFileSync(path, '{"valid": true}', "utf-8");
-    recordRead(path);
-
-    const result = await runFileWrite({ path, content: "{broken,,}" });
-    expect(result.is_error).toBeUndefined();
-    expect(readFileSync(path, "utf-8")).toBe("{broken,,}");
-
+it.each([false, true])("preserves unfinished JSON then accepts corrected contents; existed=%s", async (existed) => {
+  const path = join(root, "input.json");
+  if (existed) { writeFileSync(path, '{"old":true}'); recordRead(path); }
+  expect((await runFileWrite({ path, content: "{broken,,}" })).is_error).toBeUndefined();
+  expect(readFileSync(path, "utf8")).toBe("{broken,,}");
+  if (existed) {
     expect(checkFreshness(path)).toBeNull();
-  });
+  }
+  expect((await runFileWrite({ path, content: '{"new":true}' })).is_error).toBeUndefined();
+  expect(readFileSync(path, "utf8")).toBe('{"new":true}');
 });

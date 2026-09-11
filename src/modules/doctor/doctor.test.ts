@@ -1,861 +1,114 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type AgentHarness,
-  type AgentHarnessAdapterKind,
-  type AgentHarnessAuthProbe,
-  clearAgentHarnessRegistryForTest,
-  registerAgentHarness,
-  UNKNOWN_AGENT_USAGE,
-} from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
-import type { StrandedDaemonInspection } from "#core/daemon/stranded-daemon.js";
-import { loadModuleMetadata } from "#core/modules/module-metadata.js";
-import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
-import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes, runDoctorReport } from "./index.js";
+import { createModelClient, type ModelClient } from "#core/model/model-client.js";
+import { runDoctorFixes } from "./doctor-fixes.js";
+import { checkProviderConnectivity } from "./doctor-provider-checks.js";
 
-const strandedDaemonMocks = vi.hoisted(() => ({
-  detectStrandedDaemonProcess: vi.fn<() => StrandedDaemonInspection>(() => ({ kind: "none" })),
+vi.mock("#core/config/config.js", () => ({ loadConfig: vi.fn(() => ({})) }));
+vi.mock("#core/model/model-client.js", () => ({ createModelClient: vi.fn() }));
+// Credentials are an external port. Keep provider selection and display policy real.
+vi.mock("#core/config/secrets.js", () => ({
+  getScopeSecretStore: () => ({ get: () => null }),
 }));
-
-vi.mock("#core/workflow/validation.js", () => ({
-  validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
-  WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
-}));
-
-vi.mock("#core/modules/module-metadata.js", () => ({
-  loadModuleMetadata: vi.fn(async () => ({
-    getModuleSummaries: () => [{ name: "test-module" }],
-    getContributedWorkflows: () => [],
-    getAgentDef: (name: string) =>
-      name === "doctor-agent"
-        ? {
-            name: "doctor-agent",
-            role: "Check workflows.",
-            promptPath: "AGENTS.md",
-            model: "doctor-agent-model",
-            effort: "low",
-            writeScope: [],
-          }
-        : undefined,
-    unloadAll: vi.fn(),
-  })),
-}));
-
-vi.mock("#core/config/config.js", () => ({
-  loadConfig: vi.fn(() => ({})),
-}));
-
-vi.mock("#core/server/daemon-transport.js", () => ({
-  getDaemonTransport: vi.fn(() => null),
-}));
-
-vi.mock("#core/daemon/stranded-daemon.js", () => ({
-  detectStrandedDaemonProcess: strandedDaemonMocks.detectStrandedDaemonProcess,
-}));
-
-vi.mock("#core/model/model-client.js", () => ({
-  createModelClient: vi.fn(() => ({
-    client: {
-      messages: {
-        create: vi.fn(async () => ({ id: "msg_test", content: [], role: "assistant" })),
-      },
-    },
-    model: "claude-haiku-4-5-20251001",
-    providerName: "anthropic",
-  })),
-}));
-
-vi.mock("#modules/model-clients/factory.js", () => ({
-  apiKeyNameForProvider: vi.fn((providerName: string) =>
-    providerName === "ollama" || providerName === "lmstudio"
-      ? ""
-      : providerName === "anthropic"
-        ? "ANTHROPIC_API_KEY"
-        : `${providerName.toUpperCase()}_API_KEY`,
-  ),
-  resolveApiKey: vi.fn(() => "sk-ant-test-key"),
-  resolveModelProviderName: vi.fn((model: string, explicitProvider?: string) => {
-    if (explicitProvider) return explicitProvider;
-    const slash = model.indexOf("/");
-    return slash > 0 ? model.slice(0, slash) : undefined;
-  }),
-}));
-
-function makeTmpDir(): string {
-  const dir = join(
-    tmpdir(),
-    `kota-doctor-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  );
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function registerReadinessHarness(
-  name: string,
-  adapterKind: AgentHarnessAdapterKind,
-  authStatus: "ready" | "expiring" | "missing" = "ready",
-  authDetail?: string,
-): void {
-  const hasHarnessManagedAuth =
-    name === "codex" ||
-    name === "gemini-cli" ||
-    name === "antigravity-cli";
-  const authCommand =
-    name === "codex"
-      ? "codex login status"
-      : name === "gemini-cli"
-        ? "gemini"
-        : "agy";
-  const authReadySummary =
-    name === "codex"
-      ? "Codex ChatGPT login active"
-      : name === "gemini-cli"
-        ? "Gemini CLI Google login cached"
-        : "Antigravity CLI Google login active";
-  const authMissingSummary =
-    name === "codex"
-      ? "Codex ChatGPT login not active; run `codex login`"
-      : name === "gemini-cli"
-        ? "Gemini CLI login not active; run `gemini` and sign in"
-        : "Antigravity CLI login not active; run `agy` and sign in";
-  const authProbe = makeHarnessAuthProbe({
-    authCommand,
-    authDetail,
-    authMissingSummary,
-    authReadySummary,
-    authStatus,
-    name,
-  });
-  const harness: AgentHarness = {
-    name,
-    description: `${name} test harness`,
-    supportsMultiTurn: true,
-    supportedHookKinds: [],
-    askOwnerToolName: null,
-    emitsAgentMessageStream: false,
-    toolControl: adapterKind === "native-cli" ? "native" : "kota",
-    readiness: () => ({
-      adapterKind,
-      localRuntime: {
-        kind: "node-package",
-        status: "ready",
-        required: true,
-        packageName: `${name}-runtime`,
-        version: "1.0.0",
-        summary: `${name}-runtime@1.0.0`,
-      },
-      ...(hasHarnessManagedAuth
-        ? {
-            localAuth: authProbe,
-          }
-        : {}),
-      optionalRuntimes: [],
-      unsupportedOptions:
-        name === "antigravity-cli"
-          ? [
-              {
-                runOption: "canUseTool",
-                option: "canUseTool",
-                reason: "AGY owns tool policy.",
-              },
-            ]
-          : [],
-    }),
-    run: async () => ({
-      text: "",
-      streamedText: "",
-      turns: 0,
-      usage: UNKNOWN_AGENT_USAGE,
-      isError: false,
-    }),
-  };
-  registerAgentHarness(harness);
-}
-
-function makeHarnessAuthProbe(args: {
-  readonly authCommand: string;
-  readonly authDetail?: string;
-  readonly authMissingSummary: string;
-  readonly authReadySummary: string;
-  readonly authStatus: "ready" | "expiring" | "missing";
-  readonly name: string;
-}): AgentHarnessAuthProbe {
-  if (args.authStatus === "expiring") {
-    const expiresAt = "2026-06-22T00:30:00.000Z";
-    return {
-      kind: "harness-managed-login",
-      status: "expiring",
-      required: true,
-      command: args.authCommand,
-      detail: `${args.name} cached login expires at ${expiresAt}`,
-      summary:
-        args.name === "gemini-cli"
-          ? "Gemini CLI Google login expires soon"
-          : `${args.authReadySummary} expires soon`,
-      expiresAt,
-      renewalSummary:
-        args.name === "gemini-cli"
-          ? "run `gemini` and sign in again before unattended runs"
-          : args.authMissingSummary,
-    };
-  }
-  return {
-    kind: "harness-managed-login",
-    status: args.authStatus,
-    required: true,
-    command: args.authCommand,
-    detail:
-      args.authDetail ??
-      (args.authStatus === "ready" ? args.authReadySummary : "Not logged in"),
-    summary:
-      args.authStatus === "ready"
-        ? args.authReadySummary
-        : args.authMissingSummary,
-  };
-}
-
+let root: string;
 beforeEach(() => {
-  vi.mocked(loadConfig).mockReturnValue({});
-  strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValue({
-    kind: "none",
+  root = mkdtempSync(join(tmpdir(), "kota-doctor-"));
+  mkdirSync(join(root, ".kota"));
+  vi.mocked(loadConfig).mockReturnValue({
+    model: "anthropic/probe", modelProvider: { apiKey: "synthetic-provider-secret" },
   });
-  clearAgentHarnessRegistryForTest();
-  registerReadinessHarness("claude-agent-sdk", "agent-sdk");
-  registerReadinessHarness("codex", "native-cli", "ready");
-  registerReadinessHarness("openai-tools", "provider-sdk");
-  registerReadinessHarness("gemini", "provider-sdk");
-  registerReadinessHarness("gemini-cli", "native-cli", "ready");
-  registerReadinessHarness("antigravity-cli", "native-cli", "ready");
+  vi.mocked(createModelClient).mockReset();
 });
-
 afterEach(() => {
-  clearAgentHarnessRegistryForTest();
+  vi.unstubAllEnvs();
+  rmSync(root, { recursive: true, force: true });
 });
 
-describe("kota doctor — offline path", () => {
-  let scopeRoot: string;
+function write(path: string, content: string): string {
+  const target = join(root, path);
+  writeFileSync(target, content);
+  return target;
+}
 
-  beforeEach(() => {
-    scopeRoot = makeTmpDir();
-    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+describe("doctor repairs", () => {
+  it.each([
+    ["absent", undefined, "skipped", false],
+    ["dead", JSON.stringify({ pid: 99999999 }), "repaired", false],
+    ["live", JSON.stringify({ pid: process.pid }), "skipped", true],
+    ["malformed", "{ invalid", "manual", true],
+  ] as const)("preserves or removes the %s control file according to liveness", (_, content, action, remains) => {
+    const path = join(root, ".kota/daemon-control.json");
+    if (content !== undefined) writeFileSync(path, content);
+    const repairs = runDoctorFixes(root);
+    expect(repairs.find((r) => r.item.includes("daemon-control.json"))?.action).toBe(action);
+    expect(existsSync(path)).toBe(remains);
+    if (remains) expect(readFileSync(path, "utf8")).toBe(content);
   });
 
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("passes disk check when .kota/ exists and is writable", async () => {
-    const results = await runDoctorChecks(scopeRoot);
-    const disk = results.find((r) => r.label.startsWith("Disk: .kota/ directory"));
-    expect(disk?.status).toBe("pass");
-    const writable = results.find((r) => r.label.startsWith("Disk: .kota/ writable"));
-    expect(writable?.status).toBe("pass");
-  });
-
-  it("fails disk check when .kota/ is missing", async () => {
-    rmSync(join(scopeRoot, ".kota"), { recursive: true });
-    const results = await runDoctorChecks(scopeRoot);
-    const disk = results.find((r) => r.label.startsWith("Disk: .kota/ directory"));
-    expect(disk?.status).toBe("fail");
-  });
-
-  it("warns about daemon not running", async () => {
-    const results = await runDoctorChecks(scopeRoot);
-    const daemon = results.find((r) => r.label === "Daemon");
-    expect(daemon?.status).toBe("warn");
-  });
-
-  it("fails when a daemon process is alive without a control API", async () => {
-    strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValueOnce({
-      kind: "stranded",
-      pid: 4242,
-      command: "/opt/node /repo/dist/cli.js daemon",
-    });
-
-    const results = await runDoctorChecks(scopeRoot);
-    const daemon = results.find((r) => r.label === "Daemon");
-    expect(daemon?.status).toBe("fail");
-    expect(daemon?.detail).toContain("pid 4242");
-    expect(daemon?.detail).toContain("no daemon-control.json/control API");
-  });
-
-  it("does not treat daemon-state.json as a live daemon lock", async () => {
-    writeFileSync(
-      join(scopeRoot, ".kota", "daemon-state.json"),
-      JSON.stringify({
-        pid: 99999999,
-        startedAt: "2026-04-22T10:00:00.000Z",
-      }),
-    );
-    const results = await runDoctorChecks(scopeRoot);
-    const daemon = results.find((r) => r.label === "Daemon");
-    expect(daemon?.detail).toBe("No daemon-control.json found — daemon is not running");
-  });
-
-  it("warns about missing scope config", async () => {
-    const results = await runDoctorChecks(scopeRoot);
-    const cfg = results.find((r) => r.label.startsWith("Config: project"));
-    expect(cfg?.status).toBe("warn");
-  });
-
-  it("fails config check for invalid JSON", async () => {
-    writeFileSync(join(scopeRoot, ".kota", "config.json"), "{ not valid json");
-    const results = await runDoctorChecks(scopeRoot);
-    const cfg = results.find((r) => r.label.startsWith("Config: project"));
-    expect(cfg?.status).toBe("fail");
-  });
-
-  it("passes config check for valid config.json", async () => {
-    writeFileSync(join(scopeRoot, ".kota", "config.json"), JSON.stringify({ model: "claude-opus-4-7" }));
-    const results = await runDoctorChecks(scopeRoot);
-    const cfg = results.find((r) => r.label.startsWith("Config: project"));
-    expect(cfg?.status).toBe("pass");
-  });
-
-  it("passes workflow check with valid shipped workflow definitions", async () => {
-    const results = await runDoctorChecks(scopeRoot);
-    const wf = results.find((r) => r.label.startsWith("Workflows"));
-    expect(wf?.status).toBe("pass");
-  });
-
-  it("passes registered agents into offline workflow validation", async () => {
-    vi.mocked(validateWorkflowDefinitions).mockClear();
-
-    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
-    const wf = results.find((r) => r.label.startsWith("Workflows"));
-    expect(wf?.status).toBe("pass");
-
-    const options = vi.mocked(validateWorkflowDefinitions).mock.calls[0]?.[2];
-    expect(options?.resolveAgentDef?.("doctor-agent")).toMatchObject({
-      name: "doctor-agent",
-      promptPath: "AGENTS.md",
-      model: "doctor-agent-model",
-      effort: "low",
-    });
-    expect(vi.mocked(loadModuleMetadata)).toHaveBeenCalled();
-  });
-
-  it("returns results for all check categories", async () => {
-    const results = await runDoctorChecks(scopeRoot);
-    const labels = results.map((r) => r.label);
-    expect(labels.some((l) => l.startsWith("Daemon"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Config:"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Modules"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Providers"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Workflows"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
-  });
-
-  it("renders capability readiness rows when the daemon reports them", async () => {
-    const { getDaemonTransport } = await import("#core/server/daemon-transport.js");
-    const stub = vi.mocked(getDaemonTransport);
-    const transport = {
-      baseUrl: "http://127.0.0.1:0",
-      authHeaders: () => ({}),
-      request: async <T,>(_method: string, path: string) => {
-        if (path === "/status") return { pid: 1234, startedAt: "2026-04-29T00:00:00.000Z" } as T;
-        if (path === "/health") return { status: "ok", components: { scheduler: "ok", modules: "ok" } } as T;
-        if (path === "/workflow/definitions") return { definitions: [{ name: "builder" }] } as T;
-        if (path === "/capabilities") return {
-          capabilities: [
-            { id: "knowledge.search", moduleName: "knowledge", status: "ready", message: "ready text" },
-            {
-              id: "knowledge.semantic_search",
-              moduleName: "knowledge",
-              status: "unavailable",
-              reason: "embedding_unsupported",
-              message: "load knowledge-semantic",
-            },
-            {
-              id: "broken",
-              moduleName: "broken",
-              status: "init_failed",
-              reason: "probe_threw",
-              message: "boom",
-            },
-          ],
-          summary: { ready: 1, unavailable: 1, init_failed: 1 },
-        } as T;
-        return null;
-      },
-      requestStrict: async () => {
-        throw new Error("not implemented in test");
-      },
-      fetchRaw: async () => {
-        throw new Error("not implemented in test");
-      },
-      events: async function* () { /* no events */ },
-    };
-    stub.mockReturnValueOnce(transport);
-
-    const results = await runDoctorChecks(scopeRoot);
-    const ready = results.find((r) => r.label === "Capability: knowledge.search");
-    expect(ready?.status).toBe("pass");
-    expect(ready?.detail).toBe("ready text");
-    const unavailable = results.find((r) => r.label === "Capability: knowledge.semantic_search");
-    expect(unavailable?.status).toBe("warn");
-    expect(unavailable?.detail).toBe("load knowledge-semantic");
-    const broken = results.find((r) => r.label === "Capability: broken");
-    expect(broken?.status).toBe("fail");
-  });
-
-
-
-
-});
-
-describe("kota doctor --fix", () => {
-  let scopeRoot: string;
-
-  beforeEach(() => {
-    scopeRoot = makeTmpDir();
-    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("skips lock file when no daemon-control.json exists", () => {
-    const repairs = runDoctorFixes(scopeRoot);
-    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
-    expect(lock?.action).toBe("skipped");
-  });
-
-  it("removes stale lock file when PID is not alive", () => {
-    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
-    writeFileSync(lockFile, JSON.stringify({ pid: 99999999, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
-    const repairs = runDoctorFixes(scopeRoot);
-    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
-    expect(lock?.action).toBe("repaired");
-    expect(existsSync(lockFile)).toBe(false);
-  });
-
-  it("skips lock file removal when PID is alive (own process)", () => {
-    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
-    writeFileSync(lockFile, JSON.stringify({ pid: process.pid, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
-    const repairs = runDoctorFixes(scopeRoot);
-    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
-    expect(lock?.action).toBe("skipped");
-    expect(existsSync(lockFile)).toBe(true);
-  });
-
-  it("reports manual action for unparseable lock file", () => {
-    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
-    writeFileSync(lockFile, "{ not valid json");
-    const repairs = runDoctorFixes(scopeRoot);
-    const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
-    expect(lock?.action).toBe("manual");
-  });
-
-  it("creates missing .kota/ and .kota/runs/ directories", () => {
-    rmSync(join(scopeRoot, ".kota"), { recursive: true });
-    const repairs = runDoctorFixes(scopeRoot);
-    const kotaRepair = repairs.find((r) => r.item.includes("Directory:") && !r.item.includes("runs"));
-    const runsRepair = repairs.find((r) => r.item.includes("runs"));
-    const extensionsRepair = repairs.find((r) => r.item.includes(".kota/modules"));
-    expect(kotaRepair?.action).toBe("repaired");
-    expect(runsRepair?.action).toBe("repaired");
-    expect(extensionsRepair?.action).toBe("repaired");
-    expect(existsSync(join(scopeRoot, ".kota"))).toBe(true);
-    expect(existsSync(join(scopeRoot, ".kota", "runs"))).toBe(true);
-    expect(existsSync(join(scopeRoot, ".kota", "modules"))).toBe(true);
-  });
-
-  it("skips directory creation when directories already exist", () => {
-    mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(scopeRoot, ".kota", "modules"), { recursive: true });
-    const repairs = runDoctorFixes(scopeRoot);
-    const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
-    expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
-  });
-
-  it("preserves repository directories regardless of names that resemble runtime state", () => {
-    mkdirSync(join(scopeRoot, "runs", "some-run"), { recursive: true });
-    mkdirSync(join(scopeRoot, "kota", "runs", "some-run"), { recursive: true });
-    const repairs = runDoctorFixes(scopeRoot);
-    expect(repairs.every((repair) => !repair.item.startsWith("Stray directory:"))).toBe(true);
-    expect(existsSync(join(scopeRoot, "runs", "some-run"))).toBe(true);
-    expect(existsSync(join(scopeRoot, "kota", "runs", "some-run"))).toBe(true);
-  });
-
-
-
-  it("preserves daemon-state.json because daemon-control.json owns liveness", () => {
-    const stateFile = join(scopeRoot, ".kota", "daemon-state.json");
-    writeFileSync(
-      stateFile,
-      JSON.stringify({
-        pid: 99999999,
-        startedAt: "2026-04-22T10:00:00.000Z",
-      }),
-    );
-    const repairs = runDoctorFixes(scopeRoot);
-    expect(repairs.some((r) => r.item.includes("daemon-state.json"))).toBe(false);
-    expect(existsSync(stateFile)).toBe(true);
-  });
-
-  it("preserves stored knowledge regardless of historical record types", () => {
-    const dataDir = join(scopeRoot, ".kota", "data");
-    const staleFile = join(dataDir, "stale.md");
-    const noteFile = join(dataDir, "note.md");
-    mkdirSync(dataDir, { recursive: true });
-    writeFileSync(
-      staleFile,
-      "---\nid: stale\ntitle: Stale\ntype: run-insight\nstatus: active\n---\n\nRun summary\n",
-    );
-    writeFileSync(
-      noteFile,
-      "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
-    );
-
-    const repairs = runDoctorFixes(scopeRoot);
-    expect(repairs.every((repair) => !repair.item.includes("run-insight"))).toBe(true);
-    expect(existsSync(staleFile)).toBe(true);
-    expect(existsSync(noteFile)).toBe(true);
-  });
-
-});
-
-describe("kota doctor — provider connectivity check", () => {
-  let scopeRoot: string;
-
-  beforeEach(() => {
-    scopeRoot = makeTmpDir();
-    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
-    vi.mocked(loadConfig).mockReturnValue({
-      model: "anthropic/claude-haiku-4-5-20251001",
-    });
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
-
-  it("passes when the model client responds successfully", async () => {
-    const { createModelClient } = await import("#core/model/model-client.js");
-    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
-    const secret = "sk-ant-sensitive-provider-key";
-    vi.mocked(resolveApiKey).mockReturnValue(secret);
-    vi.mocked(createModelClient).mockReturnValueOnce({
-      client: {
-        messages: {
-          stream: vi.fn(),
-          create: vi.fn(async () => ({ id: "msg_ok" }) as never),
-        },
-      },
-      model: "claude-haiku-4-5-20251001",
-      providerName: "anthropic",
-    });
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.status).toBe("pass");
-    expect(results[0]?.detail).toContain("Reachable");
-    expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
-    expect(results[0]?.detail).not.toContain(secret);
-    expect(results[0]?.detail).not.toContain(secret.slice(0, 8));
-  });
-
-  it("fails with authentication error on 401/403 response", async () => {
-    const { createModelClient } = await import("#core/model/model-client.js");
-    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
-    const secret = "sk-ant-auth-failure-key";
-    vi.mocked(resolveApiKey).mockReturnValue(secret);
-    const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
-    // Mimic Anthropic SDK AuthenticationError check via message pattern
-    vi.mocked(createModelClient).mockReturnValueOnce({
-      client: {
-        messages: {
-          stream: vi.fn(),
-          create: vi.fn(async () => { throw new Error("OpenAI API error 401: Unauthorized"); }),
-        },
-      },
-      model: "claude-haiku-4-5-20251001",
-      providerName: "anthropic",
-    });
-    void authErr;
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.status).toBe("fail");
-    expect(results[0]?.detail).toContain("Authentication failed");
-    expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
-    expect(results[0]?.detail).not.toContain(secret);
-    expect(results[0]?.detail).not.toContain(secret.slice(0, 8));
-  });
-
-  it("keeps resolved API key material out of doctor report JSON", async () => {
-    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
-    const secret = "sk-ant-json-report-secret";
-    vi.mocked(resolveApiKey).mockReturnValue(secret);
-
-    const report = await runDoctorReport(scopeRoot);
-    const encoded = JSON.stringify(report);
-    expect(encoded).toContain("ANTHROPIC_API_KEY=(set)");
-    expect(encoded).not.toContain(secret);
-    expect(encoded).not.toContain(secret.slice(0, 8));
-  });
-
-  it("does not expose inline config API key values", async () => {
-    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
-    const explicitKey = "sk-inline-config-provider-key";
-    vi.mocked(loadConfig).mockReturnValueOnce({
-      model: "anthropic/claude-haiku-4-5-20251001",
-      modelProvider: { type: "anthropic", apiKey: explicitKey },
-    });
-    vi.mocked(resolveApiKey).mockReturnValueOnce(explicitKey);
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.detail).toContain("key: config.modelProvider.apiKey=(set)");
-    expect(results[0]?.detail).not.toContain(explicitKey);
-    expect(results[0]?.detail).not.toContain(explicitKey.slice(0, 8));
-  });
-
-  it("fails with unreachable message on network error", async () => {
-    const { createModelClient } = await import("#core/model/model-client.js");
-    vi.mocked(loadConfig).mockReturnValueOnce({
-      model: "ollama/llama3",
-    });
-    vi.mocked(createModelClient).mockReturnValueOnce({
-      client: {
-        messages: {
-          stream: vi.fn(),
-          create: vi.fn(async () => { throw new Error("ECONNREFUSED connect ECONNREFUSED 127.0.0.1:11434"); }),
-        },
-      },
-      model: "llama3",
-      providerName: "ollama",
-    });
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.status).toBe("fail");
-    expect(results[0]?.detail).toContain("Unreachable");
-  });
-
-  it("warns when API key is not set", async () => {
-    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
-    vi.mocked(resolveApiKey).mockReturnValueOnce("");
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.status).toBe("warn");
-    expect(results[0]?.detail).toContain("not set");
-  });
-
-  it("warns when no model provider is configured", async () => {
-    vi.mocked(loadConfig).mockReturnValueOnce({ model: "claude-haiku-4-5-20251001" });
-
-    const results = await checkProviderConnectivity(scopeRoot);
-    expect(results[0]?.status).toBe("warn");
-    expect(results[0]?.label).toBe("Provider connectivity");
-    expect(results[0]?.detail).toContain("No model provider configured");
-  });
-
-  it("skips probe and warns when --skip-connectivity is passed", async () => {
-    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
-    const conn = results.find((r) => r.label === "Provider connectivity");
-    expect(conn?.status).toBe("warn");
-    expect(conn?.detail).toContain("Skipped");
-  });
-});
-
-describe("kota doctor --preset preflight", () => {
-  let scopeRoot: string;
-  const ORIGINAL_ENV = { ...process.env };
-
-  beforeEach(() => {
-    scopeRoot = makeTmpDir();
-    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.GOOGLE_API_KEY;
-    delete process.env.KOTA_PRESET;
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-    process.env = { ...ORIGINAL_ENV };
-    vi.restoreAllMocks();
-  });
-
-  it("passes for codex preset without OPENAI_API_KEY when Codex ChatGPT login is active", async () => {
-    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: codex");
-    expect(presetRow?.status).toBe("pass");
-    expect(presetRow?.detail).toContain("harness-managed auth");
-    expect(presetRow?.detail).toContain("Codex ChatGPT login active");
-  });
-
-  it("redacts harness-managed auth detail from doctor report metadata", async () => {
-    clearAgentHarnessRegistryForTest();
-    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
-    registerReadinessHarness(
-      "codex",
-      "native-cli",
-      "ready",
-      "Logged in using ChatGPT as operator@example.com",
-    );
-    registerReadinessHarness("openai-tools", "provider-sdk");
-    registerReadinessHarness("gemini", "provider-sdk");
-    registerReadinessHarness("gemini-cli", "native-cli", "ready");
-    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
-
-    const report = await runDoctorReport(scopeRoot, {
-      preset: "codex",
-      skipConnectivity: true,
-    });
-    const encoded = JSON.stringify(report);
-    const presetRow = report.checks.find((r) => r.label === "Preset: codex");
-    const rowReadiness = presetRow?.metadata?.presetReadiness;
-
-    expect(encoded).toContain("[redacted-email]");
-    expect(encoded).not.toContain("operator@example.com");
-    expect(rowReadiness?.adapter.localAuth?.detail).toContain("[redacted-email]");
-    expect(report.presetReadiness?.adapter.localAuth?.detail).toContain(
-      "[redacted-email]",
-    );
-    expect(rowReadiness?.auth.mode).toBe("harness-managed-login");
-    if (rowReadiness?.auth.mode === "harness-managed-login") {
-      expect(rowReadiness.auth.probe.detail).toContain("[redacted-email]");
+  it("creates canonical state directories and repeated repair is inert", () => {
+    rmSync(join(root, ".kota"), { recursive: true });
+    const repairs = runDoctorFixes(root);
+    for (const path of [".kota", ".kota/runs", ".kota/modules"]) {
+      expect(existsSync(join(root, path))).toBe(true);
+      expect(repairs).toContainEqual(expect.objectContaining({ item: `Directory: ${join(root, path)}`, action: "repaired" }));
     }
-    if (report.presetReadiness?.auth.mode === "harness-managed-login") {
-      expect(report.presetReadiness.auth.probe.detail).toContain(
-        "[redacted-email]",
-      );
-    }
+    expect(runDoctorFixes(root).every((r) => r.action === "skipped")).toBe(true);
   });
 
-  it("fails for codex preset when Codex ChatGPT login is not active", async () => {
-    clearAgentHarnessRegistryForTest();
-    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
-    registerReadinessHarness("codex", "native-cli", "missing");
-    registerReadinessHarness("openai-tools", "provider-sdk");
-    registerReadinessHarness("gemini", "provider-sdk");
-    registerReadinessHarness("gemini-cli", "native-cli", "ready");
-    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
+  it("preserves repository paths, historical knowledge and daemon state bytes", () => {
+    for (const path of ["runs/old", "kota/runs/old", ".kota/data"]) mkdirSync(join(root, path), { recursive: true });
+    const stale = write(".kota/data/stale.md", "---\ntype: run-insight\n---\nOld report\n");
+    const note = write(".kota/data/note.md", "---\ntype: note\n---\nKeep this\n");
+    const state = write(".kota/daemon-state.json", '{"pid":99999999}');
+    const repairs = runDoctorFixes(root);
+    expect(repairs.every((repair) => repair.action === "skipped" || repair.item.startsWith("Directory:"))).toBe(true);
+    expect(readFileSync(stale, "utf8")).toBe("---\ntype: run-insight\n---\nOld report\n");
+    for (const path of [join(root, "runs/old"), join(root, "kota/runs/old")]) expect(existsSync(path)).toBe(true);
+    expect(readFileSync(note, "utf8")).toBe("---\ntype: note\n---\nKeep this\n");
+    expect(readFileSync(state, "utf8")).toBe('{"pid":99999999}');
+    expect(runDoctorFixes(root).every((r) => r.action === "skipped")).toBe(true);
+  });
+});
 
-    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: codex");
-    const authRow = results.find((r) => r.label === "Preset auth: codex");
-    expect(presetRow?.status).toBe("fail");
-    expect(authRow?.status).toBe("fail");
-    expect(authRow?.detail).toContain("run `codex login`");
+describe("doctor provider connectivity", () => {
+  it.each([
+    [undefined, "pass", "Reachable"],
+    ["OpenAI API error 401: Unauthorized", "fail", "Authentication failed"],
+    ["OpenAI API error 403: Forbidden", "fail", "Authentication failed"],
+    ["ECONNREFUSED", "fail", "Unreachable"],
+  ] as const)("reports probe result %s without exposing credentials", async (error, status, detail) => {
+    const create = vi.fn<ModelClient["messages"]["create"]>(async () => {
+      if (error) throw new Error(error);
+      return { id: "probe", type: "message", role: "assistant", model: "probe", content: [], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } };
+    });
+    vi.mocked(createModelClient).mockReturnValue({
+      model: "probe", providerName: "anthropic", client: { messages: { create, stream: () => { throw new Error("unexpected streaming"); } } },
+    });
+    const results = await checkProviderConnectivity(root);
+    expect(results[0]).toMatchObject({ status, detail: expect.stringContaining(detail) });
+    const encoded = JSON.stringify(results);
+    expect(encoded).not.toContain("synthetic-provider-secret");
+    if (error !== "ECONNREFUSED") expect(encoded).toContain("config.modelProvider.apiKey=(set)");
+    expect(create).toHaveBeenCalledWith({ model: "probe", max_tokens: 1, messages: [{ role: "user", content: "hi" }] });
   });
 
   it.each([
-    ["claude", "agent-sdk"],
-    ["codex", "native-cli"],
-    ["openrouter", "provider-sdk"],
-    ["gemini", "provider-sdk"],
-    ["gemini-cli", "native-cli"],
-    ["antigravity-cli", "native-cli"],
-  ])("renders readiness rows for preset=%s", async (preset, adapterKind) => {
-    const results = await runDoctorChecks(scopeRoot, { preset, skipConnectivity: true });
-    expect(results.find((r) => r.label === `Preset: ${preset}`)?.metadata?.presetReadiness?.presetId).toBe(preset);
-    expect(results.find((r) => r.label === `Preset tiers: ${preset}`)?.detail).toContain("capable=");
-    expect(results.find((r) => r.label === `Preset adapter: ${preset}`)?.detail).toContain(`kind=${adapterKind}`);
-    expect(results.find((r) => r.label === `Preset runtime: ${preset}`)?.detail).toContain("@1.0.0");
-    expect(results.find((r) => r.label === `Preset supported capabilities: ${preset}`)).toBeDefined();
-    expect(results.find((r) => r.label === `Preset intentional limits: ${preset}`)).toBeDefined();
+    [{ model: "unqualified" }, "No model provider configured"],
+    [{ model: "anthropic/probe" }, "API key not set"],
+  ])("does not send a probe without a resolved provider and credential: %j", async (config, detail) => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.mocked(loadConfig).mockReturnValue(config);
+    expect((await checkProviderConnectivity(root))[0]).toMatchObject({ status: "warn", detail: expect.stringContaining(detail) });
+    expect(createModelClient).not.toHaveBeenCalled();
   });
 
-  it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {
-    const results = await runDoctorChecks(scopeRoot, { preset: "gemini", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: gemini");
-    expect(presetRow?.status).toBe("fail");
-    expect(presetRow?.detail).toMatch(/GEMINI_API_KEY.*GOOGLE_API_KEY/);
-  });
-
-  it("passes for openrouter preset when OPENROUTER_API_KEY is set", async () => {
-    process.env.OPENROUTER_API_KEY = "sk-or-test";
-    const results = await runDoctorChecks(scopeRoot, { preset: "openrouter", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: openrouter");
-    expect(presetRow?.status).toBe("pass");
-  });
-
-  it("keeps codex preset independent of OPENAI_API_KEY when it is set", async () => {
-    process.env.OPENAI_API_KEY = "sk-test";
-    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: codex");
-    expect(presetRow?.status).toBe("pass");
-    expect(presetRow?.detail).toContain("harness-managed auth");
-  });
-
-  it("keeps gemini-cli preset independent of Gemini API-key env auth", async () => {
-    process.env.GEMINI_API_KEY = "g-test";
-    const results = await runDoctorChecks(scopeRoot, { preset: "gemini-cli", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: gemini-cli");
-    expect(presetRow?.status).toBe("pass");
-    expect(presetRow?.detail).toContain("harness-managed auth");
-    expect(presetRow?.detail).toContain("Gemini CLI Google login cached");
-  });
-
-  it("warns for expiring gemini-cli auth under skip-connectivity", async () => {
-    clearAgentHarnessRegistryForTest();
-    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
-    registerReadinessHarness("codex", "native-cli", "ready");
-    registerReadinessHarness("openai-tools", "provider-sdk");
-    registerReadinessHarness("gemini", "provider-sdk");
-    registerReadinessHarness("gemini-cli", "native-cli", "expiring");
-    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
-
-    const results = await runDoctorChecks(scopeRoot, {
-      preset: "gemini-cli",
-      skipConnectivity: true,
-    });
-    const presetRow = results.find((r) => r.label === "Preset: gemini-cli");
-    const authRow = results.find((r) => r.label === "Preset auth: gemini-cli");
-
-    expect(presetRow?.status).toBe("warn");
-    expect(presetRow?.detail).toContain("harness-managed auth expiring");
-    expect(presetRow?.detail).toContain("expiresAt=2026-06-22T00:30:00.000Z");
-    expect(presetRow?.detail).toContain(
-      "run `gemini` and sign in again before unattended runs",
-    );
-    expect(authRow?.status).toBe("warn");
-    expect(authRow?.detail).toContain("Gemini CLI Google login expires soon");
-    expect(authRow?.detail).not.toContain("operator@example.com");
-  });
-
-  it("keeps antigravity-cli preset independent of Gemini API-key env auth", async () => {
-    process.env.GEMINI_API_KEY = "g-test";
-    const results = await runDoctorChecks(scopeRoot, { preset: "antigravity-cli", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: antigravity-cli");
-    const tiersRow = results.find((r) => r.label === "Preset tiers: antigravity-cli");
-    const unsupportedRow = results.find((r) => r.label === "Preset intentional limits: antigravity-cli");
-    expect(presetRow?.status).toBe("pass");
-    expect(presetRow?.detail).toContain("harness-managed auth");
-    expect(presetRow?.detail).toContain("Antigravity CLI Google login active");
-    expect(tiersRow?.status).toBe("pass");
-    expect(tiersRow?.detail).toContain("fast=");
-    expect(tiersRow?.detail).toContain("balanced=");
-    expect(tiersRow?.detail).toContain("capable=");
-    expect(unsupportedRow?.detail).toContain("canUseTool");
-    expect(unsupportedRow?.status).toBe("info");
-  });
-
-  it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {
-    process.env.GOOGLE_API_KEY = "test";
-    const results = await runDoctorChecks(scopeRoot, { preset: "gemini", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset: gemini");
-    expect(presetRow?.status).toBe("pass");
-  });
-
-  it("falls back to the shipped default (codex) when no preset is requested", async () => {
-    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
-    const presetRow = results.find((r) => r.label.startsWith("Preset:"));
-    expect(presetRow).toBeDefined();
-    expect(presetRow?.label).toBe("Preset: codex");
-    expect(presetRow?.detail).toContain("source: shipped default");
-  });
-
-  it("fails for an unknown preset id rather than silently falling through", async () => {
-    const results = await runDoctorChecks(scopeRoot, { preset: "nope", skipConnectivity: true });
-    const presetRow = results.find((r) => r.label === "Preset");
-    expect(presetRow?.status).toBe("fail");
-    expect(presetRow?.detail).toContain("Unknown preset");
+  it("probes a local provider without requiring a credential", async () => {
+    vi.mocked(loadConfig).mockReturnValue({ model: "ollama/local" });
+    vi.mocked(createModelClient).mockImplementation(() => { throw new Error("ECONNREFUSED local endpoint"); });
+    expect((await checkProviderConnectivity(root))[0]).toMatchObject({ status: "fail", detail: expect.stringContaining("Unreachable") });
+    expect(createModelClient).toHaveBeenCalledWith(expect.objectContaining({ provider: "ollama", apiKey: "" }));
   });
 });

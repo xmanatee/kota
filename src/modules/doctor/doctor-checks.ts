@@ -28,7 +28,6 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import type {
   DoctorCheckResult,
-  DoctorRepairResult,
   DoctorRunResult,
 } from "./client.js";
 import {
@@ -41,12 +40,6 @@ import {
 } from "./doctor-provider-checks.js";
 import { fail, pass, warn } from "./doctor-results.js";
 
-export { runDoctorFixes } from "./doctor-fixes.js";
-export { checkProviderConnectivity } from "./doctor-provider-checks.js";
-
-export type CheckResult = DoctorCheckResult;
-export type RepairResult = DoctorRepairResult;
-
 function readDaemonPid(statePath: string): number | null {
   if (!existsSync(statePath)) return null;
   try {
@@ -57,8 +50,8 @@ function readDaemonPid(statePath: string): number | null {
   }
 }
 
-function checkDisk(scopeRoot: string): CheckResult[] {
-  const results: CheckResult[] = [];
+function checkDisk(scopeRoot: string): DoctorCheckResult[] {
+  const results: DoctorCheckResult[] = [];
   const kotaDir = join(scopeRoot, ".kota");
 
   if (!existsSync(kotaDir)) {
@@ -90,7 +83,7 @@ function checkDisk(scopeRoot: string): CheckResult[] {
   return results;
 }
 
-function checkConfigFile(configPath: string, label: string): CheckResult {
+function checkConfigFile(configPath: string, label: string): DoctorCheckResult {
   if (!existsSync(configPath)) {
     return warn(label, "Not present (using defaults)");
   }
@@ -106,7 +99,7 @@ function checkConfigFile(configPath: string, label: string): CheckResult {
   }
 }
 
-async function checkWorkflowDefinitions(scopeRoot: string): Promise<CheckResult> {
+async function checkWorkflowDefinitions(scopeRoot: string): Promise<DoctorCheckResult> {
   try {
     const config = loadConfig(scopeRoot);
     const loader = await loadModuleMetadata(config, scopeRoot, false);
@@ -133,8 +126,8 @@ async function checkWorkflowDefinitions(scopeRoot: string): Promise<CheckResult>
   }
 }
 
-async function checkModules(scopeRoot: string): Promise<CheckResult[]> {
-  const results: CheckResult[] = [];
+async function checkModules(scopeRoot: string): Promise<DoctorCheckResult[]> {
+  const results: DoctorCheckResult[] = [];
   try {
     const loader = await loadModuleMetadata(loadConfig(scopeRoot), scopeRoot, false);
     try {
@@ -149,11 +142,11 @@ async function checkModules(scopeRoot: string): Promise<CheckResult[]> {
   return results;
 }
 
-export async function runDoctorChecks(
+async function runDoctorChecks(
   scopeRoot: string,
   opts?: { skipConnectivity?: boolean; preset?: string },
-): Promise<CheckResult[]> {
-  const results: CheckResult[] = [];
+): Promise<DoctorCheckResult[]> {
+  const results: DoctorCheckResult[] = [];
 
   const kotaDir = join(scopeRoot, ".kota");
   const link = getDaemonTransport(kotaDir);

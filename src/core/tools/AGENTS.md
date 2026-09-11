@@ -17,7 +17,7 @@ module lifecycle. General-purpose capabilities belong in modules.
 - `guardrails-config.ts` owns configuration decoding and policy snapshots;
   `guardrails.ts` and `guardrails-classify.ts` assess execution risk.
 - `audit-store` owns audit records and approval-review redaction.
-  `protected-project-paths` owns the credential boundary shared by filesystem
+  `protected-scope-paths` owns the credential boundary shared by filesystem
   tools and native CLI sandboxes.
 - `session-environment` owns live session/scope credential overlays. Registration
   owns teardown; stale approvals cannot recreate an ended session's overlay.

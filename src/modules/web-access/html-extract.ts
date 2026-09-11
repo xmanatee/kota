@@ -5,8 +5,6 @@
  * ratio compared to naive tag stripping.
  */
 
-export { decodeEntities } from "./html-extract-utils.js";
-
 import {
   convertCodeBlocks,
   convertHeadings,

@@ -35,7 +35,6 @@ import type {
   EventJournalRetentionPolicy,
 } from "./event-journal-types.js";
 
-export { redactedPayloadForClient } from "./event-journal-payload.js";
 export { eventEnvelopeToBusEnvelope } from "./event-journal-projection.js";
 export type * from "./event-journal-types.js";
 

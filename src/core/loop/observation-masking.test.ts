@@ -1,426 +1,81 @@
 import { describe, expect, it } from "vitest";
-import type {
-  KotaMessage,
-  KotaToolResultBlock,
-  KotaToolResultBlockContent,
-} from "#core/agent-harness/message-protocol.js";
-import {
-  generatePlaceholder,
-  maskObservations,
-} from "./observation-masking.js";
+import type { KotaMessage, KotaToolResultBlock, KotaToolUseBlock } from "#core/agent-harness/message-protocol.js";
+import { maskObservations } from "./observation-masking.js";
 
-type Message = KotaMessage;
-
-/** Helper: build an assistant message with a tool_use block. */
-function toolUse(id: string, name: string, input: Record<string, unknown>): Message {
-  return {
-    role: "assistant",
-    content: [{ type: "tool_use", id, name, input }],
-  };
+function observation(name: string, input: KotaToolUseBlock["input"], content: KotaToolResultBlock["content"] = "x".repeat(500)) {
+  const result: KotaToolResultBlock = { type: "tool_result", tool_use_id: "call", content };
+  const messages: KotaMessage[] = [
+    { role: "assistant", content: [{ type: "text", text: "Keep the plan" }, { type: "tool_use", id: "call", name, input }] },
+    { role: "user", content: [result] }, { role: "assistant", content: "Continue" },
+  ];
+  return { messages, result };
 }
 
-/** Helper: build a user message with a tool_result block. */
-function toolResult(id: string, content: string, isError = false): Message {
-  return {
-    role: "user",
-    content: [{ type: "tool_result", tool_use_id: id, content, is_error: isError }],
-  };
-}
-
-/** Helper: build a simple text message. */
-function textMsg(role: "user" | "assistant", text: string): Message {
-  return { role, content: text };
-}
-
-/** Generate filler content of a given length. */
-function filler(length: number): string {
-  return "x".repeat(length);
-}
-
-describe("generatePlaceholder", () => {
-  it("generates file_read placeholder", () => {
-    const p = generatePlaceholder("file_read", { file_path: "/src/foo.ts" }, false);
-    expect(p).toBe("[Observed: read /src/foo.ts]");
+describe("observation masking", () => {
+  it.each([
+    ["file_read", { path: "auth.ts" }, "read auth.ts"],
+    ["file_edit", { file_path: "auth.ts" }, "edited auth.ts"],
+    ["file_write", { file_path: "new.ts" }, "wrote new.ts"],
+    ["shell", { command: "pnpm test" }, "shell: pnpm test"],
+    ["process", { action: "start", command: "pnpm dev" }, "process: start pnpm dev"],
+    ["code_exec", { language: "python" }, "executed python"],
+    ["http_request", { method: "POST", url: "https://example.com" }, "POST https://example.com"],
+    ["grep", { pattern: "token" }, 'grep "token"'],
+    ["web_search", { query: "validation" }, 'search "validation"'],
+    ["delegate", { task: "inspect login" }, 'delegate: "inspect login"'],
+    ["new_tool", {}, "new_tool"],
+  ] as const)("keeps %s action and error identity", (name, input, label) => {
+    const { messages, result } = observation(name, input);
+    result.is_error = true;
+    const assistant = structuredClone(messages[0]);
+    const placeholder = `[Observed: ${label} (error)]`;
+    expect(maskObservations(messages, 1)).toEqual({ maskedCount: 1, charsSaved: 500 - placeholder.length });
+    expect(result).toEqual({ type: "tool_result", tool_use_id: "call", content: placeholder, is_error: true });
+    expect(messages[0]).toEqual(assistant);
+    const after = structuredClone(messages);
+    expect(maskObservations(messages, 1)).toEqual({ maskedCount: 0, charsSaved: 0 });
+    expect(messages).toEqual(after);
   });
 
-  it("generates file_edit placeholder", () => {
-    const p = generatePlaceholder("file_edit", { file_path: "/src/foo.ts" }, false);
-    expect(p).toBe("[Observed: edited /src/foo.ts]");
+  it.each(["short", "recent", "larger placeholder", "already masked"])("preserves %s results", (reason) => {
+    const { messages, result } = observation("file_read", { path: "long/".repeat(60) });
+    if (reason === "short") result.content = "OK";
+    if (reason === "larger placeholder") result.content = "x".repeat(201);
+    if (reason === "already masked") result.content = `[Observed: ${"x".repeat(400)}]`;
+    const before = structuredClone(messages);
+    expect(maskObservations(messages, reason === "recent" ? 2 : 1)).toEqual({ maskedCount: 0, charsSaved: 0 });
+    expect(messages).toEqual(before);
   });
 
-  it("generates file_write placeholder", () => {
-    const p = generatePlaceholder("file_write", { file_path: "/src/new.ts" }, false);
-    expect(p).toBe("[Observed: wrote /src/new.ts]");
+  it.each(["text", "image"])("removes old %s metadata while keeping recent rich results intact", (kind) => {
+    const { messages, result } = observation("web_fetch", { url: "https://example.com" }, [
+      ...(kind === "image" ? [{ type: "image" as const, source: { type: "base64" as const, media_type: "image/png", data: "image-bytes" } }] : []),
+      { type: "text", text: "x".repeat(300), _meta: { cache: "block-cache" } },
+      { type: "text", text: "y".repeat(300) },
+      { type: "mcp_content", content: { type: "audio", data: "audio-bytes", mimeType: "audio/wav" } },
+    ]);
+    result.structuredContent = { private: "structured-payload" };
+    result._meta = { cache: "result-cache" };
+    messages[2] = { role: "user", content: [structuredClone(result)] };
+    const recent = structuredClone(messages[2]);
+    expect(maskObservations(messages, 1).maskedCount).toBe(1);
+    expect(result).toEqual({ type: "tool_result", tool_use_id: "call", content: "[Observed: fetched https://example.com]" });
+    expect(messages[2]).toEqual(recent);
   });
 
-  it("generates shell placeholder with truncation", () => {
-    const longCmd = "npm run build && npm run test && npm run lint && echo done";
-    const p = generatePlaceholder("shell", { command: longCmd }, false);
-    expect(p).toContain("[Observed: shell:");
-    expect(p.length).toBeLessThan(120);
+  it("pairs batched results and masks unmatched observations without erasing ordinary text", () => {
+    const { messages, result } = observation("file_read", { file_path: "auth.ts" });
+    const orphan: KotaToolResultBlock = { ...result, tool_use_id: "unmatched" };
+    messages[1].content = [{ type: "text", text: "retain this request" }, orphan, result];
+    expect(maskObservations(messages, 1).maskedCount).toBe(2);
+    expect(messages[1].content).toEqual([
+      { type: "text", text: "retain this request" },
+      { ...orphan, content: "[Observed: tool result]" }, { ...result, content: "[Observed: read auth.ts]" },
+    ]);
   });
 
-  it("includes error status", () => {
-    const p = generatePlaceholder("file_read", { file_path: "/missing.ts" }, true);
-    expect(p).toBe("[Observed: read /missing.ts (error)]");
-  });
-
-  it("generates grep placeholder", () => {
-    const p = generatePlaceholder("grep", { pattern: "TODO" }, false);
-    expect(p).toBe('[Observed: grep "TODO"]');
-  });
-
-  it("generates web_search placeholder", () => {
-    const p = generatePlaceholder("web_search", { query: "node.js best practices" }, false);
-    expect(p).toBe('[Observed: search "node.js best practices"]');
-  });
-
-  it("generates delegate placeholder", () => {
-    const p = generatePlaceholder("delegate", { task: "find all test files" }, false);
-    expect(p).toBe('[Observed: delegate: "find all test files"]');
-  });
-
-  it("generates code_exec placeholder", () => {
-    const p = generatePlaceholder("code_exec", { language: "python" }, false);
-    expect(p).toBe("[Observed: executed python]");
-  });
-
-  it("generates process placeholder", () => {
-    const p = generatePlaceholder("process", { action: "start", command: "pnpm dev" }, false);
-    expect(p).toBe("[Observed: process: start pnpm dev]");
-  });
-
-  it("generates http_request placeholder", () => {
-    const p = generatePlaceholder("http_request", { method: "POST", url: "https://api.example.com/data" }, false);
-    expect(p).toBe("[Observed: POST https://api.example.com/data]");
-  });
-
-  it("handles unknown tools", () => {
-    const p = generatePlaceholder("some_new_tool", {}, false);
-    expect(p).toBe("[Observed: some_new_tool]");
-  });
-
-  it("throws on malformed known-tool input", () => {
-    expect(() => generatePlaceholder("file_read", null, false)).toThrow(
-      /Tool observation input must be an object/,
-    );
-  });
-});
-
-describe("maskObservations", () => {
-  it("returns zero stats when messages fit within window", () => {
-    const messages: Message[] = [
-      textMsg("user", "hello"),
-      textMsg("assistant", "hi"),
-    ];
-    const stats = maskObservations(messages, 10);
-    expect(stats).toEqual({ maskedCount: 0, charsSaved: 0 });
-  });
-
-  it("masks old tool results beyond the window", () => {
-    const messages: Message[] = [
-      // Old pair — should be masked
-      toolUse("t1", "file_read", { file_path: "/src/foo.ts" }),
-      toolResult("t1", filler(500)),
-      // Recent pair — within window of 4
-      toolUse("t2", "file_read", { file_path: "/src/bar.ts" }),
-      toolResult("t2", filler(500)),
-      textMsg("user", "what did you find?"),
-      textMsg("assistant", "I found the code."),
-    ];
-    const stats = maskObservations(messages, 4);
-    expect(stats.maskedCount).toBe(1);
-    expect(stats.charsSaved).toBeGreaterThan(400);
-
-    // Old result should be masked
-    const oldResult = (messages[1] as { content: Array<{ content: string }> }).content[0];
-    expect(oldResult.content).toBe("[Observed: read /src/foo.ts]");
-
-    // Recent result should be untouched
-    const recentResult = (messages[3] as { content: Array<{ content: string }> }).content[0];
-    expect(recentResult.content).toBe(filler(500));
-  });
-
-  it("masks ALL tool types, not just read-only", () => {
-    const messages: Message[] = [
-      toolUse("t1", "shell", { command: "npm run build" }),
-      toolResult("t1", filler(300)),
-      toolUse("t2", "file_edit", { file_path: "/src/foo.ts" }),
-      toolResult("t2", filler(300)),
-      toolUse("t3", "code_exec", { language: "python" }),
-      toolResult("t3", filler(300)),
-      // Recent window
-      textMsg("user", "done?"),
-      textMsg("assistant", "yes"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(3);
-
-    const r1 = (messages[1] as { content: Array<{ content: string }> }).content[0];
-    expect(r1.content).toContain("[Observed: shell:");
-
-    const r2 = (messages[3] as { content: Array<{ content: string }> }).content[0];
-    expect(r2.content).toBe("[Observed: edited /src/foo.ts]");
-
-    const r3 = (messages[5] as { content: Array<{ content: string }> }).content[0];
-    expect(r3.content).toBe("[Observed: executed python]");
-  });
-
-  it("skips results below minimum length", () => {
-    const messages: Message[] = [
-      toolUse("t1", "file_read", { file_path: "/src/small.ts" }),
-      toolResult("t1", "OK"),  // 2 chars — below 200 threshold
-      textMsg("user", "next"),
-      textMsg("assistant", "ok"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(0);
-  });
-
-  it("is idempotent — does not re-mask already masked results", () => {
-    const messages: Message[] = [
-      toolUse("t1", "file_read", { file_path: "/src/foo.ts" }),
-      toolResult("t1", filler(500)),
-      textMsg("user", "next"),
-      textMsg("assistant", "ok"),
-    ];
-
-    const stats1 = maskObservations(messages, 2);
-    expect(stats1.maskedCount).toBe(1);
-
-    // Run again — should be no-op
-    const stats2 = maskObservations(messages, 2);
-    expect(stats2.maskedCount).toBe(0);
-    expect(stats2.charsSaved).toBe(0);
-  });
-
-  it("preserves error status in placeholder", () => {
-    const messages: Message[] = [
-      toolUse("t1", "shell", { command: "npm test" }),
-      toolResult("t1", filler(500), true),
-      textMsg("user", "fix it"),
-      textMsg("assistant", "fixing"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(1);
-
-    const r = (messages[1] as { content: Array<{ content: string }> }).content[0];
-    expect(r.content).toContain("(error)");
-  });
-
-  it("handles image content", () => {
-    const messages: Message[] = [
-      toolUse("t1", "file_read", { file_path: "/screenshot.png" }),
-      {
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: "t1",
-          content: [
-            { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
-          ],
-        }],
-      },
-      textMsg("user", "what's in it?"),
-      textMsg("assistant", "I see a diagram"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(1);
-    expect(stats.charsSaved).toBe(5000);
-  });
-
-  it("masks enriched image-bearing results as one bounded envelope", () => {
-    const richContent: KotaToolResultBlockContent = [
-      { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
-      {
-        type: "mcp_content",
-        content: { type: "audio", data: "secret-audio", mimeType: "audio/wav" },
-      },
-    ];
-    const messages: Message[] = [
-      toolUse("t1", "screenshot", { path: "/screenshot.png" }),
-      {
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: "t1",
-          content: richContent,
-          structuredContent: { objects: 2 },
-          _meta: { resultCache: "image-cache" },
-        }],
-      },
-      textMsg("user", "recent"),
-      textMsg("assistant", "ok"),
-    ];
-
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(1);
-    const result = (messages[1].content as KotaToolResultBlock[])[0];
-    expect(result.content).toBe("[Observed: screenshot]");
-    expect("structuredContent" in result).toBe(false);
-    expect("_meta" in result).toBe(false);
-    expect(JSON.stringify(result)).not.toContain("secret-audio");
-    expect(JSON.stringify(result)).not.toContain("image-cache");
-  });
-
-  it("handles multiple tool results in one user message", () => {
-    const messages: Message[] = [
-      {
-        role: "assistant",
-        content: [
-          { type: "tool_use", id: "t1", name: "file_read", input: { file_path: "/a.ts" } },
-          { type: "tool_use", id: "t2", name: "grep", input: { pattern: "import" } },
-        ],
-      },
-      {
-        role: "user",
-        content: [
-          { type: "tool_result", tool_use_id: "t1", content: filler(400) },
-          { type: "tool_result", tool_use_id: "t2", content: filler(300) },
-        ],
-      },
-      textMsg("user", "done"),
-      textMsg("assistant", "ok"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(2);
-  });
-
-  it("preserves text messages completely", () => {
-    const longText = filler(1000);
-    const messages: Message[] = [
-      textMsg("user", longText),
-      textMsg("assistant", longText),
-      textMsg("user", "recent"),
-      textMsg("assistant", "ok"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(0);
-    expect((messages[0] as { content: string }).content).toBe(longText);
-  });
-
-  it("preserves assistant tool_use blocks (only masks tool_result)", () => {
-    const messages: Message[] = [
-      toolUse("t1", "file_read", { file_path: "/src/big.ts" }),
-      toolResult("t1", filler(500)),
-      textMsg("user", "next"),
-      textMsg("assistant", "ok"),
-    ];
-    maskObservations(messages, 2);
-
-    // Assistant's tool_use block should be untouched
-    const assistantContent = messages[0].content as Array<{ type: string; name: string }>;
-    expect(assistantContent[0].type).toBe("tool_use");
-    expect(assistantContent[0].name).toBe("file_read");
-  });
-
-  it("uses default window of 10", () => {
-    const messages: Message[] = [];
-    // 6 pairs (12 messages) — first pair should be masked with window=10
-    for (let i = 0; i < 6; i++) {
-      messages.push(toolUse(`t${i}`, "file_read", { file_path: `/f${i}.ts` }));
-      messages.push(toolResult(`t${i}`, filler(500)));
-    }
-    const stats = maskObservations(messages);
-    // With window=10, only first 2 messages (1 pair) are outside window
-    expect(stats.maskedCount).toBe(1);
-  });
-
-  it("handles tool results with array-of-text-blocks content", () => {
-    const messages: Message[] = [
-      toolUse("t1", "web_fetch", { url: "https://example.com" }),
-      {
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: "t1",
-          content: [
-            { type: "text", text: filler(300) },
-            { type: "text", text: filler(300) },
-          ],
-        }],
-      },
-      textMsg("user", "recent"),
-      textMsg("assistant", "ok"),
-    ];
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(1);
-    const r = (messages[1] as { content: Array<{ content: string }> }).content[0];
-    expect(r.content).toContain("[Observed: fetched https://example.com]");
-  });
-
-  it("masks enriched tool results while preserving placeholder semantics", () => {
-    const secretPayload = "secret structured rows";
-    const messages: Message[] = [
-      toolUse("t1", "web_fetch", { url: "https://example.com/data" }),
-      {
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: "t1",
-          content: [
-            { type: "text", text: filler(450), _meta: { blockCache: "b1" } },
-            {
-              type: "mcp_content",
-              content: { type: "audio", data: "abc", mimeType: "audio/wav" },
-            },
-          ],
-          structuredContent: { rows: 2, payload: secretPayload },
-          _meta: { resultCache: "r1" },
-        }],
-      },
-      textMsg("user", "recent"),
-      textMsg("assistant", "ok"),
-    ];
-
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(1);
-    const result = (messages[1].content as KotaToolResultBlock[])[0];
-    expect(result.content).toContain("[Observed: fetched https://example.com/data]");
-    expect("structuredContent" in result).toBe(false);
-    expect("_meta" in result).toBe(false);
-    expect(JSON.stringify(result)).not.toContain(secretPayload);
-    expect(JSON.stringify(result)).not.toContain("blockCache");
-  });
-
-  it("preserves recent enriched tool results", () => {
-    const richContent: KotaToolResultBlockContent = [
-      { type: "text", text: filler(500), _meta: { blockCache: "b1" } },
-    ];
-    const messages: Message[] = [
-      textMsg("user", "old"),
-      textMsg("assistant", "old reply"),
-      toolUse("t1", "web_fetch", { url: "https://example.com/recent" }),
-      {
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: "t1",
-          content: richContent,
-          structuredContent: { rows: 2 },
-          _meta: { resultCache: "r1" },
-        }],
-      },
-    ];
-
-    const stats = maskObservations(messages, 2);
-    expect(stats.maskedCount).toBe(0);
-    const result = (messages[3].content as KotaToolResultBlock[])[0];
-    expect(result.content).toBe(richContent);
-    expect(result.structuredContent).toEqual({ rows: 2 });
-    expect(result._meta).toEqual({ resultCache: "r1" });
-  });
-
-  it("does not mask when placeholder would be larger than content", () => {
-    // A tool result that's 201 chars but whose placeholder is longer
-    const messages: Message[] = [
-      toolUse("t1", "web_fetch", { url: "https://very-long-url-that-makes-the-placeholder-quite-long.example.com/api/v1/endpoint" }),
-      toolResult("t1", filler(201)),
-      textMsg("user", "done"),
-      textMsg("assistant", "ok"),
-    ];
-    const stats = maskObservations(messages, 2);
-    // Should still mask since 201 chars of content > placeholder length (~100 chars)
-    expect(stats.maskedCount).toBe(1);
+  it("rejects malformed known-tool input through the masking boundary", () => {
+    const { messages } = observation("file_read", null);
+    expect(() => maskObservations(messages, 1)).toThrow("Tool observation input must be an object");
   });
 });

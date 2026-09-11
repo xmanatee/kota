@@ -43,13 +43,6 @@ export function isBinaryContentType(ct: string): boolean {
   );
 }
 
-/** Detect abort/timeout errors reliably across Node versions. */
-export function isAbortError(err: unknown): boolean {
-  if (err instanceof DOMException && err.name === "AbortError") return true;
-  if (err instanceof Error && err.name === "AbortError") return true;
-  return false;
-}
-
 export function looksLikeJson(text: string): boolean {
   const trimmed = text.trimStart();
   return trimmed.startsWith("{") || trimmed.startsWith("[");

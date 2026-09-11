@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   AdmissionKeyConflictError,
+  type AdmittedRun,
   PublicationIntentConflictError,
   RunStateDatabase,
   StaleDaemonEpochError,
@@ -13,51 +14,54 @@ import {
 import { RUN_STATE_SCHEMA_VERSION } from "./run-state-schema.js";
 
 const roots: string[] = [];
+const stores: RunStateDatabase[] = [];
+const now = "2026-08-25T10:00:00.000Z";
+const later = "2026-08-25T10:01:00.000Z";
+const admission = { scopeId: "scope-a", key: "event:task-a", parameterFingerprint: "fingerprint-a" };
+
+function openStore(root: string): RunStateDatabase {
+  const store = new RunStateDatabase(root);
+  stores.push(store);
+  return store;
+}
 
 function createStore(): RunStateDatabase {
   const root = mkdtempSync(join(tmpdir(), "kota-run-state-"));
   roots.push(root);
-  const store = new RunStateDatabase(root);
-  store.registerScope({
-    id: "scope-a",
-    rootPath: join(root, "scope-a"),
-    createdAt: "2026-08-25T09:00:00.000Z",
-  });
+  const store = openStore(root);
+  store.registerScope({ id: "scope-a", rootPath: join(root, "scope-a"), createdAt: now });
   return store;
 }
 
-function admitAndStart(
-  store: RunStateDatabase,
-  runId: string,
-  epoch: number,
-): void {
-  store.admitRun({
-    id: runId,
-    scopeId: "scope-a",
-    workflow: "publisher",
-    repository: "none",
+function run(id: string, overrides: Partial<AdmittedRun> = {}): AdmittedRun {
+  return {
+    id, scopeId: "scope-a", workflow: "publisher", repository: "none",
     trigger: { event: "manual", schemaRef: null, payload: {} },
-    resources: [],
-    admittedAt: "2026-08-25T10:00:01.000Z",
-  });
-  store.startRun(runId, epoch, "2026-08-25T10:00:02.000Z");
+    resources: [], admittedAt: now, ...overrides,
+  };
+}
+
+function admitAndStart(store: RunStateDatabase, runId: string, epoch: number): void {
+  store.admitRun(run(runId));
+  store.startRun(runId, epoch, now);
 }
 
 function completionPublication(runId: string) {
   const id = `workflow:${runId}:completed`;
-  return {
-    id,
-    runId,
-    scopeId: "scope-a",
-    event: "workflow.completed",
-    payload: { runId, publicationId: id },
-  };
+  return { id, runId, scopeId: "scope-a", event: "workflow.completed", payload: { runId, publicationId: id } };
+}
+
+function stageState(store: RunStateDatabase, runId: string, expectedRevision = 0) {
+  store.stageScopeStateMutation({ runId, key: "digest/window", expectedRevision, value: { completed: 4 }, stagedAt: now });
+}
+
+function stageEvent(store: RunStateDatabase, runId: string, stepId = "digest") {
+  store.stageEmitIntent({ runId, stepId, event: "digest.ready", payload: { completed: 4 }, stagedAt: now });
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) {
-    rmSync(root, { force: true, recursive: true });
-  }
+  for (const store of stores.splice(0)) store.close();
+  for (const root of roots.splice(0)) rmSync(root, { force: true, recursive: true });
 });
 
 describe("RunStateDatabase", () => {
@@ -218,44 +222,19 @@ describe("RunStateDatabase", () => {
   });
 
   test("derives workflow summaries from durable run outcomes", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "reviewer",
-      repository: "none",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: [],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:03.000Z",
-      undefined,
-      undefined,
-      "completed-with-warnings",
-    );
-
+    let store = createStore();
+    const root = dirname(store.path);
+    const { epoch } = store.beginDaemonSession(now);
+    admitAndStart(store, "run-a", epoch);
+    store.finishRun("run-a", epoch, "succeeded", later, undefined, undefined, "completed-with-warnings");
+    store.close();
+    store = openStore(root);
     expect(store.readWorkflowSummary("scope-a")).toEqual({
       completedRuns: 1,
-      workflows: {
-        reviewer: {
-          lastStarted: {
-            runId: "run-a",
-            startedAt: "2026-08-25T10:00:02.000Z",
-          },
-          lastCompletion: {
-            runId: "run-a",
-            startedAt: "2026-08-25T10:00:02.000Z",
-            completedAt: "2026-08-25T10:00:03.000Z",
-            status: "completed-with-warnings",
-          },
-        },
-      },
+      workflows: { publisher: {
+        lastStarted: { runId: "run-a", startedAt: now },
+        lastCompletion: { runId: "run-a", startedAt: now, completedAt: later, status: "completed-with-warnings" },
+      } },
     });
   });
 
@@ -278,53 +257,22 @@ describe("RunStateDatabase", () => {
     } finally { store.close(); }
   });
 
-  test("updates runtime-owned scope state with revision checks", () => {
+  test.each(["scope", "daemon"] as const)("rejects stale %s state revisions across connections", (owner) => {
     const store = createStore();
-
-    store.compareAndSetScopeStateValue({
-      scopeId: "scope-a",
-      key: "runtime/agent-backoff",
-      expectedRevision: 0,
-      value: { kind: "provider" },
-      updatedAt: "2026-08-25T10:00:00.000Z",
-    });
-
-    expect(
-      store.readScopeStateValue("scope-a", "runtime/agent-backoff"),
-    ).toEqual({ revision: 1, value: { kind: "provider" } });
-    expect(() =>
-      store.compareAndSetScopeStateValue({
-        scopeId: "scope-a",
-        key: "runtime/agent-backoff",
-        expectedRevision: 0,
-        value: null,
-        updatedAt: "2026-08-25T10:00:01.000Z",
-      }),
-    ).toThrow(StateValueConflictError);
-  });
-
-  test("updates daemon-wide state through one revisioned authority", () => {
-    const store = createStore();
-
-    store.compareAndSetDaemonStateValue({
-      key: "runtime/daemon-health-watermark",
-      expectedRevision: 0,
-      value: { observedAt: "2026-08-25T10:00:00.000Z" },
-      updatedAt: "2026-08-25T10:00:00.000Z",
-    });
-
-    expect(store.readDaemonStateValue("runtime/daemon-health-watermark")).toEqual({
-      revision: 1,
-      value: { observedAt: "2026-08-25T10:00:00.000Z" },
-    });
-    expect(() =>
-      store.compareAndSetDaemonStateValue({
-        key: "runtime/daemon-health-watermark",
-        expectedRevision: 0,
-        value: null,
-        updatedAt: "2026-08-25T10:00:01.000Z",
-      })
-    ).toThrow(StateValueConflictError);
+    const peer = openStore(dirname(store.path));
+    const input = { scopeId: "scope-a", key: "runtime/watermark", expectedRevision: 0, value: { count: 1 }, updatedAt: now };
+    const write = (db: RunStateDatabase, expectedRevision: number) => owner === "scope"
+      ? db.compareAndSetScopeStateValue({ ...input, expectedRevision })
+      : db.compareAndSetDaemonStateValue({ ...input, expectedRevision });
+    const read = () => owner === "scope"
+      ? peer.readScopeStateValue(input.scopeId, input.key)
+      : peer.readDaemonStateValue(input.key);
+    write(store, 0);
+    expect(read()).toEqual({ revision: 1, value: input.value });
+    expect(() => write(peer, 0)).toThrow(StateValueConflictError);
+    expect(read()).toEqual({ revision: 1, value: input.value });
+    write(peer, 1);
+    expect(read().revision).toBe(2);
   });
 
   test("migrates a legacy daemon incident back to each registered scope", () => {
@@ -370,7 +318,7 @@ describe("RunStateDatabase", () => {
     legacy.exec("DROP TABLE daemon_state_values; PRAGMA user_version = 4;");
     legacy.close();
 
-    const migrated = new RunStateDatabase(stateDir);
+    const migrated = openStore(stateDir);
     expect(migrated.readDaemonStateValue("runtime/agent-backoff").value)
       .toBeNull();
     expect(migrated.readScopeStateValue("scope-a", "runtime/agent-backoff").value)
@@ -444,7 +392,7 @@ describe("RunStateDatabase", () => {
     `);
     legacy.close();
 
-    const migrated = new RunStateDatabase(dirname(path));
+    const migrated = openStore(dirname(path));
     expect(migrated.getRun("run-legacy")).toMatchObject({
       scopeId: "scope-a",
       resources: ["task:legacy"],
@@ -467,6 +415,9 @@ describe("RunStateDatabase", () => {
       verified.prepare("SELECT resource_key FROM run_resource_requests").pluck().all(),
     ).toEqual(["scope:scope-a:task:legacy"]);
     verified.close();
+    const reader = RunStateDatabase.openReadOnly(dirname(path));
+    stores.push(reader);
+    expect(reader.getRun("run-legacy")?.resources).toEqual(["task:legacy"]);
   });
 
   test("refuses to migrate through an offline database handle", () => {
@@ -485,566 +436,183 @@ describe("RunStateDatabase", () => {
     unchanged.close();
   });
 
-  test("rejects every terminal transition without a result status", () => {
+  test.each(["succeeded", "failed", "cancelled"])("SQLite rejects a %s transition without a result", (state) => {
     const store = createStore();
-    store.admitRun({
-      id: "run-terminal-invariant",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: [],
-      admittedAt: "2026-08-25T10:00:00.000Z",
-    });
+    store.admitRun(run("run-a"));
     const raw = new Database(store.path);
-
-    expect(() =>
-      raw.prepare(
-        "UPDATE runs SET state = 'cancelled', finished_at = ? WHERE id = ?",
-      ).run("2026-08-25T10:01:00.000Z", "run-terminal-invariant")
-    ).toThrow(/terminal workflow runs require result_status/i);
-
-    raw.close();
-    store.close();
+    try {
+      expect(() => raw.prepare("UPDATE runs SET state = ?, finished_at = ? WHERE id = ?")
+        .run(state, now, "run-a")).toThrow(/terminal workflow runs require result_status/i);
+      expect(store.getRun("run-a")?.state).toBe("queued");
+    } finally { raw.close(); }
   });
 
-  test("persists contending admissions and acquires all resources only at start", () => {
+  test("deduplicates admissions and acquires contended resources only when starting", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T09:59:59.000Z");
-
-    const admitted = store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admission: {
-        scopeId: "scope-a",
-        key: "event:task-a",
-        parameterFingerprint: "fingerprint-a",
-      },
-      admittedAt: "2026-08-25T10:00:00.000Z",
-    });
-
-    expect(admitted).toEqual({ status: "admitted", runId: "run-a" });
-
-    expect(store.getRun("run-a")).toMatchObject({
-      id: "run-a",
-      state: "queued",
-      resources: ["task:task-a"],
-    });
-    expect(
-      store.admitRun({
-        id: "run-b",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: ["task:task-a"],
-        admission: {
-          scopeId: "scope-a",
-          key: "event:task-b",
-          parameterFingerprint: "fingerprint-b",
-        },
-        admittedAt: "2026-08-25T10:00:01.000Z",
-      }),
-    ).toEqual({ status: "admitted", runId: "run-b" });
-    expect(store.getRun("run-b")).toMatchObject({
-      state: "queued",
-      resources: ["task:task-a"],
-    });
-
-    expect(
-      store.admitRun({
-        id: "run-duplicate",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: ["task:task-a"],
-        admission: {
-          scopeId: "scope-a",
-          key: "event:task-a",
-          parameterFingerprint: "fingerprint-a",
-        },
-        admittedAt: "2026-08-25T10:00:02.000Z",
-      }),
-    ).toEqual({ status: "duplicate", runId: "run-a" });
-    expect(store.getRun("run-duplicate")).toBeNull();
-    expect(() =>
-      store.admitRun({
-        id: "run-conflict",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: [],
-        admission: {
-          scopeId: "scope-a",
-          key: "event:task-a",
-          parameterFingerprint: "different-fingerprint",
-        },
-        admittedAt: "2026-08-25T10:00:03.000Z",
-      }),
-    ).toThrow(AdmissionKeyConflictError);
-
-    expect(store.startRun("run-a", epoch, "2026-08-25T10:00:04.000Z")).toBe(1);
-    expect(store.startRun("run-b", epoch, "2026-08-25T10:00:04.000Z")).toBeNull();
+    const { epoch } = store.beginDaemonSession(now);
+    const contract = { admission, repository: "write" as const, resources: ["task:task-a"] };
+    expect(store.admitRun(run("run-a", contract))).toEqual({ status: "admitted", runId: "run-a" });
+    expect(store.admitRun(run("run-b", { ...contract, admission: { ...admission, key: "event:task-b" } })))
+      .toEqual({ status: "admitted", runId: "run-b" });
+    expect(store.admitRun(run("duplicate", contract))).toEqual({ status: "duplicate", runId: "run-a" });
+    expect(store.getRun("duplicate")).toBeNull();
+    expect(() => store.admitRun(run("conflict", { ...contract, admission: { ...admission, parameterFingerprint: "changed" } })))
+      .toThrow(AdmissionKeyConflictError);
+    expect(store.getRun("conflict")).toBeNull();
+    for (const id of ["run-a", "run-b"]) expect(store.getRun(id)).toMatchObject({ state: "queued", resources: contract.resources });
+    expect(store.startRun("run-a", epoch, now)).toBe(1);
+    expect(store.startRun("run-b", epoch, now)).toBeNull();
     expect(store.getRun("run-b")?.state).toBe("queued");
-
-    store.finishRun("run-a", epoch, "succeeded", "2026-08-25T10:00:05.000Z");
-    expect(store.startRun("run-b", epoch, "2026-08-25T10:00:06.000Z")).toBe(1);
-    expect(store.getRun("run-b")?.state).toBe("running");
+    store.finishRun("run-a", epoch, "succeeded", later);
+    expect(store.getRun("run-a")).toMatchObject({ state: "succeeded", resources: [] });
+    expect(store.startRun("run-b", epoch, later)).toBe(1);
   });
 
-  test.each(["failed", "cancelled"] as const)(
-    "redelivers an unchanged %s admission as a fresh run",
-    (terminalState) => {
-      const store = createStore();
-      const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-      const contract = {
-        scopeId: "scope-a",
-        key: "event:task-a",
-        parameterFingerprint: "fingerprint-a",
-      };
-      store.admitRun({
-        id: "run-a",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: ["task:task-a"],
-        admission: contract,
-        admittedAt: "2026-08-25T10:00:01.000Z",
-      });
-      store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-      store.finishRun(
-        "run-a",
-        epoch,
-        terminalState,
-        "2026-08-25T10:00:03.000Z",
-      );
-
-      expect(
-        store.admitRun({
-          id: "run-b",
-          scopeId: "scope-a",
-          workflow: "builder",
-          repository: "write",
-          trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-          resources: ["task:task-a"],
-          admission: contract,
-          admittedAt: "2026-08-25T10:00:04.000Z",
-        }),
-      ).toEqual({ status: "admitted", runId: "run-b" });
-      expect(
-        store.admitRun({
-          id: "run-c",
-          scopeId: "scope-a",
-          workflow: "builder",
-          repository: "write",
-          trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-          resources: ["task:task-a"],
-          admission: contract,
-          admittedAt: "2026-08-25T10:00:05.000Z",
-        }),
-      ).toEqual({ status: "duplicate", runId: "run-b" });
-      expect(store.getRun("run-a")?.state).toBe(terminalState);
-      expect(store.getRun("run-b")).toMatchObject({
-        state: "queued",
-        resources: ["task:task-a"],
-      });
-      expect(store.getRun("run-c")).toBeNull();
-    },
-  );
+  test.each(["failed", "cancelled"] as const)("redelivers a %s admission without bypassing resource ownership", (state) => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession(now);
+    const contract = { admission, repository: "write" as const, resources: ["task:task-a"] };
+    store.admitRun(run("run-a", contract));
+    store.startRun("run-a", epoch, now);
+    store.finishRun("run-a", epoch, state, now);
+    store.admitRun(run("blocker", { resources: contract.resources }));
+    store.startRun("blocker", epoch, now);
+    expect(store.admitRun(run("retry", contract))).toEqual({ status: "admitted", runId: "retry" });
+    expect(store.admitRun(run("duplicate", contract))).toEqual({ status: "duplicate", runId: "retry" });
+    expect(store.getRun("duplicate")).toBeNull();
+    expect(store.getRun("run-a")?.state).toBe(state);
+    expect(store.getRun("retry")).toMatchObject({ state: "queued", resources: contract.resources });
+    expect(store.startRun("retry", epoch, now)).toBeNull();
+    store.finishRun("blocker", epoch, "succeeded", later);
+    expect(store.startRun("retry", epoch, later)).toBe(1);
+  });
 
   test.each(["running", "waiting", "needs_attention", "integrating", "succeeded"] as const)(
-    "keeps an admission mapped to its %s run",
-    (state) => {
+    "keeps an admission mapped to its %s run", (state) => {
       const store = createStore();
-      const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-      const contract = {
-        scopeId: "scope-a",
-        key: "event:task-a",
-        parameterFingerprint: "fingerprint-a",
-      };
-      store.admitRun({
-        id: "run-a",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: [],
-        admission: contract,
-        admittedAt: "2026-08-25T10:00:01.000Z",
-      });
-      store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-      if (state === "waiting" || state === "needs_attention") {
-        store.suspendRun({
-          runId: "run-a",
-          epoch,
-          state,
-          suspendedAt: "2026-08-25T10:00:03.000Z",
-        });
-      } else if (state === "integrating") {
-        store.beginIntegration("run-a", epoch, { phase: "publication" });
-      } else if (state === "succeeded") {
-        store.finishRun("run-a", epoch, state, "2026-08-25T10:00:03.000Z");
-      }
-
-      expect(
-        store.admitRun({
-          id: "run-b",
-          scopeId: "scope-a",
-          workflow: "builder",
-          repository: "write",
-          trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-          resources: [],
-          admission: contract,
-          admittedAt: "2026-08-25T10:00:04.000Z",
-        }),
-      ).toEqual({ status: "duplicate", runId: "run-a" });
+      const { epoch } = store.beginDaemonSession(now);
+      store.admitRun(run("run-a", { repository: "write", admission }));
+      store.startRun("run-a", epoch, now);
+      if (state === "waiting" || state === "needs_attention") store.suspendRun({ runId: "run-a", epoch, state, suspendedAt: now });
+      else if (state === "integrating") store.beginIntegration("run-a", epoch, { phase: "publication" });
+      else if (state === "succeeded") store.finishRun("run-a", epoch, state, now);
+      expect(store.admitRun(run("run-b", { repository: "write", admission }))).toEqual({ status: "duplicate", runId: "run-a" });
       expect(store.getRun("run-b")).toBeNull();
     },
   );
 
-  test("atomically defers an active attempt while preserving run ownership", () => {
+  test("defers attempts while preserving run ownership and the dispatch deadline", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-    expect(store.tryAcquireResource({
-      runId: "run-a",
-      resourceKey: "runtime:attempt",
-      lifetime: "attempt",
-      epoch,
-      acquiredAt: "2026-08-25T10:00:03.000Z",
-    })).toBe(true);
-
-    store.deferRun({
-      runId: "run-a",
-      epoch,
-      deferredAt: "2026-08-25T10:00:04.000Z",
-      resumeAt: "2026-08-25T10:01:00.000Z",
-    });
-
-    expect(store.getRun("run-a")).toMatchObject({
-      state: "queued",
-      notBeforeAt: "2026-08-25T10:01:00.000Z",
-      resources: ["task:task-a"],
-      processes: [],
-    });
-  });
-
-  test("keeps terminal redelivery queued while its logical resource is owned", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    const contract = {
-      scopeId: "scope-a",
-      key: "event:task-a",
-      parameterFingerprint: "fingerprint-a",
-    };
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admission: contract,
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-    store.finishRun("run-a", epoch, "failed", "2026-08-25T10:00:03.000Z");
-    store.admitRun({
-      id: "run-blocker",
-      scopeId: "scope-a",
-      workflow: "operator",
-      repository: "write",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:04.000Z",
-    });
-    store.startRun("run-blocker", epoch, "2026-08-25T10:00:04.500Z");
-
-    expect(
-      store.admitRun({
-        id: "run-retry",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: ["task:task-a"],
-        admission: contract,
-        admittedAt: "2026-08-25T10:00:05.000Z",
-      }),
-    ).toEqual({ status: "admitted", runId: "run-retry" });
-    expect(store.startRun("run-retry", epoch, "2026-08-25T10:00:06.000Z")).toBeNull();
-    expect(store.getRun("run-retry")?.state).toBe("queued");
-
-    store.finishRun("run-blocker", epoch, "succeeded", "2026-08-25T10:00:07.000Z");
-    expect(store.startRun("run-retry", epoch, "2026-08-25T10:00:08.000Z")).toBe(1);
+    const { epoch } = store.beginDaemonSession(now);
+    store.admitRun(run("run-a", { resources: ["task:task-a"] }));
+    store.startRun("run-a", epoch, now);
+    expect(store.tryAcquireResource({ runId: "run-a", resourceKey: "runtime:attempt", lifetime: "attempt", epoch, acquiredAt: now })).toBe(true);
+    store.deferRun({ runId: "run-a", epoch, deferredAt: now, resumeAt: later });
+    expect(store.getRun("run-a")).toMatchObject({ state: "queued", notBeforeAt: later, resources: ["task:task-a"], processes: [] });
+    expect(store.listDispatchableRuns({ now, limit: 2, excludedScopeIds: [] })).toEqual([]);
+    expect(store.listDispatchableRuns({ now: later, limit: 2, excludedScopeIds: [] }).map((r) => r.id)).toEqual(["run-a"]);
   });
 
   test("preserves a resource waiter across restart", () => {
-    const store = createStore();
-    const stateDir = dirname(store.path);
-    const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    for (const [index, runId] of ["run-owner", "run-waiter"].entries()) {
-      store.admitRun({
-        id: runId,
-        scopeId: "scope-a",
-        workflow: "publisher",
-        repository: "none",
-        trigger: { event: "manual", schemaRef: null, payload: { runId } },
-        resources: ["projection:shared"],
-        admittedAt: `2026-08-25T10:00:0${index + 1}.000Z`,
-      });
-    }
-    expect(store.startRun("run-owner", first.epoch, "2026-08-25T10:00:03.000Z")).toBe(1);
+    let store = createStore();
+    const root = dirname(store.path);
+    const first = store.beginDaemonSession(now);
+    for (const id of ["owner", "waiter"]) store.admitRun(run(id, { resources: ["projection:shared"] }));
+    expect(store.startRun("owner", first.epoch, now)).toBe(1);
     store.close();
-
-    const reopened = new RunStateDatabase(stateDir);
-    try {
-      const second = reopened.beginDaemonSession("2026-08-25T10:01:00.000Z");
-      expect(reopened.getRun("run-waiter")).toMatchObject({
-        state: "queued",
-        resources: ["projection:shared"],
-      });
-      expect(
-        reopened.listDispatchableRuns({
-          now: "2026-08-25T10:01:01.000Z",
-          limit: 2,
-          excludedScopeIds: [],
-        }),
-      ).toEqual([]);
-
-      expect(reopened.cancelQueuedRun("run-owner", "2026-08-25T10:01:02.000Z")).toBe(true);
-      expect(reopened.getRun("run-owner")).toMatchObject({
-        state: "cancelled",
-        resultStatus: "interrupted",
-      });
-      expect(
-        reopened.startRun("run-waiter", second.epoch, "2026-08-25T10:01:03.000Z"),
-      ).toBe(1);
-    } finally {
-      reopened.close();
-    }
+    store = openStore(root);
+    const second = store.beginDaemonSession(later);
+    expect(store.getRun("waiter")).toMatchObject({ state: "queued", resources: ["projection:shared"] });
+    expect(store.listDispatchableRuns({ now: later, limit: 2, excludedScopeIds: [] })).toEqual([]);
+    expect(store.cancelQueuedRun("owner", later)).toBe(true);
+    expect(store.getRun("owner")).toMatchObject({ state: "cancelled", resultStatus: "interrupted" });
+    expect(store.startRun("waiter", second.epoch, later)).toBe(1);
   });
 
-  test("fences a superseded daemon until process recovery is acknowledged", () => {
-    const store = createStore();
-    const firstSession = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", firstSession.epoch, "2026-08-25T10:00:02.000Z");
+  test("fences stale attempts and retains resources until process recovery is acknowledged", () => {
+    let store = createStore();
+    const root = dirname(store.path);
+    const first = store.beginDaemonSession(now);
+    store.admitRun(run("run-a", { resources: ["task:task-a"] }));
+    store.startRun("run-a", first.epoch, now);
     const processes = [
       { pid: 101, processGroupId: 101, osStartToken: "start-a", observedCommandHash: "hash-a" },
       { pid: 102, processGroupId: 102, osStartToken: "start-b", observedCommandHash: "hash-b" },
     ];
-    for (const [index, identity] of processes.entries()) {
-      store.registerAttemptProcess({
-        runId: "run-a",
-        epoch: firstSession.epoch,
-        processKey: `${identity.pid}:${identity.osStartToken}`,
-        identity,
-        registeredAt: `2026-08-25T10:00:0${index + 3}.000Z`,
-      });
-    }
-
-    const secondSession = store.beginDaemonSession("2026-08-25T10:01:00.000Z");
-
-    expect(secondSession).toEqual({
-      epoch: 2,
-      recovered: [{ runId: "run-a", previousEpoch: 1, processes }],
+    for (const identity of processes) store.registerAttemptProcess({
+      runId: "run-a", epoch: first.epoch, processKey: `${identity.pid}:${identity.osStartToken}`, identity, registeredAt: now,
     });
-    expect(store.getRun("run-a")).toMatchObject({
-      state: "needs_attention",
-      resources: ["task:task-a"],
-    });
-    expect(() =>
-      store.finishRun(
-        "run-a",
-        firstSession.epoch,
-        "succeeded",
-        "2026-08-25T10:01:01.000Z",
-      ),
-    ).toThrow(StaleDaemonEpochError);
-    store.completeRestartRecovery(
-      "run-a",
-      secondSession.epoch,
-      "2026-08-25T10:01:02.000Z",
-    );
-    expect(store.getRun("run-a")?.state).toBe("queued");
-    expect(store.getRun("run-a")?.processes).toEqual([]);
+    const resource = { runId: "run-a", resourceKey: "repo:integration", lifetime: "attempt" as const, acquiredAt: now };
+    expect(store.tryAcquireResource({ ...resource, epoch: first.epoch })).toBe(true);
+    store.close();
+    store = openStore(root);
+    const second = store.beginDaemonSession(later);
+    expect(second).toEqual({ epoch: first.epoch + 1, recovered: [{ runId: "run-a", previousEpoch: first.epoch, processes }] });
+    expect(store.getRun("run-a")).toMatchObject({ state: "needs_attention", resources: ["repo:integration", "task:task-a"] });
+    expect(() => store.finishRun("run-a", first.epoch, "succeeded", later)).toThrow(StaleDaemonEpochError);
+    expect(() => store.tryAcquireResource({ ...resource, epoch: first.epoch })).toThrow(StaleDaemonEpochError);
+    expect(() => store.tryAcquireResource({ ...resource, epoch: second.epoch })).toThrow(/not active/);
+    store.completeRestartRecovery("run-a", second.epoch, later);
+    expect(store.getRun("run-a")).toMatchObject({ state: "queued", resources: ["task:task-a"], processes: [] });
+    store.admitRun(run("competitor", { resources: ["task:task-a"] }));
+    expect(store.startRun("competitor", second.epoch, later)).toBeNull();
+    expect(store.startRun("run-a", second.epoch, later)).not.toBeNull();
+    store.finishRun("run-a", second.epoch, "succeeded", later);
+    expect(store.startRun("competitor", second.epoch, later)).not.toBeNull();
   });
 
-  test("releases ownership only after a terminal transition", () => {
+  test("acquires dynamic resources only for the current active attempt", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:03.000Z",
-    );
-
-    expect(store.getRun("run-a")).toMatchObject({
-      state: "succeeded",
-      resources: [],
-    });
-    expect(() =>
-      store.admitRun({
-        id: "run-b",
-        scopeId: "scope-a",
-        workflow: "builder",
-        repository: "write",
-        trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-        resources: ["task:task-a"],
-        admittedAt: "2026-08-25T10:00:04.000Z",
-      }),
-    ).not.toThrow();
+    const { epoch } = store.beginDaemonSession(now);
+    store.admitRun(run("run-a", { repository: "write" }));
+    const acquire = () => store.tryAcquireResource({ runId: "run-a", resourceKey: "runtime:attempt", lifetime: "attempt", epoch, acquiredAt: now });
+    expect(acquire).toThrow(/not active/);
+    store.startRun("run-a", epoch, now);
+    expect(acquire()).toBe(true);
+    store.suspendRun({ runId: "run-a", epoch, state: "waiting", suspendedAt: now });
+    expect(acquire).toThrow(/not active/);
+    store.resumeRun("run-a", now);
+    store.startRun("run-a", epoch, now);
+    store.beginIntegration("run-a", epoch, { phase: "publication" });
+    expect(acquire()).toBe(true);
+    store.finishRun("run-a", epoch, "failed", later);
+    expect(acquire).toThrow(/not active/);
+    expect(store.getRun("run-a")?.resources).toEqual([]);
   });
 
-  test("rejects a lost-update race before either run can overwrite shared state", () => {
+  test("rejects a competing staged mutation across database connections", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    const peer = openStore(dirname(store.path));
+    const { epoch } = store.beginDaemonSession(now);
+    for (const id of ["run-a", "run-b"]) admitAndStart(store, id, epoch);
+    stageState(store, "run-a");
+    expect(() => stageState(peer, "run-b")).toThrow(StateValueConflictError);
+    store.finishRun("run-a", epoch, "succeeded", now);
+    peer.finishRun("run-b", epoch, "failed", later);
+    expect(peer.readScopeStateValue("scope-a", "digest/window")).toEqual({ revision: 1, value: { completed: 4 } });
+  });
+
+  test.each(["succeeded", "failed", "cancelled"] as const)("atomically settles staged state and events for %s", (state) => {
+    let store = createStore();
+    const root = dirname(store.path);
+    const { epoch } = store.beginDaemonSession(now);
     admitAndStart(store, "run-a", epoch);
-    admitAndStart(store, "run-b", epoch);
-    const first = store.readScopeStateValue<{ count: number }>(
-      "scope-a",
-      "attention/counter",
-    );
-    const second = store.readScopeStateValue<{ count: number }>(
-      "scope-a",
-      "attention/counter",
-    );
-
-    store.stageScopeStateMutation({
-      runId: "run-a",
-      key: "attention/counter",
-      expectedRevision: first.revision,
-      value: { count: 1 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-    expect(() =>
-      store.stageScopeStateMutation({
-        runId: "run-b",
-        key: "attention/counter",
-        expectedRevision: second.revision,
-        value: { count: 1 },
-        stagedAt: "2026-08-25T10:00:04.000Z",
-      }),
-    ).toThrow(StateValueConflictError);
-
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:05.000Z",
-    );
-    store.finishRun(
-      "run-b",
-      epoch,
-      "failed",
-      "2026-08-25T10:00:06.000Z",
-    );
-    expect(
-      store.readScopeStateValue("scope-a", "attention/counter"),
-    ).toEqual({ revision: 1, value: { count: 1 } });
-  });
-
-  test("commits staged state with publications on success and discards both on failure", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admitAndStart(store, "run-a", epoch);
-    store.stageScopeStateMutation({
-      runId: "run-a",
-      key: "digest/window",
-      expectedRevision: 0,
-      value: { completed: 4 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "digest",
-      event: "digest.ready",
-      payload: { completed: 4 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
-      revision: 0,
-      value: null,
-    });
+    const previous = { revision: 1, value: { completed: 3 } };
+    store.compareAndSetScopeStateValue({ scopeId: "scope-a", key: "digest/window", expectedRevision: 0, value: previous.value, updatedAt: now });
+    stageState(store, "run-a", previous.revision);
+    stageEvent(store, "run-a");
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual(previous);
     expect(store.listPendingPublications()).toEqual([]);
-
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:04.000Z",
-    );
-    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
-      revision: 1,
-      value: { completed: 4 },
-    });
-    expect(store.listPendingPublications()).toEqual([
-      expect.objectContaining({ event: "digest.ready", payload: { completed: 4 } }),
+    store.finishRun("run-a", epoch, state, later, undefined, completionPublication("run-a"));
+    store.close();
+    store = openStore(root);
+    expect(store.getRun("run-a")?.state).toBe(state);
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual(state === "succeeded"
+      ? { revision: 2, value: { completed: 4 } } : previous);
+    expect(store.listPendingPublications().map(({ event, payload }) => ({ event, payload }))).toEqual([
+      ...(state === "succeeded" ? [{ event: "digest.ready", payload: { completed: 4 } }] : []),
+      { event: "workflow.completed", payload: completionPublication("run-a").payload },
     ]);
-
-    admitAndStart(store, "run-b", epoch);
-    store.stageScopeStateMutation({
-      runId: "run-b",
-      key: "digest/window",
-      expectedRevision: 1,
-      value: { completed: 5 },
-      stagedAt: "2026-08-25T10:00:05.000Z",
-    });
-    store.stageEmitIntent({
-      runId: "run-b",
-      stepId: "digest",
-      event: "digest.ready",
-      payload: { completed: 5 },
-      stagedAt: "2026-08-25T10:00:05.000Z",
-    });
-    store.finishRun(
-      "run-b",
-      epoch,
-      "failed",
-      "2026-08-25T10:00:06.000Z",
-    );
-
-    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
-      revision: 1,
-      value: { completed: 4 },
-    });
-    expect(store.listPendingPublications()).toHaveLength(1);
   });
 
   test("rolls back finalization, state and terminal status when a publication cannot commit", () => {
@@ -1118,213 +686,53 @@ describe("RunStateDatabase", () => {
     ]);
   });
 
-  test("commits a publication with terminal state and acknowledges delivery", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
-
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:03.000Z",
-      undefined,
-      {
-        id: "workflow:run-a:completed",
-        runId: "run-a",
-        scopeId: "scope-a",
-        event: "workflow.completed",
-        payload: { runId: "run-a", publicationId: "workflow:run-a:completed" },
-      },
-    );
-
-    expect(store.listPendingPublications()).toEqual([
-      expect.objectContaining({
-        id: "workflow:run-a:completed",
-        runId: "run-a",
-        createdAt: "2026-08-25T10:00:03.000Z",
-      }),
-    ]);
-    expect(
-      store.markPublicationDelivered(
-        "workflow:run-a:completed",
-        "2026-08-25T10:00:04.000Z",
-      ),
-    ).toBe(true);
-    expect(store.listPendingPublications()).toEqual([]);
-  });
-
-  test("does not prune a terminal run while its publication is undelivered", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+  test("retains undelivered publications across restart and prunes only after acknowledgement", () => {
+    let store = createStore();
+    const root = dirname(store.path);
+    const { epoch } = store.beginDaemonSession(now);
     admitAndStart(store, "run-a", epoch);
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:03.000Z",
-      undefined,
-      completionPublication("run-a"),
-    );
-
-    expect(store.pruneTerminalRuns({
-      finishedBefore: "2026-08-26T00:00:00.000Z",
-    })).toEqual({ count: 0, runIds: [] });
+    store.finishRun("run-a", epoch, "succeeded", now, undefined, completionPublication("run-a"));
+    store.close();
+    store = openStore(root);
+    expect(store.listPendingPublications()).toEqual([expect.objectContaining({
+      id: "workflow:run-a:completed", runId: "run-a", createdAt: now,
+    })]);
+    const prune = () => store.pruneTerminalRuns({ finishedBefore: later });
+    expect(prune()).toEqual({ count: 0, runIds: [] });
     expect(store.getRun("run-a")?.state).toBe("succeeded");
-    expect(store.listPendingPublications()).toHaveLength(1);
-
-    store.markPublicationDelivered(
-      "workflow:run-a:completed",
-      "2026-08-25T10:00:04.000Z",
-    );
-    expect(store.pruneTerminalRuns({
-      finishedBefore: "2026-08-26T00:00:00.000Z",
-    })).toEqual({ count: 1, runIds: ["run-a"] });
-  });
-
-  test("keeps staged emit intents invisible and accepts an identical replay", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admitAndStart(store, "run-a", epoch);
-
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "announce",
-      event: "work.announced",
-      payload: { nested: { ready: true }, count: 2 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "announce",
-      event: "work.announced",
-      payload: { count: 2, nested: { ready: true } },
-      stagedAt: "2026-08-25T10:00:04.000Z",
-    });
-
+    expect(store.markPublicationDelivered("workflow:run-a:completed", later)).toBe(true);
     expect(store.listPendingPublications()).toEqual([]);
+    expect(prune()).toEqual({ count: 1, runIds: ["run-a"] });
   });
 
-  test("rejects a changed emit intent replay under the same run and step", () => {
+  test("deduplicates semantic emit replay and rejects changes to the same intent", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    const { epoch } = store.beginDaemonSession(now);
     admitAndStart(store, "run-a", epoch);
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "announce",
-      event: "work.announced",
-      payload: { revision: 1 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-
-    expect(() =>
-      store.stageEmitIntent({
-        runId: "run-a",
-        stepId: "announce",
-        event: "work.announced",
-        payload: { revision: 2 },
-        stagedAt: "2026-08-25T10:00:04.000Z",
-      }),
-    ).toThrow(PublicationIntentConflictError);
+    const intent = { runId: "run-a", stepId: "announce", event: "work.announced", payload: { nested: { ready: true }, count: 2 }, stagedAt: now };
+    store.stageEmitIntent(intent);
+    store.stageEmitIntent({ ...intent, payload: { count: 2, nested: { ready: true } }, stagedAt: later });
+    expect(store.listPendingPublications()).toEqual([]);
+    expect(() => store.stageEmitIntent({ ...intent, payload: { ...intent.payload, count: 3 } })).toThrow(PublicationIntentConflictError);
+    expect(() => store.stageEmitIntent({ ...intent, event: "different.event" })).toThrow(PublicationIntentConflictError);
+    store.finishRun("run-a", epoch, "succeeded", later);
+    expect(store.listPendingPublications()).toEqual([expect.objectContaining({ event: intent.event, payload: intent.payload })]);
   });
 
-  test("activates multiple staged events in step order before workflow completion", () => {
+  test("publishes staged events in execution order before completion", () => {
     const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    const { epoch } = store.beginDaemonSession(now);
     admitAndStart(store, "run-a", epoch);
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "second-in-name-only",
-      event: "work.first",
-      payload: { order: 1 },
-      stagedAt: "2026-08-25T10:00:03.000Z",
-    });
-    store.stageEmitIntent({
-      runId: "run-a",
-      stepId: "first-in-name-only",
-      event: "work.second",
-      payload: { order: 2 },
-      stagedAt: "2026-08-25T10:00:04.000Z",
-    });
-
-    store.finishRun(
-      "run-a",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:05.000Z",
-      undefined,
-      completionPublication("run-a"),
-    );
-
-    expect(store.listPendingPublications()).toEqual([
-      expect.objectContaining({
-        id: "workflow:run-a:emit:second-in-name-only",
-        event: "work.first",
-        payload: { order: 1 },
-      }),
-      expect.objectContaining({
-        id: "workflow:run-a:emit:first-in-name-only",
-        event: "work.second",
-        payload: { order: 2 },
-      }),
-      expect.objectContaining({
-        id: "workflow:run-a:completed",
-        event: "workflow.completed",
-      }),
+    for (const [stepId, event] of [["z-first", "work.first"], ["a-second", "work.second"]]) {
+      store.stageEmitIntent({ runId: "run-a", stepId, event, payload: { stepId }, stagedAt: now });
+    }
+    store.finishRun("run-a", epoch, "succeeded", later, undefined, completionPublication("run-a"));
+    expect(store.listPendingPublications().map(({ id, event, payload }) => ({ id, event, payload }))).toEqual([
+      { id: "workflow:run-a:emit:z-first", event: "work.first", payload: { stepId: "z-first" } },
+      { id: "workflow:run-a:emit:a-second", event: "work.second", payload: { stepId: "a-second" } },
+      { id: "workflow:run-a:completed", event: "workflow.completed", payload: completionPublication("run-a").payload },
     ]);
   });
-
-  test.each(["failed", "cancelled"] as const)(
-    "discards staged emits and state when a run is %s",
-    (terminalState) => {
-      const store = createStore();
-      const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-      admitAndStart(store, `run-${terminalState}`, epoch);
-      store.stageScopeStateMutation({
-        runId: `run-${terminalState}`,
-        key: "digest/window",
-        expectedRevision: 0,
-        value: { terminalState },
-        stagedAt: "2026-08-25T10:00:03.000Z",
-      });
-      store.stageEmitIntent({
-        runId: `run-${terminalState}`,
-        stepId: "announce",
-        event: "work.announced",
-        payload: { terminalState },
-        stagedAt: "2026-08-25T10:00:03.000Z",
-      });
-
-      store.finishRun(
-        `run-${terminalState}`,
-        epoch,
-        terminalState,
-        "2026-08-25T10:00:04.000Z",
-        undefined,
-        completionPublication(`run-${terminalState}`),
-      );
-
-      expect(store.listPendingPublications()).toEqual([
-        expect.objectContaining({
-          id: `workflow:run-${terminalState}:completed`,
-          event: "workflow.completed",
-        }),
-      ]);
-      expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
-        revision: 0,
-        value: null,
-      });
-    },
-  );
 
   test("migrates the legacy one-publication-per-run table idempotently", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-state-legacy-publications-"));
@@ -1343,9 +751,9 @@ describe("RunStateDatabase", () => {
     `);
     legacy.close();
 
-    let store = new RunStateDatabase(root);
+    let store = openStore(root);
     store.close();
-    store = new RunStateDatabase(root);
+    store = openStore(root);
     store.registerScope({
       id: "scope-a",
       rootPath: join(root, "scope-a"),
@@ -1379,138 +787,4 @@ describe("RunStateDatabase", () => {
     store.close();
   });
 
-  test("keeps run resources but releases attempt resources after a restart", () => {
-    const store = createStore();
-    const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: ["task:task-a"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-a", first.epoch, "2026-08-25T10:00:02.000Z");
-    expect(
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "repo:default:integration",
-        lifetime: "attempt",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:03.000Z",
-      }),
-    ).toBe(true);
-
-    const second = store.beginDaemonSession("2026-08-25T10:01:00.000Z");
-
-    expect(store.getRun("run-a")?.resources).toEqual([
-      "repo:default:integration",
-      "task:task-a",
-    ]);
-    store.completeRestartRecovery(
-      "run-a",
-      second.epoch,
-      "2026-08-25T10:01:01.000Z",
-    );
-    expect(store.getRun("run-a")?.resources).toEqual(["task:task-a"]);
-  });
-
-  test("acquires dynamic resources only for the current active run attempt", () => {
-    const store = createStore();
-    const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-a",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
-      resources: [],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    expect(() =>
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:queued",
-        lifetime: "run",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:02.000Z",
-      }),
-    ).toThrow('Run "run-a" is not active in daemon epoch 1');
-
-    store.startRun("run-a", first.epoch, "2026-08-25T10:00:03.000Z");
-    expect(
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:running",
-        lifetime: "attempt",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:04.000Z",
-      }),
-    ).toBe(true);
-    store.suspendRun({
-      runId: "run-a",
-      epoch: first.epoch,
-      state: "waiting",
-      suspendedAt: "2026-08-25T10:00:05.000Z",
-    });
-    expect(() =>
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:waiting",
-        lifetime: "run",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:06.000Z",
-      }),
-    ).toThrow('Run "run-a" is not active in daemon epoch 1');
-    store.resumeRun("run-a", "2026-08-25T10:00:07.000Z");
-    store.startRun("run-a", first.epoch, "2026-08-25T10:00:08.000Z");
-    store.beginIntegration("run-a", first.epoch, { phase: "publication" });
-    expect(
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:integrating",
-        lifetime: "attempt",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:09.000Z",
-      }),
-    ).toBe(true);
-    store.finishRun("run-a", first.epoch, "failed", "2026-08-25T10:00:10.000Z");
-    expect(() =>
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:terminal",
-        lifetime: "run",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:00:11.000Z",
-      }),
-    ).toThrow('Run "run-a" is not active in daemon epoch 1');
-    expect(store.getRun("run-a")?.resources).toEqual([]);
-  });
-
-  test("rejects dynamic resource acquisition from a superseded daemon attempt", () => {
-    const store = createStore();
-    const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admitAndStart(store, "run-a", first.epoch);
-    const second = store.beginDaemonSession("2026-08-25T10:01:00.000Z");
-
-    expect(() =>
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:stale",
-        lifetime: "attempt",
-        epoch: first.epoch,
-        acquiredAt: "2026-08-25T10:01:01.000Z",
-      }),
-    ).toThrow(StaleDaemonEpochError);
-    expect(() =>
-      store.tryAcquireResource({
-        runId: "run-a",
-        resourceKey: "runtime:recovering",
-        lifetime: "attempt",
-        epoch: second.epoch,
-        acquiredAt: "2026-08-25T10:01:02.000Z",
-      }),
-    ).toThrow('Run "run-a" is not active in daemon epoch 2');
-  });
 });

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getScopeSecretStore } from "#core/config/secrets.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { executeTool } from "#core/tools/index.js";
@@ -11,239 +11,82 @@ import {
   resetModuleContextTestState,
   TEXT_LOG_CONFIG,
 } from "./module-context.test-helpers.js";
-import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
-import { resolveModuleTools } from "./module-types.js";
+import { resolveModuleTools, type ToolDef } from "./module-types.js";
 
 beforeEach(() => {
   resetModuleContextTestState();
   vi.restoreAllMocks();
 });
-
 afterEach(resetModuleContextTestState);
 
-describe("tools as factory function", () => {
-  it("resolves tools from a factory function during load", async () => {
-    const loader = createRuntimeModuleLoader({});
+function tool(name: string, runner: ToolDef["runner"]): ToolDef {
+  return {
+    tool: { name, description: name, input_schema: { type: "object", properties: {} } },
+    runner,
+    effect: readOnlyLocalEffect(),
+  };
+}
 
-    const mod: KotaModule = {
-      name: "factory-mod",
-      tools: (ctx) => [{
-        tool: {
-          name: "factory_tool",
-          description: `Tool in ${ctx.cwd}`,
-          input_schema: { type: "object", properties: {} },
-        },
-        runner: async () => ({ content: `from factory in ${ctx.cwd}` }),
-        effect: readOnlyLocalEffect(),
-      }],
-    };
-
-    await loader.load(mod);
-    expect(loader.getToolCount()).toBe(1);
-
-    const result = await executeTool("factory_tool", {});
-    expect(result.content).toContain("from factory");
-  });
-
-  it("tool runner can access ctx.getSecret via closure", async () => {
-    const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-factory-"));
-    try {
-      const store = getScopeSecretStore(scopeRoot);
-      store.set(
-        "KOTA_MODULE_CONTEXT_FACTORY_TOKEN",
-        "my-secret-token",
-        "scope",
-      );
-
-      const loader = createRuntimeModuleLoader({});
-      loader.setCwd(scopeRoot);
-
-      const mod: KotaModule = {
-        name: "secret-factory",
-        tools: (ctx) => [{
-          tool: {
-            name: "secret_tool",
-            description: "Uses secret",
-            input_schema: { type: "object", properties: {} },
-          },
-          runner: async () => {
-            const value = ctx.getSecret("KOTA_MODULE_CONTEXT_FACTORY_TOKEN");
-            return { content: value ? "found" : "not found" };
-          },
-          effect: readOnlyLocalEffect(),
-        }],
-      };
-
-      await loader.load(mod);
-      const result = await executeTool("secret_tool", {});
-      expect(result.content).toBe("found");
-    } finally {
-      rmSync(scopeRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("tool runner can access ctx.log via closure", async () => {
-    const chunks: string[] = [];
-    installRenderingCapture(chunks);
-    const loader = createRuntimeModuleLoader(TEXT_LOG_CONFIG, true);
-
-    const mod: KotaModule = {
-      name: "logging-factory",
-      tools: (ctx) => [{
-        tool: {
-          name: "log_tool",
-          description: "Logs stuff",
-          input_schema: { type: "object", properties: {} },
-        },
-        runner: async () => {
-          ctx.log.info("tool executed");
-          return { content: "done" };
-        },
-        effect: readOnlyLocalEffect(),
-      }],
-    };
-
-    await loader.load(mod);
-    const result = await executeTool("log_tool", {});
-    expect(result.content).toBe("done");
-
-    const logCall = chunks.find((chunk) => chunk.includes("tool executed"));
-    expect(logCall).toBeTruthy();
-    expect(logCall).toContain("[module:logging-factory]");
-  });
-
-  it("mixes static and factory tools across modules", async () => {
-    const loader = createRuntimeModuleLoader({});
-
+it("executes static and context-bound factory tools and withdraws only the unloaded contribution", async () => {
+  const loader = createRuntimeModuleLoader({});
+  loader.setCwd("/factory-scope");
+  try {
+    await loader.load({ name: "static", tools: [tool("static_tool", async () => ({ content: "static" }))] });
     await loader.load({
-      name: "static-mod",
-      tools: [{
-        tool: {
-          name: "static_tool",
-          description: "Static",
-          input_schema: { type: "object", properties: {} },
-        },
-        runner: async () => ({ content: "static" }),
-        effect: readOnlyLocalEffect(),
-      }],
-    });
-
-    await loader.load({
-      name: "factory-mod",
-      tools: () => [{
-        tool: {
-          name: "dynamic_tool",
-          description: "Dynamic",
-          input_schema: { type: "object", properties: {} },
-        },
-        runner: async () => ({ content: "dynamic" }),
-        effect: readOnlyLocalEffect(),
-      }],
-    });
-
-    expect(loader.getToolCount()).toBe(2);
-    expect((await executeTool("static_tool", {})).content).toBe("static");
-    expect((await executeTool("dynamic_tool", {})).content).toBe("dynamic");
-  });
-
-  it("getToolCount tracks factory tools correctly", async () => {
-    const loader = createRuntimeModuleLoader({});
-
-    await loader.load({
-      name: "multi-factory",
-      tools: () => [
-        {
-          tool: {
-            name: "ft1",
-            description: "F1",
-            input_schema: { type: "object", properties: {} },
-          },
-          runner: async () => ({ content: "1" }),
-          effect: readOnlyLocalEffect(),
-        },
-        {
-          tool: {
-            name: "ft2",
-            description: "F2",
-            input_schema: { type: "object", properties: {} },
-          },
-          runner: async () => ({ content: "2" }),
-          effect: readOnlyLocalEffect(),
-        },
+      name: "factory",
+      tools: (ctx) => [
+        tool("factory_tool", async () => ({ content: ctx.cwd })),
+        tool("second_tool", async () => ({ content: "second" })),
       ],
     });
-
-    expect(loader.getToolCount()).toBe(2);
-    await loader.unload("multi-factory");
-    expect(loader.getToolCount()).toBe(0);
-  });
+    expect(loader.getToolCount()).toBe(3);
+    expect((await executeTool("static_tool", {})).content).toBe("static");
+    expect((await executeTool("factory_tool", {})).content).toBe("/factory-scope");
+    expect((await executeTool("second_tool", {})).content).toBe("second");
+    await loader.unload("factory");
+    expect(loader.getToolCount()).toBe(1);
+    expect((await executeTool("factory_tool", {})).is_error).toBe(true);
+    expect((await executeTool("second_tool", {})).is_error).toBe(true);
+    expect((await executeTool("static_tool", {})).content).toBe("static");
+  } finally { await loader.unloadAll(); }
 });
 
-describe("resolveModuleTools", () => {
-  const dummyCtx = {
-    cwd: "/tmp",
-    verbose: false,
-    config: {},
-    storage: {} as ModuleContext["storage"],
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => undefined,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
-    events: {
-      emit: () => {},
-      subscribe: () => () => {},
-      emitExternal: () => {},
-      subscribeExternal: () => () => {},
-      listenerCount: () => 0,
-    },
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
-  } as ModuleContext;
+it("resolves scope secrets from the context retained by a tool factory", async () => {
+  const root = mkdtempSync(join(tmpdir(), "module-context-factory-"));
+  const loader = createRuntimeModuleLoader({});
+  loader.setCwd(root);
+  try {
+    getScopeSecretStore(root).set("KOTA_MODULE_CONTEXT_FACTORY_TOKEN", "fixture-token", "scope");
+    await loader.load({
+      name: "secret-factory",
+      tools: (ctx) => [tool("secret_tool", async () => ({
+        content: ctx.getSecret("KOTA_MODULE_CONTEXT_FACTORY_TOKEN") ? "found" : "not found",
+      }))],
+    });
+    expect((await executeTool("secret_tool", {})).content).toBe("found");
+  } finally {
+    await loader.unloadAll();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
-  it("returns empty array when tools is undefined", () => {
-    expect(resolveModuleTools({ name: "empty" })).toEqual([]);
-  });
+it("attributes tool diagnostics to the module captured by its factory", async () => {
+  const chunks: string[] = [];
+  installRenderingCapture(chunks);
+  const loader = createRuntimeModuleLoader(TEXT_LOG_CONFIG, true);
+  try {
+    await loader.load({
+      name: "logging-factory",
+      tools: (ctx) => [tool("log_tool", async () => {
+        ctx.log.info("tool executed");
+        return { content: "done" };
+      })],
+    });
+    expect((await executeTool("log_tool", {})).content).toBe("done");
+    expect(chunks.find((chunk) => chunk.includes("tool executed"))).toContain("[module:logging-factory]");
+  } finally { await loader.unloadAll(); }
+});
 
-  it("returns array directly for static tools", () => {
-    const tools: ToolDef[] = [{
-      tool: {
-        name: "t",
-        description: "T",
-        input_schema: { type: "object", properties: {} },
-      },
-      runner: async () => ({ content: "" }),
-      effect: readOnlyLocalEffect(),
-    }];
-    expect(resolveModuleTools({ name: "static", tools })).toBe(tools);
-  });
-
-  it("calls factory with context for function tools", () => {
-    const factory = vi.fn(() => [] as ToolDef[]);
-    resolveModuleTools({ name: "factory", tools: factory }, dummyCtx);
-    expect(factory).toHaveBeenCalledWith(dummyCtx);
-  });
-
-  it("throws when factory tools have no context", () => {
-    const mod: KotaModule = { name: "no-ctx", tools: () => [] };
-    expect(() => resolveModuleTools(mod)).toThrow("no context provided");
-  });
+it("rejects factory resolution without a module context", () => {
+  expect(() => resolveModuleTools({ name: "no-ctx", tools: () => [] })).toThrow("no context provided");
 });

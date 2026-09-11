@@ -1,17 +1,6 @@
 /**
- * Doctor module — owns the `kota doctor` CLI health check surface.
- *
- * Registers the `kota doctor` command that runs pass/info/warn/fail checks
- * against daemon connectivity, config validity, modules, providers,
- * workflow definitions, and disk state. The CLI handler routes through
- * `ctx.client.doctor.{run,fix}()` so daemon-up and daemon-down operators
- * see the same diagnostics for the same project state.
- *
- * The doctor namespace is fully module-owned: types live in `./client.ts`,
- * the daemon HTTP routes live in `./doctor-control-routes.ts`,
- * `localClient(ctx)` exposes the in-process handler, and `daemonClient(link)`
- * exposes the daemon-up handler that calls the same routes through the
- * typed `DaemonTransport`.
+ * Doctor CLI and local client composition. The canonical daemon contract
+ * generates remote client forwarding; reports and repairs are module-owned.
  */
 
 import { Command } from "commander";
@@ -34,22 +23,9 @@ import type {
   DoctorClient,
   DoctorRepairResult,
 } from "./client.js";
-import {
-  runDoctorFixes,
-  runDoctorReport,
-} from "./doctor-checks.js";
+import { runDoctorReport } from "./doctor-checks.js";
 import { doctorControlRoutes } from "./doctor-control-routes.js";
-
-export type {
-  CheckResult,
-  RepairResult,
-} from "./doctor-checks.js";
-export {
-  checkProviderConnectivity,
-  runDoctorChecks,
-  runDoctorFixes,
-  runDoctorReport,
-} from "./doctor-checks.js";
+import { runDoctorFixes } from "./doctor-fixes.js";
 
 function statusRole(status: DoctorCheckResult["status"]): SemanticRole {
   if (status === "pass") return "success";

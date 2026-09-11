@@ -34,11 +34,6 @@ export type PruneOptions = {
   minLength?: number;
 };
 
-export { buildToolCallMap } from "./tool-observations.js";
-
-/** Generate a compact summary for a pruned tool result. */
-export const generateSummary = formatPrunedToolObservation;
-
 /**
  * Prune large read-only tool results from older messages.
  *
@@ -96,6 +91,7 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
 
       const summary = formatPrunedToolObservation(toolInfo.name, toolInfo.input, textContent);
       const saved = textContent.length - summary.length;
+      if (saved <= 0) continue;
 
       compactToolResultEnvelope(tr, summary);
       prunedCount++;

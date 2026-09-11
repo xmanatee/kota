@@ -23,7 +23,7 @@ export function toEventJournalClientProjection(
   return {
     id: envelope.id,
     type: envelope.event.name,
-    payload: redactedPayloadForClient(envelope),
+    payload: redactedPayloadForClient(envelope.event.name, payloadStorageToObject(envelope.payload)),
     timestamp: envelope.timestamps.receivedAt,
     schemaRef: envelope.event.schema,
     scope: envelope.scope,

@@ -38,11 +38,11 @@ for (const [cat, exts] of [
 ])
   for (const e of exts.split(" ")) EXT_CAT[e] = cat;
 
-export function categorize(ext: string): string {
+function categorize(ext: string): string {
   return EXT_CAT[ext.toLowerCase()] ?? "Other";
 }
 
-export function fmtSize(bytes: number): string {
+function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;

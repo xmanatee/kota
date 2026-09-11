@@ -662,15 +662,6 @@ function completeHistoricalUsage(
 	};
 }
 
-function completeHistoricalUsageFromSteps(
-	primary: AgentUsage | undefined,
-	stepAggregate: AgentUsage | undefined,
-): AgentUsage | undefined {
-	if (primary === undefined) return stepAggregate;
-	if (stepAggregate === undefined) return primary;
-	return completeHistoricalUsage(primary, stepAggregate);
-}
-
 function historicalUsage(
 	record: Record<string, unknown>,
 ): AgentUsage | undefined {
@@ -793,15 +784,13 @@ function recoverableFacts(raw: unknown): WorkflowRunMetadataFacts {
 	};
 }
 
-const TERMINAL_STATUS_MIGRATIONS: Readonly<
-	Record<string, WorkflowRunMetadata["status"]>
-> = {
-	completed: "success",
-	error: "failed",
-	cancelled: "interrupted",
-	canceled: "interrupted",
-	completed_with_warnings: "completed-with-warnings",
-};
+const TERMINAL_STATUS_MIGRATIONS = new Map<string, WorkflowRunMetadata["status"]>([
+	["completed", "success"],
+	["error", "failed"],
+	["cancelled", "interrupted"],
+	["canceled", "interrupted"],
+	["completed_with_warnings", "completed-with-warnings"],
+]);
 
 const CURRENT_TERMINAL_STATUSES = new Set<string>([
 	"success",
@@ -814,7 +803,7 @@ function isPositivelyTerminalStatus(status: unknown): boolean {
 	return (
 		typeof status === "string" &&
 		(CURRENT_TERMINAL_STATUSES.has(status) ||
-			status in TERMINAL_STATUS_MIGRATIONS)
+			TERMINAL_STATUS_MIGRATIONS.has(status))
 	);
 }
 
@@ -912,7 +901,7 @@ function historicalCandidate(
 
 	const status =
 		typeof raw.status === "string"
-			? TERMINAL_STATUS_MIGRATIONS[raw.status]
+			? TERMINAL_STATUS_MIGRATIONS.get(raw.status)
 			: undefined;
 	if (status !== undefined) {
 		candidate.status = status;
@@ -968,7 +957,7 @@ function historicalCandidate(
 			const accumulator = new AgentUsageAccumulator();
 			for (const stepUsage of usages) accumulator.observe(stepUsage);
 			const derivedUsage = accumulator.snapshot();
-			const completedUsage = completeHistoricalUsageFromSteps(
+			const completedUsage = completeHistoricalUsage(
 				usage,
 				derivedUsage,
 			);

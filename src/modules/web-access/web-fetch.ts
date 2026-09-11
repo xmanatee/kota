@@ -51,14 +51,14 @@ const BINARY_TYPE_PREFIX = /^(image|audio|video|font)\//;
 const BINARY_SUBTYPE = /^application\/(pdf|zip|gzip|x-tar|x-7z-compressed|octet-stream|wasm|protobuf)/;
 
 /** Returns true for content types that should not be read as text. */
-export function isBinaryContentType(ct: string): boolean {
+function isBinaryContentType(ct: string): boolean {
   const mime = ct.split(";")[0].trim().toLowerCase();
   if (mime === "image/svg+xml") return false;
   return BINARY_TYPE_PREFIX.test(mime) || BINARY_SUBTYPE.test(mime);
 }
 
 /** Pretty-print a JSON response with a structure hint header. */
-export function formatJsonResponse(raw: string, maxLength: number): string {
+function formatJsonResponse(raw: string, maxLength: number): string {
   try {
     const parsed = JSON.parse(raw);
     const pretty = JSON.stringify(parsed, null, 2);

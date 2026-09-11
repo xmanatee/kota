@@ -136,7 +136,7 @@ export function decodeEvaluatorCalibrationDispositionsArtifact(
   return { schemaVersion: 1, records, unavailableSources };
 }
 
-function dispositionKey(record: {
+export function evaluatorCalibrationDispositionKey(record: {
   base: { runId: string; sourceRevision: string };
   later: { runId: string; sourceRevision: string };
 }): string {
@@ -173,7 +173,7 @@ export function loadEvaluatorCalibrationDispositions(
       const raw = readOptionalJsonFile<unknown>(path);
       if (raw === null) continue;
       for (const record of decodeEvaluatorCalibrationDispositionsArtifact(raw, path).records) {
-        const key = dispositionKey(record);
+        const key = evaluatorCalibrationDispositionKey(record);
         const existing = dispositions.get(key);
         if (existing && JSON.stringify(existing) !== JSON.stringify(record.disposition)) {
           fail(path, `conflicting disposition for ${key}`);
@@ -183,11 +183,4 @@ export function loadEvaluatorCalibrationDispositions(
     }
   }
   return dispositions;
-}
-
-export function evaluatorCalibrationDispositionKey(record: {
-  base: { runId: string; sourceRevision: string };
-  later: { runId: string; sourceRevision: string };
-}): string {
-  return dispositionKey(record);
 }

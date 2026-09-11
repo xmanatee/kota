@@ -1,517 +1,67 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-// Mock memory and history providers to isolate from real stores
-vi.mock("./core/modules/provider-registry.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./core/modules/provider-registry.js")>();
-  return {
-    ...actual,
-    getMemoryProvider: vi.fn(() => ({
-      list: () => [] as any[],
-      search: () => [] as any[],
-    })),
-    getHistoryProvider: vi.fn(() => ({
-      getMostRecent: () => null,
-    })),
-  };
-});
-
-// Mock task-store module to isolate and test failure paths
-vi.mock("./core/daemon/task-store.js", () => ({
-  getTaskStore: vi.fn(() => ({
-    getActiveSummary: () => null,
-  })),
-}));
-
-import { detectEnvironment, detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
-import { getTaskStore } from "./core/daemon/task-store.js";
-import { getHistoryProvider, getMemoryProvider } from "./core/modules/provider-registry.js";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { resetTaskStore, setTaskStoreInstance, TaskStore } from "#core/daemon/task-store.js";
+import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { buildSessionWarmup } from "./init.js";
 
-const mocked = vi.mocked(getMemoryProvider);
-const mockedHistory = vi.mocked(getHistoryProvider);
-const mockedTaskStore = vi.mocked(getTaskStore);
-
-describe("detectWorkspaceTechnology", () => {
-  let dir: string;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "kota-init-test-"));
-  });
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("returns null when no config files exist", () => {
-    expect(detectWorkspaceTechnology(dir)).toBeNull();
-  });
-
-  it("detects Node.js workspace with name from package.json", () => {
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "my-app" }));
-    const result = detectWorkspaceTechnology(dir);
-    expect(result).toContain("Node.js workspace");
-    expect(result).toContain("my-app");
-  });
-
-  it("detects frameworks in package.json dependencies", () => {
-    writeFileSync(
-      join(dir, "package.json"),
-      JSON.stringify({
-        dependencies: { react: "^18", next: "^14" },
-      }),
-    );
-    const result = detectWorkspaceTechnology(dir)!;
-    expect(result).toContain("react");
-    expect(result).toContain("next");
-  });
-
-  it("detects TypeScript and test framework from devDependencies", () => {
-    writeFileSync(
-      join(dir, "package.json"),
-      JSON.stringify({
-        devDependencies: { typescript: "^5", vitest: "^1" },
-      }),
-    );
-    const result = detectWorkspaceTechnology(dir)!;
-    expect(result).toContain("TypeScript");
-    expect(result).toContain("vitest");
-  });
-
-  it("falls back gracefully on malformed package.json", () => {
-    writeFileSync(join(dir, "package.json"), "not valid json{{{");
-    expect(detectWorkspaceTechnology(dir)).toBe("Node.js workspace");
-  });
-
-  it("detects Rust workspace from Cargo.toml", () => {
-    writeFileSync(join(dir, "Cargo.toml"), '[package]\nname = "my-crate"\nversion = "0.1.0"');
-    expect(detectWorkspaceTechnology(dir)).toContain("Rust workspace");
-    expect(detectWorkspaceTechnology(dir)).toContain("my-crate");
-  });
-
-  it("detects Go workspace from go.mod", () => {
-    writeFileSync(join(dir, "go.mod"), "module github.com/user/repo\n\ngo 1.21");
-    expect(detectWorkspaceTechnology(dir)).toContain("Go workspace");
-    expect(detectWorkspaceTechnology(dir)).toContain("github.com/user/repo");
-  });
-
-  it("detects Python workspace from pyproject.toml", () => {
-    writeFileSync(join(dir, "pyproject.toml"), '[workspace]\nname = "analyzer"');
-    expect(detectWorkspaceTechnology(dir)).toContain("Python workspace");
-    expect(detectWorkspaceTechnology(dir)).toContain("analyzer");
-  });
-
-  it("detects Python workspace from requirements.txt", () => {
-    writeFileSync(join(dir, "requirements.txt"), "flask\nrequests\n");
-    expect(detectWorkspaceTechnology(dir)).toBe("Python workspace");
-  });
-
-  it("detects Make-based workspace from Makefile", () => {
-    writeFileSync(join(dir, "Makefile"), "all:\n\techo hello");
-    expect(detectWorkspaceTechnology(dir)).toBe("Make-based workspace");
-  });
-
-  it("package.json takes priority over Makefile", () => {
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app" }));
-    writeFileSync(join(dir, "Makefile"), "all:\n\techo hello");
-    expect(detectWorkspaceTechnology(dir)).toContain("Node.js workspace");
-  });
-
-  it("includes scripts from package.json", () => {
-    writeFileSync(
-      join(dir, "package.json"),
-      JSON.stringify({ scripts: { build: "tsc", test: "vitest", lint: "eslint" } }),
-    );
-    const result = detectWorkspaceTechnology(dir)!;
-    expect(result).toContain("scripts:");
-    expect(result).toContain("build");
-    expect(result).toContain("test");
-  });
+let dir: string;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "kota-warmup-"));
+  initProviderRegistry();
+  setTaskStoreInstance(new TaskStore(dir, null));
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 8, 10, 12));
+});
+afterEach(() => {
+  resetProviderRegistry();
+  resetTaskStore();
+  vi.useRealTimers();
+  rmSync(dir, { recursive: true, force: true });
 });
 
-describe("buildSessionWarmup", () => {
-  let dir: string;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "kota-warmup-test-"));
-    mocked.mockReturnValue({
-      list: () => [],
-      search: () => [],
-    } as any);
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => null,
-    } as any);
-    mockedTaskStore.mockReturnValue({
-      getActiveSummary: () => null,
-    } as any);
-  });
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("always includes working directory", () => {
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain(dir);
-    expect(result).toContain("Working directory");
-  });
-
-  it("includes workspace type when detected", () => {
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "test-proj" }));
-    const result = buildSessionWarmup(dir);
-		expect(result).toContain("**Workspace**:");
-    expect(result).toContain("Node.js workspace");
-  });
-
-  it("includes git context when in a git repo", () => {
-    execSync("git init", { cwd: dir, stdio: "pipe" });
-    execSync("git commit --allow-empty -m 'init'", {
-      cwd: dir,
-      stdio: "pipe",
-      env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" },
-    });
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Git**:");
-    expect(result).toContain("Working tree: clean");
-  });
-
-  it("shows modified files in git context", () => {
-    execSync("git init", { cwd: dir, stdio: "pipe" });
-    execSync("git commit --allow-empty -m 'init'", {
-      cwd: dir,
-      stdio: "pipe",
-      env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" },
-    });
-    writeFileSync(join(dir, "new-file.txt"), "hello");
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("untracked");
-  });
-
-  it("shows deleted files in git context", () => {
-    const gitEnv = { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" };
-    execSync("git init", { cwd: dir, stdio: "pipe" });
-    writeFileSync(join(dir, "to-delete.txt"), "hello");
-    execSync("git add to-delete.txt", { cwd: dir, stdio: "pipe" });
-    execSync("git commit -m 'add file'", { cwd: dir, stdio: "pipe", env: gitEnv });
-    rmSync(join(dir, "to-delete.txt"));
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("1 deleted");
-  });
-
-  it("shows renamed files in git context", () => {
-    const gitEnv = { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" };
-    execSync("git init", { cwd: dir, stdio: "pipe" });
-    writeFileSync(join(dir, "old-name.txt"), "content");
-    execSync("git add old-name.txt", { cwd: dir, stdio: "pipe" });
-    execSync("git commit -m 'add file'", { cwd: dir, stdio: "pipe", env: gitEnv });
-    execSync("git mv old-name.txt new-name.txt", { cwd: dir, stdio: "pipe" });
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("1 renamed");
-  });
-
-  it("includes recalled memories when found", () => {
-    mocked.mockReturnValue({
-      list: () => [{ id: "abc", content: "Uses React", tags: ["framework"], created: "" }],
-      search: () => [{ id: "abc", content: "Uses React", tags: ["framework"], created: "" }],
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Recalled from memory");
-    expect(result).toContain("Uses React");
-  });
-
-  it("omits memory section when no matches", () => {
-    const result = buildSessionWarmup(dir);
-    expect(result).not.toContain("Recalled from memory");
-  });
-
-  it("handles non-git directory gracefully", () => {
-    const result = buildSessionWarmup(dir);
-    expect(result).not.toContain("**Git**:");
-    expect(result).toContain("Working directory");
-  });
-
-  it("includes current date with day of week", () => {
-    const result = buildSessionWarmup(dir);
-    expect(result).toMatch(/Date: \d{4}-\d{2}-\d{2} \((Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\)/);
-  });
-
-  it("date matches today (local time)", () => {
-    const result = buildSessionWarmup(dir);
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    expect(result).toContain(`Date: ${today}`);
-  });
-
-  it("includes platform info", () => {
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("**System**:");
-    expect(result).toContain("Platform:");
-  });
-
-  it("includes directory overview when files exist", () => {
-    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
-    mkdirSync(join(dir, "reports"));
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Directory**:");
-    expect(result).toContain("data.csv");
-    expect(result).toContain("reports/");
-  });
-
-  it("shows 'just now' for very recent conversations", () => {
-    const now = new Date();
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => ({
-        id: "test-1", title: "Test chat", messageCount: 5,
-        updatedAt: new Date(now.getTime() - 30000).toISOString(),
-        createdAt: now.toISOString(), cwd: dir, messages: [],
-      }),
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("just now");
-  });
-
-  it("uses singular 'minute' for exactly 1 minute ago", () => {
-    const now = new Date();
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => ({
-        id: "test-2", title: "Test chat", messageCount: 3,
-        updatedAt: new Date(now.getTime() - 75000).toISOString(),
-        createdAt: now.toISOString(), cwd: dir, messages: [],
-      }),
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("1 minute ago");
-    expect(result).not.toContain("1 minutes ago");
-  });
-
-  it("uses singular 'hour' for exactly 1 hour ago", () => {
-    const now = new Date();
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => ({
-        id: "test-3", title: "Test chat", messageCount: 3,
-        updatedAt: new Date(now.getTime() - 3600000).toISOString(),
-        createdAt: now.toISOString(), cwd: dir, messages: [],
-      }),
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("1 hour ago");
-    expect(result).not.toContain("1 hours ago");
-  });
-
-  it("uses singular 'day' for exactly 1 day ago", () => {
-    const now = new Date();
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => ({
-        id: "test-4", title: "Test chat", messageCount: 3,
-        updatedAt: new Date(now.getTime() - 86400000).toISOString(),
-        createdAt: now.toISOString(), cwd: dir, messages: [],
-      }),
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("1 day ago");
-    expect(result).not.toContain("1 days ago");
-  });
-
-  it("uses plural 'minutes' for multiple minutes ago", () => {
-    const now = new Date();
-    mockedHistory.mockReturnValue({
-      getMostRecent: () => ({
-        id: "test-5", title: "Test chat", messageCount: 3,
-        updatedAt: new Date(now.getTime() - 5 * 60000).toISOString(),
-        createdAt: now.toISOString(), cwd: dir, messages: [],
-      }),
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("5 minutes ago");
-  });
-
-  it("survives getMemoryProvider() throwing", () => {
-    mocked.mockImplementation(() => { throw new Error("corrupt storage"); });
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Working directory");
-    expect(result).not.toContain("Recalled from memory");
-  });
-
-  it("survives getTaskStore() throwing", () => {
-    mockedTaskStore.mockImplementation(() => { throw new Error("corrupt tasks"); });
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Working directory");
-    expect(result).not.toContain("Active tasks");
-  });
-
-  it("survives store.list() throwing inside recallMemories", () => {
-    mocked.mockReturnValue({
-      list: () => { throw new Error("read error"); },
-      search: () => [],
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Working directory");
-    expect(result).not.toContain("Recalled from memory");
-  });
-
-  it("survives getActiveSummary() throwing inside recallTasks", () => {
-    mockedTaskStore.mockReturnValue({
-      getActiveSummary: () => { throw new Error("parse error"); },
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Working directory");
-    expect(result).not.toContain("Active tasks");
-  });
-
-  it("survives all recall functions throwing simultaneously", () => {
-    mocked.mockImplementation(() => { throw new Error("memory crash"); });
-    mockedTaskStore.mockImplementation(() => { throw new Error("task crash"); });
-    mockedHistory.mockImplementation(() => { throw new Error("history crash"); });
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("Working directory");
-    expect(result).toContain("System");
-  });
-
-  it("includes task summary when getActiveSummary returns data", () => {
-    mockedTaskStore.mockReturnValue({
-      getActiveSummary: () => "2 in progress: 'Research', 'Write report'",
-    } as any);
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Active tasks from previous session**:");
-    expect(result).toContain("Research");
-  });
-
+it("provides directory and local system context when optional sources are absent", () => {
+  const result = buildSessionWarmup(dir);
+  expect(result).toContain(`**Working directory**: ${dir}`);
+  expect(result).toContain("Date: 2026-09-10 (Thursday) | Platform:");
+  for (const heading of ["Git", "Workspace", "Environment", "Directory", "Active tasks", "Scheduled reminders", "Recalled from memory", "Knowledge base", "Previous conversation"]) {
+    expect(result).not.toContain(`**${heading}`);
+  }
 });
 
-describe("detectEnvironment", () => {
-  let dir: string;
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "kota-env-test-")); });
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
-
-  it("returns null for empty directory", () => {
-    expect(detectEnvironment(dir)).toBeNull();
-  });
-
-  it("detects data files", () => {
-    writeFileSync(join(dir, "sales.csv"), "a,b\n1,2");
-    writeFileSync(join(dir, "config.json"), "{}");
-    const result = detectEnvironment(dir)!;
-    expect(result).toContain("2 data files");
-    expect(result).toContain("Workspace");
-  });
-
-  it("detects document files", () => {
-    writeFileSync(join(dir, "report.md"), "# Report");
-    writeFileSync(join(dir, "notes.txt"), "hello");
-    writeFileSync(join(dir, "paper.pdf"), "fake pdf");
-    const result = detectEnvironment(dir)!;
-    expect(result).toContain("3 documents");
-  });
-
-  it("detects mixed environment with multiple categories", () => {
-    writeFileSync(join(dir, "data.csv"), "a,b");
-    writeFileSync(join(dir, "readme.md"), "hi");
-    writeFileSync(join(dir, "photo.png"), "img");
-    const result = detectEnvironment(dir)!;
-    expect(result).toContain("data file");
-    expect(result).toContain("document");
-    expect(result).toContain("image");
-  });
-
-  it("uses singular form for single file per category", () => {
-    writeFileSync(join(dir, "data.csv"), "a,b");
-    const result = detectEnvironment(dir)!;
-    expect(result).toContain("1 data file");
-    expect(result).not.toContain("1 data files");
-  });
-
-  it("uses plural form for multiple files per category", () => {
-    writeFileSync(join(dir, "a.png"), "img");
-    writeFileSync(join(dir, "b.png"), "img");
-    writeFileSync(join(dir, "c.png"), "img");
-    const result = detectEnvironment(dir)!;
-    expect(result).toContain("3 images");
-  });
-
-  it("returns null when only unrecognized file types", () => {
-    writeFileSync(join(dir, "mystery.xyz"), "???");
-    expect(detectEnvironment(dir)).toBeNull();
-  });
-
-  it("skips hidden files", () => {
-    writeFileSync(join(dir, ".hidden.csv"), "a,b");
-    expect(detectEnvironment(dir)).toBeNull();
-  });
-
-  it("warmup shows environment when no workspace detected", () => {
-    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
-    writeFileSync(join(dir, "notes.md"), "# Notes");
-    const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Environment**:");
-    expect(result).toContain("Workspace");
-		expect(result).not.toContain("**Workspace**:");
-  });
-
-  it("warmup prefers workspace over environment when both available", () => {
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app" }));
-    writeFileSync(join(dir, "data.csv"), "a,b");
-    const result = buildSessionWarmup(dir);
-		expect(result).toContain("**Workspace**:");
-    expect(result).not.toContain("**Environment**:");
-  });
+it("renders workspace context in preference to a file-based environment", () => {
+  mkdirSync(join(dir, "reports"));
+  writeFileSync(join(dir, "data.csv"), "a,b");
+  let result = buildSessionWarmup(dir);
+  expect(result).toContain("**Environment**: Workspace with 1 data file");
+  expect(result).toContain("**Directory**:");
+  expect(result).toContain("reports/");
+  expect(result).toContain("data.csv");
+  writeFileSync(join(dir, "package.json"), '{"name":"test-proj"}');
+  result = buildSessionWarmup(dir);
+  expect(result).toContain("**Workspace**: Node.js workspace — test-proj");
+  expect(result).not.toContain("**Environment**:");
 });
 
-describe("getDirectoryOverview", () => {
-  let dir: string;
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "kota-dir-test-")); });
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
-
-  it("returns null for empty directory", () => {
-    expect(getDirectoryOverview(dir)).toBeNull();
+it("renders real Git context as a disposable repository changes", () => {
+  const git = (...args: string[]) => execFileSync("git", args, {
+    cwd: dir, stdio: "pipe", env: { ...process.env,
+      GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "t@t" },
   });
-
-  it("lists files and directories", () => {
-    writeFileSync(join(dir, "readme.md"), "hello");
-    writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
-    mkdirSync(join(dir, "src"));
-    const result = getDirectoryOverview(dir)!;
-    expect(result).toContain("src/");
-    expect(result).toContain("readme.md");
-    expect(result).toContain("data.csv");
-  });
-
-  it("skips hidden entries and noise directories", () => {
-    mkdirSync(join(dir, ".git"));
-    mkdirSync(join(dir, "node_modules"));
-    mkdirSync(join(dir, "src"));
-    writeFileSync(join(dir, ".env"), "SECRET=x");
-    writeFileSync(join(dir, "index.ts"), "");
-    const result = getDirectoryOverview(dir)!;
-    expect(result).toContain("src/");
-    expect(result).toContain("index.ts");
-    expect(result).not.toContain(".git");
-    expect(result).not.toContain("node_modules");
-    expect(result).not.toContain(".env");
-  });
-
-  it("truncates file list beyond 15 entries", () => {
-    for (let i = 0; i < 20; i++) writeFileSync(join(dir, `file${i}.txt`), "");
-    const result = getDirectoryOverview(dir)!;
-    expect(result).toContain("+5 more");
-  });
-
-  it("truncates directory list beyond 10 entries", () => {
-    for (let i = 0; i < 13; i++) mkdirSync(join(dir, `dir${i}`));
-    const result = getDirectoryOverview(dir)!;
-    expect(result).toContain("+3 more");
-  });
-
-  it("returns null for non-existent directory", () => {
-    expect(getDirectoryOverview("/tmp/kota-nonexistent-dir-42")).toBeNull();
-  });
-
-  it("returns null when directory has only hidden entries", () => {
-    writeFileSync(join(dir, ".hidden"), "secret");
-    writeFileSync(join(dir, ".config"), "data");
-    expect(getDirectoryOverview(dir)).toBeNull();
-  });
+  git("init");
+  for (const name of ["to-delete", "old-name", "to-modify"]) writeFileSync(join(dir, name), name);
+  git("add", ".");
+  git("commit", "-m", "warmup fixture");
+  expect(buildSessionWarmup(dir)).toContain("Working tree: clean");
+  rmSync(join(dir, "to-delete"));
+  git("mv", "old-name", "new-name");
+  writeFileSync(join(dir, "to-modify"), "changed");
+  writeFileSync(join(dir, "untracked"), "new");
+  const result = buildSessionWarmup(dir);
+  expect(result).toContain("**Git**:");
+  expect(result).toContain("Working tree: 1 modified, 1 deleted, 1 untracked, 1 renamed");
+  expect(result).toContain("warmup fixture");
 });

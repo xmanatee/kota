@@ -1,24 +1,16 @@
 import {
-  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { listHarnessHooks } from "#core/agent-harness/hooks.js";
+import { hasAgentHarness } from "#core/agent-harness/registry.js";
 import {
-  listHarnessHooks,
-  resetHarnessHooks,
-} from "#core/agent-harness/hooks.js";
-import {
-  clearAgentHarnessRegistryForTest,
-  hasAgentHarness,
-} from "#core/agent-harness/registry.js";
-import {
-  clearRegisteredConfigSlices,
   getRegisteredConfigSlice,
   type ModuleConfigSlice,
   registerConfigSlice,
@@ -27,34 +19,18 @@ import { EventBus } from "#core/events/event-bus.js";
 import {
   defineDaemonWideModuleEvent,
   getModuleEventRegistry,
-  resetModuleEventRegistry,
 } from "#core/events/module-event.js";
-import {
-  collectDynamicState,
-  resetDynamicStateProviders,
-} from "#core/loop/dynamic-state.js";
-import { NullTransport } from "#core/loop/transport.js";
+import { collectDynamicState } from "#core/loop/dynamic-state.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   networkWriteEffect,
   operatorSurfaceEffect,
   readOnlyLocalEffect,
 } from "#core/tools/effect.js";
-import {
-  clearCustomTools,
-  executeTool,
-  getAllTools,
-} from "#core/tools/index.js";
-import {
-  clearCustomGroups,
-  enableGroup,
-  filterTools,
-  resetGroups,
-  TOOL_GROUPS,
-} from "#core/tools/tool-groups.js";
-import {
-  getToolMiddleware,
-  resetToolMiddleware,
-} from "#core/tools/tool-middleware.js";
+import { executeTool } from "#core/tools/index.js";
+import { TOOL_GROUPS } from "#core/tools/tool-groups.js";
+import { getToolMiddleware } from "#core/tools/tool-middleware.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
@@ -62,18 +38,22 @@ import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
 import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
-import {
-  initProviderRegistry,
-  RENDERING_PROVIDER_TOKEN,
-  resetProviderRegistry,
-} from "./provider-registry.js";
-import type { RenderingProvider, ReplChrome } from "./provider-types.js";
 
-class ModuleLoader extends RuntimeModuleLoader {
-  constructor(...args: ConstructorParameters<typeof RuntimeModuleLoader>) {
-    super(...args);
-    if (args[2]?.mode !== "commands") this.setBus(new EventBus());
-  }
+const unexpectedTransportCall = () => { throw new Error("Client admission must not use the transport"); };
+const transport: DaemonTransport = {
+  baseUrl: "http://unused.invalid",
+  authHeaders: unexpectedTransportCall,
+  request: unexpectedTransportCall,
+  requestStrict: unexpectedTransportCall,
+  fetchRaw: unexpectedTransportCall,
+  events: unexpectedTransportCall,
+};
+
+function createLoader(...args: ConstructorParameters<typeof RuntimeModuleLoader>): RuntimeModuleLoader {
+  const loader = new RuntimeModuleLoader(args[0], args[1], { mode: "runtime", ...args[2] });
+  if (loader.getMode() === "runtime") loader.setBus(new EventBus());
+  onTestFinished(() => loader.unloadAll());
+  return loader;
 }
 
 function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
@@ -234,98 +214,19 @@ const malformedHarnessCases: [string, Record<string, unknown>, RegExp][] = [
   ],
 ];
 
-const noopChrome: ReplChrome = {
-  announceHarness: () => {},
-  showHelp: () => {},
-  showStatus: () => {},
-  showReset: () => {},
-  showError: () => {},
-  showGoodbye: () => {},
-};
-
-function installRenderingCapture(chunks: string[]): void {
-  const provider: RenderingProvider = {
-    createAgentTransport: () => new NullTransport(),
-    createReplChrome: () => noopChrome,
-    printDiagnostic: (diagnostic) => {
-      chunks.push(
-        diagnostic.detail
-          ? `${diagnostic.message}\n${diagnostic.detail}`
-          : diagnostic.message,
-      );
-    },
-    printPrompt: (prompt) => {
-      chunks.push(prompt.kind);
-    },
-    writeStderr: (text) => {
-      chunks.push(text);
-    },
-  };
-  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
+function captureDiagnostics(chunks: string[]): void {
+  const output = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  });
+  onTestFinished(() => output.mockRestore());
 }
 
 describe("ModuleLoader", () => {
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-    resetProviderRegistry();
-    resetDynamicStateProviders();
-    resetHarnessHooks();
-    clearAgentHarnessRegistryForTest();
-    resetModuleEventRegistry();
-    resetToolMiddleware();
-  });
 
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-    resetProviderRegistry();
-    resetDynamicStateProviders();
-    resetHarnessHooks();
-    clearAgentHarnessRegistryForTest();
-    resetModuleEventRegistry();
-    resetToolMiddleware();
-  });
-
-  it("loads a module with tools", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
-      name: "test-mod",
-      tools: [makeTool("test_tool")],
-    };
-
-    await loader.load(mod);
-    expect(loader.getLoadedModules()).toEqual(["test-mod"]);
-    expect(loader.getModuleCount()).toBe(1);
-    expect(loader.getToolCount()).toBe(1);
-
-    const result = await executeTool("test_tool", {});
-    expect(result.content).toBe("result from test_tool");
-  });
-
-  it("registers tools into groups via group field", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
-      name: "grouped-mod",
-      tools: [{ ...makeTool("grouped_tool"), group: "test_group" }],
-    };
-
-    await loader.load(mod);
-    expect(TOOL_GROUPS.test_group).toContain("grouped_tool");
-
-    // Tool hidden until group enabled
-    const before = filterTools(getAllTools());
-    expect(before.some((t) => t.name === "grouped_tool")).toBe(false);
-
-    enableGroup("test_group");
-    const after = filterTools(getAllTools());
-    expect(after.some((t) => t.name === "grouped_tool")).toBe(true);
-  });
 
   it("rejects a tool missing effect metadata", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const mod: KotaModule = {
       name: "no-effect-mod",
       tools: [makeToolWithoutMeta("no_effect_tool") as any],
@@ -374,7 +275,7 @@ describe("ModuleLoader", () => {
     }],
     ["a self dependency", { name: "self-dep", dependencies: ["self-dep"] }],
   ])("rejects %s before lifecycle admission", async (_label, declaration) => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await expect(loader.load(declaration as never)).rejects.toThrow(
       /Invalid module declaration/,
@@ -385,7 +286,7 @@ describe("ModuleLoader", () => {
   it.each(malformedHarnessCases)(
     "rejects an agent harness with %s before lifecycle admission",
     async (_label, overrides, message) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await expect(loader.load({
         name: "bad-agent-harness",
@@ -408,7 +309,7 @@ describe("ModuleLoader", () => {
       /agent\[0\]\.tools has unknown field "allowd"/,
     ],
   ])("rejects an agent with %s", async (_label, overrides, message) => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await expect(loader.load({
       name: "bad-agent-contract",
@@ -426,7 +327,7 @@ describe("ModuleLoader", () => {
   });
 
   it("rejects duplicate agent identities atomically across and within modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const original = makeAgent("shared-agent");
     await loader.load({ name: "agent-owner", agents: [original] });
 
@@ -491,7 +392,7 @@ describe("ModuleLoader", () => {
   ])(
     "rejects unknown fields on a nested %s declaration",
     async (_label, contribution, message) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await expect(loader.load({
         name: "bad-nested-declaration",
@@ -525,7 +426,7 @@ describe("ModuleLoader", () => {
   ])(
     "rejects obsolete metadata on a %s capability envelope",
     async (_label, contribution) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await expect(loader.load({
         name: "obsolete-capability-metadata",
@@ -543,7 +444,7 @@ describe("ModuleLoader", () => {
       /configSchema\.extension must be JSON-compatible/,
     ],
   ])("rejects %s", async (_label, configSchema, message) => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await expect(loader.load({
       name: "bad-config-schema",
@@ -567,7 +468,7 @@ describe("ModuleLoader", () => {
       },
     };
     const openTool = makeTool("open_schema_tool");
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await loader.load({
       name: "open-json-schema",
@@ -619,7 +520,7 @@ describe("ModuleLoader", () => {
   ])(
     "rejects a tool with %s",
     async (_label, inputSchema, outputSchema, message) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await expect(loader.load({
         name: "bad-tool-contract",
@@ -670,7 +571,7 @@ describe("ModuleLoader", () => {
       /properties\.id\.items\.type is invalid/,
     ],
   ])("rejects an event with %s", async (_label, event, message) => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await expect(
       loader.load({ name: "bad-event-contract", events: [event] } as never),
@@ -680,7 +581,7 @@ describe("ModuleLoader", () => {
   });
 
   it("leaves workflow capability decoding to the canonical workflow validator", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     await loader.load({
       name: "workflow-trigger-capabilities",
       workflows: [
@@ -719,7 +620,7 @@ describe("ModuleLoader", () => {
   ])(
     "rejects malformed %s factory results before host admission",
     async (name, contribution) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await expect(
         loader.load(
@@ -734,125 +635,29 @@ describe("ModuleLoader", () => {
     },
   );
 
-  it.each([
-    ["a non-object result", () => null, /localClient result must be an object/],
-    [
-      "an unknown namespace",
-      () => ({ invented: {} }),
-      /unknown namespace "invented"/,
-    ],
-    [
-      "a malformed namespace handler",
-      () => ({ recall: {} }),
-      /recall\.recall must be a function/,
-    ],
-    [
-      "an unknown namespace method",
-      () => ({
-        recall: new Proxy(
-          { retiredRecall: () => undefined },
-          {
-            get: (target, property) =>
-              property === "recall"
-                ? () => undefined
-                : Reflect.get(target, property),
-          },
-        ),
-      }),
-      /recall contains unknown method "retiredRecall"/,
-    ],
-  ])(
-    "rejects localClient factory results with %s",
-    async (_label, localClient, message) => {
-      const loader = new ModuleLoader({});
-
-      await expect(
-        loader.load({ name: "bad-local-client", localClient } as never),
-      )
-        .rejects.toThrow(message);
-      expect(loader.getLoadedModules()).toEqual([]);
-    },
-  );
-
-  it.each([
-    ["workflow", "pauseAgentForQuality"],
-    ["sessions", "runOneShot"],
-    ["scopes", "inspectAuthority"],
-    ["tasks", "updateBody"],
-  ])(
-    "rejects a %s client handler missing required %s",
-    async (namespace, missingMethod) => {
-      const loader = new ModuleLoader({});
-      const handler = new Proxy({}, {
-        get: (_target, property) =>
-          property === missingMethod ? undefined : () => undefined,
-      });
-
-      await expect(loader.load({
-        name: `incomplete-${namespace}-client`,
-        localClient: () => ({ [namespace]: handler }),
-      } as never)).rejects.toThrow(
-        new RegExp(`${namespace}\\.${missingMethod} must be a function`),
-      );
-    },
-  );
-
-  it.each([
-    [
-      "a non-object result",
-      () => null,
-      /daemonClient result must be an object/,
-    ],
-    [
-      "an unknown namespace",
-      () => ({ invented: {} }),
-      /unknown namespace "invented"/,
-    ],
-    [
-      "a malformed namespace handler",
-      () => ({ recall: {} }),
-      /recall\.recall must be a function/,
-    ],
-    [
-      "an unknown namespace method",
-      () => ({
-        recall: new Proxy(
-          { retiredRecall: () => undefined },
-          {
-            get: (target, property) =>
-              property === "recall"
-                ? () => undefined
-                : Reflect.get(target, property),
-          },
-        ),
-      }),
-      /recall contains unknown method "retiredRecall"/,
-    ],
-  ])(
-    "rejects daemonClient factory results with %s",
-    async (_label, daemonClient, message) => {
-      const loader = new ModuleLoader({});
-      await loader.load({ name: "bad-daemon-client", daemonClient } as never);
-
-      expect(() => loader.assembleDaemonClientHandlers({} as never)).toThrow(
-        message,
-      );
-    },
-  );
-
-  it("loads a tool with complete metadata", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
-      name: "annotated-mod",
-      tools: [makeTool("annotated_tool")],
-    };
-
-    await loader.load(mod);
-    expect(loader.getToolCount()).toBe(1);
+  describe.each(["localClient", "daemonClient"] as const)("%s boundary", (surface) => {
+    it.each([
+      ["non-object result", null, /result must be an object/],
+      ["unknown namespace", { invented: {} }, /unknown namespace "invented"/],
+      ["missing required method", { recall: {} }, /recall\.recall must be a function/],
+      ["unknown method", { recall: { recall: () => undefined, retiredRecall: () => undefined } },
+        /recall contains unknown method "retiredRecall"/],
+    ])("rejects %s", async (_label, result, error) => {
+      const loader = createLoader({});
+      const loading = loader.load({ name: "invalid-client", [surface]: () => result } as never);
+      if (surface === "localClient") {
+        await expect(loading).rejects.toThrow(error);
+        expect(loader.getLocalClientHandlers()).toEqual({});
+        expect(loader.getLoadedModules()).toEqual([]);
+      } else {
+        await loading;
+        expect(() => loader.assembleDaemonClientHandlers(transport)).toThrow(error);
+      }
+    });
   });
 
   it("registers and unregisters declarative agent harnesses with module lifecycle", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     await loader.load({
       name: "harness-owner",
       agentHarnesses: [makeAgentHarness({ name: "owned-harness" })],
@@ -880,7 +685,7 @@ describe("ModuleLoader", () => {
   ])(
     "isolates %s while loading bundled modules",
     async (_label, declaration, name, error) => {
-      const loader = new ModuleLoader({});
+      const loader = createLoader({});
 
       await loader.loadAll(
         [{ name: "valid-bundled" }],
@@ -899,7 +704,7 @@ describe("ModuleLoader", () => {
   );
 
   it("keeps a bundled module loaded when a malformed installed declaration reuses its name", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await loader.loadAll(
       [{ name: "shared-name" }],
@@ -919,7 +724,7 @@ describe("ModuleLoader", () => {
   });
 
   it("projects a module capability manifest from cached contributions and tool effects", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const { Command } = await import("commander");
 
     await loader.load({ name: "base-mod" });
@@ -1128,153 +933,44 @@ describe("ModuleLoader", () => {
       });
   });
 
-  it("rejects manifest effects that reference unknown capability ids", async () => {
-    const loader = new ModuleLoader({});
-
-    await expect(
-      loader.load({
-        name: "bad-manifest-mod",
-        manifest: {
-          schemaVersion: 1,
-          capabilities: [
-            {
-              id: "bad-manifest-mod.api",
-              description: "Fixture capability.",
-              scope: "external",
-              scopePolicyHooks: ["external-effects"],
-            },
-          ],
-          dataClasses: [],
-          additionalEffects: [
-            {
-              id: "bad-manifest-mod.send",
-              description: "Fixture external send.",
-              source: "tool",
-              effect: networkWriteEffect(),
-              capabilityIds: ["missing.capability"],
-            },
-          ],
-          simulation: {
-            support: "external-effects-blocked",
-            blockedReasons: ["Fixture sends are blocked."],
-          },
-        },
-      }),
-    ).rejects.toThrow(/references unknown capability id "missing.capability"/);
-  });
-
-  it("rejects malformed manifest enum values and effect shapes at runtime", async () => {
-    await expect(
-      new ModuleLoader({}).load({
-        name: "bad-scope-manifest",
-        manifest: {
-          schemaVersion: 1,
-          capabilities: [
-            {
-              id: "bad-scope.api",
-              description: "Fixture capability.",
-              scope: "workspace",
-              scopePolicyHooks: ["external-effects"],
-            },
-          ],
-          dataClasses: [],
-          simulation: { support: "full", blockedReasons: [] },
-        } as unknown as KotaModule["manifest"],
-      }),
-    ).rejects.toThrow(
-      /capability "bad-scope.api" scope has unknown value "workspace"/,
-    );
-
-    await expect(
-      new ModuleLoader({}).load({
-        name: "bad-data-manifest",
-        manifest: {
-          schemaVersion: 1,
-          capabilities: [
-            {
-              id: "bad-data.api",
-              description: "Fixture capability.",
-              scope: "external",
-              scopePolicyHooks: ["external-effects"],
-            },
-          ],
-          dataClasses: [
-            {
-              id: "bad-data.payload",
-              description: "Fixture payload.",
-              sensitivity: "raw-token",
-              retention: "forever",
-              redaction: "print-secret",
-            },
-          ],
-          simulation: { support: "full", blockedReasons: [] },
-        } as unknown as KotaModule["manifest"],
-      }),
-    ).rejects.toThrow(
-      /data class "bad-data.payload" sensitivity has unknown value "raw-token"/,
-    );
-
-    await expect(
-      new ModuleLoader({}).load({
-        name: "bad-effect-manifest",
-        manifest: {
-          schemaVersion: 1,
-          capabilities: [
-            {
-              id: "bad-effect.api",
-              description: "Fixture capability.",
-              scope: "external",
-              scopePolicyHooks: ["external-effects"],
-            },
-          ],
-          dataClasses: [],
-          additionalEffects: [
-            {
-              id: "bad-effect.send",
-              description: "Fixture send.",
-              source: "notification",
-              effect: {
-                kind: "write",
-                scope: "operator",
-                idempotent: "no",
-                openWorld: false,
-              },
-              capabilityIds: ["bad-effect.api"],
-            },
-          ],
-          simulation: {
-            support: "external-effects-blocked",
-            blockedReasons: ["Fixture sends are blocked."],
-          },
-        } as unknown as KotaModule["manifest"],
-      }),
-    ).rejects.toThrow(
-      /effect "bad-effect.send" tool effect scope has unknown value "operator"/,
-    );
-
-    await expect(
-      new ModuleLoader({}).load({
-        name: "bad-simulation-manifest",
-        manifest: {
-          schemaVersion: 1,
-          capabilities: [
-            {
-              id: "bad-simulation.api",
-              description: "Fixture capability.",
-              scope: "external",
-              scopePolicyHooks: ["external-effects"],
-            },
-          ],
-          dataClasses: [],
-          simulation: { support: "sometimes", blockedReasons: [] },
-        } as unknown as KotaModule["manifest"],
-      }),
-    ).rejects.toThrow(/simulation support has unknown value "sometimes"/);
+  it.each([
+    ["unknown capability reference", {
+      additionalEffects: [{ id: "send", description: "Send", source: "tool",
+        effect: networkWriteEffect(), capabilityIds: ["missing"] }],
+    }, /references unknown capability id "missing"/],
+    ["unknown capability scope", {
+      capabilities: [{ id: "api", description: "API", scope: "workspace", scopePolicyHooks: [] }],
+    }, /scope has unknown value "workspace"/],
+    ["unknown data sensitivity", {
+      dataClasses: [{ id: "payload", description: "Payload", sensitivity: "raw-token",
+        retention: "run-artifact", redaction: "metadata-only" }],
+    }, /sensitivity has unknown value "raw-token"/],
+    ["unknown effect scope", {
+      additionalEffects: [{ id: "send", description: "Send", source: "notification",
+        effect: { kind: "write", scope: "operator", idempotent: false, openWorld: false } }],
+    }, /tool effect scope has unknown value "operator"/],
+    ["unknown simulation policy", {
+      simulation: { support: "sometimes", blockedReasons: [] },
+    }, /simulation support has unknown value "sometimes"/],
+  ])("rejects %s before publishing contributions", async (_label, invalid, error) => {
+    const loader = createLoader({});
+    await expect(loader.load({
+      name: "invalid-manifest", tools: [makeTool("rejected_tool")],
+      manifest: {
+        schemaVersion: 1,
+        capabilities: [{ id: "api", description: "API", scope: "external", scopePolicyHooks: [] }],
+        dataClasses: [],
+        simulation: { support: "external-effects-blocked", blockedReasons: ["External writes blocked"] },
+        ...invalid,
+      },
+    } as never)).rejects.toThrow(error);
+    expect(loader.getLoadedModules()).toEqual([]);
+    expect((await executeTool("rejected_tool", {})).is_error).toBe(true);
   });
 
   it("rejects external or operator-visible effects without explicit manifest coverage", async () => {
     await expect(
-      new ModuleLoader({}).load({
+      createLoader({}).load({
         name: "uncovered-external",
         tools: [
           {
@@ -1292,7 +988,7 @@ describe("ModuleLoader", () => {
 
   it("rejects non-tool notification effects without explicit manifest coverage", async () => {
     await expect(
-      new ModuleLoader({}).load({
+      createLoader({}).load({
         name: "uncovered-notifier",
         channels: [
           {
@@ -1314,7 +1010,7 @@ describe("ModuleLoader", () => {
   });
 
   it("does not expose skipped installed module tools after manifest validation fails", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
 
     await loader.loadAll(
       [{ name: "good-mod" }],
@@ -1354,7 +1050,7 @@ describe("ModuleLoader", () => {
   });
 
   it("preserves earlier workflow and channel owners when a later module rolls back", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const ownerWorkflow = {
       repository: "read" as const,
       name: "shared/workflow",
@@ -1393,7 +1089,7 @@ describe("ModuleLoader", () => {
   });
 
   it("does not leak an earlier local-client namespace when a later namespace collides", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const modulesHandler = { list: async () => [] };
     await loader.load({
       name: "modules-client-owner",
@@ -1416,7 +1112,7 @@ describe("ModuleLoader", () => {
 
   it("rejects explicit manifests that omit simulation blocking for projected effects", async () => {
     await expect(
-      new ModuleLoader({}).load({
+      createLoader({}).load({
         name: "bad-simulation-coverage",
         tools: [
           {
@@ -1452,7 +1148,7 @@ describe("ModuleLoader", () => {
   });
 
   it("rejects duplicate module names", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     await loader.load({ name: "dup" });
     await expect(loader.load({ name: "dup" })).rejects.toThrow(
       'Duplicate module name: "dup"',
@@ -1460,7 +1156,7 @@ describe("ModuleLoader", () => {
   });
 
   it("rejects modules with missing dependencies", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const mod: KotaModule = {
       name: "dependent",
       dependencies: ["missing-dep"],
@@ -1470,322 +1166,97 @@ describe("ModuleLoader", () => {
     );
   });
 
-  it("loads dependencies before dependents via loadAll", async () => {
-    const loader = new ModuleLoader({});
-    const loadOrder: string[] = [];
-
-    const dep: KotaModule = {
-      name: "base",
-      onLoad: () => {
-        loadOrder.push("base");
-      },
-    };
-    const dependent: KotaModule = {
-      name: "ext",
-      dependencies: ["base"],
-      onLoad: () => {
-        loadOrder.push("ext");
-      },
-    };
-
-    // Intentionally pass in wrong order
-    await loader.loadAll([dependent, dep]);
-    expect(loadOrder).toEqual(["base", "ext"]);
-    expect(loader.getLoadedModules()).toEqual(["base", "ext"]);
-  });
-
-  it("calls onLoad with ModuleContext including getRoutes", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({ model: "test-model" }, true);
-    await loader.load({ name: "ctx-test", onLoad });
-
-    expect(onLoad).toHaveBeenCalledOnce();
-    const ctx = onLoad.mock.calls[0][0];
-    expect(ctx.cwd).toBeTruthy();
-    expect(typeof ctx.verbose).toBe("boolean");
-    expect(typeof ctx.registerGroup).toBe("function");
-    expect(typeof ctx.getRoutes).toBe("function");
-    expect(ctx.config).toEqual({ model: "test-model" });
-  });
-
-  it("getRoutes in context returns routes from all loaded modules", async () => {
-    const handler = vi.fn();
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "route-provider",
-      routes: () => [{ method: "POST", path: "/api/test", handler }],
+  it("orders dependency activation and preserves dependents until they can be unloaded", async () => {
+    const loader = createLoader({});
+    const activated: string[] = [];
+    const module = (name: string, dependencies: string[] = []): KotaModule => ({
+      name, dependencies, onLoad: () => { activated.push(name); },
     });
-
-    // A module's commands() can use ctx.getRoutes() to discover routes
-    let discoveredRoutes: any[] = [];
-    const { Command } = await import("commander");
-    await loader.load({
-      name: "route-consumer",
-      commands: (ctx) => {
-        discoveredRoutes = ctx.getRoutes();
-        return [new Command("test-cmd")];
-      },
-    });
-
-    expect(discoveredRoutes).toHaveLength(1);
-    expect(discoveredRoutes[0].path).toBe("/api/test");
-  });
-
-  it("collects workflow definitions from modules and exposes via getContributedWorkflows", async () => {
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "workflow-provider",
-      workflows: [
-        {
-          repository: "read",
-          name: "workflow-provider/my-job",
-          triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
-          steps: [{ id: "noop", type: "code", run: () => {} }],
-        },
-      ],
-    });
-
-    const workflows = loader.getContributedWorkflows();
-    expect(workflows).toHaveLength(1);
-    expect(workflows[0].name).toBe("workflow-provider/my-job");
-    expect(workflows[0].definitionPath).toBe("modules/workflow-provider");
-  });
-
-  it("collects channel definitions from modules and exposes via getContributedChannels", async () => {
-    const loader = new ModuleLoader({});
-    const mockCreate = () =>
-      ({ status: "disabled", reason: "test stub" }) as const;
-
-    await loader.load({
-      name: "channel-provider",
-      channels: [{
-        name: "test-channel",
-        description: "A test channel",
-        create: mockCreate,
-      }],
-    });
-
-    const channels = loader.getContributedChannels();
-    expect(channels).toHaveLength(1);
-    expect(channels[0].name).toBe("test-channel");
-  });
-
-  it("exposes contributed workflows via ctx.getContributedWorkflows()", async () => {
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "wf-ext",
-      workflows: [
-        {
-          repository: "read",
-          name: "wf-ext/heartbeat",
-          triggers: [{ intervalMs: 300_000 }],
-          steps: [{ id: "noop", type: "code", run: () => {} }],
-        },
-      ],
-    });
-
-    let discoveredWorkflows: any[] = [];
-    await loader.load({
-      name: "wf-consumer",
-      onLoad: (ctx) => {
-        discoveredWorkflows = ctx.getContributedWorkflows();
-      },
-    });
-
-    expect(discoveredWorkflows).toHaveLength(1);
-    expect(discoveredWorkflows[0].name).toBe("wf-ext/heartbeat");
-  });
-
-  it("calls activation disposers in reverse order during unloadAll", async () => {
-    const unloadOrder: string[] = [];
-    const loader = new ModuleLoader({});
-
-    await loader.loadAll([
-      {
-        name: "first",
-        onLoad: () => ({
-          dispose: () => {
-            unloadOrder.push("first");
-          },
-        }),
-      },
-      {
-        name: "second",
-        onLoad: () => ({
-          dispose: () => {
-            unloadOrder.push("second");
-          },
-        }),
-      },
-      {
-        name: "third",
-        onLoad: () => ({
-          dispose: () => {
-            unloadOrder.push("third");
-          },
-        }),
-      },
-    ]);
-
+    await loader.loadAll([module("child", ["base"]), module("base"), module("independent")]);
+    expect(activated.filter((name) => name !== "independent")).toEqual(["base", "child"]);
+    expect(loader.getDependents("base")).toEqual(["child"]);
+    expect(loader.getDependents("independent")).toEqual([]);
+    await expect(loader.unload("base")).rejects.toThrow('depended on by "child"');
+    expect(loader.getLoadedModules()).toContain("base");
+    await loader.unload("child");
+    expect(await loader.unload("base")).toBe(true);
     await loader.unloadAll();
-    expect(unloadOrder).toEqual(["third", "second", "first"]);
-    expect(loader.getModuleCount()).toBe(0);
   });
 
-  it("cleans up tools on unloadAll", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "cleanup-mod",
-      tools: [makeTool("cleanup_tool")],
-    });
-
-    const result1 = await executeTool("cleanup_tool", {});
-    expect(result1.content).toBe("result from cleanup_tool");
-
+  it("exposes scoped configuration and earlier contributions to dependent activation", async () => {
+    const loader = createLoader({ model: "test-model" }, true);
+    const route = { method: "POST" as const, path: "/api/test", handler: () => {} };
+    const workflow = {
+      repository: "read" as const, name: "producer/job", triggers: [{ intervalMs: 1000 }],
+      steps: [{ id: "noop", type: "code" as const, run: () => {} }],
+    };
+    const channel = { name: "producer.channel", create: () => ({ status: "disabled" as const, reason: "fixture" }) };
+    await loader.load({ name: "producer", routes: () => [route], workflows: [workflow], channels: [channel] });
+    await loader.load({ name: "consumer", dependencies: ["producer"], onLoad: (ctx) => {
+      expect(ctx.cwd).toBe(process.cwd());
+      expect(ctx.verbose).toBe(true);
+      expect(ctx.config.model).toBe("test-model");
+      expect(ctx.getRoutes()).toEqual([route]);
+      expect(ctx.getContributedWorkflows()).toEqual([expect.objectContaining(workflow)]);
+      expect(ctx.getContributedChannels()).toEqual([channel]);
+    } });
+    expect(loader.getContributedWorkflows()).toMatchObject([{
+      ...workflow, moduleRoot: process.cwd(), contributingModule: "producer", moduleSource: "bundled",
+    }]);
+    expect(loader.getContributedChannels()).toEqual([channel]);
     await loader.unloadAll();
-    const result2 = await executeTool("cleanup_tool", {});
-    expect(result2.is_error).toBe(true);
   });
 
-  it("collects CLI commands from modules", async () => {
-    const { Command } = await import("commander");
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "cmd-mod",
-      commands: () => [
-        new Command("test-cmd").description("A test command"),
-      ],
-    });
-
-    const commands = loader.getCommands();
-    expect(commands).toHaveLength(1);
-    expect(commands[0].name()).toBe("test-cmd");
-  });
-
-  it("collects HTTP routes from modules", async () => {
-    const handler = vi.fn();
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "route-mod",
-      routes: () => [
-        { method: "GET", path: "/api/test", handler },
-        { method: "POST", path: "/api/test", handler },
-      ],
-    });
-
-    const routes = loader.getRoutes();
-    expect(routes).toHaveLength(2);
-    expect(routes[0]).toEqual({ method: "GET", path: "/api/test", handler });
-  });
-
-  it("bundled module load failure throws from loadAll", async () => {
-    const loader = new ModuleLoader({});
+  it("withdraws tools before reverse disposal and continues cleanup after a disposer fails", async () => {
+    const loader = createLoader({});
+    const disposed: string[] = [];
     const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    await expect(
-      loader.loadAll([
-        {
-          name: "bad-mod",
-          onLoad: () => {
-            throw new Error("boom");
-          },
-        },
-        { name: "good-mod" },
-      ]),
-    ).rejects.toThrow("1 bundled module(s) failed to load");
-
-    // Good module still loaded despite the throw
-    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(chunks).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Module "bad-mod" failed to load: boom'),
-      ]),
-    );
+    captureDiagnostics(chunks);
+    await loader.loadAll(["base", "dependent"].map((name): KotaModule => ({
+      name, ...(name === "dependent" ? { dependencies: ["base"] } : {}),
+      tools: [makeTool(name)],
+      onLoad: () => ({ dispose: async () => {
+        expect((await executeTool("base", {})).is_error).toBe(true);
+        expect((await executeTool("dependent", {})).is_error).toBe(true);
+        disposed.push(name);
+        if (name === "dependent") throw new Error("cleanup failed");
+      } }),
+    })));
+    expect((await executeTool("base", {})).content).toBe("result from base");
+    await loader.unloadAll();
+    expect(disposed).toEqual(["dependent", "base"]);
+    expect(loader.getLoadedModules()).toEqual([]);
+    expect(chunks.join("\n")).toContain('Module "dependent" unload error: cleanup failed');
+    await loader.unloadAll();
+    expect(disposed).toEqual(["dependent", "base"]);
   });
 
-  it("installed module load failure is non-fatal in loadAll", async () => {
-    const loader = new ModuleLoader({});
+  it.each([
+    { source: "bundled", verbose: false, logged: true },
+    { source: "installed", verbose: false, logged: false },
+    { source: "installed", verbose: true, logged: true },
+  ] as const)("isolates and reports $source activation failure with verbose=$verbose", async ({ source, verbose, logged }) => {
+    const loader = createLoader({}, verbose);
     const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    await loader.loadAll(
-      [{ name: "good-mod" }],
-      [{
-        name: "bad-installed",
-        onLoad: () => {
-          throw new Error("missing creds");
-        },
-      }],
-    );
-
-    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(chunks).not.toEqual(
-      expect.arrayContaining([expect.stringContaining("bad-installed")]),
-    );
-  });
-
-  it("installed module load failure logs in verbose mode", async () => {
-    const loader = new ModuleLoader({}, true);
-    const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    await loader.loadAll(
-      [{ name: "good-mod" }],
-      [{
-        name: "bad-installed",
-        onLoad: () => {
-          throw new Error("missing creds");
-        },
-      }],
-    );
-
-    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
-    expect(chunks).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Optional module "bad-installed" skipped'),
-      ]),
-    );
-  });
-
-  it("records load failures with source in getModuleSummaries", async () => {
-    const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    await loader.loadAll(
-      [{ name: "good-mod" }],
-      [{
-        name: "bad-installed",
-        onLoad: () => {
-          throw new Error("it broke");
-        },
-      }],
-    );
-
-    const summaries = loader.getModuleSummaries();
-    const goodSummary = summaries.find((s) => s.name === "good-mod");
-    const badSummary = summaries.find((s) => s.name === "bad-installed");
-
-    expect(goodSummary).toBeDefined();
-    expect(goodSummary?.loadError).toBeUndefined();
-    expect(goodSummary?.source).toBe("bundled");
-
-    expect(badSummary).toBeDefined();
-    expect(badSummary?.loadError).toBe("it broke");
-    expect(badSummary?.source).toBe("installed");
-    expect(badSummary?.toolNames).toEqual([]);
-
-    errSpy.mockRestore();
+    captureDiagnostics(chunks);
+    const broken: KotaModule = { name: "broken", onLoad: () => { throw new Error("activation failed"); } };
+    const healthy: KotaModule = { name: "healthy" };
+    const loading = source === "bundled"
+      ? loader.loadAll([broken, healthy]) : loader.loadAll([healthy], [broken]);
+    if (source === "bundled") await expect(loading).rejects.toThrow("1 bundled module(s) failed to load");
+    else await loading;
+    expect(loader.getLoadedModules()).toEqual(["healthy"]);
+    expect(loader.getModuleSummaries()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "healthy", source: "bundled" }),
+      expect.objectContaining({ name: "broken", source, loadError: "activation failed", toolNames: [] }),
+    ]));
+    expect(chunks.some((chunk) => chunk.includes('"broken"'))).toBe(logged);
+    await loader.unloadAll();
   });
 
   it('"commands" mode skips tool registration and onLoad', async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({}, false, { mode: "commands" });
+    const loader = createLoader({}, false, { mode: "commands" });
     const { Command } = await import("commander");
 
     await loader.load({
@@ -1813,7 +1284,7 @@ describe("ModuleLoader", () => {
   });
 
   it("serializes lifecycle mutations and recovers after rejected work", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     let release!: () => void;
     let entered!: () => void;
     const started = new Promise<void>((resolve) => { entered = resolve; });
@@ -1839,7 +1310,7 @@ describe("ModuleLoader", () => {
   });
 
   it("withdraws executable contributions before awaiting activation disposal", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     let release!: () => void;
     let entered!: () => void;
     const disposing = new Promise<void>((resolve) => { entered = resolve; });
@@ -1888,12 +1359,12 @@ describe("ModuleLoader", () => {
         });
       },
     };
-    const runtime = new ModuleLoader({}, false, { mode: "runtime" });
-    const commands = new ModuleLoader({}, false, { mode: "commands" });
+    const runtime = createLoader({}, false, { mode: "runtime" });
+    const commands = createLoader({}, false, { mode: "commands" });
     await runtime.load(mod);
     await commands.load(mod);
 
-    const rejected = new ModuleLoader({}, false, { mode: "runtime" });
+    const rejected = createLoader({}, false, { mode: "runtime" });
     await expect(rejected.load({
       ...mod,
       tools: [makeTool("partial_registration"), makeTool("concurrent_owner_tool")],
@@ -1930,7 +1401,7 @@ describe("ModuleLoader", () => {
   });
 
   it('"commands" mode rejects route/control-route/health-check accessors but exposes static contributions', async () => {
-    const loader = new ModuleLoader({}, false, { mode: "commands" });
+    const loader = createLoader({}, false, { mode: "commands" });
 
     // Load a module that contributes routes, control routes, workflows, channels,
     // agents, and a health check. Routes/control-routes/health-checks depend on
@@ -2004,264 +1475,76 @@ describe("ModuleLoader", () => {
     ]);
   });
 
-  it("runtime mode permits every runtime-only contribution getter", async () => {
-    const loader = new ModuleLoader({}, false, { mode: "runtime" });
-
-    await loader.load({
-      name: "runtime-mod",
-      routes: () => [{ method: "GET", path: "/x", handler: () => undefined }],
-    });
-
-    expect(loader.getMode()).toBe("runtime");
-    expect(() => loader.getRoutes()).not.toThrow();
-    expect(loader.getRoutes()).toHaveLength(1);
-    expect(() => loader.getContributedControlRoutes()).not.toThrow();
-    expect(() => loader.getContributedWorkflows()).not.toThrow();
-    expect(() => loader.getContributedChannels()).not.toThrow();
-    expect(() => loader.getSkillsPrompt()).not.toThrow();
-    expect(() => loader.getAgentDef("nope")).not.toThrow();
-    await expect(loader.probeHealthChecks()).resolves.toBeDefined();
-  });
-
-  it("handles activation disposer errors gracefully", async () => {
-    const loader = new ModuleLoader({});
-    const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    await loader.load({
-      name: "bad-unload",
-      onLoad: () => ({
-        dispose: () => {
-          throw new Error("cleanup failed");
-        },
-      }),
-    });
-
-    await loader.unloadAll();
-    expect(chunks).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining(
-          'Module "bad-unload" unload error: cleanup failed',
-        ),
-      ]),
-    );
-  });
-
-  it("unloads a single module and deregisters its tools", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "mod-a",
-      tools: [makeTool("tool_a")],
-    });
-    await loader.load({ name: "mod-b", tools: [makeTool("tool_b")] });
-
-    expect(loader.getLoadedModules()).toEqual(["mod-a", "mod-b"]);
-
-    // tool_a works before unload
-    const r1 = await executeTool("tool_a", {});
-    expect(r1.content).toBe("result from tool_a");
-
-    await loader.unload("mod-a");
-    expect(loader.getLoadedModules()).toEqual(["mod-b"]);
-
-    // tool_a gone, tool_b still works
-    const r2 = await executeTool("tool_a", {});
-    expect(r2.is_error).toBe(true);
-    const r3 = await executeTool("tool_b", {});
-    expect(r3.content).toBe("result from tool_b");
-  });
-
-  it("disposes the runtime instance returned by module activation", async () => {
-    const dispose = vi.fn();
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "activated-module",
-      onLoad: () => ({ dispose }),
-    });
-
-    expect(dispose).not.toHaveBeenCalled();
-    await loader.unload("activated-module");
-    expect(dispose).toHaveBeenCalledOnce();
-  });
-
-  it("unloads a single module and removes its loop and harness registrations", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "mod-a",
+  it("withdraws only the selected module's executable contributions and disposes it once", async () => {
+    const loader = createLoader({});
+    const disposed: string[] = [];
+    await loader.loadAll(["a", "b"].map((name): KotaModule => ({
+      name, tools: [{ ...makeTool(name), group: "shared_group" }],
       onLoad: (ctx) => {
-        ctx.registerDynamicStateProvider("mod-a-state", () => "A");
-        ctx.registerHarnessHook({
-          kind: "preRun",
-          name: "mod-a-hook",
-          handler: () => {},
-        });
+        ctx.registerDynamicStateProvider(`${name}-state`, () => name);
+        ctx.registerHarnessHook({ kind: "preRun", name: `${name}-hook`, handler: () => {} });
+        return { dispose: () => { disposed.push(name); } };
       },
-    });
-    await loader.load({
-      name: "mod-b",
-      onLoad: (ctx) => {
-        ctx.registerDynamicStateProvider("mod-b-state", () => "B");
-        ctx.registerHarnessHook({
-          kind: "preRun",
-          name: "mod-b-hook",
-          handler: () => {},
-        });
-      },
-    });
-
-    expect(collectDynamicState({ activeTools: new Set() })).toBe("AB");
-    expect(listHarnessHooks("preRun").map((hook) => hook.name)).toEqual([
-      "mod-a-hook",
-      "mod-b-hook",
-    ]);
-
-    await loader.unload("mod-a");
-
-    expect(collectDynamicState({ activeTools: new Set() })).toBe("B");
-    expect(listHarnessHooks("preRun").map((hook) => hook.name)).toEqual([
-      "mod-b-hook",
-    ]);
-
+    })));
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("ab");
+    expect(TOOL_GROUPS.shared_group).toEqual(["a", "b"]);
+    expect((await executeTool("a", {})).content).toBe("result from a");
+    expect(await loader.unload("a")).toBe(true);
+    expect(await loader.unload("a")).toBe(false);
+    expect(disposed).toEqual(["a"]);
+    expect(loader.getLoadedModules()).toEqual(["b"]);
+    expect((await executeTool("a", {})).is_error).toBe(true);
+    expect((await executeTool("b", {})).content).toBe("result from b");
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("b");
+    expect(listHarnessHooks("preRun").map((hook) => hook.name)).toEqual(["b-hook"]);
+    expect(TOOL_GROUPS.shared_group).toEqual(["b"]);
     await loader.unloadAll();
-
+    expect(disposed).toEqual(["a", "b"]);
     expect(collectDynamicState({ activeTools: new Set() })).toBe("");
     expect(listHarnessHooks("preRun")).toEqual([]);
+    expect(TOOL_GROUPS.shared_group).toBeUndefined();
   });
 
-  it("removes grouped tools from TOOL_GROUPS on unload", async () => {
-    const loader = new ModuleLoader({});
+  it("replaces activated tool state and retains one copy of contributions across reload", async () => {
+    const loader = createLoader({});
+    let generation = 0;
+    const disposed: number[] = [];
     await loader.load({
-      name: "grouped-unload-mod",
-      tools: [{
-        ...makeTool("grouped_unload_tool"),
-        group: "test_unload_group",
-      }],
+      name: "reloadable", configSlices: [fakeSlice("reloadable")],
+      skills: [{ name: "guidance", promptPath: "src/core/modules/AGENTS.md" }],
+      workflows: [{ repository: "read", name: "reloadable/job", triggers: [{ intervalMs: 1000 }],
+        steps: [{ id: "noop", type: "code", run: () => {} }] }],
+      channels: [{ name: "reloadable.channel", create: () => ({ status: "disabled", reason: "fixture" }) }],
+      tools: () => {
+        const version = ++generation;
+        return [{ ...makeTool("version"), runner: async () => ({ content: String(version) }) }];
+      },
+      onLoad: () => {
+        const version = generation;
+        return { dispose: () => { disposed.push(version); } };
+      },
     });
-
-    expect(TOOL_GROUPS.test_unload_group).toContain("grouped_unload_tool");
-
-    await loader.unload("grouped-unload-mod");
-    expect(TOOL_GROUPS.test_unload_group).toBeUndefined();
+    const prompt = loader.getSkillsPrompt();
+    expect(prompt).toContain("### guidance");
+    expect((await executeTool("version", {})).content).toBe("1");
+    expect(await loader.reload("reloadable")).toBe(true);
+    expect((await executeTool("version", {})).content).toBe("2");
+    expect(disposed).toEqual([1]);
+    expect(loader.getLoadedModules()).toEqual(["reloadable"]);
+    expect([...loader.getRegisteredConfigKeys()]).toEqual(["reloadable"]);
+    expect(loader.getSkillsPrompt()).toBe(prompt);
+    expect(loader.getContributedWorkflows().map((entry) => entry.name)).toEqual(["reloadable/job"]);
+    expect(loader.getContributedChannels().map((entry) => entry.name)).toEqual(["reloadable.channel"]);
+    await loader.unload("reloadable");
+    expect(disposed).toEqual([1, 2]);
+    expect(loader.getRegisteredConfigKeys().size).toBe(0);
+    expect(getRegisteredConfigSlice("reloadable")).toBeUndefined();
+    expect(loader.getSkillsPrompt()).toBe("");
+    expect(loader.getContributedWorkflows()).toEqual([]);
+    expect(loader.getContributedChannels()).toEqual([]);
+    expect(await loader.reload("reloadable")).toBe(false);
   });
 
-  it("removes grouped tools from TOOL_GROUPS on unloadAll", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "grouped-unload-all-mod",
-      tools: [{
-        ...makeTool("grouped_unload_all_tool"),
-        group: "test_unload_all_group",
-      }],
-    });
-
-    expect(TOOL_GROUPS.test_unload_all_group).toContain(
-      "grouped_unload_all_tool",
-    );
-
-    await loader.unloadAll();
-    expect(TOOL_GROUPS.test_unload_all_group).toBeUndefined();
-  });
-
-  it("unload returns false for unknown module", async () => {
-    const loader = new ModuleLoader({});
-    expect(await loader.unload("nonexistent")).toBe(false);
-  });
-
-  it("unload rejects when dependents exist", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "base" });
-    await loader.load({ name: "child", dependencies: ["base"] });
-
-    await expect(loader.unload("base")).rejects.toThrow(
-      'Cannot unload "base": depended on by "child"',
-    );
-  });
-
-  it("unload calls the activation disposer", async () => {
-    const unloadCalled = vi.fn();
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "evt-mod",
-      onLoad: () => ({ dispose: unloadCalled }),
-    });
-
-    await loader.unload("evt-mod");
-    expect(unloadCalled).toHaveBeenCalledOnce();
-  });
-
-  it("reloads a module — re-registers tools and calls onLoad again", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
-
-    await loader.load({
-      name: "reload-mod",
-      tools: [makeTool("reload_tool")],
-      onLoad,
-    });
-    expect(onLoad).toHaveBeenCalledTimes(1);
-
-    const r1 = await executeTool("reload_tool", {});
-    expect(r1.content).toBe("result from reload_tool");
-
-    const reloaded = await loader.reload("reload-mod");
-    expect(reloaded).toBe(true);
-    expect(onLoad).toHaveBeenCalledTimes(2);
-    expect(loader.getLoadedModules()).toEqual(["reload-mod"]);
-
-    // Tool still works after reload
-    const r2 = await executeTool("reload_tool", {});
-    expect(r2.content).toBe("result from reload_tool");
-  });
-
-  it("reload returns false for unknown module", async () => {
-    const loader = new ModuleLoader({});
-    expect(await loader.reload("nonexistent")).toBe(false);
-  });
-
-  it("reload cleans up config keys, skills, workflows, and channels", async () => {
-    clearRegisteredConfigSlices();
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "cleanup-mod",
-      tools: [makeTool("cleanup_tool")],
-      configSlices: [fakeSlice("cleanupMod")],
-    });
-
-    expect(loader.getRegisteredConfigKeys().has("cleanupMod")).toBe(true);
-
-    await loader.reload("cleanup-mod");
-
-    expect(loader.getRegisteredConfigKeys().has("cleanupMod")).toBe(true);
-    expect(loader.getLoadedModules()).toEqual(["cleanup-mod"]);
-    const r = await executeTool("cleanup_tool", {});
-    expect(r.content).toBe("result from cleanup_tool");
-  });
-
-  it("unload cleans up config keys", async () => {
-    clearRegisteredConfigSlices();
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "cfgkey-mod",
-      configSlices: [fakeSlice("cfgKeyMod")],
-    });
-    expect(loader.getRegisteredConfigKeys().has("cfgKeyMod")).toBe(true);
-
-    await loader.unload("cfgkey-mod");
-    expect(loader.getRegisteredConfigKeys().has("cfgKeyMod")).toBe(false);
-  });
-
-  it("getDependents returns correct dependents", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "core" });
-    await loader.load({ name: "ext-a", dependencies: ["core"] });
-    await loader.load({ name: "ext-b", dependencies: ["core"] });
-    await loader.load({ name: "standalone" });
-
-    expect(loader.getDependents("core").sort()).toEqual(["ext-a", "ext-b"]);
-    expect(loader.getDependents("standalone")).toEqual([]);
-    expect(loader.getDependents("ext-a")).toEqual([]);
-  });
 });
 
 describe("source reimport", () => {
@@ -2269,9 +1552,6 @@ describe("source reimport", () => {
   let globalConfigPath: string;
 
   beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
     tmpDir = mkdtempSync(join(tmpdir(), "kota-reimport-"));
     globalConfigPath = join(tmpDir, "machine-config.json");
     writeFileSync(
@@ -2281,36 +1561,7 @@ describe("source reimport", () => {
   });
 
   afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  });
-
-  it("reimport picks up changed module source from disk", async () => {
-    const modDir = join(tmpDir, ".kota", "modules", "test-mod");
-    mkdirSync(modDir, { recursive: true });
-
-    writeFileSync(
-      join(modDir, "index.mjs"),
-      `export default { name: "test-mod", version: "1.0.0", description: "v1" };`,
-    );
-
-    const url1 = pathToFileURL(join(modDir, "index.mjs")).href;
-    const mod1 = await import(url1);
-    expect(mod1.default.description).toBe("v1");
-
-    writeFileSync(
-      join(modDir, "index.mjs"),
-      `export default { name: "test-mod", version: "2.0.0", description: "v2" };`,
-    );
-
-    const cachedMod = await import(url1);
-    expect(cachedMod.default.description).toBe("v1");
-
-    const cacheBustedUrl = `${url1}?v=${Date.now()}`;
-    const mod2 = await import(cacheBustedUrl);
-    expect(mod2.default.description).toBe("v2");
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("rejects failed installed reloads without reporting stale activation as success", async () => {
@@ -2318,7 +1569,7 @@ describe("source reimport", () => {
     mkdirSync(modDir, { recursive: true });
     const manifestPath = join(modDir, "manifest.json");
     writeFileSync(manifestPath, JSON.stringify({ name: "disk-mod", description: "original" }));
-    const loader = new ModuleLoader({}, false, { globalConfigPath });
+    const loader = createLoader({}, false, { globalConfigPath });
     loader.setCwd(tmpDir);
     const { reimportInstalledModule } = await import("./module-discovery.js");
     const mod = await reimportInstalledModule("disk-mod", tmpDir, { globalConfigPath });
@@ -2354,7 +1605,7 @@ describe("source reimport", () => {
       };`,
     );
 
-    const loader = new ModuleLoader({}, false, { globalConfigPath });
+    const loader = createLoader({}, false, { globalConfigPath });
     loader.setCwd(tmpDir);
 
     const { reimportInstalledModule } = await import("./module-discovery.js");
@@ -2391,160 +1642,61 @@ describe("source reimport", () => {
   });
 });
 
-describe("route discovery caches snapshots", () => {
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  it("calls each module's routes() factory exactly once during load", async () => {
-    const loader = new ModuleLoader({});
-    const handler = vi.fn();
-    const routesFactory = vi.fn(
-      () => [{ method: "GET" as const, path: "/a", handler }],
-    );
-
-    await loader.load({ name: "route-a", routes: routesFactory });
-
-    loader.getRoutes();
-    loader.getRoutes();
-    loader.getModuleSummaries();
-    loader.getModuleSummaries();
-
-    expect(routesFactory).toHaveBeenCalledOnce();
-  });
-
-  it("calls each module's commands() factory exactly once during load", async () => {
-    const loader = new ModuleLoader({});
+describe("module contribution snapshots", () => {
+  it.each(["runtime", "commands"] as const)("keeps admitted discoveries stable in %s mode", async (mode) => {
     const { Command } = await import("commander");
-    const commandsFactory = vi.fn(() => [new Command("test-cmd")]);
-
-    await loader.load({ name: "cmd-mod", commands: commandsFactory });
-
-    loader.getCommands();
-    loader.getCommands();
-    loader.getModuleSummaries();
-
-    expect(commandsFactory).toHaveBeenCalledOnce();
+    const loader = createLoader({}, false, { mode });
+    const command = new Command("admitted");
+    const route = { method: "GET" as const, path: "/admitted", handler: () => {} };
+    let commands = [command];
+    let routes = [route];
+    try {
+      await loader.load({ name: "snapshot", commands: () => commands, routes: () => routes });
+      const summaries = loader.getModuleSummaries();
+      expect(summaries).toMatchObject([{ commandNames: ["admitted"], routeSummaries: ["GET /admitted"] }]);
+      commands = [new Command("unadmitted")];
+      routes = [{ ...route, path: "/unadmitted" }];
+      expect(loader.getCommands()).toEqual([command]);
+      expect(loader.getModuleSummaries()).toEqual(summaries);
+      if (mode === "runtime") expect(loader.getRoutes()).toEqual([route]);
+      await loader.unload("snapshot");
+      expect(loader.getCommands()).toEqual([]);
+      expect(loader.getModuleSummaries()).toEqual([]);
+      if (mode === "runtime") expect(loader.getRoutes()).toEqual([]);
+    } finally { await loader.unloadAll(); }
   });
 
-  it("ctx.getRoutes() inside a routes() factory sees previously loaded modules' cached routes", async () => {
-    const loader = new ModuleLoader({});
-    const handler = vi.fn();
-
-    await loader.load({
-      name: "route-a",
-      routes: () => [{ method: "GET", path: "/a", handler }],
-    });
-
-    let innerRoutes: any[] = [];
-    await loader.load({
-      name: "route-b",
-      routes: (ctx) => {
-        innerRoutes = ctx.getRoutes();
-        return [{ method: "GET", path: "/b", handler }];
-      },
-    });
-
-    const routes = loader.getRoutes();
-    expect(routes).toHaveLength(2);
-    expect(routes.map((r) => r.path).sort()).toEqual(["/a", "/b"]);
-    expect(innerRoutes.map((r: { path: string }) => r.path)).toEqual(["/a"]);
+  it("exposes earlier admitted routes to a later module factory", async () => {
+    const loader = createLoader({});
+    const route = { method: "GET" as const, path: "/a", handler: () => {} };
+    let earlierPaths: string[] = [];
+    try {
+      await loader.load({ name: "route-a", routes: () => [route] });
+      await loader.load({ name: "route-b", routes: (ctx) => {
+        earlierPaths = ctx.getRoutes().map((entry) => entry.path);
+        return [{ ...route, path: "/b" }];
+      } });
+      expect(earlierPaths).toEqual(["/a"]);
+      expect(loader.getRoutes().map((entry) => entry.path)).toEqual(["/a", "/b"]);
+    } finally { await loader.unloadAll(); }
   });
 
-  it("returns stable results across repeated calls", async () => {
-    const loader = new ModuleLoader({});
-    const handler = vi.fn();
-
-    await loader.load({
-      name: "route-mod",
-      routes: () => [{ method: "GET", path: "/test", handler }],
-    });
-
-    const routes1 = loader.getRoutes();
-    const routes2 = loader.getRoutes();
-    expect(routes1).toHaveLength(1);
-    expect(routes2).toHaveLength(1);
-  });
-
-  it("caches the empty result when routes() throws and surfaces the error in summaries", async () => {
-    const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const handler = vi.fn();
-
-    await loader.load({
-      name: "throws-mod",
-      routes: () => {
-        throw new Error("bad routes");
-      },
-    });
-    await loader.load({
-      name: "good-mod",
-      routes: () => [{ method: "GET", path: "/ok", handler }],
-    });
-
-    expect(loader.getRoutes()).toHaveLength(1);
-    expect(loader.getRoutes()).toHaveLength(1);
-
-    const throwsSummary = loader.getModuleSummaries().find((s) =>
-      s.name === "throws-mod"
-    );
-    expect(throwsSummary?.routeError).toBe("bad routes");
-
-    errSpy.mockRestore();
-  });
-});
-
-describe("module discovery is side-effect free across repeated reads", () => {
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  it("invokes routes() exactly once during load even when getRoutes/getModuleSummaries are called many times", async () => {
-    const loader = new ModuleLoader({});
-    const routesFactory = vi.fn(() => []);
-
-    await loader.load({ name: "discovery-only", routes: routesFactory });
-
-    loader.getRoutes();
-    loader.getRoutes();
-    loader.getModuleSummaries();
-    loader.getModuleSummaries();
-    loader.getRoutes();
-
-    expect(routesFactory).toHaveBeenCalledOnce();
-  });
-
-  it('invokes routes() exactly once during "commands" mode load too', async () => {
-    const loader = new ModuleLoader({}, false, { mode: "commands" });
-    const routesFactory = vi.fn(() => [
-      { method: "GET" as const, path: "/x", handler: () => {} },
-    ]);
-
-    await loader.load({ name: "discovery-only", routes: routesFactory });
-
-    // Factory ran once during load; getModuleSummaries reads the cached
-    // snapshot without re-invoking it. getRoutes is runtime-only and
-    // throws in commands mode (covered by the runtime-getter guard test).
-    expect(routesFactory).toHaveBeenCalledOnce();
-    loader.getModuleSummaries();
-    loader.getModuleSummaries();
-    expect(routesFactory).toHaveBeenCalledOnce();
+  it("retains discovery failure without losing a healthy module or retrying on inspection", async () => {
+    const loader = createLoader({});
+    const route = { method: "GET" as const, path: "/ok", handler: () => {} };
+    let failing = true;
+    try {
+      await loader.load({ name: "throws-mod", routes: () => {
+        if (failing) throw new Error("bad routes");
+        return [{ ...route, path: "/unadmitted" }];
+      } });
+      await loader.load({ name: "good-mod", routes: () => [route] });
+      failing = false;
+      expect(loader.getRoutes()).toEqual([route]);
+      expect(loader.getModuleSummaries().find((entry) => entry.name === "throws-mod")?.routeError)
+        .toBe("bad routes");
+      expect(loader.getRoutes()).toEqual([route]);
+    } finally { await loader.unloadAll(); }
   });
 });
 
@@ -2552,102 +1704,75 @@ describe("Module SDK — storage, config, skills", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
     tmpDir = mkdtempSync(join(tmpdir(), "kota-test-"));
   });
 
   afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("provides scoped storage via ModuleContext", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({}, false);
-    await loader.load({ name: "storage-mod", onLoad });
-
-    const ctx = onLoad.mock.calls[0][0];
-    expect(ctx.storage).toBeDefined();
-    expect(ctx.storage.getDir()).toContain(".kota/modules/storage-mod");
-  });
-
-  it("each module gets its own isolated storage", async () => {
-    const onLoadA = vi.fn();
-    const onLoadB = vi.fn();
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "mod-a", onLoad: onLoadA });
-    await loader.load({ name: "mod-b", onLoad: onLoadB });
-
-    const storageA = onLoadA.mock.calls[0][0].storage;
-    const storageB = onLoadB.mock.calls[0][0].storage;
-    expect(storageA.getDir()).not.toBe(storageB.getDir());
-    expect(storageA.getDir()).toContain("mod-a");
-    expect(storageB.getDir()).toContain("mod-b");
-  });
-
-  it("getModuleConfig returns the module's config section", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({
-      modules: {
-        "my-mod": { apiKey: "secret", retries: 3 },
-      },
-    });
-    await loader.load({ name: "my-mod", onLoad });
-
-    const ctx = onLoad.mock.calls[0][0];
-    const config = ctx.getModuleConfig();
-    expect(config).toEqual({ apiKey: "secret", retries: 3 });
-  });
-
-  it("getModuleConfig returns undefined when no config exists", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "no-config", onLoad });
-
-    const ctx = onLoad.mock.calls[0][0];
-    expect(ctx.getModuleConfig()).toBeUndefined();
-  });
-
-  it("collects skill content from modules", async () => {
-    const skillPath = join(tmpDir, "helper.md");
-    writeFileSync(skillPath, "Use the helper tool for quick lookups.");
-    const loader = new ModuleLoader({}, false);
+  it("binds module configuration and isolated durable storage to the selected scope", async () => {
+    const loader = createLoader({ modules: { a: { retries: 3 } } });
     loader.setCwd(tmpDir);
-    await loader.load({
-      name: "helper-mod",
-      skills: [{ name: "helper", promptPath: "helper.md" }],
-    });
+    for (const name of ["a", "b"]) {
+      await loader.load({ name, onLoad: (ctx) => {
+        expect(ctx.cwd).toBe(tmpDir);
+        expect(ctx.getModuleConfig()).toEqual(name === "a" ? { retries: 3 } : undefined);
+        ctx.storage.setText("same-key", name);
+      } });
+    }
+    expect(loader.getModuleStorage("a")?.getText("same-key")).toBe("a");
+    expect(loader.getModuleStorage("b")?.getText("same-key")).toBe("b");
+    expect(loader.getModuleStorage("absent")).toBeUndefined();
+    await loader.unload("a");
+    expect(loader.getModuleStorage("a")).toBeUndefined();
+    expect(loader.getModuleStorage("b")?.getText("same-key")).toBe("b");
+    await loader.unloadAll();
+    expect(loader.getModuleStorage("b")).toBeUndefined();
+    const restarted = createLoader({});
+    restarted.setCwd(tmpDir);
+    await restarted.load({ name: "a" });
+    expect(restarted.getModuleStorage("a")?.getText("same-key")).toBe("a");
+    await restarted.unloadAll();
+  });
 
-    const prompt = loader.getSkillsPrompt();
-    expect(prompt).toContain("## Module Capabilities");
-    expect(prompt).toContain("### helper");
-    expect(prompt).toContain("Use the helper tool for quick lookups.");
+  it.each(["commands", "runtime"] as const)("loads scoped skill content in contribution order in %s mode", async (mode) => {
+    const loader = createLoader({}, false, { mode });
+    loader.setCwd(tmpDir);
+    try {
+      for (const name of ["a", "b"]) {
+        writeFileSync(join(tmpDir, `${name}.md`), `Guidance for ${name}.`);
+        await loader.load({ name, skills: [{ name, promptPath: `${name}.md` }] });
+      }
+      expect(loader.getSkillsPrompt()).toMatch(/### a[\s\S]*Guidance for a\.[\s\S]*### b[\s\S]*Guidance for b\./);
+      await loader.unload("a");
+      expect(loader.getSkillsPrompt()).not.toContain("Guidance for a.");
+      expect(loader.getSkillsPrompt()).toContain("Guidance for b.");
+    } finally { await loader.unloadAll(); }
+    expect(loader.getSkillsPrompt()).toBe("");
   });
 
   it("loads packaged module skill content outside the scope directory", async () => {
-    const loader = new ModuleLoader({}, false);
+    const loader = createLoader({}, false);
     loader.setCwd(tmpDir);
     await loader.load({
-      name: "knowledge-guidance-mod",
+      name: "packaged-guidance",
       skills: [{
-        name: "knowledge-guidance",
-        promptPath: "src/modules/knowledge/knowledge.md",
+        name: "packaged-guidance",
+        promptPath: "src/core/modules/AGENTS.md",
       }],
     });
 
     const prompt = loader.getSkillsPrompt();
-    expect(prompt).toContain("### knowledge-guidance");
-    expect(prompt).toContain("Structured knowledge entries");
+    expect(prompt).toContain("### packaged-guidance");
+    expect(prompt).toContain(readFileSync("src/core/modules/AGENTS.md", "utf8").trim());
+    await loader.unloadAll();
   });
 
   it("handles missing skill file gracefully", async () => {
     const chunks: string[] = [];
-    installRenderingCapture(chunks);
-    const loader = new ModuleLoader({});
+    captureDiagnostics(chunks);
+    const loader = createLoader({});
     await loader.load({
       name: "broken-mod",
       skills: [{ name: "missing", promptPath: "nonexistent/skill.md" }],
@@ -2669,7 +1794,7 @@ describe("Module SDK — storage, config, skills", () => {
       skillPath,
       "---\nname: restricted\ndisallowed-tools: [Bash]\n---\nRestricted guidance.",
     );
-    const loader = new ModuleLoader({}, false);
+    const loader = createLoader({}, false);
     loader.setCwd(tmpDir);
 
     await expect(loader.load({
@@ -2680,307 +1805,72 @@ describe("Module SDK — storage, config, skills", () => {
     );
   });
 
-  it("collects multiple skills in load order", async () => {
-    const skillA = join(tmpDir, "skill-a.md");
-    const skillB = join(tmpDir, "skill-b.md");
-    writeFileSync(skillA, "Section A content.");
-    writeFileSync(skillB, "Section B content.");
-    const loader = new ModuleLoader({});
-    loader.setCwd(tmpDir);
-    await loader.load({
-      name: "mod-a",
-      skills: [{ name: "skill-a", promptPath: "skill-a.md" }],
-    });
-    await loader.load({
-      name: "mod-b",
-      skills: [{ name: "skill-b", promptPath: "skill-b.md" }],
-    });
-
-    const prompt = loader.getSkillsPrompt();
-    const idxA = prompt.indexOf("### skill-a");
-    const idxB = prompt.indexOf("### skill-b");
-    expect(idxA).toBeLessThan(idxB);
-    expect(prompt).toContain("Section A content.");
-    expect(prompt).toContain("Section B content.");
-  });
-
-  it("getModuleStorage returns storage for loaded module", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "stored-mod" });
-
-    const storage = loader.getModuleStorage("stored-mod");
-    expect(storage).toBeDefined();
-    expect(storage!.getDir()).toContain("stored-mod");
-  });
-
-  it("getModuleStorage returns undefined for unknown module", () => {
-    const loader = new ModuleLoader({});
-    expect(loader.getModuleStorage("unknown")).toBeUndefined();
-  });
-
-  it("cleans up storage references on unloadAll", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "cleanup-storage" });
-    expect(loader.getModuleStorage("cleanup-storage")).toBeDefined();
-
-    await loader.unloadAll();
-    expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
-  });
-
-  it('"commands" mode loads skill prompt content so getSkillsPrompt returns the same text as runtime mode', async () => {
-    const skillPath = join(tmpDir, "skill.md");
-    writeFileSync(skillPath, "Should appear in commands mode too.");
-    const loader = new ModuleLoader({}, false, { mode: "commands" });
-    loader.setCwd(tmpDir);
-    await loader.load({
-      name: "skill-mod",
-      skills: [{ name: "skill", promptPath: "skill.md" }],
-    });
-
-    // Skill prompt content is statically loaded during load() regardless of
-    // mode — it does not depend on onLoad side effects, so commands mode
-    // exposes the same text a runtime loader would.
-    const prompt = loader.getSkillsPrompt();
-    expect(prompt).toContain("### skill");
-    expect(prompt).toContain("Should appear in commands mode too.");
-  });
 });
 
 describe("ctx.callTool — inherited tool invocation", () => {
   const invoke = <T>(run: () => T): T => withToolCallExecutionOptions({
     resultLimit: 30000, verbose: false, autonomyMode: "autonomous",
   }, run);
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
+  it.each([
+    ["missing_tool", "no registered input schema"],
+    ["throws_tool", "boom"],
+  ])("returns an observable error for %s and leaves later calls usable", async (name, message) => {
+    const loader = createLoader({});
+    try {
+      await loader.load({ name: "provider", tools: [
+        makeTool("healthy_tool"),
+        { ...makeTool("throws_tool"), runner: async () => { throw new Error("boom"); } },
+      ] });
+      await loader.load({ name: "caller", onLoad: async (ctx) => {
+        const result = await invoke(() => ctx.callTool(name, {}));
+        expect(result.is_error).toBe(true);
+        expect(result.content).toContain(message);
+        expect((await invoke(() => ctx.callTool("healthy_tool", {}))).content).toBe("result from healthy_tool");
+      } });
+    } finally { await loader.unloadAll(); }
   });
 
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
+  it("forwards chained input and results, bounds recursion, and recovers after depth exhaustion", async () => {
+    const loader = createLoader({});
+    try {
+      await loader.load({ name: "chain", tools: (ctx) => [
+        { ...makeTool("echo_tool"), runner: async (input) => ({ content: `echo: ${input.msg}` }) },
+        { ...makeTool("chain_tool"), runner: async (input) => ctx.callTool("echo_tool", input) },
+        { ...makeTool("recursive_tool"), runner: async () => ctx.callTool("recursive_tool", {}) },
+      ] });
+      await loader.load({ name: "caller", onLoad: async (ctx) => {
+        for (const msg of ["first", "after recovery"]) {
+          const exhausted = await invoke(() => ctx.callTool("recursive_tool", {}));
+          expect(exhausted.is_error).toBe(true);
+          expect(exhausted.content).toContain("depth limit exceeded");
+          const result = await invoke(() => ctx.callTool("chain_tool", { msg }));
+          expect(result.content).toBe(`echo: ${msg}`);
+          expect(result.is_error).toBeFalsy();
+        }
+      } });
+    } finally { await loader.unloadAll(); }
   });
 
-  it("invokes a registered tool and returns its result", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "tool-provider",
-      tools: [makeTool("helper_tool")],
-    });
-
-    let capturedCtx: any;
-    await loader.load({
-      name: "tool-caller",
-      onLoad: (ctx) => {
-        capturedCtx = ctx;
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("helper_tool", {}));
-    expect(result.content).toBe("result from helper_tool");
-    expect(result.is_error).toBeFalsy();
-  });
-
-  it("returns error for unknown tool", async () => {
-    const loader = new ModuleLoader({});
-    let capturedCtx: any;
-    await loader.load({
-      name: "caller",
-      onLoad: (ctx) => {
-        capturedCtx = ctx;
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("nonexistent_tool", {}));
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("no registered input schema");
-  });
-
-  it("returns error when tool runner throws", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "throwing-mod",
-      tools: [{
-        tool: {
-          name: "throws_tool",
-          description: "Throws",
-          input_schema: { type: "object" as const, properties: {} },
-        },
-        runner: async () => {
-          throw new Error("boom");
-        },
-        effect: readOnlyLocalEffect(),
-      }],
-    });
-
-    let capturedCtx: any;
-    await loader.load({
-      name: "caller",
-      onLoad: (ctx) => {
-        capturedCtx = ctx;
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("throws_tool", {}));
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("boom");
-  });
-
-  it("enforces recursion depth limit", async () => {
-    const loader = new ModuleLoader({});
-    let capturedCtx: any;
-
-    await loader.load({
-      name: "recursive-mod",
-      tools: (ctx) => {
-        capturedCtx = ctx;
-        return [{
-          tool: {
-            name: "recursive_tool",
-            description: "Calls itself",
-            input_schema: { type: "object" as const, properties: {} },
-          },
-          runner: async () => ctx.callTool("recursive_tool", {}),
-          effect: readOnlyLocalEffect(),
-        }];
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("recursive_tool", {}));
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("depth limit exceeded");
-  });
-
-  it("resets depth counter after successful call", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "tool-mod",
-      tools: [makeTool("simple_tool")],
-    });
-
-    let capturedCtx: any;
-    await loader.load({
-      name: "caller",
-      onLoad: (ctx) => {
-        capturedCtx = ctx;
-      },
-    });
-
-    // Multiple sequential calls should all succeed (depth resets)
-    const r1 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
-    const r2 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
-    const r3 = await invoke(() => capturedCtx.callTool("simple_tool", {}));
-    expect(r1.content).toBe("result from simple_tool");
-    expect(r2.content).toBe("result from simple_tool");
-    expect(r3.content).toBe("result from simple_tool");
-  });
-
-  it("passes input to the tool runner", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "echo-mod",
-      tools: [{
-        tool: {
-          name: "echo_tool",
-          description: "Echoes input",
-          input_schema: {
-            type: "object" as const,
-            properties: { msg: { type: "string" } },
-          },
-        },
-        runner: async (input: Record<string, unknown>) => ({
-          content: `echo: ${input.msg}`,
-        }),
-        effect: readOnlyLocalEffect(),
-      }],
-    });
-
-    let capturedCtx: any;
-    await loader.load({
-      name: "caller",
-      onLoad: (ctx) => {
-        capturedCtx = ctx;
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("echo_tool", { msg: "hello" }));
-    expect(result.content).toBe("echo: hello");
-  });
-
-  it("allows chained tool calls within depth limit", async () => {
-    const loader = new ModuleLoader({});
-
-    // Tool A calls Tool B, which returns a result
-    await loader.load({
-      name: "chain-mod",
-      tools: (ctx) => [
-        {
-          tool: {
-            name: "tool_b",
-            description: "Leaf tool",
-            input_schema: { type: "object" as const, properties: {} },
-          },
-          runner: async () => ({ content: "leaf result" }),
-          effect: readOnlyLocalEffect(),
-        },
-        {
-          tool: {
-            name: "tool_a",
-            description: "Calls tool_b",
-            input_schema: { type: "object" as const, properties: {} },
-          },
-          runner: async () => {
-            const inner = await ctx.callTool("tool_b", {});
-            return { content: `chained: ${inner.content}` };
-          },
-          effect: readOnlyLocalEffect(),
-        },
-      ],
-    });
-
-    let capturedCtx: any;
-    await loader.load({
-      name: "caller",
-      onLoad: (c) => {
-        capturedCtx = c;
-      },
-    });
-
-    const result = await invoke(() => capturedCtx.callTool("tool_a", {}));
-    expect(result.content).toBe("chained: leaf result");
-  });
-
-  it("event callbacks without an active executor have no tool authority", async () => {
+  it("denies event callbacks without an active tool executor", async () => {
     const bus = new EventBus();
-    const loader = new ModuleLoader({});
-    let eventResult: any;
-
-    await loader.load({
-      name: "tool-mod",
-      tools: [makeTool("event_target")],
-    });
-
-    await loader.load({
-      name: "event-caller",
-      tools: (ctx) => {
-        // Event handler captures ctx and uses callTool
-        bus.on("test.trigger", async () => {
-          eventResult = await ctx.callTool("event_target", {});
+    const loader = new RuntimeModuleLoader({}, false, { mode: "runtime" });
+    loader.setBus(bus);
+    let resolveResult!: (result: ToolResult) => void;
+    const result = new Promise<ToolResult>((resolve) => { resolveResult = resolve; });
+    try {
+      await loader.load({ name: "provider", tools: [makeTool("event_target")] });
+      await loader.load({ name: "event-caller", onLoad: (ctx) => {
+        ctx.events.subscribeExternal("test.trigger", async () => {
+          resolveResult(await ctx.callTool("event_target", {}));
         });
-        return [];
-      },
-    });
-
-    bus.emit("test.trigger", {});
-    // Wait for async handler
-    await new Promise((r) => setTimeout(r, 10));
-    expect(eventResult?.is_error).toBe(true);
-    expect(eventResult?.content).toContain("active tool execution context");
+      } });
+      bus.emit("test.trigger", {});
+      expect(await result).toMatchObject({ is_error: true, content: expect.stringContaining("active tool execution context") });
+    } finally { await loader.unloadAll(); }
   });
 
   it("probeHealthChecks collects results from modules with healthCheck", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     await loader.load({
       name: "healthy-mod",
       healthCheck: () => ({ status: "healthy" }),
@@ -3003,36 +1893,22 @@ describe("ctx.callTool — inherited tool invocation", () => {
     expect(results["no-check-mod"]).toBeUndefined();
   });
 
-  it("probeHealthChecks catches thrown errors as unhealthy", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "broken-mod",
-      healthCheck: () => {
-        throw new Error("boom");
-      },
+  it.each([
+    ["thrown error", () => { throw new Error("boom"); }, "boom"],
+    ["malformed result", () => ({ status: "future" }), "healthCheck result.status is invalid"],
+  ] as const)("reports %s as unhealthy without losing healthy results", async (_label, healthCheck, message) => {
+    const loader = createLoader({});
+    await loader.load({ name: "broken", healthCheck: healthCheck as never });
+    await loader.load({ name: "healthy", healthCheck: () => ({ status: "healthy" }) });
+    expect(await loader.probeHealthChecks()).toEqual({
+      broken: { status: "unhealthy", message: expect.stringContaining(message) },
+      healthy: { status: "healthy" },
     });
-
-    const results = await loader.probeHealthChecks();
-    expect(results["broken-mod"].status).toBe("unhealthy");
-    expect(results["broken-mod"].message).toContain("boom");
-  });
-
-  it("probeHealthChecks converts malformed results to unhealthy", async () => {
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "malformed-health-check",
-      healthCheck: () => ({ status: "future" }) as never,
-    });
-
-    const results = await loader.probeHealthChecks();
-    expect(results["malformed-health-check"]).toEqual({
-      status: "unhealthy",
-      message: expect.stringContaining("healthCheck result.status is invalid"),
-    });
+    await loader.unloadAll();
   });
 
   it("rejects malformed lifecycle health before publishing module summaries", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     await loader.load({
       name: "malformed-lifecycle-health",
       getHealth: () => ({ status: "ok", restartCount: -1 }) as never,
@@ -3043,26 +1919,9 @@ describe("ctx.callTool — inherited tool invocation", () => {
     );
   });
 
-  it("collects configSlices from loaded modules", async () => {
-    clearRegisteredConfigSlices();
-    const loader = new ModuleLoader({});
-    await loader.load({
-      name: "mod-a",
-      configSlices: [fakeSlice("myKey", "test key")],
-    });
-    await loader.load({
-      name: "mod-b",
-      configSlices: [fakeSlice("otherKey")],
-    });
-    const keys = loader.getRegisteredConfigKeys();
-    expect(keys.has("myKey")).toBe(true);
-    expect(keys.has("otherKey")).toBe(true);
-    expect(keys.size).toBe(2);
-  });
 
   it("rejects duplicate configSlices across modules", async () => {
-    clearRegisteredConfigSlices();
-    const loader = new ModuleLoader({});
+    const loader = createLoader({});
     const ownerSlice = fakeSlice("shared");
     await loader.load({
       name: "mod-a",
@@ -3078,10 +1937,9 @@ describe("ctx.callTool — inherited tool invocation", () => {
   });
 
   it("preserves a config-slice lease while another loader host still owns it", async () => {
-    clearRegisteredConfigSlices();
     const slice = fakeSlice("sharedHostKey");
-    const first = new ModuleLoader({}, false, { mode: "commands" });
-    const second = new ModuleLoader({}, false, { mode: "commands" });
+    const first = createLoader({}, false, { mode: "commands" });
+    const second = createLoader({}, false, { mode: "commands" });
 
     await first.load({ name: "shared-config-owner", configSlices: [slice] });
     await second.load({ name: "shared-config-owner", configSlices: [slice] });
@@ -3093,13 +1951,10 @@ describe("ctx.callTool — inherited tool invocation", () => {
   });
 
   it("adopts a re-imported config slice after the previous host releases its lease", async () => {
-    clearRegisteredConfigSlices();
     const original = fakeSlice("reloadableKey");
-    const disposeStructuralRegistration = registerConfigSlice(
-      original,
-      "reloadable-owner",
-    );
-    const loader = new ModuleLoader({}, false, { mode: "commands" });
+    const disposeStructuralRegistration = registerConfigSlice(original, "reloadable-owner");
+    onTestFinished(disposeStructuralRegistration);
+    const loader = createLoader({}, false, { mode: "commands" });
     await loader.load({ name: "reloadable-owner", configSlices: [original] });
     await loader.unload("reloadable-owner");
 
@@ -3113,7 +1968,6 @@ describe("ctx.callTool — inherited tool invocation", () => {
   });
 
   it("keeps rejected duplicate identities out of structural config admission", () => {
-    clearRegisteredConfigSlices();
     const bundledSlice = fakeSlice("identityOwnedKey", "bundled declaration");
     const installedSlice = fakeSlice("identityOwnedKey", "installed duplicate");
     const admission = admitDiscoveredModuleDefinitions(
@@ -3122,6 +1976,7 @@ describe("ctx.callTool — inherited tool invocation", () => {
     );
 
     const dispose = registerAdmittedModuleConfigSlices(admission.admitted);
+    onTestFinished(dispose);
     expect(admission.failures).toMatchObject([
       {
         name: "identity-owner",
@@ -3135,10 +1990,9 @@ describe("ctx.callTool — inherited tool invocation", () => {
   });
 
   it("does not let a rejected loader host withdraw another module's config slice", async () => {
-    clearRegisteredConfigSlices();
     const ownerSlice = fakeSlice("crossHostKey");
-    const owner = new ModuleLoader({}, false, { mode: "commands" });
-    const rejected = new ModuleLoader({}, false, { mode: "commands" });
+    const owner = createLoader({}, false, { mode: "commands" });
+    const rejected = createLoader({}, false, { mode: "commands" });
     await owner.load({
       name: "valid-config-owner",
       configSlices: [ownerSlice],
@@ -3152,10 +2006,4 @@ describe("ctx.callTool — inherited tool invocation", () => {
     expect(getRegisteredConfigSlice("crossHostKey")).toBe(ownerSlice);
   });
 
-  it("returns empty set when no modules declare configSlices", async () => {
-    clearRegisteredConfigSlices();
-    const loader = new ModuleLoader({});
-    await loader.load({ name: "plain" });
-    expect(loader.getRegisteredConfigKeys().size).toBe(0);
-  });
 });

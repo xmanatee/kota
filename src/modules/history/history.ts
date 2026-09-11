@@ -18,7 +18,6 @@ import {
 } from "./history-utils.js";
 
 export type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
-export { generateTitle } from "./history-utils.js";
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });

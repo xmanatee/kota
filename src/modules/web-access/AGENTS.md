@@ -30,3 +30,10 @@ truncating readable output; a raw HTML prefix can contain only layout markup.
 Metadata, empty bodies, and binary download notices do not establish readable
 source content. Return tool errors for unavailable extraction so consumers retain
 failure evidence instead of treating it as an upstream content change.
+
+## Verification
+
+Exercise HTTP runners through the typed dispatcher port with real responses
+and disposable scope files. DNS pinning and transport policy stay with their
+core owner. Extraction checks observe final Markdown and page metadata;
+placeholder indices and intermediate conversion phases are not contracts.

@@ -82,7 +82,7 @@ export function extractJsonSchema(params: unknown): Record<string, unknown> {
 }
 
 /** Convert a Zod schema's _def structure to JSON Schema (handles common types). */
-export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
+function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
   if (!schema || typeof schema !== "object") return {};
 
   const s = schema as Record<string, unknown>;

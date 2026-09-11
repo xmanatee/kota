@@ -147,7 +147,7 @@ function normalizeSchemaVersion(value: number | undefined, eventName: string): n
   return value;
 }
 
-function payloadSchemaFromFields(fields: readonly string[]): ModuleEventPayloadSchema {
+export function payloadSchemaFromFields(fields: readonly string[]): ModuleEventPayloadSchema {
   const properties: { [key: string]: ModuleEventSchemaNode } = {};
   for (const field of fields) {
     properties[field] = { type: "json" };

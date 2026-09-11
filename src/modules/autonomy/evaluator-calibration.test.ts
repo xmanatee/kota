@@ -1,1230 +1,310 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
-import { resolveAgentRuntime } from "#core/model/preset.js";
-import type {
-  WorkflowStepContext,
-  WorkflowStepResult,
-} from "#core/workflow/run-types.js";
-import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
-import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
-import { writeRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { getRepoTaskPath, isActiveRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { getCriticPromptHash } from "./critic.js";
 import {
   aggregateCalibration,
-  DEFAULT_CALIBRATION_MIN_SAMPLE,
-  DEFAULT_CALIBRATION_THRESHOLD_RATE,
-  DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
-  DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   decodeEvaluatorCalibrationDispositionsArtifact,
   EVALUATOR_CALIBRATION_ARTIFACT,
   EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT,
   type EvaluatorCalibrationArtifact,
+  type EvaluatorCalibrationDispositionRecord,
   evaluateCalibrationGate,
   writeCalibrationArtifact,
 } from "./evaluator-calibration.js";
 
-const TEST_PROMPT_HASH = "promptv0test";
-const TEST_SOURCE_REVISION = "1111111111111111111111111111111111111111";
+const NOW = Date.parse("2026-04-20T12:00:00.000Z");
+const HOUR = 3_600_000;
+const PROMPT = "captured-prompt";
+const REVISION = "a".repeat(40);
+const iso = (offset = 0) => new Date(NOW + offset).toISOString();
+let root: string;
+let runsDir: string;
+let runDir: string;
+let criticDir: string;
 
-type CalibrationSeed = {
-  runId: string;
-  completedAt: string;
-  verdict: EvaluatorCalibrationArtifact["verdict"];
-  sourceFilesChanged: string[];
-  warningCount?: number;
-  criticalIssueCount?: number;
-  repairIterations?: number;
-  finalIterationFailures?: string[];
-  criticFailureCount?: number;
-  taskId?: string | null;
-  taskFinalState?: EvaluatorCalibrationArtifact["taskFinalState"];
-  criticPromptHash?: string;
-  terminalRunStatus?: EvaluatorCalibrationArtifact["terminalRunStatus"];
-  sourceRevision?: string | null;
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, JSON.stringify(value));
+}
+
+function writeCritic(value: unknown, directory = criticDir): void {
+  writeJson(join(directory, "critic-review.json"), value);
+}
+
+const pass = {
+  verdict: "pass", critical_issues: [], warnings: [], summary: "Reviewed",
+  reviewerPromptHash: PROMPT,
 };
 
-function seedRun(runsDir: string, seed: CalibrationSeed): void {
-  const runDir = join(runsDir, seed.runId);
-  mkdirSync(runDir, { recursive: true });
-  const artifact: EvaluatorCalibrationArtifact = {
-    runId: seed.runId,
-    workflow: "builder",
-    completedAt: seed.completedAt,
-    verdict: seed.verdict,
-    warningCount: seed.warningCount ?? 0,
-    criticalIssueCount: seed.criticalIssueCount ?? 0,
-    repairIterations: seed.repairIterations ?? 1,
-    finalIterationFailures: seed.finalIterationFailures ?? [],
-    criticFailureCount: seed.criticFailureCount ?? 0,
-    terminalRunStatus: seed.terminalRunStatus ?? "success",
-    taskId: seed.taskId ?? null,
-    taskFinalState: seed.taskFinalState ?? null,
-    sourceRevision: seed.sourceRevision === undefined
-      ? TEST_SOURCE_REVISION
-      : seed.sourceRevision,
-    sourceFilesChanged: seed.sourceFilesChanged,
-    criticPromptHash: seed.criticPromptHash ?? TEST_PROMPT_HASH,
-  };
-  writeFileSync(
-    join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
-    JSON.stringify(artifact, null, 2),
-  );
-  writeFileSync(
-    join(runDir, "metadata.json"),
-    JSON.stringify({
-      metadataVersion: 1,
-      id: seed.runId,
-      workflow: "builder",
-      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-      startedAt: seed.completedAt,
-      completedAt: seed.completedAt,
-      status: seed.terminalRunStatus ?? "success",
-      runDir: `.kota/runs/${seed.runId}`,
-      steps: [],
-    }, null, 2),
-  );
-}
-
-function makeStepContext(
-  overrides: {
-    runDir: string;
-    workspaceRoot: string;
-    stepOutputs?: Record<string, unknown>;
-    stepResults?: Record<string, WorkflowStepResult>;
-  },
-): WorkflowStepContext {
-  const taskId = "task-1";
+function context(failures: string[][] = []): Parameters<typeof writeCalibrationArtifact>[0] {
   const taskDigest = "0".repeat(64);
   return {
-    scopeId: "test-scope",
-    workspaceRoot: overrides.workspaceRoot,
-    scopeRoot: overrides.workspaceRoot,
-    stateDir: join(overrides.workspaceRoot, ".kota"),
-    runtimeStateDir: join(overrides.workspaceRoot, ".kota"),
-    state: createTestTransactionalRunState(join(overrides.workspaceRoot, ".kota", "test-state")),
-    agentRuntime: resolveAgentRuntime(undefined),
+    workspaceRoot: root, scopeRoot: root,
     workflow: {
-      name: "builder",
-      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      runId: "run-test",
-      runDir: "run-test",
-      runDirPath: overrides.runDir,
+      name: "builder", definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      runId: "run-test", runDir: "run-test", runDirPath: runDir,
     },
     trigger: {
-      event: "autonomy.queue.available",
-      schemaRef: null,
+      event: "autonomy.queue.available", schemaRef: null,
       payload: {
-        taskId,
-        taskPath: `data/tasks/${taskId}.md`,
-        taskState: "open",
-        taskDigest,
-        idempotencyKey: `builder:${taskId}:${taskDigest}`,
-        title: "Calibration task",
-        priority: "p2",
-        dependsOn: [],
+        taskId: "task-1", taskPath: "data/tasks/task-1.md", taskState: "open",
+        taskDigest, idempotencyKey: `builder:task-1:${taskDigest}`, title: "Calibration task", priority: "p2", dependsOn: [],
       },
     },
-    previousOutput: undefined,
-    stepOutputs: overrides.stepOutputs ?? {},
-    stepResults: overrides.stepResults ?? {},
-    stepOutputList: [],
-    runAgentHarness: unexpectedWorkflowAgentHarnessRun,
-    runCommand: unexpectedWorkflowCommandRun,
-    runTool: async () => {
-      throw new Error("runTool not used");
-    },
-    emit: () => {},
-    requestRestart: () => {},
-    readPrompt: () => "",
-    readRuntimeState: () => ({
-      completedRuns: 0,
-      pendingRuns: [],
-      workflows: {},
-    }),
-    reportProgress: () => {},
-    triggerWorkflow: async () => ({ runId: "r", status: "queued" }),
+    stepOutputs: { build: { repairIterations: failures.map((ids, index) => ({
+      attempt: index + 1, failures: ids.map((id) => ({ id })),
+    })) } },
+    stepResults: { build: {
+      id: "build", type: "agent", status: "success", startedAt: iso(-HOUR),
+      completedAt: iso(), durationMs: HOUR, usage: UNKNOWN_AGENT_USAGE,
+    } },
   };
 }
 
-describe("writeCalibrationArtifact", () => {
-  let root: string;
-  let runDir: string;
-
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "cal-write-"));
-    runDir = join(root, "runs", "run-test");
-    mkdirSync(runDir, { recursive: true });
+function seed(runId: string, changes: Partial<EvaluatorCalibrationArtifact> = {}): void {
+  const directory = join(runsDir, runId);
+  mkdirSync(directory, { recursive: true });
+  const artifact: EvaluatorCalibrationArtifact = {
+    runId, workflow: "builder", completedAt: iso(-HOUR), verdict: "pass",
+    warningCount: 0, criticalIssueCount: 0, repairIterations: 1,
+    finalIterationFailures: [], criticFailureCount: 0, terminalRunStatus: "success",
+    taskId: null, taskFinalState: null, sourceRevision: REVISION,
+    sourceFilesChanged: ["src/shared.ts"], criticPromptHash: PROMPT, ...changes,
+  };
+  writeJson(join(directory, EVALUATOR_CALIBRATION_ARTIFACT), artifact);
+  writeJson(join(directory, "metadata.json"), {
+    metadataVersion: 1, id: runId, workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    startedAt: artifact.completedAt, completedAt: artifact.completedAt,
+    status: artifact.terminalRunStatus, runDir: `.kota/runs/${runId}`, steps: [],
   });
+}
 
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
-  });
+function aggregate(options: Partial<Parameters<typeof aggregateCalibration>[1]> = {}) {
+  return aggregateCalibration(runsDir, { criticPromptHash: PROMPT, nowMs: NOW, ...options });
+}
 
-  it("records verdict, repair-iteration failures, and filters bookkeeping paths", () => {
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass_with_warnings",
-        critical_issues: [],
-        warnings: ["style nit"],
-        summary: "ok",
-      }),
-    );
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  root = mkdtempSync(join(tmpdir(), "kota-calibration-"));
+  runsDir = join(root, "runs");
+  runDir = join(runsDir, "run-test");
+  criticDir = join(root, "critic");
+  for (const dir of [runDir, criticDir, join(root, "data/tasks/archive")]) {
+    mkdirSync(dir, { recursive: true });
+  }
+});
+afterEach(() => {
+  vi.useRealTimers();
+  rmSync(root, { recursive: true, force: true });
+});
 
-    writeRepoTaskFile(root, join(root, "data/tasks/archive/task-1.md"), "---\nstatus: done\npriority: p2\n---\n\n# Calibration task\n\nCompleted the consumer outcome.\n");
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: {
-        build: {
-          repairIterations: [
-            { attempt: 1, failures: [{ id: "critic-review" }] },
-            { attempt: 2, failures: [] },
-          ],
-        },
-      },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: runDir,
-    });
-    expect(artifact.verdict).toBe("pass_with_warnings");
-    expect(artifact.warningCount).toBe(1);
-    expect(artifact.repairIterations).toBe(2);
-    expect(artifact.finalIterationFailures).toEqual([]);
-    expect(artifact.criticFailureCount).toBe(1);
-    expect(artifact.taskId).toBe("task-1");
-    expect(artifact.taskFinalState).toBe("done");
-    expect(artifact.sourceRevision).toBeNull();
-    expect(artifact.sourceFilesChanged).toEqual([]);
-  });
-
-  it("counts critic-review failures across all repair iterations", () => {
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: {
-        build: {
-          repairIterations: [
-            { attempt: 1, failures: [{ id: "test" }] },
-            { attempt: 2, failures: [{ id: "critic-review" }] },
-            { attempt: 3, failures: [{ id: "critic-review" }, { id: "lint" }] },
-          ],
-        },
-      },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: runDir,
-    });
-    expect(artifact.criticFailureCount).toBe(2);
-    expect(artifact.repairIterations).toBe(3);
-  });
-
-  it("does not report a repaired critic-review iteration as a final failure", () => {
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass",
-        critical_issues: [],
-        warnings: [],
-        summary: "ok",
-      }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: {
-        build: {
-          repairIterations: [
-            { attempt: 1, failures: [{ id: "test" }] },
-            { attempt: 2, failures: [{ id: "critic-review" }] },
-          ],
-        },
-      },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: runDir,
-    });
-    expect(artifact.verdict).toBe("pass");
-    expect(artifact.finalIterationFailures).toEqual([]);
-    expect(artifact.criticFailureCount).toBe(1);
-  });
-
-  it("records the diagnostic finalIterationFailures even when the critic was never the failing check", () => {
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass",
-        critical_issues: [],
-        warnings: [],
-        summary: "ok",
-      }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: {
-        build: {
-          repairIterations: [
-            {
-              attempt: 1,
-              failures: [{ id: "typecheck" }, { id: "lint" }],
-            },
-          ],
-        },
-      },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: runDir,
-    });
-    expect(artifact.verdict).toBe("pass");
-    expect(artifact.finalIterationFailures).toEqual(["typecheck", "lint"]);
-    // typecheck/lint repair is iteration noise — not a critic catch.
-    expect(artifact.criticFailureCount).toBe(0);
-  });
-
-  it("embeds the active critic prompt hash so aggregation can filter prior versions", () => {
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: { build: { repairIterations: [] } },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: runDir,
-      criticPromptHash: "promptvfixed",
-    });
-    expect(artifact.criticPromptHash).toBe("promptvfixed");
-  });
-
-  it("uses the verdict and prompt provenance from the explicit critic source", () => {
-    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
-    mkdirSync(agentRunDir, { recursive: true });
-    writeFileSync(
-      join(agentRunDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass",
-        critical_issues: [],
-        warnings: [],
-        summary: "Reviewed with the captured prompt.",
-        reviewerPromptHash: "capturedhash",
-      }),
-    );
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "fail",
-        critical_issues: ["Stale evidence from another source."],
-        warnings: [],
-        summary: "This verdict must not be consumed.",
-      }),
-    );
-
-    const artifact = writeCalibrationArtifact(
-      makeStepContext({
-        runDir,
-        workspaceRoot: root,
-        stepOutputs: { build: { repairIterations: [] } },
-      }),
-      { criticVerdictRunDir: agentRunDir },
-    );
-
+describe("calibration artifact", () => {
+  it.each([
+    { name: "successful repair", failures: [["critic-review"], []], final: [], catches: 1 },
+    { name: "repeated critic catches", failures: [["test"], ["critic-review"], ["critic-review", "lint"]], final: ["lint"], catches: 2 },
+    { name: "final critic repair", failures: [["test"], ["critic-review"]], final: [], catches: 1 },
+    { name: "mechanical repair", failures: [["typecheck", "lint"]], final: ["typecheck", "lint"], catches: 0 },
+  ])("persists $name without treating repaired catches as final failures", ({ failures, final, catches }) => {
+    writeCritic({ ...pass, verdict: "pass_with_warnings", warnings: ["Follow-up"] });
+    const artifact = writeCalibrationArtifact(context(failures), { criticVerdictRunDir: criticDir });
     expect(artifact).toMatchObject({
-      verdict: "pass",
-      criticPromptHash: "capturedhash",
+      verdict: "pass_with_warnings", warningCount: 1, criticalIssueCount: 0,
+      repairIterations: failures.length, finalIterationFailures: final, criticFailureCount: catches,
+      taskId: "task-1", taskFinalState: null, sourceRevision: null, sourceFilesChanged: [],
+      terminalRunStatus: "success", criticPromptHash: PROMPT, completedAt: iso(),
+    });
+    expect(JSON.parse(readFileSync(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), "utf8"))).toEqual(artifact);
+  });
+
+  it("uses explicit critic provenance and never falls back to stale run-root verdicts", () => {
+    writeCritic({ ...pass, verdict: "fail", critical_issues: ["Stale"] }, runDir);
+    writeCritic(pass);
+    expect(writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir })).toMatchObject({
+      verdict: "pass", criticPromptHash: PROMPT,
+    });
+    rmSync(join(criticDir, "critic-review.json"));
+    expect(writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir })).toMatchObject({
+      verdict: "absent", criticPromptHash: getCriticPromptHash(root),
     });
   });
 
-  it("ingests the final verdict from the builder agent evidence source", () => {
-    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
-    mkdirSync(agentRunDir, { recursive: true });
-    writeFileSync(
-      join(agentRunDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass_with_warnings",
-        critical_issues: [],
-        warnings: ["Follow-up is durably traced."],
-        summary: "Accepted with a traced warning.",
-      }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: { build: { repairIterations: [] } },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: agentRunDir,
-      criticPromptHash: TEST_PROMPT_HASH,
-    });
-    expect(artifact).toMatchObject({
-      verdict: "pass_with_warnings",
-      warningCount: 1,
-      criticalIssueCount: 0,
-    });
-    writeWriterIntegrationFixture(join(root, "runs"), {
-      runId: "run-test",
-      workflow: "builder",
-      publishedHead: TEST_SOURCE_REVISION,
-      changedPaths: [
-        "src/modules/autonomy/evaluator-calibration.ts",
-        "data/tasks/archive/task-1.md",
-      ],
-      completedAt: "2026-04-20T12:00:00.000Z",
-    });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({
-        metadataVersion: 1,
-        id: "run-test",
-        workflow: "builder",
-        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-        trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-        startedAt: "2026-04-20T11:59:00.000Z",
-        completedAt: "2026-04-20T12:00:00.000Z",
-        status: "success",
-        runDir: ".kota/runs/run-test",
-        steps: [],
-      }),
-    );
-
-    const aggregate = aggregateCalibration(join(root, "runs"), {
-      criticPromptHash: TEST_PROMPT_HASH,
-      nowMs: Date.parse("2026-04-20T12:01:00.000Z"),
-    });
-    expect(aggregate.byVerdict).toEqual({
-      pass: 0,
-      pass_with_warnings: 1,
-      fail: 0,
-      absent: 0,
-    });
-    expect(
-      evaluateCalibrationGate(aggregate, {
-        thresholdRate: 0.25,
-        minSample: 1,
-        passWithWarningsThresholdRate: 0.75,
-        passWithWarningsMinSample: 1,
-      }),
-    ).toMatchObject({ status: "under-threshold" });
-  });
-
-  it("records verdict=absent when the explicit critic verdict source is missing", () => {
-    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
-    mkdirSync(agentRunDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "critic-review.json"),
-      JSON.stringify({
-        verdict: "pass",
-        critical_issues: [],
-        warnings: [],
-        summary: "Stale run-root evidence must not be consumed.",
-      }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: { build: { repairIterations: [] } },
-      stepResults: {
-        build: {
-          id: "build",
-          type: "agent",
-          status: "success",
-          startedAt: "2026-04-20T11:59:00.000Z",
-          completedAt: "2026-04-20T12:00:00.000Z",
-          durationMs: 60000,
-          usage: UNKNOWN_AGENT_USAGE,
-        },
-      },
-    });
-
-    const artifact = writeCalibrationArtifact(ctx, {
-      criticVerdictRunDir: agentRunDir,
-    });
-    expect(artifact.verdict).toBe("absent");
-  });
-
-  it.each(["maybe", "pass"])("rejects invalid or contradictory persisted verdict %s", (verdict) => {
-    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
-    mkdirSync(agentRunDir, { recursive: true });
-    writeFileSync(
-      join(agentRunDir, "critic-review.json"),
-      JSON.stringify({
-        verdict,
-        critical_issues: ["The required behavior is missing."],
-        warnings: [],
-        summary: "Malformed internal protocol data must not become absent.",
-      }),
-    );
-
-    const ctx = makeStepContext({
-      runDir,
-      workspaceRoot: root,
-      stepOutputs: { build: { repairIterations: [] } },
-    });
-
-    expect(() =>
-      writeCalibrationArtifact(ctx, {
-        criticVerdictRunDir: agentRunDir,
-      }),
-    ).toThrow(/Invalid critic verdict|accepted verdict cannot/);
-  });
-
-  it.each([null, false, 0, ""])(
-    "fails loudly when the current critic verdict payload is the falsy JSON value %j",
+  it.each([null, false, 0, "", { ...pass, verdict: "maybe" }, { ...pass, critical_issues: ["Required behavior missing"] }])(
+    "rejects malformed current critic evidence %j despite a stale valid verdict",
     (payload) => {
-      const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
-      mkdirSync(agentRunDir, { recursive: true });
-      writeFileSync(join(agentRunDir, "critic-review.json"), JSON.stringify(payload));
-      writeFileSync(
-        join(runDir, "critic-review.json"),
-        JSON.stringify({
-          verdict: "pass",
-          critical_issues: [],
-          warnings: [],
-          summary: "Stale run-root evidence must not hide malformed source evidence.",
-        }),
-      );
-
-      const ctx = makeStepContext({
-        runDir,
-        workspaceRoot: root,
-        stepOutputs: { build: { repairIterations: [] } },
-      });
-
-      expect(() =>
-        writeCalibrationArtifact(ctx, {
-          criticVerdictRunDir: agentRunDir,
-        }),
-      ).toThrow(/Invalid critic verdict payload/);
+      writeCritic(pass, runDir);
+      writeCritic(payload);
+      expect(() => writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir }))
+        .toThrow(/Invalid critic verdict|accepted verdict cannot/);
     },
   );
-});
 
-describe("evaluator calibration disposition evidence", () => {
-  it("decodes an explicit unavailable source without manufacturing run identities", () => {
-    expect(
-      decodeEvaluatorCalibrationDispositionsArtifact({
-        schemaVersion: 1,
-        records: [],
-        unavailableSources: [{
-          sourceRef:
-            "git:13b6ff71513809651ad43cbc2bd3a23a422abf8c:data/tasks/task-evaluator-calibration-drift-repair.md",
-          expectedContradictionCount: 3,
-          reason: "The canonical run store is outside the isolated reader boundary.",
-          checkedAt: "2026-09-02T07:46:11.000Z",
-        }],
-      }),
-    ).toEqual({
-      schemaVersion: 1,
-      records: [],
-      unavailableSources: [{
-        sourceRef:
-          "git:13b6ff71513809651ad43cbc2bd3a23a422abf8c:data/tasks/task-evaluator-calibration-drift-repair.md",
-        expectedContradictionCount: 3,
-        reason: "The canonical run store is outside the isolated reader boundary.",
-        checkedAt: "2026-09-02T07:46:11.000Z",
-      }],
+  it.each(["open", "blocked", "done", "dropped"] as const)(
+    "reads %s task state through the canonical task owner",
+    (state) => {
+      writeCritic(pass);
+      writeFileSync(getRepoTaskPath(root, state, "task-1"),
+        `---\nstatus: ${state}\n${isActiveRepoTaskState(state) ? "priority: p2\n" : ""}---\n# Calibration task\n`);
+      expect(writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir }).taskFinalState).toBe(state);
+    },
+  );
+
+  it("rejects invalid canonical task metadata rather than inferring state from a directory", () => {
+    writeCritic(pass);
+    writeFileSync(join(root, "data/tasks/task-1.md"), "---\nstatus: invalid\n---\n# Invalid task\n");
+    expect(() => writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir })).toThrow(/invalid status/);
+  });
+
+  it("joins published revision and source paths while excluding task, instruction and runtime bookkeeping", () => {
+    seed("run-test", { sourceFilesChanged: [] });
+    writeCritic({ ...pass, verdict: "pass_with_warnings", warnings: ["Tracked follow-up"] });
+    expect(writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir })).toMatchObject({
+      verdict: "pass_with_warnings", warningCount: 1,
     });
+    writeWriterIntegrationFixture(runsDir, {
+      runId: "run-test", workflow: "builder", publishedHead: REVISION,
+      changedPaths: ["src/shared.ts", "data/tasks/archive/task-1.md", "src/AGENTS.md", ".kota/runtime.json"],
+      completedAt: iso(-HOUR),
+    });
+    seed("later-bookkeeping", { verdict: "fail", completedAt: iso(),
+      sourceFilesChanged: ["data/tasks/archive/task-1.md", "src/AGENTS.md", ".kota/runtime.json"] });
+    expect(aggregate()).toMatchObject({
+      totalRuns: 2, byVerdict: { pass: 0, pass_with_warnings: 1, fail: 1, absent: 0 },
+      passWithWarningsFollowUpCount: 0,
+    });
+    seed("later-source", { verdict: "fail", completedAt: iso() });
+    expect(aggregate().passWithWarningsFollowUpCount).toBe(1);
+    writeCritic(pass);
+    writeCalibrationArtifact(context(), { criticVerdictRunDir: criticDir });
+    expect(aggregate().passContradictions).toEqual([expect.objectContaining({
+      base: { runId: "run-test", taskId: "task-1", sourceRevision: REVISION },
+      later: expect.objectContaining({ runId: "later-source" }),
+      overlappingSourcePaths: ["src/shared.ts"],
+    })]);
   });
 });
 
-describe("aggregateCalibration", () => {
-  let root: string;
-  let runsDir: string;
+describe("calibration aggregation", () => {
+  it.each([
+    { name: "failed verdict", later: { verdict: "fail" }, contradiction: 1 },
+    { name: "terminal failure despite pass", later: { terminalRunStatus: "failed" }, contradiction: 1 },
+    { name: "healthy overlapping run", later: {}, contradiction: 0 },
+    { name: "critic repair", later: { criticFailureCount: 2 }, contradiction: 0 },
+    { name: "mechanical repair", later: { finalIterationFailures: ["test", "lint"] }, contradiction: 0 },
+    { name: "unrelated failed files", later: { verdict: "fail", sourceFilesChanged: ["src/other.ts"] }, contradiction: 0 },
+    { name: "simultaneous failure", later: { verdict: "fail", completedAt: iso(-HOUR) }, contradiction: 0 },
+    { name: "failure outside follow-up window", later: { verdict: "fail" }, followUpWindowMs: HOUR - 1, contradiction: 0 },
+  ] satisfies Array<{ name: string; later: Partial<EvaluatorCalibrationArtifact>; contradiction: number; followUpWindowMs?: number }>)(
+    "$name produces $contradiction pass contradictions", ({ later, contradiction, ...row }) => {
+      seed("base");
+      seed("later", { completedAt: iso(), ...later });
+      const result = aggregate({ followUpWindowMs: "followUpWindowMs" in row ? row.followUpWindowMs : HOUR });
+      expect(result.totalRuns).toBe(2);
+      expect(result.passContradictionCount).toBe(contradiction);
+      expect(result.passContradictionRate).toBe(contradiction / result.byVerdict.pass);
+    },
+  );
 
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "cal-agg-"));
-    runsDir = join(root, "runs");
-    mkdirSync(runsDir, { recursive: true });
+  it.each([
+    { name: "hedging", verdict: "pass_with_warnings", catches: 0, expected: 1 },
+    { name: "failure", verdict: "fail", catches: 0, expected: 1 },
+    { name: "clean pass", verdict: "pass", catches: 0, expected: 0 },
+    { name: "repaired pass", verdict: "pass", catches: 2, expected: 0 },
+  ] as const)("counts $name after a warning verdict", ({ verdict, catches, expected }) => {
+    seed("base", { verdict: "pass_with_warnings" });
+    seed("later", { completedAt: iso(), verdict, criticFailureCount: catches });
+    const result = aggregate();
+    expect(result.passWithWarningsFollowUpCount).toBe(expected);
+    expect(result.passWithWarningsFollowUpRate).toBe(expected / result.byVerdict.pass_with_warnings);
+    expect(result.passContradictionCount).toBe(0);
   });
 
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+  it("resets the gate on prompt change and excludes unversioned, expired and future evidence", () => {
+    seed("base", { criticPromptHash: "old" });
+    seed("later", { criticPromptHash: "old", completedAt: iso(), verdict: "fail" });
+    const config = { thresholdRate: 0.25, minSample: 1, passWithWarningsThresholdRate: 0.4, passWithWarningsMinSample: 1 };
+    expect(evaluateCalibrationGate(aggregate({ criticPromptHash: "old" }), config).status).toBe("gated");
+    seed("unversioned");
+    const path = join(runsDir, "unversioned", EVALUATOR_CALIBRATION_ARTIFACT);
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    delete raw.criticPromptHash;
+    writeJson(path, raw);
+    seed("expired", { completedAt: iso(-8 * 24 * HOUR) });
+    seed("future", { completedAt: iso(HOUR) });
+    expect(aggregate().totalRuns).toBe(0);
+    expect(evaluateCalibrationGate(aggregate(), config).status).toBe("insufficient-sample");
+    seed("current");
+    expect(aggregate()).toMatchObject({ totalRuns: 1, byVerdict: { pass: 1, fail: 0 } });
   });
 
-  it("flags pass-verdict contradiction when a later overlapping run itself failed", () => {
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts", "src/core/b.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T12-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T12:00:00.000Z",
-      verdict: "fail",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:30:00.000Z"),
-    });
-    expect(agg.totalRuns).toBe(2);
-    expect(agg.byVerdict.pass).toBe(1);
-    expect(agg.byVerdict.fail).toBe(1);
-    expect(agg.passContradictionCount).toBe(1);
-    expect(agg.passContradictionRate).toBeCloseTo(1, 5);
+  it("returns an empty sample for a missing run store", () => {
+    expect(aggregateCalibration(join(root, "missing"), { criticPromptHash: PROMPT, nowMs: NOW }))
+      .toMatchObject({ totalRuns: 0, passContradictionRate: 0, passWithWarningsFollowUpRate: 0 });
   });
 
-  it("projects the exact overlapping failure and its revision-bound disposition", () => {
-    const baseRevision = "a".repeat(40);
+  it.each([true, false])("binds disposition to the exact overlapping revision pair: %s", (matching) => {
     const laterRevision = "b".repeat(40);
-    seedRun(runsDir, {
-      runId: "2026-04-20T09-00-00-000Z-builder-base",
-      completedAt: "2026-04-20T09:00:00.000Z",
-      verdict: "pass",
-      taskId: "task-base",
-      sourceRevision: baseRevision,
-      sourceFilesChanged: ["src/core/a.ts", "src/core/shared.ts"],
+    seed("base", { taskId: "task-base" });
+    seed("unrelated", { completedAt: iso(-HOUR / 2), verdict: "fail", sourceFilesChanged: ["src/other.ts"] });
+    seed("later", { taskId: "task-later", completedAt: iso(), verdict: "fail",
+      terminalRunStatus: "failed", sourceRevision: laterRevision });
+    const record: EvaluatorCalibrationDispositionRecord = {
+      base: { runId: "base", sourceRevision: REVISION },
+      later: { runId: "later", sourceRevision: matching ? laterRevision : "c".repeat(40) },
+      disposition: { kind: "corrective-task", taskId: "task-correction", rationale: "Missed shared-path defect", decidedAt: iso() },
+    };
+    const evidenceDir = join(runDir, "evidence/artifacts");
+    mkdirSync(evidenceDir, { recursive: true });
+    writeJson(join(evidenceDir, EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT), {
+      schemaVersion: 1, records: [record], unavailableSources: [],
     });
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-unrelated",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "fail",
-      taskId: "task-unrelated",
-      sourceRevision: "c".repeat(40),
-      sourceFilesChanged: ["src/core/other.ts"],
-      terminalRunStatus: "failed",
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-later",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "fail",
-      taskId: "task-later",
-      sourceRevision: laterRevision,
-      sourceFilesChanged: ["src/core/shared.ts", "src/core/other.ts"],
-      terminalRunStatus: "failed",
-    });
-    const dispositionDir = join(
-      runsDir,
-      "2026-04-20T12-00-00-000Z-builder-review",
-      "evidence",
-      "artifacts",
-    );
-    mkdirSync(dispositionDir, { recursive: true });
-    writeFileSync(
-      join(dispositionDir, EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT),
-      JSON.stringify({
-        schemaVersion: 1,
-        records: [{
-          base: {
-            runId: "2026-04-20T09-00-00-000Z-builder-base",
-            sourceRevision: baseRevision,
-          },
-          later: {
-            runId: "2026-04-20T11-00-00-000Z-builder-later",
-            sourceRevision: laterRevision,
-          },
-          disposition: {
-            kind: "corrective-task",
-            taskId: "task-calibration-correction",
-            rationale: "The later terminal failure demonstrates a missed shared-path defect.",
-            decidedAt: "2026-04-20T12:00:00.000Z",
-          },
-        }],
-        unavailableSources: [],
-      }),
-    );
-
-    const aggregate = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:30:00.000Z"),
-    });
-
-    expect(aggregate.passContradictionCount).toBe(1);
-    expect(aggregate.passContradictions).toEqual([{
-      base: {
-        runId: "2026-04-20T09-00-00-000Z-builder-base",
-        taskId: "task-base",
-        sourceRevision: baseRevision,
-      },
-      later: {
-        runId: "2026-04-20T11-00-00-000Z-builder-later",
-        taskId: "task-later",
-        sourceRevision: laterRevision,
-      },
+    expect(aggregate().passContradictions).toEqual([{
+      base: { ...record.base, taskId: "task-base" },
+      later: { runId: "later", sourceRevision: laterRevision, taskId: "task-later" },
       laterFailure: { verdict: "fail", terminalRunStatus: "failed" },
-      overlappingSourcePaths: ["src/core/shared.ts"],
-      disposition: {
-        kind: "corrective-task",
-        taskId: "task-calibration-correction",
-        rationale: "The later terminal failure demonstrates a missed shared-path defect.",
-        decidedAt: "2026-04-20T12:00:00.000Z",
-      },
+      overlappingSourcePaths: ["src/shared.ts"], disposition: matching ? record.disposition : null,
     }]);
   });
 
-  it("does not flag contradiction for healthy iteration chains where every overlapping run also passes", () => {
-    // Core-shrink style chain: three builder runs in a row touch the same
-    // files and all pass. Overlap alone would have counted two
-    // contradictions; the tightened definition counts zero because no later
-    // overlapping run carries a failure signal.
-    seedRun(runsDir, {
-      runId: "2026-04-20T09-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T09:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts", "src/core/b.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-c",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/b.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass).toBe(3);
-    expect(agg.passContradictionCount).toBe(0);
-    expect(agg.passContradictionRate).toBe(0);
-  });
-
-  it("does not flag contradiction when a later overlapping run passed after critic repair", () => {
-    // The later overlapping run has a final pass verdict, but its build's
-    // critic ran more than once because it flagged something the agent had to
-    // repair for that task. That is healthy in-run review, not evidence that
-    // the earlier clean pass was wrong.
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-      criticFailureCount: 1,
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass).toBe(2);
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("does not flag contradiction when the later overlapping run only needed mechanical-check repair", () => {
-    // typecheck/test/lint repair is healthy iteration, not evaluator drift.
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-      finalIterationFailures: ["test", "lint"],
-      criticFailureCount: 0,
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass).toBe(2);
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("excludes pre-versioned artifacts that lack a criticPromptHash", () => {
-    // Pre-prompt-version artifacts on disk do not declare the hash. They
-    // were generated under an unknown critic prompt and cannot be safely
-    // aggregated against the running prompt's calibration. Filtering them
-    // out is the correct behavior — the alternative (treating them as
-    // matching) would let stale data dominate the rolling window after a
-    // prompt fix and re-fire the gate for the rest of the window.
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-current",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    const legacyRun = "2026-04-20T10-00-00-000Z-builder-legacy";
-    const legacyDir = join(runsDir, legacyRun);
-    mkdirSync(legacyDir, { recursive: true });
-    writeFileSync(
-      join(legacyDir, EVALUATOR_CALIBRATION_ARTIFACT),
-      JSON.stringify({
-        runId: legacyRun,
-        workflow: "builder",
-        completedAt: "2026-04-20T10:00:00.000Z",
-        verdict: "pass",
-        warningCount: 0,
-        criticalIssueCount: 0,
-        repairIterations: 1,
-        finalIterationFailures: [],
-        criticFailureCount: 0,
-        terminalRunStatus: "success",
-        taskId: null,
-        taskFinalState: null,
-        sourceFilesChanged: ["src/core/a.ts"],
-      }),
-    );
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    // Only the seeded matching-hash artifact counts.
-    expect(agg.totalRuns).toBe(1);
-    expect(agg.byVerdict.pass).toBe(1);
-  });
-
-  it("excludes artifacts whose criticPromptHash does not match the running prompt", () => {
-    // A prior critic prompt (older hash) and the running critic prompt
-    // (current hash) coexist in the runs directory. Aggregation must only
-    // see runs from the running prompt — that is the contract that lets a
-    // prompt fix take effect immediately without dragging stale data into
-    // the rolling window.
-    seedRun(runsDir, {
-      runId: "2026-04-20T09-00-00-000Z-builder-old-prompt",
-      completedAt: "2026-04-20T09:00:00.000Z",
-      verdict: "pass_with_warnings",
-      sourceFilesChanged: ["src/core/a.ts"],
-      criticPromptHash: "olderpromptv0",
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-current-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-current-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.totalRuns).toBe(2);
-    expect(agg.byVerdict.pass).toBe(2);
-    expect(agg.byVerdict.pass_with_warnings).toBe(0);
-  });
-
-  it("flags pass_with_warnings escalation when the later overlapping run is itself hedging", () => {
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass_with_warnings",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass_with_warnings",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass_with_warnings).toBe(2);
-    expect(agg.passWithWarningsFollowUpCount).toBe(1);
-    expect(agg.passWithWarningsFollowUpRate).toBe(0.5);
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("does not flag pass_with_warnings escalation when the later overlapping run closed cleanly", () => {
-    // The critic hedged once, the next run touching the same files passed
-    // cleanly with no critic catch — the warning closed out, healthy shape.
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass_with_warnings",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass_with_warnings).toBe(1);
-    expect(agg.passWithWarningsFollowUpCount).toBe(0);
-    expect(agg.passWithWarningsFollowUpRate).toBe(0);
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("does not flag pass_with_warnings escalation for a later pass after critic repair", () => {
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass_with_warnings",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/modules/x.ts"],
-      criticFailureCount: 2,
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass_with_warnings).toBe(1);
-    expect(agg.passWithWarningsFollowUpCount).toBe(0);
-    expect(agg.passWithWarningsFollowUpRate).toBe(0);
-  });
-
-  it("does not flag follow-up when file sets do not overlap", () => {
-    seedRun(runsDir, {
-      runId: "2026-04-20T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-20T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/modules/x.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-20T11-00-00-000Z-builder-b",
-      completedAt: "2026-04-20T11:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/modules/y.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
-    });
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("ignores follow-ups outside the follow-up window", () => {
-    // The later run carries a failure signal, so only the follow-up-window
-    // bound prevents it from counting as contradiction.
-    seedRun(runsDir, {
-      runId: "2026-04-15T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-15T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-19T10-00-00-000Z-builder-b",
-      completedAt: "2026-04-19T10:00:00.000Z",
-      verdict: "fail",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 2 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
-    });
-    expect(agg.byVerdict.pass).toBe(1);
-    expect(agg.byVerdict.fail).toBe(1);
-    expect(agg.passContradictionCount).toBe(0);
-  });
-
-  it("excludes runs outside the primary window", () => {
-    seedRun(runsDir, {
-      runId: "2026-04-01T10-00-00-000Z-builder-a",
-      completedAt: "2026-04-01T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/a.ts"],
-    });
-    seedRun(runsDir, {
-      runId: "2026-04-19T10-00-00-000Z-builder-b",
-      completedAt: "2026-04-19T10:00:00.000Z",
-      verdict: "pass",
-      sourceFilesChanged: ["src/core/b.ts"],
-    });
-
-    const agg = aggregateCalibration(runsDir, {
-      criticPromptHash: TEST_PROMPT_HASH,
-      windowMs: 7 * 24 * 60 * 60 * 1000,
-      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
-      nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
-    });
-    expect(agg.totalRuns).toBe(1);
-  });
-
-  it("handles a missing runs directory by returning zeros", () => {
-    const agg = aggregateCalibration(join(root, "does-not-exist"), {
-      criticPromptHash: TEST_PROMPT_HASH,
-      nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
-    });
-    expect(agg.totalRuns).toBe(0);
-    expect(agg.passContradictionCount).toBe(0);
+  it("retains unavailable provenance without manufacturing run identities", () => {
+    const source = { sourceRef: "git:revision:task.md", expectedContradictionCount: 3,
+      reason: "Run store unavailable to this reader", checkedAt: iso() };
+    expect(decodeEvaluatorCalibrationDispositionsArtifact({
+      schemaVersion: 1, records: [], unavailableSources: [source],
+    })).toEqual({ schemaVersion: 1, records: [], unavailableSources: [source] });
   });
 });
 
-describe("evaluateCalibrationGate", () => {
-  function baseAggregate(
-    overrides: Partial<
-      Pick<
-        ReturnType<typeof aggregateCalibration>,
-        | "byVerdict"
-        | "passContradictionCount"
-        | "passContradictionRate"
-        | "passWithWarningsFollowUpCount"
-        | "passWithWarningsFollowUpRate"
-      >
-    > = {},
-  ): ReturnType<typeof aggregateCalibration> {
-    return {
-      windowStartMs: 0,
-      windowEndMs: 1,
-      totalRuns: 0,
-      byVerdict: overrides.byVerdict ?? {
-        pass: 0,
-        pass_with_warnings: 0,
-        fail: 0,
-        absent: 0,
-      },
-      passContradictionCount: overrides.passContradictionCount ?? 0,
-      passContradictionRate: overrides.passContradictionRate ?? 0,
-      passContradictions: [],
-      passWithWarningsFollowUpCount: overrides.passWithWarningsFollowUpCount ?? 0,
-      passWithWarningsFollowUpRate: overrides.passWithWarningsFollowUpRate ?? 0,
-    };
-  }
-
-  const baseConfig = {
-    thresholdRate: 0.25,
-    minSample: 8,
-    passWithWarningsThresholdRate: 0.4,
-    passWithWarningsMinSample: 5,
-  };
-
-  it("reports insufficient-sample when both samples are below their minimums", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        byVerdict: { pass: 3, pass_with_warnings: 1, fail: 0, absent: 0 },
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("insufficient-sample");
-  });
-
-  it("reports under-threshold when contradiction rate is at or below the threshold", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        byVerdict: { pass: 10, pass_with_warnings: 0, fail: 0, absent: 0 },
-        passContradictionCount: 2,
-        passContradictionRate: 0.2,
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("under-threshold");
-  });
-
-  it("fires the gate with kind pass-contradiction when contradiction rate exceeds threshold and sample is adequate", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        byVerdict: { pass: 10, pass_with_warnings: 0, fail: 0, absent: 0 },
-        passContradictionCount: 4,
-        passContradictionRate: 0.4,
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("gated");
-    if (decision.status !== "gated") return;
-    expect(decision.kinds).toEqual(["pass-contradiction"]);
-    expect(decision.reason).toContain("40.0%");
-    expect(decision.reason).toContain("25.0%");
-  });
-
-  it("fires the gate with kind pass-with-warnings-escalation when warnings follow-up rate exceeds its threshold", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        byVerdict: { pass: 0, pass_with_warnings: 10, fail: 0, absent: 0 },
-        passWithWarningsFollowUpCount: 6,
-        passWithWarningsFollowUpRate: 0.6,
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("gated");
-    if (decision.status !== "gated") return;
-    expect(decision.kinds).toEqual(["pass-with-warnings-escalation"]);
-    expect(decision.reason).toContain("60.0%");
-    expect(decision.reason).toContain("40.0%");
-  });
-
-  it("can fire on both kinds at once", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        byVerdict: { pass: 10, pass_with_warnings: 10, fail: 0, absent: 0 },
-        passContradictionCount: 4,
-        passContradictionRate: 0.4,
-        passWithWarningsFollowUpCount: 6,
-        passWithWarningsFollowUpRate: 0.6,
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("gated");
-    if (decision.status !== "gated") return;
-    expect(decision.kinds).toEqual([
-      "pass-contradiction",
-      "pass-with-warnings-escalation",
-    ]);
-  });
-
-  it("only fires the kinds whose sample is adequate", () => {
-    const decision = evaluateCalibrationGate(
-      baseAggregate({
-        // adequate pass sample with drift, but warnings sample below minimum
-        byVerdict: { pass: 10, pass_with_warnings: 2, fail: 0, absent: 0 },
-        passContradictionCount: 4,
-        passContradictionRate: 0.4,
-        passWithWarningsFollowUpCount: 2,
-        passWithWarningsFollowUpRate: 1,
-      }),
-      baseConfig,
-    );
-    expect(decision.status).toBe("gated");
-    if (decision.status !== "gated") return;
-    expect(decision.kinds).toEqual(["pass-contradiction"]);
-  });
-
-  it("uses documented defaults", () => {
-    expect(DEFAULT_CALIBRATION_THRESHOLD_RATE).toBe(0.25);
-    // The pass minimum was retuned from 8 after monitor-generated 8–10-pass
-    // windows repeatedly gated at 30–44%, while 73–74-pass windows held at
-    // 2.7%. A 10-pass affected sample must remain below the active minimum.
-    expect(DEFAULT_CALIBRATION_MIN_SAMPLE).toBeGreaterThan(10);
-    // The 0.75 PWW threshold is a deliberate retune from 0.4 — autonomous
-    // loops concentrate work on shared files (autonomy module, scoped
-    // AGENTS.md, critic.ts), producing a high natural overlap rate
-    // independent of evaluator drift. Lowering it reintroduces the
-    // false-positive churn that gated the loop in early May 2026.
-    expect(DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE).toBe(0.75);
-    expect(DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE).toBe(5);
+describe("calibration gate", () => {
+  it.each([
+    { name: "insufficient samples", passes: 3, warnings: 1, contradictions: 3, escalations: 1, status: "insufficient-sample", kinds: [] },
+    { name: "exact thresholds", passes: 4, warnings: 5, contradictions: 1, escalations: 2, status: "under-threshold", kinds: [] },
+    { name: "pass drift", passes: 4, warnings: 0, contradictions: 2, escalations: 0, status: "gated", kinds: ["pass-contradiction"] },
+    { name: "warning escalation", passes: 0, warnings: 5, contradictions: 0, escalations: 3, status: "gated", kinds: ["pass-with-warnings-escalation"] },
+    { name: "both signals", passes: 4, warnings: 5, contradictions: 2, escalations: 3, status: "gated", kinds: ["pass-contradiction", "pass-with-warnings-escalation"] },
+    { name: "small warning sample", passes: 4, warnings: 2, contradictions: 2, escalations: 2, status: "gated", kinds: ["pass-contradiction"] },
+    { name: "small pass sample", passes: 2, warnings: 5, contradictions: 2, escalations: 3, status: "gated", kinds: ["pass-with-warnings-escalation"] },
+  ])("evaluates $name from observed run outcomes", ({ passes, warnings, contradictions, escalations, status, kinds }) => {
+    for (let i = 0; i < passes; i++) seed(`pass-${i}`, { sourceFilesChanged: [`src/pass-${i}.ts`] });
+    for (let i = 0; i < warnings; i++) seed(`warning-${i}`, { verdict: "pass_with_warnings", sourceFilesChanged: [`src/warning-${i}.ts`] });
+    seed("failure", { completedAt: iso(), verdict: "fail", sourceFilesChanged: [
+      ...Array.from({ length: contradictions }, (_, i) => `src/pass-${i}.ts`),
+      ...Array.from({ length: escalations }, (_, i) => `src/warning-${i}.ts`),
+    ] });
+    const decision = evaluateCalibrationGate(aggregate(), {
+      thresholdRate: 0.25, minSample: 4, passWithWarningsThresholdRate: 0.4, passWithWarningsMinSample: 5,
+    });
+    expect(decision.status).toBe(status);
+    if (decision.status === "gated") {
+      expect(decision.kinds).toEqual(kinds);
+      expect(decision.reason).toContain(kinds.includes("pass-contradiction") ? "50.0%" : "60.0%");
+      expect(decision.reason).toContain(kinds.includes("pass-contradiction") ? "25.0%" : "40.0%");
+    }
   });
 });

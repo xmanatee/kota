@@ -56,10 +56,10 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export type MatchResult = { count: number; result: string };
+type MatchResult = { count: number; result: string };
 
-/** Apply a find-replace on a single string. Exported for testing. */
-export function applyReplacement(
+/** Apply a find-replace on a single string. */
+function applyReplacement(
   content: string,
   pattern: string,
   replacement: string,

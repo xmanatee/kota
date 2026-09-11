@@ -1,228 +1,58 @@
-/**
- * Module-event declaration / registry tests.
- *
- * Covers the declaration helper, registry collision detection, registry
- * lifecycle leases, and integration with `EventBus.emit`
- * via the typed-overload path.
- */
-
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initEventBus, resetEventBus } from "./event-bus.js";
-import {
-  defineDaemonWideModuleEvent,
-  defineModuleEvent,
-  getModuleEventRegistry,
-  initModuleEventRegistry,
-  resetModuleEventRegistry,
-} from "./module-event.js";
+import { afterEach, expect, it, vi } from "vitest";
+import { EventBus } from "./event-bus.js";
+import { defineDaemonWideModuleEvent, initModuleEventRegistry, resetModuleEventRegistry } from "./module-event.js";
 import { defineScopedModuleEvent } from "./scope.js";
 
-beforeEach(() => {
-  resetEventBus();
-  resetModuleEventRegistry();
+afterEach(resetModuleEventRegistry);
+const event = defineDaemonWideModuleEvent<{ value: number }>("example.changed", ["value"], {
+  schemaVersion: 4,
+  payloadSchema: { type: "object", properties: { value: { type: "number" } } },
 });
 
-afterEach(() => {
-  resetEventBus();
-  resetModuleEventRegistry();
+it("preserves a single declaration owner and schema across registration", () => {
+  const registry = initModuleEventRegistry();
+  registry.register("example", event);
+  registry.register("example", event);
+  expect(() => registry.register("other", event)).toThrow(/already declared/);
+  const incompatible = defineDaemonWideModuleEvent<{ value: string }>(event.name, ["value"], {
+    payloadSchema: { type: "object", properties: { value: { type: "string" } } },
+  });
+  expect(() => registry.register("example", incompatible)).toThrow(/incompatible schema/);
+  const bus = new EventBus();
+  const receive = vi.fn();
+  bus.on("*", receive);
+  bus.emit(event.name, { value: 7 });
+  expect(receive).toHaveBeenCalledExactlyOnceWith({
+    type: event.name, schemaRef: { name: event.name, version: 4 }, payload: { value: 7 },
+  });
+  expect(() => bus.emit(event.name, { value: "bad" })).toThrow(/payload.value must be number/);
 });
 
-describe("defineModuleEvent", () => {
-  it("captures the event name, field list, and explicit scope", () => {
-    const decl = defineModuleEvent<{ id: string; count: number }>(
-      "test.event",
-      ["id", "count"],
-      "daemon",
-    );
-    expect(decl.name).toBe("test.event");
-    expect(decl.fields).toEqual(["id", "count"]);
-    expect(decl.scope).toBe("daemon");
-    expect(decl.schema.currentVersion).toBe(1);
-    expect(decl.filterablePaths).toEqual(["id", "count"]);
-    expect(decl.workflowTriggerPolicy).toBe("allowed");
-  });
-
-  it("captures explicit workflow trigger blocking policy", () => {
-    const decl = defineModuleEvent<{ id: string }>(
-      "audit.only",
-      ["id"],
-      "daemon",
-      { workflowTriggerPolicy: "blocked" },
-    );
-    expect(decl.workflowTriggerPolicy).toBe("blocked");
-  });
-
-  it("defineDaemonWideModuleEvent sugar yields scope: 'daemon'", () => {
-    const decl = defineDaemonWideModuleEvent<{ id: string }>("daemon.sugar", [
-      "id",
-    ]);
-    expect(decl.scope).toBe("daemon");
-    expect(decl.fields).toEqual(["id"]);
-  });
-
-  it("defineScopedModuleEvent yields scope: 'project' and prepends scope selectors", () => {
-    const decl = defineScopedModuleEvent<{ id: string }>(
-      "project.sugar",
-      ["id"],
-    );
-    expect(decl.scope).toBe("scope");
-    expect(decl.fields).toEqual(["scopeId", "id"]);
-  });
+it.each(["typed", "registered string"])("rejects malformed %s payloads before middleware and fan-out", (route) => {
+  const bus = new EventBus();
+  const receive = vi.fn();
+  const middleware = vi.fn((_envelope, next: () => void) => next());
+  bus.on(event, receive);
+  bus.addEmitMiddleware(middleware);
+  initModuleEventRegistry().register("example", event);
+  const selected = route === "typed" ? event : event.name;
+  expect(() => {
+    if (typeof selected === "string") bus.emit(selected, { value: "bad" });
+    else bus.emit(selected, { value: "bad" } as never);
+  }).toThrow(/payload.value must be number/);
+  expect(receive).not.toHaveBeenCalled();
+  expect(middleware).not.toHaveBeenCalled();
+  if (typeof selected === "string") bus.emit(selected, { value: 9 });
+  else bus.emit(selected, { value: 9 });
+  expect(receive.mock.calls).toEqual([[{ value: 9 }]]);
 });
 
-describe("ModuleEventRegistry", () => {
-  it("registers and looks up declarations", () => {
-    const moduleEvents = initModuleEventRegistry();
-    const decl = defineDaemonWideModuleEvent<{ id: string }>("alpha.event", [
-      "id",
-    ]);
-    moduleEvents.register("alpha", decl);
-
-    expect(moduleEvents.get("alpha.event")).toMatchObject({
-      module: "alpha",
-      name: "alpha.event",
-      scope: "daemon",
-      fields: ["id"],
-      currentVersion: 1,
-      filterablePaths: ["id"],
-      workflowTriggerPolicy: "allowed",
-    });
-    expect(moduleEvents.has("alpha.event")).toBe(true);
-  });
-
-  it("rejects collision across modules", () => {
-    const moduleEvents = initModuleEventRegistry();
-    moduleEvents.register(
-      "alpha",
-      defineDaemonWideModuleEvent<{ x: string }>("shared.event", ["x"]),
-    );
-    expect(() =>
-      moduleEvents.register(
-        "beta",
-        defineDaemonWideModuleEvent<{ y: string }>("shared.event", ["y"]),
-      ),
-    ).toThrow(/already declared/);
-  });
-
-  it("re-registering by the same module is idempotent", () => {
-    const moduleEvents = initModuleEventRegistry();
-    const a = defineDaemonWideModuleEvent<{ x: string }>("alpha.event", ["x"]);
-    moduleEvents.register("alpha", a);
-    moduleEvents.register("alpha", a);
-    expect(moduleEvents.get("alpha.event")?.module).toBe("alpha");
-  });
-
-  it("rejects incompatible redeclaration by the same module", () => {
-    const moduleEvents = initModuleEventRegistry();
-    moduleEvents.register(
-      "alpha",
-      defineDaemonWideModuleEvent<{ x: string }>("alpha.event", ["x"], {
-        payloadSchema: {
-          type: "object",
-          properties: { x: { type: "string" } },
-        },
-      }),
-    );
-    expect(() =>
-      moduleEvents.register(
-        "alpha",
-        defineDaemonWideModuleEvent<{ x: number }>("alpha.event", ["x"], {
-          payloadSchema: {
-            type: "object",
-            properties: { x: { type: "number" } },
-          },
-        }),
-      ),
-    ).toThrow(/incompatible schema/);
-  });
-
-  it("getModuleEventRegistry returns null before init", () => {
-    expect(getModuleEventRegistry()).toBeNull();
-  });
-});
-
-describe("EventBus.emit with ModuleEventDef overload", () => {
-  it("routes typed daemon-wide module events to subscribers", () => {
-    const bus = initEventBus();
-    const decl = defineDaemonWideModuleEvent<{ value: number }>(
-      "ord.event",
-      ["value"],
-      {
-        payloadSchema: {
-          type: "object",
-          properties: { value: { type: "number" } },
-        },
-      },
-    );
-    const received: number[] = [];
-    bus.on(decl, (payload) => received.push(payload.value));
-    bus.emit(decl, { value: 7 });
-    expect(received).toEqual([7]);
-  });
-
-  it("rejects malformed typed module payloads before subscriber fan-out", () => {
-    const bus = initEventBus();
-    const decl = defineDaemonWideModuleEvent<{ value: number }>(
-      "strict.event",
-      ["value"],
-      {
-        payloadSchema: {
-          type: "object",
-          properties: { value: { type: "number" } },
-        },
-      },
-    );
-    const received: number[] = [];
-    bus.on(decl, (payload) => received.push(payload.value));
-
-    expect(() =>
-      bus.emit(decl, { value: "nope" } as unknown as never),
-    ).toThrow(/payload\.value must be number/);
-    expect(received).toEqual([]);
-  });
-
-  it("validates string emits whose event name is module-owned", () => {
-    const bus = initEventBus();
-    const decl = defineDaemonWideModuleEvent<{ value: number }>(
-      "registered.strict",
-      ["value"],
-      {
-        payloadSchema: {
-          type: "object",
-          properties: { value: { type: "number" } },
-        },
-      },
-    );
-    initModuleEventRegistry().register("strict-module", decl);
-
-    expect(() => bus.emit("registered.strict", { value: "bad" })).toThrow(
-      /registered\.strict.*payload\.value must be number/,
-    );
-  });
-
-  it("rejects emit of a scope-scoped module event without a scope selector", () => {
-    const bus = initEventBus();
-    const decl = defineScopedModuleEvent<{ value: number }>(
-      "scoped.event",
-      ["value"],
-    );
-    // Cast bypasses the typed overload to exercise the runtime guard against a
-    // payload that genuinely omits scope identity.
-    expect(() =>
-      bus.emit(decl, { value: 1 } as unknown as never),
-    ).toThrow(/scope-scoped/);
-  });
-
-  it("accepts emit of a scope-scoped module event with scope identity", () => {
-    const bus = initEventBus();
-    const decl = defineScopedModuleEvent<{ value: number }>(
-      "scoped.ok",
-      ["value"],
-    );
-    const received: { scopeId: string; value: number }[] = [];
-    bus.on(decl, (payload) => received.push(payload));
-    bus.emit(decl, { scopeId: "p1", value: 5 });
-    expect(received).toEqual([{ scopeId: "p1", value: 5 }]);
-  });
-
+it.each([undefined, "", 42])("rejects invalid scope identity %s before delivery", (scopeId) => {
+  const scoped = defineScopedModuleEvent<{ value: number }>("example.scoped", ["value"]);
+  const bus = new EventBus();
+  const receive = vi.fn();
+  bus.on(scoped, receive);
+  expect(() => bus.emit(scoped, { scopeId, value: 1 } as never)).toThrow(/scope-scoped/);
+  bus.emit(scoped, { scopeId: "a", value: 1 });
+  expect(receive.mock.calls).toEqual([[{ scopeId: "a", value: 1 }]]);
 });

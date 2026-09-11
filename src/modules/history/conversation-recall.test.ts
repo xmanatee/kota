@@ -1,214 +1,65 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	HISTORY_PROVIDER_TOKEN,
-	initProviderRegistry,
-	resetProviderRegistry,
-} from "#core/modules/provider-registry.js";
+import { HISTORY_PROVIDER_TOKEN, initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { runConversationRecall } from "./conversation-recall.js";
 import { ConversationHistory } from "./history.js";
 
-describe("runConversationRecall", () => {
-	let history: ConversationHistory;
+let dir: string;
+let history: ConversationHistory;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "kota-recall-"));
+  history = new ConversationHistory(dir);
+  initProviderRegistry().register(HISTORY_PROVIDER_TOKEN, "test", history);
+});
+afterEach(() => {
+  resetProviderRegistry();
+  rmSync(dir, { recursive: true, force: true });
+});
 
-	beforeEach(() => {
-		const dir = mkdtempSync(join(tmpdir(), "kota-recall-test-"));
-		history = new ConversationHistory(dir);
-		const registry = initProviderRegistry();
-		registry.register(HISTORY_PROVIDER_TOKEN, "test", history);
-	});
+describe("conversation recall", () => {
+  it.each([
+    [{ action: "search" }, "query is required"],
+    [{ action: "read" }, "id is required"],
+    [{ action: "read", id: "missing" }, "not found"],
+    [{ action: "bogus" }, "unknown action"],
+  ])("reports invalid input %j", async (input, error) => {
+    expect(await runConversationRecall(input)).toMatchObject({ is_error: true, content: expect.stringContaining(error) });
+  });
 
-	afterEach(() => {
-		resetProviderRegistry();
-	});
+  it("renders empty, filtered and limited results from the registered provider", async () => {
+    expect(await runConversationRecall({ action: "list" })).toEqual({ content: "No conversations in history." });
+    expect(await runConversationRecall({ action: "search", query: "absent" })).toEqual({ content: "No matching conversations found." });
+    const first = history.create("model", "/scope");
+    history.save(first, [{ role: "user", content: "Authentication fix" }], 0, 0);
+    const last = history.create("model", "/scope", "action");
+    history.save(last, [{ role: "user", content: "Other topic" }], 0, 0);
+    const listed = await runConversationRecall({ action: "list", limit: 1 });
+    expect(listed.content).toContain(`1 recent conversation(s):\n[${last}]`);
+    expect(listed.content).toContain("1 msgs [auto]");
+    expect(listed.content).not.toContain(first);
+    const searched = await runConversationRecall({ action: "search", query: "authentication" });
+    expect(searched.content).toContain(first);
+    expect(searched.content).toContain("Authentication fix");
+    expect(searched.content).not.toContain(last);
+  });
 
-	describe("list", () => {
-		it("returns message when no conversations", async () => {
-			const result = await runConversationRecall({ action: "list" });
-			expect(result.content).toBe("No conversations in history.");
-		});
-
-		it("lists recent conversations", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			history.save(
-				id,
-				[
-					{ role: "user", content: "Hello" },
-					{ role: "assistant", content: "Hi there!" },
-				],
-				0,
-				0,
-			);
-
-			const result = await runConversationRecall({ action: "list" });
-			expect(result.content).toContain("1 recent conversation(s)");
-			expect(result.content).toContain("Hello");
-			expect(result.content).toContain(id);
-		});
-
-		it("respects limit parameter", async () => {
-			for (let i = 0; i < 5; i++) {
-				const id = history.create("claude-haiku", "/tmp/test");
-				history.save(
-					id,
-					[{ role: "user", content: `Message ${i}` }],
-					0,
-					0,
-				);
-			}
-
-			const result = await runConversationRecall({
-				action: "list",
-				limit: 2,
-			});
-			expect(result.content).toContain("2 recent conversation(s)");
-		});
-	});
-
-	describe("search", () => {
-		it("requires query parameter", async () => {
-			const result = await runConversationRecall({ action: "search" });
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("query is required");
-		});
-
-		it("returns message when no matches", async () => {
-			const result = await runConversationRecall({
-				action: "search",
-				query: "nonexistent-xyz-abc",
-			});
-			expect(result.content).toBe("No matching conversations found.");
-		});
-
-		it("finds conversations by title content", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			history.save(
-				id,
-				[
-					{
-						role: "user",
-						content: "Help me fix the authentication bug",
-					},
-				],
-				0,
-				0,
-			);
-
-			const result = await runConversationRecall({
-				action: "search",
-				query: "authentication",
-			});
-			expect(result.content).toContain("authentication");
-			expect(result.content).toContain(id);
-		});
-	});
-
-	describe("read", () => {
-		it("requires id parameter", async () => {
-			const result = await runConversationRecall({ action: "read" });
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("id is required");
-		});
-
-		it("returns error for nonexistent conversation", async () => {
-			const result = await runConversationRecall({
-				action: "read",
-				id: "nonexistent",
-			});
-			expect(result.is_error).toBe(true);
-			expect(result.content).toContain("not found");
-		});
-
-		it("reads conversation messages", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			history.save(
-				id,
-				[
-					{ role: "user", content: "What is TypeScript?" },
-					{
-						role: "assistant",
-						content: "TypeScript is a typed superset of JavaScript.",
-					},
-				],
-				0,
-				0,
-			);
-
-			const result = await runConversationRecall({
-				action: "read",
-				id,
-			});
-			expect(result.content).toContain("What is TypeScript?");
-			expect(result.content).toContain(
-				"TypeScript is a typed superset of JavaScript",
-			);
-			expect(result.content).toContain("**User**:");
-			expect(result.content).toContain("**Assistant**:");
-		});
-
-		it("resolves conversation by ID prefix", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			history.save(
-				id,
-				[{ role: "user", content: "prefix test" }],
-				0,
-				0,
-			);
-
-			const prefix = id.slice(0, 6);
-			const result = await runConversationRecall({
-				action: "read",
-				id: prefix,
-			});
-			expect(result.is_error).toBeUndefined();
-			expect(result.content).toContain("prefix test");
-		});
-
-		it("truncates long messages", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			const longMessage = "A".repeat(1000);
-			history.save(
-				id,
-				[{ role: "user", content: longMessage }],
-				0,
-				0,
-			);
-
-			const result = await runConversationRecall({
-				action: "read",
-				id,
-			});
-			expect(result.content).toContain("...");
-			expect(result.content!.length).toBeLessThan(longMessage.length);
-		});
-
-		it("shows header with metadata", async () => {
-			const id = history.create("claude-haiku", "/tmp/test");
-			history.save(
-				id,
-				[
-					{ role: "user", content: "Hello" },
-					{ role: "assistant", content: "Hi" },
-				],
-				0,
-				0,
-			);
-
-			const result = await runConversationRecall({
-				action: "read",
-				id,
-			});
-			expect(result.content).toContain("Conversation:");
-			expect(result.content).toContain(`ID: ${id}`);
-			expect(result.content).toContain("Messages:");
-		});
-	});
-
-	it("returns error for unknown action", async () => {
-		const result = await runConversationRecall({ action: "bogus" });
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("unknown action");
-	});
+  it("resolves a prefix and renders bounded recent messages with role and record metadata", async () => {
+    const id = history.create("model", "/scope");
+    history.save(id, [
+      { role: "user", content: "Original topic" },
+      ...Array.from({ length: 49 }, (_, i) => ({ role: "user" as const, content: `question-${i}` })),
+      { role: "assistant", content: "A".repeat(1000) },
+    ], 0, 0);
+    const result = await runConversationRecall({ action: "read", id: id.slice(0, -1) });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain(`Conversation: Original topic\nID: ${id}`);
+    expect(result.content).toContain("Messages: 51");
+    expect(result.content).toContain("**User**: question-0");
+    expect(result.content).toContain(`**Assistant**: ${"A".repeat(497)}...`);
+    expect(result.content).not.toContain("A".repeat(500));
+    expect(result.content).not.toContain("**User**: Original topic");
+    expect(result.content).toContain("showing last 50 of 51 messages");
+  });
 });

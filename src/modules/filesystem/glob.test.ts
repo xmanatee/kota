@@ -1,146 +1,33 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  utimesSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { runGlob } from "./glob.js";
 
-describe("runGlob", () => {
-  let dir: string;
+let root: string;
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), "glob-")); });
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-  beforeAll(() => {
-    dir = mkdtempSync(join(tmpdir(), "glob-test-"));
+it("filters and sorts scoped paths before applying the result limit", async () => {
+  for (const [i, name] of ["old.ts", "src/nested.ts", "new.ts", "other.js", "node_modules/dependency.ts", "dist/output.ts"].entries()) {
+    const path = join(root, name);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, "source");
+    const date = new Date(1700000000000 + i * 10000);
+    utimesSync(path, date, date);
+  }
+  expect((await runGlob({ pattern: "**/*.ts" }, { cwd: root })).content).toBe("new.ts\nsrc/nested.ts\nold.ts");
+  expect((await runGlob({ pattern: "**/*.ts", max_results: 2 }, { cwd: root })).content).toBe("new.ts\nsrc/nested.ts\n\n[Showing 2 of 3 matches]");
+  expect((await runGlob({ pattern: "**/*.js" }, { cwd: root })).content).toBe("other.js");
+});
 
-    writeFileSync(join(dir, "old.ts"), "// old");
-    utimesSync(join(dir, "old.ts"), new Date("2020-01-01"), new Date("2020-01-01"));
+it("rejects a missing pattern and reports no matches", async () => {
+  expect(await runGlob({ pattern: "" }, { cwd: root })).toMatchObject({ is_error: true, content: expect.stringContaining("pattern is required") });
+  expect(await runGlob({ pattern: "*.absent" }, { cwd: root })).toEqual({ content: "No files matched." });
+});
 
-    writeFileSync(join(dir, "mid.ts"), "// mid");
-    utimesSync(join(dir, "mid.ts"), new Date("2022-06-15"), new Date("2022-06-15"));
-
-    writeFileSync(join(dir, "new.ts"), "// new");
-    utimesSync(join(dir, "new.ts"), new Date("2025-01-01"), new Date("2025-01-01"));
-
-    writeFileSync(join(dir, "other.js"), "// js file");
-
-    // Ignored directories
-    mkdirSync(join(dir, "node_modules"), { recursive: true });
-    writeFileSync(join(dir, "node_modules", "dep.ts"), "");
-
-    mkdirSync(join(dir, "dist"), { recursive: true });
-    writeFileSync(join(dir, "dist", "out.ts"), "");
-
-    // Nested file
-    mkdirSync(join(dir, "src"), { recursive: true });
-    writeFileSync(join(dir, "src", "index.ts"), "// src");
-    utimesSync(
-      join(dir, "src", "index.ts"),
-      new Date("2024-06-01"),
-      new Date("2024-06-01"),
-    );
-  });
-
-  afterAll(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("returns error when pattern is empty", async () => {
-    const result = await runGlob({ pattern: "" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("pattern is required");
-  });
-
-  it("returns 'No files matched' for non-matching pattern", async () => {
-    const result = await runGlob({ pattern: "**/*.xyz", path: dir });
-    expect(result.content).toBe("No files matched.");
-  });
-
-  it("finds files matching a glob pattern", async () => {
-    const result = await runGlob({ pattern: "**/*.ts", path: dir });
-    expect(result.content).toContain("old.ts");
-    expect(result.content).toContain("mid.ts");
-    expect(result.content).toContain("new.ts");
-    expect(result.content).toContain("src/index.ts");
-  });
-
-  it("sorts results by mtime newest first", async () => {
-    const result = await runGlob({ pattern: "**/*.ts", path: dir });
-    const lines = result.content.split("\n");
-    const newIdx = lines.findIndex((l) => l.includes("new.ts"));
-    const midIdx = lines.findIndex((l) => l.includes("mid.ts"));
-    const oldIdx = lines.findIndex((l) => l.includes("old.ts"));
-    expect(newIdx).toBeLessThan(midIdx);
-    expect(midIdx).toBeLessThan(oldIdx);
-  });
-
-  it("ignores node_modules and dist directories", async () => {
-    const result = await runGlob({ pattern: "**/*.ts", path: dir });
-    expect(result.content).not.toContain("dep.ts");
-    expect(result.content).not.toContain("out.ts");
-  });
-
-  it("excludes cased .kota credential aliases", async () => {
-    const originalCwd = process.cwd();
-    const scopeRoot = mkdtempSync(join(tmpdir(), "glob-protected-"));
-    try {
-      mkdirSync(join(scopeRoot, ".KOTA"), { recursive: true });
-      writeFileSync(join(scopeRoot, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
-      writeFileSync(join(scopeRoot, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
-      process.chdir(scopeRoot);
-
-      const result = await runGlob({ pattern: "**/*", path: ".KOTA" });
-
-      expect(result.content).toBe("No files matched.");
-    } finally {
-      process.chdir(originalCwd);
-      rmSync(scopeRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("respects max_results limit", async () => {
-    const result = await runGlob({
-      pattern: "**/*.ts",
-      path: dir,
-      max_results: 2,
-    });
-    const tsLines = result.content
-      .split("\n")
-      .filter((l) => l.includes(".ts"));
-    expect(tsLines).toHaveLength(2);
-    expect(result.content).toContain("Showing 2 of");
-  });
-
-  it("returns newest files when limited by max_results", async () => {
-    const result = await runGlob({
-      pattern: "**/*.ts",
-      path: dir,
-      max_results: 2,
-    });
-    // Newest 2: new.ts (2025) and src/index.ts (2024)
-    expect(result.content).toContain("new.ts");
-    expect(result.content).toContain("src/index.ts");
-    expect(result.content).not.toContain("old.ts");
-  });
-
-  it("no truncation message when all results fit", async () => {
-    const result = await runGlob({ pattern: "**/*.ts", path: dir });
-    expect(result.content).not.toContain("Showing");
-  });
-
-  it("finds files with different modules", async () => {
-    const result = await runGlob({ pattern: "**/*.js", path: dir });
-    expect(result.content).toContain("other.js");
-    expect(result.content).not.toContain(".ts");
-  });
-
-  it("uses current directory as default path without crashing", async () => {
-    const result = await runGlob({
-      pattern: "*.nonexistent-module-xyz",
-    });
-    expect(result.content).toBe("No files matched.");
-  });
+it("does not enumerate protected credential aliases", async () => {
+  mkdirSync(join(root, ".KOTA"));
+  for (const name of ["daemon-control.json", "secrets.json"]) writeFileSync(join(root, ".KOTA", name), "synthetic-secret");
+  expect(await runGlob({ path: ".KOTA", pattern: "**/*" }, { cwd: root })).toEqual({ content: "No files matched." });
 });

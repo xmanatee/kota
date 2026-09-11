@@ -1,230 +1,79 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type KotaConfig, loadConfig } from "./config.js";
+import { type KotaConfig, loadConfigWithDiagnostics } from "./config.js";
 
-function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-config-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-describe("loadConfig", () => {
-  let tmpDir: string;
-
+describe("layered configuration", () => {
+  let root: string;
+  let globalConfigPath: string;
+  let scopeConfigPath: string;
   beforeEach(() => {
-    tmpDir = makeTmpDir();
+    root = mkdtempSync(join(tmpdir(), "kota-config-"));
+    globalConfigPath = join(root, "machine.json");
+    mkdirSync(join(root, ".kota"));
+    scopeConfigPath = join(root, ".kota", "config.json");
   });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-  afterEach(() => {
-    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  function loadTrustedConfig(overrides: Partial<KotaConfig> = {}): KotaConfig {
-    const globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
-    return loadConfig(tmpDir, overrides, { globalConfigPath });
+  function load(scope: unknown, overrides?: Partial<KotaConfig>, global: Partial<KotaConfig> = {}) {
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [root], ...global }));
+    writeFileSync(scopeConfigPath, JSON.stringify(scope));
+    return loadConfigWithDiagnostics(root, overrides, { globalConfigPath }).config;
   }
 
-  it("returns empty config when no files exist", () => {
-    const config = loadConfig(tmpDir, undefined, {
-      globalConfigPath: join(tmpDir, "missing-global-config.json"),
+  it("returns empty configuration without either file", () => {
+    expect(loadConfigWithDiagnostics(root, undefined, { globalConfigPath }).config).toEqual({});
+  });
+
+  it.each(["not json {{{", "[1,2,3]", "null"])("ignores invalid trusted file %s and preserves global configuration", (raw) => {
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [root], model: "machine" }));
+    writeFileSync(scopeConfigPath, raw);
+    const result = loadConfigWithDiagnostics(root, undefined, { globalConfigPath });
+    expect(result.scopeConfigTrust.trusted).toBe(true);
+    expect(result.config).toEqual({ trustedScopes: [root], model: "machine" });
+  });
+
+  it("applies global, trusted scope and caller precedence while preserving unrelated fields", () => {
+    expect(load(
+      { model: "scope", maxTokens: 2048, verbose: true },
+      { model: "caller" },
+      { model: "machine", maxTokens: 4096, thinking: true },
+    )).toEqual({ trustedScopes: [root], model: "caller", maxTokens: 2048, verbose: true, thinking: true });
+  });
+
+  it("merges nested user and routing maps without replacing untouched entries", () => {
+    const result = load({
+      user: { name: "Alex" },
+      aliases: { "/research": "Research: ", "/draft": "Draft: " },
+      agentModels: { builder: "scope-builder", explorer: "scope-explorer" },
+      modelOutputTokenLimits: { "scope-model": 12345 },
+    }, {
+      user: { context: "ML engineer" },
+      aliases: { "/research": "Deep research: " },
+      agentModels: { explorer: "caller-explorer" },
+      modelOutputTokenLimits: { "caller-model": 6789 },
     });
-    expect(config).toEqual({});
-  });
-
-  it("loads scope config from .kota/config.json", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ model: "project-model", maxTokens: 4096 }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.model).toBe("project-model");
-    expect(config.maxTokens).toBe(4096);
-  });
-
-  it("loads explicit model output-token limits from trusted config", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({
-        modelOutputTokenLimits: {
-          "operator-model": 12345,
-        },
-      }),
-    );
-
-    const config = loadTrustedConfig({
-      modelOutputTokenLimits: { "global-model": 6789 },
-    });
-    expect(config.modelOutputTokenLimits).toEqual({
-      "global-model": 6789,
-      "operator-model": 12345,
+    expect(result).toEqual({
+      trustedScopes: [root], user: { name: "Alex", context: "ML engineer" },
+      aliases: { "/research": "Deep research: ", "/draft": "Draft: " },
+      agentModels: { builder: "scope-builder", explorer: "caller-explorer" },
+      modelOutputTokenLimits: { "scope-model": 12345, "caller-model": 6789 },
     });
   });
 
-  it("ignores scope config from an untrusted scope", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({
-        model: "repo-controlled-model",
-        skipConfirmations: true,
-        guardrails: {
-          policies: { dangerous: "allow" },
-          toolOverrides: { process: "allow" },
-        },
-        foreignModules: [{ transport: "stdio", command: "repo-owned" }],
-      }),
-    );
+  it("sanitizes boundary values while preserving valid array and map members", () => {
+    expect(load({
+      model: 123, maxTokens: -5, thinkingBudget: 100, verbose: true,
+      autoEnable: ["web"],
+      agentModels: { valid: "model", invalid: 42, empty: "" },
+    })).toEqual({ trustedScopes: [root], verbose: true, autoEnable: ["web"], agentModels: { valid: "model" } });
 
-    const config = loadConfig(tmpDir, {
-      model: "operator-model",
-      guardrails: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
-    });
-    expect(config.model).toBe("operator-model");
-    expect(config.skipConfirmations).toBeUndefined();
-    expect(config.guardrails?.policies.dangerous).toBe("queue");
-    expect(config.guardrails?.toolOverrides).toBeUndefined();
-    expect(config.foreignModules).toBeUndefined();
   });
 
-  it("sanitizes invalid values", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({
-        model: 123,            // wrong type
-        maxTokens: -5,         // negative
-        thinkingBudget: 100,   // below minimum (1024)
-        verbose: true,         // valid
-      }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.model).toBeUndefined();
-    expect(config.maxTokens).toBeUndefined();
-    expect(config.thinkingBudget).toBeUndefined();
-    expect(config.verbose).toBe(true);
-  });
-
-  it("overrides take precedence over file config", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ model: "file-model", maxTokens: 2048 }),
-    );
-
-    const config = loadTrustedConfig({ model: "override-model" });
-    expect(config.model).toBe("override-model");
-    expect(config.maxTokens).toBe(2048); // not overridden
-  });
-
-  it("merges user profile from both layers", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ user: { name: "Alex" } }),
-    );
-
-    const config = loadTrustedConfig({ user: { context: "ML engineer" } });
-    expect(config.user?.name).toBe("Alex");
-    expect(config.user?.context).toBe("ML engineer");
-  });
-
-  it("merges aliases from both layers", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ aliases: { "/research": "Research: ", "/draft": "Draft: " } }),
-    );
-
-    const config = loadTrustedConfig({ aliases: { "/research": "Deep research: " } });
-    expect(config.aliases?.["/research"]).toBe("Deep research: "); // override
-    expect(config.aliases?.["/draft"]).toBe("Draft: ");            // preserved
-  });
-
-  it("loads agentModels as a string map", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "builder-model", explorer: "explorer-model" } }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.agentModels?.builder).toBe("builder-model");
-    expect(config.agentModels?.explorer).toBe("explorer-model");
-  });
-
-  it("sanitizes agentModels: drops non-string and empty values", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { valid: "valid-model", bad: 42, empty: "" } }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.agentModels?.valid).toBe("valid-model");
-    expect(config.agentModels?.bad).toBeUndefined();
-    expect(config.agentModels?.empty).toBeUndefined();
-  });
-
-  it("merges agentModels across config layers", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "file-builder-model", explorer: "file-explorer-model" } }),
-    );
-
-    const config = loadTrustedConfig({ agentModels: { explorer: "override-explorer-model" } });
-    expect(config.agentModels?.builder).toBe("file-builder-model");
-    expect(config.agentModels?.explorer).toBe("override-explorer-model");
-  });
-
-  it("handles malformed JSON gracefully", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(join(configDir, "config.json"), "not json {{{");
-
-    const config = loadConfig(tmpDir, undefined, {
-      globalConfigPath: join(tmpDir, "missing-global-config.json"),
-    });
-    expect(config).toEqual({});
-  });
-
-  it("handles non-object JSON gracefully", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(join(configDir, "config.json"), JSON.stringify([1, 2, 3]));
-
-    const config = loadConfig(tmpDir, undefined, {
-      globalConfigPath: join(tmpDir, "missing-global-config.json"),
-    });
-    expect(config).toEqual({});
-  });
-
-  it("preserves an explicit empty scope override while omission inherits", () => {
-    const globalConfigPath = join(tmpDir, "global.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir], autoEnable: ["execution"] }));
-    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
-    const configPath = join(tmpDir, ".kota/config.json");
-    writeFileSync(configPath, "{}");
-    expect(loadConfig(tmpDir, undefined, { globalConfigPath }).autoEnable).toEqual(["execution"]);
-    writeFileSync(configPath, JSON.stringify({ autoEnable: [] }));
-    expect(loadConfig(tmpDir, undefined, { globalConfigPath }).autoEnable).toEqual([]);
+  it("preserves explicit empty scope overrides while omission inherits", () => {
+    expect(load({}, undefined, { autoEnable: ["execution"] }).autoEnable).toEqual(["execution"]);
+    expect(load({ autoEnable: [] }, undefined, { autoEnable: ["execution"] }).autoEnable).toEqual([]);
   });
 
   it.each([
@@ -232,62 +81,52 @@ describe("loadConfig", () => {
     [{ autoEnable: [""] }, "config.autoEnable"],
     [{ modelOutputTokenLimits: { model: 0 } }, "config.modelOutputTokenLimits.model"],
   ])("rejects malformed explicit configuration %j", (value, path) => {
-    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
-    writeFileSync(join(tmpDir, ".kota/config.json"), JSON.stringify(value));
-    expect(() => loadTrustedConfig()).toThrow(path);
+    expect(() => load(value)).toThrow(path);
   });
 
-  it("loads autoEnable as array of strings", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ autoEnable: ["web", "code"] }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.autoEnable).toEqual(["web", "code"]);
+  it("keeps a valid workflow budget when a caller supplies an invalid replacement", () => {
+    expect(load({ workflow: { agentTokenBudget: { maxTotalTokens: 50_000 } } }, {
+      workflow: { agentTokenBudget: { maxTotalTokens: 0 } },
+    }).workflow?.agentTokenBudget).toEqual({ maxTotalTokens: 50_000 });
   });
 
-  it("loads serve and cli autonomy defaults", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({
-        serve: { defaultAutonomyMode: "supervised" },
-        cli: { defaultAutonomyMode: "passive" },
-      }),
-    );
-
-    const config = loadTrustedConfig();
-    expect(config.serve?.defaultAutonomyMode).toBe("supervised");
-    expect(config.cli?.defaultAutonomyMode).toBe("passive");
+  it("propagates separately configured CLI and server autonomy", () => {
+    expect(load({ serve: { defaultAutonomyMode: "supervised" }, cli: { defaultAutonomyMode: "passive" } }))
+      .toMatchObject({ serve: { defaultAutonomyMode: "supervised" }, cli: { defaultAutonomyMode: "passive" } });
   });
 
-  it("rejects invalid serve autonomy defaults", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ serve: { defaultAutonomyMode: "banana" } }),
-    );
-
-    expect(() => loadTrustedConfig()).toThrow(
-      /config\.serve\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
-    );
+  it.each(["serve", "cli"])("rejects malformed %s autonomy at the file boundary", (surface) => {
+    expect(() => load({ [surface]: { defaultAutonomyMode: "banana" } }))
+      .toThrow(`config.${surface}.defaultAutonomyMode must be one of`);
   });
 
-  it("rejects invalid cli autonomy defaults", () => {
-    const configDir = join(tmpDir, ".kota");
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      join(configDir, "config.json"),
-      JSON.stringify({ cli: { defaultAutonomyMode: "banana" } }),
-    );
+  it("accepts machine authority only from persisted global configuration", () => {
+    const payload = {
+      model: "repo-model", trustedScopes: [root], scopePolicies: "malformed policy",
+      scopeAuthority: { revision: 999 }, skipConfirmations: true,
+      guardrails: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" }, toolOverrides: { process: "allow" } },
+      foreignModules: [{ transport: "stdio", command: "repo-owned" }],
+    };
+    writeFileSync(scopeConfigPath, JSON.stringify(payload));
+    const overrides = {
+      model: "operator-model", trustedScopes: [root],
+      scopePolicies: "malformed caller policy" as never, scopeAuthority: { revision: 999 } as never,
+    };
+    const untrusted = loadConfigWithDiagnostics(root, overrides, { globalConfigPath });
+    expect(untrusted.scopeConfigTrust).toMatchObject({ trusted: false, reason: "untrusted" });
+    expect(untrusted.config).toEqual({ model: "operator-model" });
+    expect(untrusted.warnings).toHaveLength(1);
+    expect(untrusted.warnings[0]).toContain(scopeConfigPath);
+    expect(untrusted.warnings[0]).toContain("guardrail policy");
 
-    expect(() => loadTrustedConfig()).toThrow(
-      /config\.cli\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
-    );
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [root] }));
+    const trusted = loadConfigWithDiagnostics(root, overrides, { globalConfigPath });
+    expect(trusted.scopeConfigTrust).toMatchObject({ trusted: true, reason: "trusted-scopes-config" });
+    expect(trusted.config).toEqual({
+      trustedScopes: [root], model: "operator-model", skipConfirmations: true,
+      guardrails: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" }, toolOverrides: { process: "allow" } },
+      foreignModules: [{ transport: "stdio", command: "repo-owned" }],
+    });
+    expect(trusted.warnings).toEqual([]);
   });
 });

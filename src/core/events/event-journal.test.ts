@@ -1,540 +1,191 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import {
-  createEventEnvelopeDeadLetter,
-  DeadLetterQueueStore,
-} from "#core/daemon/dead-letter-queue.js";
-import type { BusEnvelope } from "./event-bus.js";
-import { EventBus } from "./event-bus.js";
-import {
-  type EventEnvelope,
-  EventJournal,
-  type EventJournalClientProjection,
-  eventEnvelopeToBusEnvelope,
-  installEventJournal,
-} from "./event-journal.js";
-import {
-  initModuleEventRegistry,
-  resetModuleEventRegistry,
-} from "./module-event.js";
+import { afterEach, expect, it } from "vitest";
+import { type BusEnvelope, EventBus } from "./event-bus.js";
+import { EventJournal, installEventJournal } from "./event-journal.js";
+import { initModuleEventRegistry, resetModuleEventRegistry } from "./module-event.js";
 import { defineScopedModuleEvent } from "./scope.js";
 
-type TelegramSignal = {
-  provider: string;
-  channel: string;
-  accountId: string;
-  sourceId: string;
-  sourceUrl: string;
-  externalId: string;
-  occurredAt: string;
-  receivedAt: string;
-  actor: {
-    id: string;
-    displayName: string;
-    trust: string;
-    trustReason: string;
-  };
-  body: {
-    kind: "message";
-    format: "plain";
-    text: string;
-  };
-  token: string;
-  correlationId: string;
-  causationId: string;
-  parentEventId: string;
-  idempotencyKey: string;
-  traceContext: {
-    traceparent: string;
-    tracestate: string;
-  };
+const roots: string[] = [];
+function directory() {
+  const root = mkdtempSync(join(tmpdir(), "kota-journal-"));
+  roots.push(root);
+  return root;
+}
+
+afterEach(() => {
+  resetModuleEventRegistry();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+// A semantic channel example, independent of any product module's event catalog.
+const message = defineScopedModuleEvent<{ body: string; opaque: string }>("example.received", ["body", "opaque"], {
+  schemaVersion: 2,
+  payloadSchema: {
+    type: "object",
+    properties: { body: { type: "string" }, opaque: { type: "string", sensitivity: "secret" } },
+    additionalProperties: true,
+  },
+});
+const payload = {
+  scopeId: "a", body: "Book the court.", opaque: "canary-value-73",
+  provider: "example", channel: "chat", accountId: "account", sourceId: "room", externalId: "message",
+  occurredAt: "2026-06-05T10:00:00.000Z", receivedAt: "2026-06-05T10:00:01.000Z",
+  correlationId: "conversation", causationId: "request", parentEventId: "parent",
+  idempotencyKey: "example:message",
+  traceContext: { traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", tracestate: "example=chat" },
 };
 
-const telegramSignalReceived = defineScopedModuleEvent<TelegramSignal>(
-  "inbound.signal.received",
-  [
-    "provider",
-    "channel",
-    "accountId",
-    "sourceId",
-    "sourceUrl",
-    "externalId",
-    "occurredAt",
-    "receivedAt",
-    "actor",
-    "body",
-    "token",
-    "correlationId",
-    "causationId",
-    "parentEventId",
-    "idempotencyKey",
-    "traceContext",
-  ],
-  {
-    schemaVersion: 2,
-    payloadSchema: {
-      type: "object",
-      properties: {
-        provider: { type: "string" },
-        channel: { type: "string" },
-        accountId: { type: "string" },
-        sourceId: { type: "string" },
-        sourceUrl: { type: "string" },
-        externalId: { type: "string" },
-        occurredAt: { type: "string", format: "date-time" },
-        receivedAt: { type: "string", format: "date-time" },
-        actor: {
-          type: "object",
-          properties: {
-            id: { type: "string" },
-            displayName: { type: "string" },
-            trust: { type: "string" },
-            trustReason: { type: "string" },
-          },
-        },
-        body: {
-          type: "object",
-          properties: {
-            kind: { type: "string" },
-            format: { type: "string" },
-            text: { type: "string" },
-          },
-        },
-        token: { type: "string", sensitivity: "secret" },
-        correlationId: { type: "string" },
-        causationId: { type: "string" },
-        parentEventId: { type: "string" },
-        idempotencyKey: { type: "string" },
-        traceContext: {
-          type: "object",
-          properties: {
-            traceparent: { type: "string" },
-            tracestate: { type: "string" },
-          },
-        },
-      },
-      additionalProperties: false,
-    },
-    filterablePaths: ["provider", "channel", "sourceId", "externalId"],
-    sensitivity: "internal",
-  },
-);
-
-function makeTempDir(): string {
-  const dir = join(
-    tmpdir(),
-    `kota-event-journal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  );
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function makeTelegramPayload() {
-  return {
-    scopeId: "scope-a",
-    provider: "telegram",
-    channel: "telegram",
-    accountId: "acct-1",
-    sourceId: "chat-9",
-    sourceUrl: "https://t.me/c/9/1",
-    externalId: "message-1",
-    occurredAt: "2026-06-05T10:00:00.000Z",
-    receivedAt: "2026-06-05T10:00:01.000Z",
-    actor: {
-      id: "user-7",
-      displayName: "Owner",
-      trust: "trusted",
-      trustReason: "configured owner",
-    },
-    body: {
-      kind: "message" as const,
-      format: "plain" as const,
-      text: "Book the 7pm court if available.",
-    },
-    token: "telegram-secret-token",
-    correlationId: "corr-1",
-    causationId: "owner-message-1",
-    parentEventId: "evtj-000000000000",
-    idempotencyKey: "telegram:acct-1:message-1",
-    traceContext: {
-      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-      tracestate: "kota=telegram",
-    },
-  };
-}
-
-function minimalEnvelopeLine(sequence: number): string {
-  return JSON.stringify({
-    id: `evtj-${String(sequence).padStart(12, "0")}`,
-    sequence,
-    event: { name: "bulk.event", schema: { name: "bulk.event", version: 1 } },
-    payload: { kind: "inline", payload: {} },
+it("persists redacted channel provenance and replays the same identity after restart", () => {
+  initModuleEventRegistry().register("example", message);
+  const root = directory();
+  const journal = new EventJournal(root, { scopeLineage: (id) => ["global", id] });
+  const bus = new EventBus();
+  const delivered: BusEnvelope[] = [];
+  bus.on("*", (envelope) => delivered.push(envelope));
+  const uninstall = installEventJournal(bus, journal);
+  bus.emit(message.name, payload);
+  uninstall();
+  bus.emit(message.name, { ...payload, body: "not journaled" });
+  expect(journal.query()).toHaveLength(1);
+  const [event] = journal.query({ type: message.name, scopeId: "a", sourceId: "example:chat:account:room:message" });
+  expect(event).toMatchObject({
+    id: delivered[0]!.eventId, sequence: 1,
+    event: { name: message.name, schema: { version: 2 } },
+    scope: { kind: "scope", scopeId: "a", lineage: ["global", "a"] },
+    source: { kind: "channel", id: "example:chat:account:room:message" },
+    producer: { kind: "channel", provider: "example", channel: "chat", sourceId: "room", externalId: "message" },
+    causality: { correlationId: "conversation", causationId: "request", parentEventId: "parent" },
+    trace: payload.traceContext,
+    idempotency: { idempotencyKey: "example:message", externalProviderId: "message" },
   });
-}
-
-describe("EventJournal", () => {
-  const tempDirs: string[] = [];
-
-  afterEach(() => {
-    resetModuleEventRegistry();
-    for (const dir of tempDirs.splice(0)) {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  function trackTempDir(): string {
-    const dir = makeTempDir();
-    tempDirs.push(dir);
-    return dir;
+  const redacted = { ...payload, opaque: "[redacted]" };
+  expect(journal.toClientProjection(event!).payload).toEqual(redacted);
+  expect(readFileSync(journal.getPath(), "utf8")).not.toContain("canary-value-73");
+  expect(payload.opaque).toBe("canary-value-73");
+  const restarted = new EventJournal(root);
+  const replayed: BusEnvelope[] = [];
+  restarted.replay({ id: event!.id }, (envelope) => replayed.push(envelope));
+  expect(replayed).toEqual([{
+    type: message.name, eventId: event!.id, schemaRef: { name: message.name, version: 2 }, payload: redacted,
+  }]);
+  const next = restarted.appendFromBusEnvelope({ type: "runtime.example", schemaRef: null, payload: {} });
+  expect(next.sequence).toBe(2);
+  expect(restarted.query({ after: event!.id }).map(({ id }) => id)).toEqual([next.id]);
+  for (const query of [{ scopeId: "b" }, { sourceId: "other" }, { type: "other" }, { after: "missing" }]) {
+    expect(restarted.query(query)).toEqual([]);
   }
+});
 
-  it("appends durable envelopes, queries by durable fields, and recovers the cursor after restart", () => {
-    initModuleEventRegistry().register("telegram", telegramSignalReceived);
-    const dir = trackTempDir();
-    let now = new Date("2026-06-05T10:00:02.000Z");
-    const journal = new EventJournal(dir, {
-      now: () => now,
-      scopeLineage: (scopeId) => ["global", scopeId],
-    });
+it("assigns distinct identities to ordinary live events", () => {
+  const journal = new EventJournal(directory());
+  const bus = new EventBus();
+  const delivered: BusEnvelope[] = [];
+  bus.on("*", (envelope) => delivered.push(envelope));
+  installEventJournal(bus, journal);
+  bus.emit("example.repeated", { value: 1 });
+  bus.emit("example.repeated", { value: 1 });
+  expect(delivered.map(({ eventId }) => eventId)).toEqual(["evtj-000000000001", "evtj-000000000002"]);
+  expect(journal.query().map(({ id }) => id)).toEqual(delivered.map(({ eventId }) => eventId));
+});
+
+it("deduplicates outbox storage across restart and rejects changed content before delivery", () => {
+  const root = directory();
+  const eventId = "workflow:run:step:event";
+  const delivered: BusEnvelope[] = [];
+  const failures: string[] = [];
+  for (let restart = 0; restart < 2; restart++) {
     const bus = new EventBus();
-    const wildcard: BusEnvelope[] = [];
-    bus.on("*", (envelope) => wildcard.push(envelope));
-    const uninstall = installEventJournal(bus, journal);
-
-    bus.emit(telegramSignalReceived, makeTelegramPayload());
-    uninstall();
-
-    expect(wildcard[0]?.eventId).toBe("evtj-000000000001");
-    const sourceId = "telegram:telegram:acct-1:chat-9:message-1";
-    const events = journal.query({
-      type: "inbound.signal.received",
-      scopeId: "scope-a",
-      sourceId,
-    });
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      id: "evtj-000000000001",
-      sequence: 1,
-      event: { name: "inbound.signal.received", schema: { version: 2 } },
-      source: { kind: "channel", id: sourceId },
-      scope: { kind: "scope", scopeId: "scope-a", lineage: ["global", "scope-a"] },
-      producer: {
-        kind: "channel",
-        provider: "telegram",
-        channel: "telegram",
-        sourceId: "chat-9",
-        externalId: "message-1",
-      },
-      causality: {
-        correlationId: "corr-1",
-        causationId: "owner-message-1",
-        parentEventId: "evtj-000000000000",
-      },
-      trace: {
-        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-        tracestate: "kota=telegram",
-      },
-      idempotency: {
-        idempotencyKey: "telegram:acct-1:message-1",
-        externalProviderId: "message-1",
-      },
-    });
-    expect(events[0]!.payload).toMatchObject({
-      kind: "inline",
-      payload: { token: "[redacted]" },
-    });
-    expect(JSON.stringify(events[0])).not.toContain("telegram-secret-token");
-    expect(readFileSync(journal.getPath(), "utf-8")).not.toContain(
-      "telegram-secret-token",
-    );
-
-    const projection = journal.toClientProjection(events[0]!);
-    expect(projection.payload.token).toBe("[redacted]");
-    expect((projection.payload.body as { text: string }).text).toBe(
-      "Book the 7pm court if available.",
-    );
-
-    const replayed: BusEnvelope[] = [];
-    journal.replay({ id: events[0]!.id }, (envelope) => replayed.push(envelope));
-    expect(replayed).toHaveLength(1);
-    expect(replayed[0]).toMatchObject({
-      type: "inbound.signal.received",
-      eventId: "evtj-000000000001",
-      schemaRef: { name: "inbound.signal.received", version: 2 },
-      payload: { externalId: "message-1", token: "[redacted]" },
-    });
-
-    now = new Date("2026-06-05T10:00:05.000Z");
-    const restarted = new EventJournal(dir, { now: () => now });
-    restarted.appendFromBusEnvelope({
-      type: "daemon.config.reload",
-      schemaRef: null,
-      payload: {
-        timestamp: "2026-06-05T10:00:04.000Z",
-        scope: "daemon",
-        outcome: "success",
-        reloadKind: "noop",
-        fullReload: false,
-        changedModules: [],
-        workflowCount: 1,
-        sessionGuardrails: {
-          refreshed: 0,
-          unchanged: 0,
-          nonRefreshable: [],
-        },
-      },
-    });
-
-    expect(restarted.query({ after: "evtj-000000000001" }).map((event) => event.id)).toEqual([
-      "evtj-000000000002",
-    ]);
-    expect(restarted.query({ sinceMs: Date.parse("2026-06-05T10:00:03.000Z") })).toHaveLength(1);
-  });
-
-  it("assigns unique journal ids to repeated ordinary live events", () => {
-    const journal = new EventJournal(trackTempDir());
-    const bus = new EventBus();
-    const wildcard: BusEnvelope[] = [];
-    bus.on("*", (envelope) => wildcard.push(envelope));
-    installEventJournal(bus, journal);
-
-    bus.emit("publication.retry", { attempt: 1 });
-    bus.emit("publication.retry", { attempt: 2 });
-
-    expect(wildcard.map((envelope) => envelope.eventId)).toEqual([
-      "evtj-000000000001",
-      "evtj-000000000002",
-    ]);
-    expect(journal.query({ type: "publication.retry" }).map((event) => event.id)).toEqual([
-      "evtj-000000000001",
-      "evtj-000000000002",
-    ]);
-  });
-
-  it("journals an authoritative outbox event once across redelivery and restart", () => {
-    const dir = trackTempDir();
-    const eventId = "workflow:run-a:emit:announce";
-    const payload = { attempt: 1 };
-
-    const firstBus = new EventBus();
-    const firstDeliveries: BusEnvelope[] = [];
-    firstBus.on("*", (envelope) => firstDeliveries.push(envelope));
-    installEventJournal(firstBus, new EventJournal(dir));
-    firstBus.deliverOutbox("publication.retry", payload, eventId);
-    firstBus.deliverOutbox("publication.retry", payload, eventId);
-
-    const restartedBus = new EventBus();
-    const restartedDeliveries: BusEnvelope[] = [];
-    restartedBus.on("*", (envelope) => restartedDeliveries.push(envelope));
-    const restartedJournal = new EventJournal(dir);
-    installEventJournal(restartedBus, restartedJournal);
-    restartedBus.deliverOutbox("publication.retry", payload, eventId);
-
-    expect(firstDeliveries).toHaveLength(2);
-    expect(restartedDeliveries).toHaveLength(1);
-    expect(
-      [...firstDeliveries, ...restartedDeliveries].map((envelope) => envelope.eventId),
-    ).toEqual([eventId, eventId, eventId]);
-    expect(restartedJournal.query({ type: "publication.retry" })).toMatchObject([
-      {
-        id: "evtj-000000000001",
-        idempotency: { eventId },
-        payload: { kind: "inline", payload },
-      },
-    ]);
-  });
-
-  it("rejects changed content for an authoritative outbox event id", () => {
-    const journal = new EventJournal(trackTempDir());
-    const bus = new EventBus();
-    const failures: string[] = [];
+    const journal = new EventJournal(root);
+    bus.on("*", (envelope) => delivered.push(envelope));
     bus.addEmitFailureHandler(({ error }) => failures.push(error.message));
     installEventJournal(bus, journal);
-    const eventId = "workflow:run-a:emit:announce";
+    bus.deliverOutbox("example.outbox", { value: 1 }, eventId);
+    const original = readFileSync(journal.getPath(), "utf8");
+    bus.deliverOutbox("example.outbox", { value: 1 }, eventId);
+    bus.deliverOutbox("example.outbox", { value: 2 }, eventId);
+    expect(readFileSync(journal.getPath(), "utf8")).toBe(original);
+    expect(journal.query()).toMatchObject([{ idempotency: { eventId }, payload: { kind: "inline", payload: { value: 1 } } }]);
+  }
+  expect(delivered.map(({ eventId: id }) => id)).toEqual([eventId, eventId, eventId, eventId]);
+  expect(failures).toEqual(Array(2).fill(expect.stringMatching(/redelivered with different content/)));
+});
 
-    bus.deliverOutbox("publication.retry", { attempt: 1 }, eventId);
-    bus.deliverOutbox("publication.retry", { attempt: 2 }, eventId);
-    expect(failures).toEqual([
-      expect.stringMatching(/redelivered with different content/),
-    ]);
-    expect(journal.query({ type: "publication.retry" })).toHaveLength(1);
+it("recovers the cursor from a journal larger than an argument-spread stack", () => {
+  const root = directory();
+  const source = new EventJournal(root).appendFromBusEnvelope({ type: "example.bulk", schemaRef: null, payload: {} });
+  const file = join(root, "journal.jsonl");
+  writeFileSync(file, `${Array.from({ length: 120_000 }, (_, i) => JSON.stringify({
+    ...source, id: `bulk-${i + 1}`, sequence: i + 1,
+  })).join("\n")}\n`);
+  const journal = new EventJournal(root);
+  const next = journal.appendFromBusEnvelope({ type: "example.next", schemaRef: null, payload: {} });
+  expect(next.sequence).toBe(120_001);
+  expect(journal.query({ limit: 1 })).toEqual([next]);
+}, 20_000);
+
+it.each(["limit", "time"])("bounds %s queries before unrelated malformed history", (mode) => {
+  let now = new Date("2026-06-05T10:00:00.000Z");
+  const journal = new EventJournal(directory(), { now: () => now });
+  writeFileSync(journal.getPath(), "malformed history\n");
+  journal.appendFromBusEnvelope({ type: "example.old", schemaRef: null, payload: {} });
+  const boundary = now.getTime();
+  now = new Date(boundary + 1000);
+  const recent = journal.appendFromBusEnvelope({ type: "example.recent", schemaRef: null, payload: {} });
+  expect(journal.query(mode === "limit" ? { limit: 1 } : { sinceMs: boundary })).toEqual([recent]);
+  expect(() => journal.query()).toThrow(/malformed event journal entry/);
+});
+
+it.each(["metadata-reference", "exclude-from-query"] as const)("expires payloads under %s retention", (expiredBehavior) => {
+  let now = new Date("2026-06-05T10:00:00.000Z");
+  const journal = new EventJournal(directory(), {
+    now: () => now, retention: { kind: "expire-after-ms", durationMs: 10 },
   });
+  const source = journal.appendFromBusEnvelope({ type: "workflow.completed", schemaRef: null, payload: {
+    scopeId: "a", workflow: "builder", runId: "run", rawPayload: { prompt: "do not retain" },
+  } });
+  const retained = new EventJournal(directory(), { now: () => now });
+  if (source.retention.kind !== "expires") throw new Error("Expected expiring fixture");
+  retained.appendEnvelope({ ...source, retention: { ...source.retention, expiredBehavior } });
+  expect(retained.query()).toHaveLength(1);
+  expect(retained.queryPrunedReferences()).toEqual([]);
+  now = new Date(now.getTime() + 11);
+  expect(retained.query({ id: source.id })).toEqual([]);
+  const references = retained.queryPrunedReferences({ id: source.id });
+  if (expiredBehavior === "exclude-from-query") expect(references).toEqual([]);
+  else expect(references).toMatchObject([{
+    artifactType: "event-envelope", id: source.id, payloadExpired: true,
+    retained: { event: "workflow.completed", scopeId: "a" },
+    provenance: { workflowName: "builder", runId: "run" },
+  }]);
+  expect(JSON.stringify(references)).not.toContain("do not retain");
+});
 
-  it("recovers the next sequence from a large existing journal", () => {
-    const dir = trackTempDir();
-    writeFileSync(
-      join(dir, "journal.jsonl"),
-      `${Array.from({ length: 120_000 }, (_, index) =>
-        minimalEnvelopeLine(index + 1)
-      ).join("\n")}\n`,
-      "utf-8",
-    );
-
-    const journal = new EventJournal(dir);
-    journal.appendFromBusEnvelope({
-      type: "bulk.after-restart",
-      schemaRef: null,
-      payload: { source: "event-journal-test" },
-    });
-
-    const lastLine = readFileSync(journal.getPath(), "utf-8")
-      .trim()
-      .split("\n")
-      .at(-1);
-    expect(lastLine ? JSON.parse(lastLine) : null).toMatchObject({
-      id: "evtj-000000120001",
-      sequence: 120_001,
-    });
-  }, 20_000);
-
-  it("answers bounded recent queries without scanning unrelated history", () => {
-    const journal = new EventJournal(trackTempDir());
-    writeFileSync(journal.getPath(), "malformed historical entry\n", "utf8");
-    journal.appendFromBusEnvelope({
-      type: "recent.first",
-      schemaRef: null,
-      payload: { value: 1 },
-    });
-    journal.appendFromBusEnvelope({
-      type: "recent.second",
-      schemaRef: null,
-      payload: { value: 2 },
-    });
-
-    expect(journal.query({ limit: 1 })).toMatchObject([
-      { event: { name: "recent.second" } },
-    ]);
-    expect(() => journal.query()).toThrow(/malformed event journal entry/);
+it("rejects schema failures before journal append and subscriber delivery", () => {
+  initModuleEventRegistry().register("example", message);
+  const journal = new EventJournal(directory());
+  const bus = new EventBus();
+  const delivered: BusEnvelope[] = [];
+  const failures: string[] = [];
+  installEventJournal(bus, journal);
+  bus.on("*", (envelope) => delivered.push(envelope));
+  bus.addEmitFailureHandler((failure) => {
+    failures.push(failure.stage);
   });
+  expect(() => bus.emit(message.name, { ...payload, body: 42 })).toThrow(/payload failed schema/);
+  expect(delivered).toEqual([]);
+  expect(journal.query()).toEqual([]);
+  expect(failures).toEqual(["validation"]);
+});
 
-  it("answers time-bounded recent queries without scanning unrelated history", () => {
-    const dir = trackTempDir();
-    let now = new Date("2026-06-05T10:00:00.000Z");
-    const journal = new EventJournal(dir, { now: () => now });
-    writeFileSync(journal.getPath(), "malformed historical entry\n", "utf8");
-    journal.appendFromBusEnvelope({
-      type: "old.boundary",
-      schemaRef: null,
-      payload: { source: "test" },
-    });
-    now = new Date("2026-06-05T10:00:01.000Z");
-    journal.appendFromBusEnvelope({
-      type: "recent.after-boundary",
-      schemaRef: null,
-      payload: { source: "test" },
-    });
-
-    expect(journal.query({
-      sinceMs: Date.parse("2026-06-05T10:00:00.000Z"),
-    })).toMatchObject([{ event: { name: "recent.after-boundary" } }]);
+it("redacts unregistered secret keys recursively without hiding safe content", () => {
+  const journal = new EventJournal(directory());
+  const event = journal.appendFromBusEnvelope({ type: "example.unregistered", schemaRef: null, payload: {
+    token: "raw-token", nested: { password: "raw-password", safe: "visible" }, values: [{ apiKey: "raw-key", label: "kept" }],
+  } });
+  expect(journal.toClientProjection(event).payload).toEqual({
+    token: "[redacted]", nested: { password: "[redacted]", safe: "visible" }, values: [{ apiKey: "[redacted]", label: "kept" }],
   });
-
-  it("excludes expired retained entries from queries", () => {
-    const dir = trackTempDir();
-    let now = new Date("2026-06-05T10:00:00.000Z");
-    const journal = new EventJournal(dir, {
-      now: () => now,
-      retention: { kind: "expire-after-ms", durationMs: 10 },
-    });
-
-    journal.appendFromBusEnvelope({
-      type: "custom.event",
-      schemaRef: null,
-      payload: { source: "test", receivedAt: "2026-06-05T10:00:00.000Z" },
-    });
-    expect(journal.query()).toHaveLength(1);
-
-    now = new Date("2026-06-05T10:00:00.011Z");
-    expect(journal.query()).toHaveLength(0);
-  });
-
-  it("dead-letters module event validation failures before journal append", () => {
-    initModuleEventRegistry().register("telegram", telegramSignalReceived);
-    const store = new DeadLetterQueueStore(join(trackTempDir(), "dlq"));
-    const bus = new EventBus();
-    bus.addEmitFailureHandler((failure) => {
-      if (failure.stage !== "validation") return;
-      createEventEnvelopeDeadLetter({
-        store,
-        scopeId: "scope-a",
-        eventName: failure.event,
-        schemaRef: failure.schemaRef,
-        payload: failure.payload,
-        redriveEnvelope: failure.envelope,
-        reason: failure.error.message,
-        errorClass: "validation",
-      });
-    });
-    const badPayload = makeTelegramPayload();
-    delete (badPayload.body as { text?: string }).text;
-
-    expect(() => bus.emit(telegramSignalReceived, badPayload)).toThrow(
-      /payload failed schema/,
-    );
-
-    const item = store.list()[0]!;
-    expect(item).toMatchObject({
-      type: "event-envelope",
-      status: "open",
-      scopeId: "scope-a",
-      failure: { lastErrorClass: "validation", retryCount: 1 },
-      source: {
-        kind: "event-envelope",
-        eventName: "inbound.signal.received",
-      },
-      redrive: {
-        kind: "none",
-        reason: "event redrive requires the event journal",
-      },
-    });
-    expect(item.sourceEventIds).toEqual([]);
-    expect(item.redactedProjection.token).toBe("[redacted]");
-  });
-
-  it("redacts secret-shaped keys when no event schema is registered", () => {
-    const journal = new EventJournal(trackTempDir());
-    const envelope = journal.appendFromBusEnvelope({
-      type: "custom.unregistered",
-      schemaRef: null,
-      payload: {
-        token: "raw-token",
-        nested: { password: "raw-password", safe: "visible" },
-        values: [{ apiKey: "raw-key", label: "kept" }],
-      },
-    });
-
-    const projection = journal.toClientProjection(envelope);
-
-    expect(projection.payload.token).toBe("[redacted]");
-    expect(projection.payload.nested).toEqual({
-      password: "[redacted]",
-      safe: "visible",
-    });
-    expect(projection.payload.values).toEqual([
-      { apiKey: "[redacted]", label: "kept" },
-    ]);
-  });
-
-  it("keeps the Telegram-like fixture aligned with the redacted client projection", () => {
-    initModuleEventRegistry().register("telegram", telegramSignalReceived);
-    const fixture = JSON.parse(
-      readFileSync(
-        join(process.cwd(), "src/core/events/fixtures/telegram-inbound-envelope.json"),
-        "utf-8",
-      ),
-    ) as {
-      envelope: EventEnvelope;
-      clientProjection: EventJournalClientProjection;
-    };
-    const journal = new EventJournal(trackTempDir());
-
-    expect(eventEnvelopeToBusEnvelope(fixture.envelope)).toMatchObject({
-      type: "inbound.signal.received",
-      eventId: "evtj-000000000001",
-      payload: { provider: "telegram", externalId: "message-1" },
-    });
-    expect(journal.toClientProjection(fixture.envelope)).toEqual(fixture.clientProjection);
-  });
+  expect(readFileSync(journal.getPath(), "utf8")).not.toMatch(/raw-token|raw-password|raw-key/);
 });

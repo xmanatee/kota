@@ -4,7 +4,6 @@ import {
 } from "#core/evidence/policy.js";
 import type { BusEnvelope } from "./event-bus.js";
 import type {
-  EventEnvelope,
   EventEnvelopePayloadStorage,
   EventEnvelopeTraceContext,
   EventJsonObject,
@@ -50,10 +49,10 @@ export function payloadForStorage(
 }
 
 export function redactedPayloadForClient(
-  envelope: EventEnvelope,
+  eventName: string,
+  payload: EventJsonObject,
 ): EventJsonObject {
-  const payload = payloadStorageToObject(envelope.payload);
-  const registration = getModuleEventRegistry()?.get(envelope.event.name);
+  const registration = getModuleEventRegistry()?.get(eventName);
   if (!registration) {
     return projectEvidenceJsonObject(payload, "daemon-api");
   }

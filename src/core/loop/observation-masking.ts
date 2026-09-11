@@ -34,9 +34,6 @@ export type MaskStats = {
   charsSaved: number;
 };
 
-/** Generate a compact placeholder for a masked tool observation. */
-export const generatePlaceholder = formatMaskedToolObservation;
-
 /**
  * Mask old tool observations beyond a rolling window.
  *

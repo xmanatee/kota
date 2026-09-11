@@ -16,9 +16,10 @@ search to KOTA's file-based stores.
 - `SemanticIndexManager` is the single production owner for lifecycle behavior:
   background embedding, cosine ranking, bulk reindex, deletion cleanup,
   staleness checks, lazy fill, in-memory cache lifecycle, and query error propagation.
-- Store adapters declare supported capabilities (`mutation`, `deletion`,
-  `reindex`, `search`) and own only entry mapping (id, fingerprint, indexable text),
-  persistence identity (storage directories), and mapping exceptions.
+- Store adapters own entry mapping (id, fingerprint, indexable text), canonical
+  enumeration, persistence identity (storage directories), and mapping exceptions.
+  Provider interfaces expose supported operations through their typed capability
+  properties; the index manager does not maintain a second capability catalog.
 - Semantic providers never mutate the canonical store and never embed
   synchronously in the write path.
 

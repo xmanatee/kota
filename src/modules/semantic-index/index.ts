@@ -27,12 +27,10 @@ export {
 	SemanticIndexFile,
 } from "./semantic-index.js";
 export {
-	DEFAULT_SEMANTIC_CAPABILITIES,
 	EMBED_TEXT_LIMIT,
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
-	type SemanticStoreCapabilities,
 } from "./semantic-index-manager.js";
 
 const semanticIndexModule: KotaModule = {

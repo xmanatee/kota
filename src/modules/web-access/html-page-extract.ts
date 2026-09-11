@@ -4,8 +4,8 @@
  * from html-extract.ts for the actual HTML→Markdown conversion.
  */
 
-import { decodeEntities, extractContent } from "./html-extract.js";
-import { removeBlocks } from "./html-extract-utils.js";
+import { extractContent } from "./html-extract.js";
+import { decodeEntities, removeBlocks } from "./html-extract-utils.js";
 
 /** Metadata extracted from HTML <head>. */
 export type PageMetadata = {
@@ -36,7 +36,7 @@ function getMetaContent(html: string, attr: string, value: string): string | und
 }
 
 /** Extract metadata from <head>. */
-export function extractMetadata(html: string): PageMetadata {
+function extractMetadata(html: string): PageMetadata {
   const meta: PageMetadata = {};
 
   // Title: og:title > <title>
@@ -74,7 +74,7 @@ export function extractMetadata(html: string): PageMetadata {
  * Looks for <article>, <main>, [role="main"], or common content IDs/classes.
  * Returns the inner HTML of the best match, or null to fall back to full page.
  */
-export function findContentRegion(html: string): string | null {
+function findContentRegion(html: string): string | null {
   const patterns: RegExp[] = [
     /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<main[^>]*>([\s\S]*?)<\/main>/i,
@@ -104,7 +104,7 @@ const BOILERPLATE_ATTR_RE = /\b(sidebar|comment|comments|related|social|share|sh
 /**
  * Remove div/section elements whose class or id matches boilerplate patterns.
  */
-export function removeBoilerplateByAttr(html: string): string {
+function removeBoilerplateByAttr(html: string): string {
   return html.replace(
     /<(div|section)[^>]*(?:class|id)="([^"]*)"[^>]*>[\s\S]*?<\/\1>/gi,
     (fullMatch, _tag, attrValue) => {

@@ -1,60 +1,54 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { EventBus } from "./event-bus.js";
-import {
-  defineScopedModuleEvent,
-  ScopedEventBus,
-  type ScopedPayload,
-} from "./scope.js";
+import { defineDaemonWideModuleEvent, initModuleEventRegistry, resetModuleEventRegistry } from "./module-event.js";
+import { defineScopedModuleEvent, ScopedEventBus } from "./scope.js";
 
-describe("scope-attributed events", () => {
-  it("declares one required scope identity field", () => {
-    const declaration = defineScopedModuleEvent<{ taskId: string }>(
-      "queue.shape.changed",
-      ["taskId"],
-    );
+afterEach(resetModuleEventRegistry);
+const event = defineScopedModuleEvent<{ value: string }>("example.scoped", ["value"]);
 
-    expect(declaration.fields).toEqual(["scopeId", "taskId"]);
-  });
+it("delivers only each subscriber's scope while raw subscribers see both", () => {
+  const bus = new EventBus();
+  const views = [new ScopedEventBus(bus, "a"), new ScopedEventBus(bus, "b")];
+  const scoped = views.map((view) => { const receive = vi.fn(); view.on(event, receive); return receive; });
+  const raw = vi.fn();
+  bus.on(event, raw);
+  views[0]!.emit(event, { value: "first" });
+  views[1]!.emit(event, { value: "second" });
+  const first = { scopeId: "a", value: "first" };
+  const second = { scopeId: "b", value: "second" };
+  expect(scoped[0]!.mock.calls).toEqual([[first]]);
+  expect(scoped[1]!.mock.calls).toEqual([[second]]);
+  expect(raw.mock.calls).toEqual([[first], [second]]);
+});
 
-  it("isolates subscribers by scope", () => {
-    const bus = new EventBus();
-    const scopeA = new ScopedEventBus(bus, "scope-a");
-    const scopeB = new ScopedEventBus(bus, "scope-b");
-    const event = defineScopedModuleEvent<{ runId: string }>(
-      "isolation.example",
-      ["runId"],
-    );
-    const handlerA = vi.fn();
-    const handlerB = vi.fn();
-    scopeA.on(event, handlerA);
-    scopeB.on(event, handlerB);
+it("filters wildcard scope traffic, broadcasts daemon events and releases subscriptions", () => {
+  const bus = new EventBus();
+  const view = new ScopedEventBus(bus, "a");
+  const receive = vi.fn();
+  const unsubscribe = view.onAny(receive);
+  const daemon = defineDaemonWideModuleEvent<{ value: string }>("example.daemon", ["value"]);
+  initModuleEventRegistry().register("example", daemon);
+  view.emitDynamic(daemon.name, { value: "global" });
+  view.emitDynamic(event.name, { value: "local" });
+  new ScopedEventBus(bus, "b").emit(event, { value: "other" });
+  expect(receive.mock.calls.map(([envelope]) => envelope.payload)).toEqual([
+    { value: "global" }, { scopeId: "a", value: "local" },
+  ]);
+  unsubscribe();
+  view.emit(event, { value: "after disposal" });
+  expect(receive).toHaveBeenCalledTimes(2);
+});
 
-    scopeA.emit(event, { runId: "run-a" });
-    scopeB.emit(event, { runId: "run-b" });
-
-    expect(handlerA).toHaveBeenCalledWith({ scopeId: "scope-a", runId: "run-a" });
-    expect(handlerB).toHaveBeenCalledWith({ scopeId: "scope-b", runId: "run-b" });
-  });
-
-  it("lets raw-bus consumers distinguish scopes by scopeId", () => {
-    const bus = new EventBus();
-    const event = defineScopedModuleEvent<{ runId: string }>("cross.scope.example", ["runId"]);
-    const seen: ScopedPayload<{ runId: string }>[] = [];
-    bus.on(event, (payload) => seen.push(payload));
-
-    new ScopedEventBus(bus, "scope-a").emit(event, { runId: "a" });
-    new ScopedEventBus(bus, "scope-b").emit(event, { runId: "b" });
-
-    expect(seen).toEqual([
-      { scopeId: "scope-a", runId: "a" },
-      { scopeId: "scope-b", runId: "b" },
-    ]);
-  });
-
-  it("rejects an explicit identity that conflicts with the bound scope", () => {
-    const view = new ScopedEventBus(new EventBus(), "scope-a");
-    expect(() =>
-      view.emitDynamic("conflict.example", { scopeId: "scope-b" }),
-    ).toThrow(/does not match scoped bus/);
-  });
+it.each(["typed", "dynamic", "outbox"])("rejects cross-scope %s emission without delivery", (route) => {
+  const bus = new EventBus();
+  const view = new ScopedEventBus(bus, "a");
+  const receive = vi.fn();
+  bus.on("*", receive);
+  const payload = { scopeId: "b", value: "spoofed" };
+  expect(() => {
+    if (route === "typed") view.emit(event, payload);
+    else if (route === "dynamic") view.emitDynamic(event.name, payload);
+    else view.deliverOutbox(event.name, payload, "run:step:event");
+  }).toThrow(/does not match scoped bus/);
+  expect(receive).not.toHaveBeenCalled();
 });

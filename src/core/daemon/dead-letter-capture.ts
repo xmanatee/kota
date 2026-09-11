@@ -2,11 +2,11 @@ import type {
   BusEnvelope,
   EventSchemaReference,
 } from "#core/events/event-bus.js";
-import {
-  type EventEnvelope,
-  type EventJsonObject,
-  redactedPayloadForClient,
+import type {
+  EventEnvelope,
+  EventJsonObject,
 } from "#core/events/event-journal.js";
+import { payloadStorageToObject, redactedPayloadForClient } from "#core/events/event-journal-payload.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type {
   WorkflowBatchFlushPayload,
@@ -215,9 +215,9 @@ export function createEventEnvelopeDeadLetter(
     redrive: redriveEventId !== undefined
       ? { kind: "event", source: { kind: "event-journal", eventId: redriveEventId } }
       : { kind: "none", reason: "event redrive requires the event journal" },
-    redactedProjection: journaled
-      ? redactedPayloadForClient(input.envelope)
-      : redactDeadLetterJson(toEventJsonObject(input.payload)),
+    redactedProjection: redactedPayloadForClient(eventName, journaled
+      ? payloadStorageToObject(input.envelope.payload)
+      : toEventJsonObject(input.payload)),
   });
 }
 

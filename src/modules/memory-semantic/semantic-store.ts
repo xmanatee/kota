@@ -22,7 +22,6 @@ import {
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
-	type SemanticStoreCapabilities,
 } from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticMemoryStoreOptions = {
@@ -47,12 +46,6 @@ function fingerprintMemory(entry: Memory): string {
 function buildAdapter(base: MemoryStore): SemanticStoreAdapter<Memory> {
 	const dir = base.getStorageDir();
 	return {
-		capabilities: {
-			mutation: true,
-			deletion: true,
-			reindex: true,
-			search: true,
-		},
 		id: (entry) => entry.id,
 		fingerprint: fingerprintMemory,
 		indexableText: (entry) => {
@@ -67,7 +60,6 @@ function buildAdapter(base: MemoryStore): SemanticStoreAdapter<Memory> {
 }
 
 export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearchCapability {
-	readonly capabilities: SemanticStoreCapabilities;
 	readonly semanticSearchCapability: MemorySemanticSearchCapability = this;
 	private base: MemoryStore;
 	private manager: SemanticIndexManager<Memory>;
@@ -87,7 +79,6 @@ export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearch
 			provider: options.provider,
 			onError,
 		});
-		this.capabilities = this.manager.capabilities;
 	}
 
 	save(

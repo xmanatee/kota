@@ -1,7 +1,7 @@
 # Daemon Core
 
-This directory owns the long-lived runtime host: lifecycle, control plane,
-sessions and channels, scheduling, scope hosting, and live state.
+Owns the daemon lifecycle, control plane, sessions, channels, scheduling,
+scope hosting, and live state.
 
 ## Boundaries
 

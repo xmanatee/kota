@@ -153,7 +153,7 @@ describe("progress-reviewer evidence integrity", () => {
   });
 
   it("completes review with an explicit exclusion for malformed historical run metadata", async () => {
-    // Current records must reject missing usage; historical records normalize it.
+    // Missing historical usage is normalized by the runtime; an invalid step status must still be quarantined.
     const malformedRunId = "control-monitor-coverage-gap-sample";
     const malformedDir = join(workspaceRoot, ".kota", "runs", malformedRunId);
     mkdirSync(malformedDir, { recursive: true });
@@ -171,7 +171,7 @@ describe("progress-reviewer evidence integrity", () => {
       steps: [{
         id: "build",
         type: "agent",
-        status: "success",
+        status: "invalid-status",
         startedAt: "2026-06-01T10:20:00.000Z",
         completedAt: "2026-06-01T10:21:00.000Z",
         durationMs: 60_000,

@@ -85,20 +85,16 @@ launch. Missing declarations cannot establish compatibility.
   and disposes during unload. Importing a module never registers an adapter.
 - `resolveAgentHarness(name)` returns the adapter or throws with the list of
   currently registered names. There is no implicit default.
-- Workflow steps declare `harness`, or inherit from
-  `KotaConfig.defaultAgentHarness`. Shipped workflows may declare an explicit
-  harness so the repo boots without operator-local config. Judges inside an
-  agent step's repair loop read the parent step's resolved `step.harness`.
+- Workflow steps declare a harness or inherit configuration. Shipped autonomy
+  workflows inherit the active preset. Repair judges use the parent's resolved
+  harness.
 
 ## Lifecycle hooks (harness-neutral)
 
-`hooks.ts` owns neutral lifecycle hooks. Modules register `preRun`/`postRun`
-through `ctx.registerHarnessHook`; `runAgentHarness` dispatches declared hook
-kinds around the adapter and rejects undeclared kinds.
-
-`src/core/loop/pre-send-hooks.ts` is a separate classic-loop surface
-(architect module). New cross-adapter decoration uses the neutral harness
-hook, not that.
+Modules register neutral lifecycle hooks through `ctx.registerHarnessHook`;
+`runAgentHarness` dispatches declared kinds and rejects undeclared ones. New
+cross-adapter decoration uses this boundary; classic-loop pre-send hooks remain
+separate.
 
 ## Neutral wire-type declarations
 
@@ -120,11 +116,6 @@ closed keyword vocabulary.
 
 ## Per-step harness-specific options
 
-Neutral workflow step shapes carry no harness-specific fields. Per-step
-overrides route through the `harnessOptions` passthrough — a single-key
-record whose key equals the step's resolved harness name and whose value
-is validated by that harness's `validateStepOptions` method. The
-validated fragment travels to the adapter via
-`AgentHarnessRunOptions.harnessOverrides`. Leaving `harnessOptions`
-unset uses each adapter's defaults. New harness-only knobs belong on
-`validateStepOptions`, not on the neutral step.
+Keep SDK knobs off neutral steps and run options. `harnessOptions` contains one
+key matching the resolved harness; its `validateStepOptions` validates the value
+before it travels as opaque `harnessOverrides`. Absence uses adapter defaults.

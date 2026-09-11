@@ -1,291 +1,155 @@
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  EnvProvider,
-  FileProvider,
-  KeychainProvider,
-} from "./secrets.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EnvProvider, FileProvider, KeychainProvider } from "./secret-providers.js";
 
-function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-secrets-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
+const security = vi.hoisted(() => ({ run: vi.fn(() => ""), platform: vi.fn(() => "darwin") }));
+vi.mock("node:os", async (original) => ({ ...await original<typeof import("node:os")>(), platform: security.platform }));
+vi.mock("node:child_process", async (original) => {
+  const actual = await original<typeof import("node:child_process")>();
+  return {
+    ...actual,
+    execFileSync: vi.fn((file, ...args) => file === "security" ? security.run() : actual.execFileSync(file, ...args)),
+    // Retain a rejecting shell port so a regression cannot invoke the host keychain.
+    execSync: vi.fn(() => { throw new Error("Unexpected shell execution"); }),
+  };
+});
 
-function modeOf(path: string): number {
-  return statSync(path).mode & 0o777;
-}
+let dir: string;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "kota-secret-provider-"));
+  security.run.mockReset().mockReturnValue("");
+  security.platform.mockReturnValue("darwin");
+  vi.clearAllMocks();
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  rmSync(dir, { recursive: true, force: true });
+});
 
-describe("EnvProvider", () => {
-  it("reads from process.env", () => {
-    process.env.KOTA_TEST_SECRET = "test-value-123";
-    const provider = new EnvProvider();
-    expect(provider.get("KOTA_TEST_SECRET")).toBe("test-value-123");
-    delete process.env.KOTA_TEST_SECRET;
+function mode(path: string): number { return statSync(path).mode & 0o777; }
+
+describe("environment provider", () => {
+  it("parses quoted, empty and embedded-equals values and skips malformed lines", () => {
+    const path = join(dir, "variables");
+    const values = { KOTA_PROVIDER_PLAIN: "bar", KOTA_PROVIDER_DOUBLE: "quoted value", KOTA_PROVIDER_SINGLE: "single quoted", KOTA_PROVIDER_EMPTY: "", KOTA_PROVIDER_URL: "https://host?a=1&b=2" };
+    for (const key of Object.keys(values)) vi.stubEnv(key, undefined);
+    writeFileSync(path, 'KOTA_PROVIDER_PLAIN=bar\r\nKOTA_PROVIDER_DOUBLE="quoted value"\r\nKOTA_PROVIDER_SINGLE=\'single quoted\'\r\nKOTA_PROVIDER_EMPTY=\r\nKOTA_PROVIDER_URL=https://host?a=1&b=2\r\n# comment\r\nBADLINE\r\n=nokey\r\n\r\n');
+    const provider = new EnvProvider(path);
+    expect(Object.fromEntries(provider.list().map((key) => [key, provider.get(key)]))).toEqual(values);
+    writeFileSync(path, "KOTA_PROVIDER_PLAIN=changed\n");
+    expect(provider.get("KOTA_PROVIDER_PLAIN")).toBe("bar");
+    vi.stubEnv("KOTA_PROVIDER_PLAIN", "environment");
+    expect(provider.get("KOTA_PROVIDER_PLAIN")).toBe("environment");
   });
 
-  it("returns null for missing keys", () => {
-    const provider = new EnvProvider();
-    expect(provider.get("KOTA_NONEXISTENT_KEY_XYZ")).toBeNull();
-  });
-
-  it("reads .env file", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, 'FOO=bar\nBAZ="quoted value"\n# comment\nEMPTY=\n');
-    const provider = new EnvProvider(envFile);
-
-    expect(provider.get("FOO")).toBe("bar");
-    expect(provider.get("BAZ")).toBe("quoted value");
-    expect(provider.get("EMPTY")).toBe("");
-    expect(provider.list()).toEqual(["FOO", "BAZ", "EMPTY"]);
-
-    rmSync(dir, { recursive: true });
-  });
-
-  it("handles missing .env file", () => {
-    const provider = new EnvProvider("/nonexistent/.env");
-    expect(provider.get("FOO")).toBeNull();
+  it("handles missing files and keys and rejects writes", () => {
+    vi.stubEnv("KOTA_PROVIDER_MISSING", undefined);
+    const provider = new EnvProvider(join(dir, "missing"));
+    expect(provider.get("KOTA_PROVIDER_MISSING")).toBeNull();
     expect(provider.list()).toEqual([]);
-  });
-
-  it("is read-only", () => {
-    const provider = new EnvProvider();
-    expect(provider.writable).toBe(false);
-    expect(() => provider.set("x", "y")).toThrow("read-only");
-    expect(() => provider.remove("x")).toThrow("read-only");
-  });
-
-  it("parses single-quoted values", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "KEY='single quoted'\n");
-    const provider = new EnvProvider(envFile);
-    expect(provider.get("KEY")).toBe("single quoted");
-    rmSync(dir, { recursive: true });
-  });
-
-  it("skips malformed lines", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "GOOD=value\nBADLINE\n=nokey\n\n");
-    const provider = new EnvProvider(envFile);
-    expect(provider.list()).toEqual(["GOOD"]);
-    rmSync(dir, { recursive: true });
-  });
-
-  it("handles Windows CRLF line endings", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "A=one\r\nB=two\r\n");
-    const provider = new EnvProvider(envFile);
-    expect(provider.get("A")).toBe("one");
-    expect(provider.get("B")).toBe("two");
-    rmSync(dir, { recursive: true });
-  });
-
-  it("handles values containing = sign", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "URL=https://host?a=1&b=2\n");
-    const provider = new EnvProvider(envFile);
-    expect(provider.get("URL")).toBe("https://host?a=1&b=2");
-    rmSync(dir, { recursive: true });
-  });
-
-  it("process.env takes priority over .env file", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "PRIORITY_KEY=from-file\n");
-    process.env.PRIORITY_KEY = "from-env";
-    const provider = new EnvProvider(envFile);
-    expect(provider.get("PRIORITY_KEY")).toBe("from-env");
-    delete process.env.PRIORITY_KEY;
-    rmSync(dir, { recursive: true });
-  });
-
-  it("caches .env file after first read", () => {
-    const dir = makeTmpDir();
-    const envFile = join(dir, ".env");
-    writeFileSync(envFile, "CACHED=original\n");
-    const provider = new EnvProvider(envFile);
-    expect(provider.get("CACHED")).toBe("original");
-    // Overwrite file — provider should still return cached value
-    writeFileSync(envFile, "CACHED=changed\n");
-    expect(provider.get("CACHED")).toBe("original");
-    rmSync(dir, { recursive: true });
+    expect(() => provider.set("key", "value")).toThrow("read-only");
+    expect(() => provider.remove("key")).toThrow("read-only");
   });
 });
 
-describe("FileProvider", () => {
-  let dir: string;
-
-  beforeEach(() => {
-    dir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true });
-  });
-
-  it("stores and retrieves secrets", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"));
-    provider.set("API_KEY", "sk-123");
-    expect(provider.get("API_KEY")).toBe("sk-123");
-  });
-
-  it("persists to disk", () => {
-    const path = join(dir, "secrets.json");
-    const p1 = new FileProvider(path);
-    p1.set("TOKEN", "abc");
-
-    // New instance reads from disk
-    const p2 = new FileProvider(path);
-    expect(p2.get("TOKEN")).toBe("abc");
-  });
-
-  it("lists secret names", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"));
-    provider.set("A", "1");
-    provider.set("B", "2");
-    expect(provider.list().sort()).toEqual(["A", "B"]);
-  });
-
-  it("removes secrets", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"));
-    provider.set("KEY", "val");
-    expect(provider.remove("KEY")).toBe(true);
-    expect(provider.get("KEY")).toBeNull();
-    expect(provider.remove("KEY")).toBe(false);
-  });
-
-  it("creates parent directories", () => {
-    const nested = join(dir, "deep", "nested", "secrets.json");
-    const provider = new FileProvider(nested);
-    provider.set("KEY", "val");
-    expect(existsSync(nested)).toBe(true);
-  });
-
-  it("creates secret directories and files with owner-only permissions", () => {
-    const nested = join(dir, "deep", "nested", "secrets.json");
-    const provider = new FileProvider(nested);
-    provider.set("KEY", "val");
-
-    expect(modeOf(dirname(nested))).toBe(0o700);
-    expect(modeOf(nested)).toBe(0o600);
-  });
-
-  it("repairs permissive existing storage permissions on load", () => {
-    const path = join(dir, ".kota", "secrets.json");
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify({ KEY: "val" }));
-    chmodSync(dirname(path), 0o755);
-    chmodSync(path, 0o644);
-
+describe("file provider", () => {
+  it("creates private storage and persists replacement, listing and removal across reopen", () => {
+    const path = join(dir, "deep", "nested", "secrets.json");
     const provider = new FileProvider(path);
-    expect(provider.get("KEY")).toBe("val");
-    expect(modeOf(dirname(path))).toBe(0o700);
-    expect(modeOf(path)).toBe(0o600);
-  });
-
-  it("repairs permissive existing storage permissions on save", () => {
-    const path = join(dir, ".kota", "secrets.json");
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify({ KEY: "old" }));
-    chmodSync(dirname(path), 0o755);
-    chmodSync(path, 0o644);
-
-    const provider = new FileProvider(path);
-    expect(provider.get("KEY")).toBe("old");
-    chmodSync(dirname(path), 0o755);
-    chmodSync(path, 0o644);
-
-    provider.set("KEY", "new");
-
-    expect(modeOf(dirname(path))).toBe(0o700);
-    expect(modeOf(path)).toBe(0o600);
-  });
-
-  it("handles corrupted JSON", () => {
-    const path = join(dir, "secrets.json");
-    writeFileSync(path, "not json{{{");
-    const provider = new FileProvider(path);
-    expect(provider.list()).toEqual([]);
-    expect(provider.get("KEY")).toBeNull();
-  });
-
-  it("handles non-object JSON", () => {
-    const path = join(dir, "secrets.json");
-    writeFileSync(path, "[1,2,3]");
-    const provider = new FileProvider(path);
-    expect(provider.list()).toEqual([]);
-  });
-
-  it("is writable", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"));
-    expect(provider.writable).toBe(true);
-  });
-
-  it("overwrites existing key", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"));
     provider.set("KEY", "old");
+    provider.set("OTHER", "retained");
     provider.set("KEY", "new");
-    expect(provider.get("KEY")).toBe("new");
+    const reopened = new FileProvider(path);
+    expect(reopened.list().sort()).toEqual(["KEY", "OTHER"]);
+    expect(reopened.get("KEY")).toBe("new");
+    expect(mode(dirname(path))).toBe(0o700);
+    expect(mode(path)).toBe(0o600);
+    expect(reopened.remove("KEY")).toBe(true);
+    expect(reopened.remove("KEY")).toBe(false);
+    expect(new FileProvider(path).get("KEY")).toBeNull();
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ OTHER: "retained" });
   });
 
-  it("ignores non-string values in JSON", () => {
-    const path = join(dir, "secrets.json");
-    writeFileSync(path, JSON.stringify({ GOOD: "val", NUM: 42, BOOL: true, NIL: null }));
+  it("repairs permissive storage on both read and subsequent write", () => {
+    const path = join(dir, "storage", "secrets.json");
+    mkdirSync(dirname(path));
+    writeFileSync(path, '{"KEY":"old"}');
     const provider = new FileProvider(path);
-    expect(provider.get("GOOD")).toBe("val");
-    // Non-string values are accessible via object lookup but come out as-is
-    expect(provider.list()).toContain("GOOD");
-    expect(provider.list()).toContain("NUM");
+    for (const operation of [() => expect(provider.get("KEY")).toBe("old"), () => provider.set("KEY", "new")]) {
+      chmodSync(dirname(path), 0o755);
+      chmodSync(path, 0o644);
+      operation();
+      expect(mode(dirname(path))).toBe(0o700);
+      expect(mode(path)).toBe(0o600);
+    }
+    expect(new FileProvider(path).get("KEY")).toBe("new");
   });
 
-  it("uses custom name", () => {
-    const provider = new FileProvider(join(dir, "secrets.json"), "my-scope");
-    expect(provider.name).toBe("my-scope");
+  it.each(["not json{{{", "[1,2,3]", "null"])("treats invalid file %s as empty", (raw) => {
+    const path = join(dir, "secrets.json");
+    writeFileSync(path, raw);
+    const provider = new FileProvider(path);
+    expect(provider.list()).toEqual([]);
+    expect(provider.get("KEY")).toBeNull();
+  });
+
+  it("decodes only string values from untrusted JSON", () => {
+    const path = join(dir, "secrets.json");
+    writeFileSync(path, JSON.stringify({ GOOD: "value", EMPTY: "", NUM: 42, BOOL: true, NIL: null, OBJECT: {} }));
+    const provider = new FileProvider(path);
+    expect(provider.list().sort()).toEqual(["EMPTY", "GOOD"]);
+    expect(provider.get("GOOD")).toBe("value");
+    expect(provider.get("EMPTY")).toBe("");
+    expect(provider.get("NUM")).toBeNull();
+    expect(provider.get("toString")).toBeNull();
+    expect(provider.remove("toString")).toBe(false);
   });
 });
 
-describe("KeychainProvider", () => {
-  it("reports availability based on platform", () => {
+describe("keychain provider", () => {
+  it("passes metacharacters literally through an argument vector", () => {
     const provider = new KeychainProvider();
-    // Just ensure it doesn't crash
-    const available = provider.isAvailable();
-    expect(typeof available).toBe("boolean");
+    const key = 'key"\\$`$(ignored)';
+    const value = 'value"\\$`$(ignored)';
+    provider.set(key, value);
+    expect(execFileSync).toHaveBeenCalledWith("security", ["add-generic-password", "-s", "kota-secrets", "-a", key, "-w", value], expect.any(Object));
+    expect(execSync).not.toHaveBeenCalled();
+    security.run.mockReturnValue(" retrieved-value\n");
+    expect(provider.get(key)).toBe("retrieved-value");
+    expect(execFileSync).toHaveBeenCalledWith("security", ["find-generic-password", "-s", "kota-secrets", "-a", key, "-w"], expect.any(Object));
+    expect(provider.remove(key)).toBe(true);
+    expect(execFileSync).toHaveBeenCalledWith("security", ["delete-generic-password", "-s", "kota-secrets", "-a", key], expect.any(Object));
   });
 
-  it("returns null for missing keys", () => {
+  it.each([ ["key\ninjection", "value"], ["key", "val\0ue"], ["key", "val\rue"] ])("rejects malformed input before any process effect (%j)", (key, value) => {
     const provider = new KeychainProvider();
-    // Even if keychain is available, this non-existent key should return null
-    expect(provider.get("KOTA_NONEXISTENT_TEST_KEY_12345")).toBeNull();
+    expect(provider.isAvailable()).toBe(true);
+    vi.clearAllMocks();
+    expect(() => provider.set(key, value)).toThrow("newlines or null");
+    expect(execFileSync).not.toHaveBeenCalled();
+    expect(execSync).not.toHaveBeenCalled();
   });
 
-  it("list returns empty array", () => {
+  it.each(["unsupported platform", "missing executable"])("reports %s without pretending writes succeed", (failure) => {
+    if (failure === "unsupported platform") security.platform.mockReturnValue("linux");
+    else security.run.mockImplementation(() => { throw new Error("missing"); });
     const provider = new KeychainProvider();
+    expect(provider.isAvailable()).toBe(false);
+    expect(provider.get("key")).toBeNull();
+    expect(provider.remove("key")).toBe(false);
+    expect(() => provider.set("key", "value")).toThrow("Keychain not available");
     expect(provider.list()).toEqual([]);
   });
 
-  it("rejects keys with newlines", () => {
+  it("preserves lookup/removal failure semantics and propagates write failure", () => {
     const provider = new KeychainProvider();
-    if (!provider.isAvailable()) return;
-    expect(() => provider.set("key\ninjection", "val")).toThrow("newlines or null");
-  });
-
-  it("rejects values with null bytes", () => {
-    const provider = new KeychainProvider();
-    if (!provider.isAvailable()) return;
-    expect(() => provider.set("key", "val\0ue")).toThrow("newlines or null");
+    expect(provider.isAvailable()).toBe(true);
+    security.run.mockImplementation(() => { throw new Error("keychain rejected"); });
+    expect(provider.get("key")).toBeNull();
+    expect(provider.remove("key")).toBe(false);
+    expect(() => provider.set("key", "value")).toThrow("keychain rejected");
   });
 });

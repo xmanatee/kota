@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -9,7 +10,7 @@ import {
 	resolveReferences,
 } from "./instruction-files.js";
 
-const TEST_ROOT = join(process.cwd(), ".test-instruction-files");
+const TEST_ROOT = mkdtempSync(join(tmpdir(), "kota-instruction-files-"));
 const CHILD = join(TEST_ROOT, "subproject");
 const GRANDCHILD = join(TEST_ROOT, "subproject", "deep");
 

@@ -7,14 +7,10 @@ notification forwarding.
   command declaration and `telegram-interactive` for chat sessions. The
   interactive channel owns the single Bot API `getUpdates` stream; never add
   a second daemon long-poll loop for the same token.
-- `/digest` and `/attention` call `renderOnDemandDigest` /
-  `renderOnDemandAttention` directly. Both must not write cadence
-  snapshots, must not advance counters, must not emit
-  `workflow.daily.digest` / `workflow.attention.digest`, are not gated
-  by quiet hours, and reply in-band. `/attention` falls back to the
-  fixed `NO_ATTENTION_ITEMS_TEXT` body so "nothing wrong" is
-  distinguishable from "command failed". Operator-facing only — never
-  exposed to autonomy agents in any prompt path.
+- On-demand digest and attention commands render directly and reply in-band,
+  without cadence writes, counter changes, digest events or quiet-hour gating.
+  Distinguish no attention items from command failure. These operator surfaces
+  must never enter autonomy-agent prompts.
 - Read, capture, and retract commands are thin wrappers over their
   `KotaClient` namespace and render through the owning module's
   plain-text helper — no copy of CLI rendering on the Telegram side.
@@ -27,26 +23,17 @@ notification forwarding.
   chats fail with an explicit reply instead of falling back to the
   active/default scope. Single-scope daemons do not show scope
   labels and do not need `/scope`.
-- The four per-store search commands call
-  `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }`.
-  Empty / whitespace-only queries reply with a usage hint and skip
-  the store call. Empty results reply with a fixed per-store body so
-  "nothing matched" is distinguishable from "command failed".
-  `{ ok: false, reason: "semantic_unavailable" }` surfaces a one-line
-  explanation rather than silently degrading to keyword search.
+- Per-store search uses the client semantic-search boundary. Empty queries
+  return usage without calling it; distinguish empty results from failures.
+  Unavailable semantic search must not silently degrade to keyword search.
 - `/recall` is the unified-recall entry point — one ranked,
   source-tagged list spanning every registered store. The recall seam
   owns merge, normalize, and ranking; the Telegram handler does not
-  fan out to per-store search seams. Empty hits → `"No matching
-  items."`; no contributors → `"Cross-store recall is not configured:
-  no contributors are registered."`.
-- `/answer` is the cited-answer composition surface — one prose
-  answer plus typed citations, not a second recall path. It consumes
-  `ctx.client.answer.answer(query)` and renders `AnswerResult`
-  exhaustively (success + three `ok: false` reasons, no `default`)
-  through `renderAnswerCitationsPlain`. The seam owns retrieval
-  delegation, synthesis, citation parsing, and the one-retry policy;
-  the handler adds no second prompt, parser, retry, or budget.
+  fan out to per-store search seams. Distinguish empty hits from missing
+  contributors in the reply.
+- `/answer` uses the cited-answer client and renders its result exhaustively
+  through the owner's plain-text helper. The seam owns retrieval, synthesis,
+  citation parsing and retries; Telegram adds no prompt, parser or budget.
 - `/capture` plus `/capture-to-{memory,knowledge,tasks,inbox}` and the
   four `/retract-{memory,knowledge,tasks,inbox}` are the cross-store
   write-side and correction-side surfaces. Each family shares one handler

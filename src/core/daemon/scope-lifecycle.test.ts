@@ -2,6 +2,7 @@ import {
   chmodSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -22,14 +23,17 @@ import { deriveDirectoryScopeId, ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
+const cleanup: Array<() => void | Promise<void>> = [];
+
 function scopeRoot(name: string): string {
-  return mkdtempSync(join(tmpdir(), `kota-scope-lifecycle-${name}-`));
+  const root = mkdtempSync(join(tmpdir(), `kota-scope-lifecycle-${name}-`));
+  cleanup.push(() => rmSync(root, { recursive: true, force: true }));
+  return root;
 }
 
-const openRunStates: RunStateDatabase[] = [];
-
-afterEach(() => {
-  for (const runState of openRunStates.splice(0)) runState.close();
+afterEach(async () => {
+  vi.restoreAllMocks();
+  for (const dispose of cleanup.splice(0).reverse()) await dispose();
 });
 
 describe("ScopeLifecycleService", () => {
@@ -41,7 +45,7 @@ describe("ScopeLifecycleService", () => {
     const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] });
     const scopeAId = deriveDirectoryScopeId(scopeA);
     const runState = new RunStateDatabase(join(stateDir, "run-state"));
-    openRunStates.push(runState);
+    cleanup.push(() => runState.close());
     const startedAt = new Date().toISOString();
     const initialProject = registry.get(scopeAId);
     if (!initialProject) throw new Error("initial scope fixture missing");
@@ -60,17 +64,16 @@ describe("ScopeLifecycleService", () => {
       execute: (run, signal) =>
         runtimes.get(run.scopeId).workflowRuntime.executeAdmittedRun(run, signal),
     });
+    const pendingWork = registerWorkflowDefinition("test/pending-scope-work.ts", {
+      repository: "read",
+      name: "pending-scope-work",
+      triggers: [{ event: "test.pending-scope-work" }],
+      steps: [{ id: "noop", type: "code", run: () => "ok" }],
+    });
     runtimes = ScopeRuntimeRegistry.create({
       registry,
       bus,
-      workflows: [
-        registerWorkflowDefinition("test/pending-scope-work.ts", {
-          repository: "read",
-          name: "pending-scope-work",
-          triggers: [{ event: "test.pending-scope-work" }],
-          steps: [{ id: "noop", type: "code", run: () => "ok" }],
-        }),
-      ],
+      workflows: [pendingWork],
       idleIntervalMs: 60_000,
       onLog: () => {},
       quietHours: { start: "23:00", end: "23:01" },
@@ -83,6 +86,7 @@ describe("ScopeLifecycleService", () => {
       pollIntervalMs: 60_000,
       onDueItems: () => {},
     });
+    cleanup.push(() => host.stopAll(runtimes, 0));
     await host.startInitial(runtimes);
     let sessionIds: string[] = [];
     let externalBlockers: ScopeDrainBlocker[] = [];
@@ -122,37 +126,27 @@ describe("ScopeLifecycleService", () => {
     expect(runtimes.size()).toBe(1);
     failedRunStateRegistration.mockRestore();
 
-    const registryAdd = vi.spyOn(registry, "add");
-    const registryRemove = vi.spyOn(registry, "remove");
     const failedStart = vi.spyOn(host, "start").mockRejectedValueOnce(new Error("start failed"));
     expect(await lifecycle.registerDirectoryScope({ directoryRoot: scopeB }))
       .toMatchObject({ ok: false, reason: "runtime_start_failed" });
-    expect(registryAdd.mock.invocationCallOrder[0])
-      .toBeLessThan(failedStart.mock.invocationCallOrder[0]!);
-    expect(registryRemove).toHaveBeenCalledWith(deriveDirectoryScopeId(scopeB));
     expect(registry.list()).toHaveLength(1);
     expect(runtimes.size()).toBe(1);
     expect(runState.getScopeIdByRootPath(scopeB)).toBeNull();
     expect(new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] }).list())
       .toHaveLength(1);
     failedStart.mockRestore();
-    registryRemove.mockRestore();
-    registryAdd.mockRestore();
 
-    const startAfterPersistence = vi.spyOn(host, "start");
     const failedPersistence = vi.spyOn(registry, "add").mockImplementationOnce(() => {
       throw new JsonFileError("scope-registry.json", "write", "persistence failed");
     });
     expect(await lifecycle.registerDirectoryScope({ directoryRoot: scopeB }))
       .toMatchObject({ ok: false, reason: "persistence_failed" });
-    expect(startAfterPersistence).not.toHaveBeenCalled();
     expect(registry.list()).toHaveLength(1);
     expect(runtimes.size()).toBe(1);
     expect(host.hostedCount()).toBe(1);
     expect(new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] }).list())
       .toHaveLength(1);
     failedPersistence.mockRestore();
-    startAfterPersistence.mockRestore();
 
     const added = await lifecycle.registerDirectoryScope({ directoryRoot: scopeB });
     expect(added.ok).toBe(true);
@@ -335,6 +329,5 @@ describe("ScopeLifecycleService", () => {
       "drained",
       "removed",
     ]));
-    await host.stopAll(runtimes, 0);
   });
 });

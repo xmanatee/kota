@@ -1,738 +1,169 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
+  type InstalledTool,
   installTool,
   listTools,
   loadManifest,
   parseSource,
   removeTool,
   saveManifest,
-  type ToolManifest,
   updateTool,
 } from "./registry.js";
 
-let requestMock = vi.fn();
-const http = outboundHttpRequestPort((request) => requestMock(request));
+let root: string;
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), "kota-registry-")); });
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-registry-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
+const uri = "https://example.com/weather.mjs";
+const original = "export default { version: 1 };";
+const replacement = "export default { version: 2 };";
+const entry: InstalledTool = {
+  source: "url", uri, version: "latest", files: ["modules/weather"],
+  installedAt: "2026-03-15T00:00:00.000Z",
+};
+const manifest = { tools: { weather: entry } };
+const moduleDir = () => join(root, ".kota", "modules", "weather");
+const contentPort = (content: string) => outboundHttpRequestPort(() => new Response(content));
+function seed(files = entry.files): void {
+  for (const file of files) {
+    mkdirSync(join(root, ".kota", file), { recursive: true });
+    writeFileSync(join(root, ".kota", file, "index.mjs"), original);
+  }
+  saveManifest({ tools: { weather: { ...entry, files } } }, root);
 }
 
-describe("parseSource", () => {
-  it("parses npm: prefix", () => {
-    const result = parseSource("npm:@scope/kota-weather");
-    expect(result.type).toBe("npm");
-    expect(result.identifier).toBe("@scope/kota-weather");
-    expect(result.name).toBe("weather");
-  });
-
-  it("parses bare package name as npm", () => {
-    const result = parseSource("kota-search");
-    expect(result.type).toBe("npm");
-    expect(result.identifier).toBe("kota-search");
-    expect(result.name).toBe("search");
-  });
-
-  it("parses github: prefix", () => {
-    const result = parseSource("github:user/kota-tool-calc");
-    expect(result.type).toBe("github");
-    expect(result.identifier).toBe("user/kota-tool-calc");
-    expect(result.name).toBe("calc");
-  });
-
-  it("parses owner/repo shorthand as github", () => {
-    const result = parseSource("user/my-tool");
-    expect(result.type).toBe("github");
-    expect(result.identifier).toBe("user/my-tool");
-    expect(result.name).toBe("my-tool");
-  });
-
-  it("parses https URL", () => {
-    const result = parseSource("https://example.com/plugins/weather.mjs");
-    expect(result.type).toBe("url");
-    expect(result.identifier).toBe("https://example.com/plugins/weather.mjs");
-    expect(result.name).toBe("weather");
-  });
-
-  it("parses http URL", () => {
-    const result = parseSource("http://localhost:8080/tool.js");
-    expect(result.type).toBe("url");
-    expect(result.name).toBe("tool");
-  });
-
-  it("strips kota- and tool- prefixes from names", () => {
-    expect(parseSource("kota-weather").name).toBe("weather");
-    expect(parseSource("tool-calc").name).toBe("calc");
-    expect(parseSource("npm:kota-search").name).toBe("search");
-    expect(parseSource("github:user/tool-email").name).toBe("email");
-  });
-
-  it("handles scoped npm packages", () => {
-    const result = parseSource("npm:@company/my-tool");
-    expect(result.type).toBe("npm");
-    expect(result.identifier).toBe("@company/my-tool");
-    expect(result.name).toBe("my-tool");
-  });
-
-  it("handles URL without file module", () => {
-    const result = parseSource("https://example.com/api/tool");
-    expect(result.type).toBe("url");
-    expect(result.name).toBe("tool");
-  });
+it.each([
+  ["npm:@scope/kota-weather", "npm", "@scope/kota-weather", "weather"],
+  ["kota-search", "npm", "kota-search", "search"],
+  ["tool-calc", "npm", "tool-calc", "calc"],
+  ["npm:@company/my-tool", "npm", "@company/my-tool", "my-tool"],
+  ["github:user/kota-tool-calc", "github", "user/kota-tool-calc", "calc"],
+  ["github:user/tool-email", "github", "user/tool-email", "email"],
+  ["user/my-tool", "github", "user/my-tool", "my-tool"],
+  [uri, "url", uri, "weather"],
+  ["http://localhost:8080/tool.js", "url", "http://localhost:8080/tool.js", "tool"],
+])("resolves source identity: %s", (source, type, identifier, name) => {
+  expect(parseSource(source)).toEqual({ type, identifier, name });
 });
 
-describe("manifest operations", () => {
-  let tmpDir: string;
+// Parsing preserves opaque input; this does not claim subprocess injection proof.
+it.each(["foo; rm -rf /", "foo`whoami`bar", "foo | cat /etc/passwd"])(
+  "preserves an opaque npm identifier: %s", (source) => {
+    expect(parseSource(source)).toMatchObject({ type: "npm", identifier: source });
+  },
+);
 
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("returns empty manifest when file does not exist", () => {
-    const manifest = loadManifest(tmpDir);
-    expect(manifest).toEqual({ tools: {} });
-  });
-
-  it("saves and loads manifest", () => {
-    const manifest: ToolManifest = {
-      tools: {
-        weather: {
-          source: "npm",
-          uri: "kota-weather",
-          version: "1.0.0",
-          files: ["packages/node_modules/kota-weather"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    };
-
-    saveManifest(manifest, tmpDir);
-    const loaded = loadManifest(tmpDir);
-    expect(loaded).toEqual(manifest);
-  });
-
-  it("creates .kota directory if needed", () => {
-    const subDir = join(tmpDir, "nested");
-    mkdirSync(subDir);
-    saveManifest({ tools: {} }, subDir);
-    expect(existsSync(join(subDir, ".kota", "tools.json"))).toBe(true);
-  });
-
-  it("handles corrupted manifest file", () => {
-    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
-    writeFileSync(join(tmpDir, ".kota", "tools.json"), "not json{{{");
-    const manifest = loadManifest(tmpDir);
-    expect(manifest).toEqual({ tools: {} });
-  });
-
-  it("handles manifest with wrong structure", () => {
-    mkdirSync(join(tmpDir, ".kota"), { recursive: true });
-    writeFileSync(join(tmpDir, ".kota", "tools.json"), JSON.stringify([1, 2, 3]));
-    const manifest = loadManifest(tmpDir);
-    expect(manifest).toEqual({ tools: {} });
-  });
+it("round-trips and lists installed metadata, creating its storage and completing the atomic write", () => {
+  expect(loadManifest(root)).toEqual({ tools: {} });
+  expect(listTools(root)).toEqual([]);
+  const calc: InstalledTool = { ...entry, source: "npm", uri: "kota-calc", version: "1.0.0" };
+  const saved = { tools: { weather: entry, calc } };
+  saveManifest(saved, root);
+  expect(loadManifest(root)).toEqual(saved);
+  expect(listTools(root)).toEqual([{ name: "weather", ...entry }, { name: "calc", ...calc }]);
+  expect(readdirSync(join(root, ".kota"))).toEqual(["tools.json"]);
 });
 
-describe("removeTool", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("returns false for nonexistent tool", () => {
-    expect(removeTool("nonexistent", tmpDir)).toBe(false);
-  });
-
-  it("removes tool and its module directory from manifest", () => {
-    // Create a module directory
-    const moduleDir = join(tmpDir, ".kota", "modules", "weather");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
-
-    // Create manifest with the tool
-    saveManifest({
-      tools: {
-        weather: {
-          source: "url",
-          uri: "https://example.com/weather.mjs",
-          version: "latest",
-          files: ["modules/weather"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    const removed = removeTool("weather", tmpDir);
-    expect(removed).toBe(true);
-
-    // Module directory should be deleted
-    expect(existsSync(moduleDir)).toBe(false);
-
-    // Manifest should be updated
-    const manifest = loadManifest(tmpDir);
-    expect(manifest.tools.weather).toBeUndefined();
-  });
-
-  it("handles missing files gracefully", () => {
-    saveManifest({
-      tools: {
-        ghost: {
-          source: "url",
-          uri: "https://example.com/ghost.mjs",
-          version: "latest",
-          files: ["modules/ghost"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    // File doesn't exist but removal should still succeed
-    expect(removeTool("ghost", tmpDir)).toBe(true);
-    expect(loadManifest(tmpDir).tools.ghost).toBeUndefined();
-  });
+it.each([
+  ["missing", undefined, undefined, false],
+  ["corrupt", "bad json", undefined, false],
+  ["invalid shape", "[1,2,3]", undefined, false],
+  ["interrupted save", undefined, JSON.stringify(manifest), true],
+  ["valid primary over stale temporary", JSON.stringify(manifest), '{"tools":{}}', true],
+  ["recover corrupt primary", "bad json", JSON.stringify(manifest), true],
+  ["both corrupt", "bad json", "also bad", false],
+] as const)("loads the manifest after %s", (_label, primary, temporary, recovered) => {
+  mkdirSync(join(root, ".kota"));
+  if (primary !== undefined) writeFileSync(join(root, ".kota", "tools.json"), primary);
+  if (temporary !== undefined) writeFileSync(join(root, ".kota", "tools.json.tmp"), temporary);
+  expect(loadManifest(root)).toEqual(recovered ? manifest : { tools: {} });
 });
 
-describe("listTools", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("returns empty array when no tools installed", () => {
-    expect(listTools(tmpDir)).toEqual([]);
-  });
-
-  it("returns all installed tools with names", () => {
-    saveManifest({
-      tools: {
-        weather: {
-          source: "npm",
-          uri: "kota-weather",
-          version: "1.0.0",
-          files: ["packages/node_modules/kota-weather"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-        calc: {
-          source: "url",
-          uri: "https://example.com/calc.mjs",
-          version: "latest",
-          files: ["plugins/calc.mjs"],
-          installedAt: "2026-03-14T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    const tools = listTools(tmpDir);
-    expect(tools).toHaveLength(2);
-    expect(tools.map((t) => t.name).sort()).toEqual(["calc", "weather"]);
-    expect(tools.find((t) => t.name === "weather")?.source).toBe("npm");
-    expect(tools.find((t) => t.name === "calc")?.version).toBe("latest");
-  });
+it.each([true, false])("removes an installation with files present: %s", (present) => {
+  seed();
+  if (!present) rmSync(moduleDir(), { recursive: true });
+  expect(removeTool("weather", root)).toBe(true);
+  expect(existsSync(moduleDir())).toBe(false);
+  expect(loadManifest(root)).toEqual({ tools: {} });
+  expect(removeTool("weather", root)).toBe(false);
 });
 
-describe("parseSource edge cases", () => {
-  it("treats shell metacharacters as npm package name (no injection)", () => {
-    const result = parseSource("foo; rm -rf /");
-    expect(result.type).toBe("npm");
-    expect(result.identifier).toBe("foo; rm -rf /");
-  });
-
-  it("treats backtick subshell as npm package name", () => {
-    const result = parseSource("foo`whoami`bar");
-    expect(result.type).toBe("npm");
-    expect(result.identifier).toBe("foo`whoami`bar");
-  });
-
-  it("treats pipe as npm package name", () => {
-    const result = parseSource("foo | cat /etc/passwd");
-    expect(result.type).toBe("npm");
-  });
-
-  it("handles URL with no path gracefully", () => {
-    const result = parseSource("https://example.com");
-    expect(result.type).toBe("url");
-    expect(result.name).toBeTruthy();
-  });
-
-  it("handles URL with root path only", () => {
-    const result = parseSource("https://example.com/");
-    expect(result.type).toBe("url");
-    expect(result.name).toBeTruthy();
-  });
+it("rejects duplicate installation with a removal instruction while preserving existing work", async () => {
+  seed();
+  await expect(installTool(uri, root, contentPort(replacement))).rejects.toThrow(
+    /already installed.*kota tools remove weather/,
+  );
+  expect(loadManifest(root)).toEqual(manifest);
+  expect(readFileSync(join(moduleDir(), "index.mjs"), "utf8")).toBe(original);
 });
 
-describe("installTool error paths", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("rejects duplicate tool installation", async () => {
-    saveManifest({
-      tools: {
-        weather: {
-          source: "npm",
-          uri: "kota-weather",
-          version: "1.0.0",
-          files: ["packages/node_modules/kota-weather"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    await expect(installTool("kota-weather", tmpDir, http)).rejects.toThrow(
-      /already installed/,
-    );
-  });
-
-  it("rejects duplicate with helpful message including remove command", async () => {
-    saveManifest({
-      tools: {
-        weather: {
-          source: "npm",
-          uri: "kota-weather",
-          version: "1.0.0",
-          files: [],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    await expect(installTool("kota-weather", tmpDir, http)).rejects.toThrow(
-      /kota tools remove weather/,
-    );
-  });
+it.each([
+  ["HTTP error", () => new Response("Not Found", { status: 404 }), /Download failed: 404/],
+  ["network error", () => { throw new Error("ENOTFOUND"); }, /Download failed for.*ENOTFOUND/],
+  ["HTML", () => new Response("<html>export default</html>", {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  }), /HTML instead of JavaScript/],
+  ["missing exports", () => new Response("const x = 42;"), /no exports found/],
+] as const)("rejects %s without publishing a module or manifest entry", async (_label, response, error) => {
+  await expect(installTool(uri, root, outboundHttpRequestPort(response))).rejects.toThrow(error);
+  expect(existsSync(join(moduleDir(), "index.mjs"))).toBe(false);
+  expect(loadManifest(root)).toEqual({ tools: {} });
 });
 
-describe("installTool URL error paths", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
+it.each([original, "module.exports = { version: 1 };"])("installs and records module content: %s", async (content) => {
+  expect(await installTool(uri, root, contentPort(content))).toEqual({
+    name: "weather", source: "url", files: entry.files,
   });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
-
-  it("rejects when fetch returns non-OK status", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("Not Found", { status: 404, statusText: "Not Found" }),
-    );
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /Download failed: 404/,
-    );
-  });
-
-  it("rejects when fetch throws a network error", async () => {
-    (requestMock = vi.fn()).mockRejectedValue(
-      new Error("getaddrinfo ENOTFOUND example.com"),
-    );
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /Download failed for/,
-    );
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /ENOTFOUND/,
-    );
-  });
-
-  it("rejects HTML responses", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("<html><body>Please export your credentials</body></html>", {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      }),
-    );
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /HTML instead of JavaScript/,
-    );
-  });
-
-  it("rejects content without valid JS exports", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("const x = 42; // just a random script, no exports", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /no exports found/,
-    );
-  });
-
-  it("accepts content with ESM export default", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("export default { name: 'test' };", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    const result = await installTool("https://example.com/tool.mjs", tmpDir, http);
-    expect(result.name).toBe("tool");
-    expect(result.source).toBe("url");
-  });
-
-  it("accepts content with CJS module.exports", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("module.exports = { name: 'test' };", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    const result = await installTool("https://example.com/cjs-tool.js", tmpDir, http);
-    expect(result.source).toBe("url");
-  });
-
-  it("rejects when module directory already has index.mjs", async () => {
-    // Pre-create the module directory with index.mjs
-    const moduleDir = join(tmpDir, ".kota", "modules", "tool");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "existing");
-
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("export default {};", { status: 200 }),
-    );
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
-      /already exists in modules/,
-    );
-  });
-
-  it("does not write file on validation failure", async () => {
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("no valid js here", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    await expect(installTool("https://example.com/bad.mjs", tmpDir, http)).rejects.toThrow();
-
-    // Module directory should not have been created with a file
-    expect(existsSync(join(tmpDir, ".kota", "modules", "bad", "index.mjs"))).toBe(false);
-  });
-
-  it("does not update manifest on install failure", async () => {
-    (requestMock = vi.fn()).mockRejectedValue(new Error("network down"));
-
-    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow();
-
-    const manifest = loadManifest(tmpDir);
-    expect(Object.keys(manifest.tools)).toHaveLength(0);
-  });
+  expect(readFileSync(join(moduleDir(), "index.mjs"), "utf8")).toBe(content);
+  expect(loadManifest(root).tools.weather).toEqual({ ...entry, installedAt: expect.any(String) });
 });
 
-describe("updateTool error paths", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
-
-  it("throws for nonexistent tool", async () => {
-    await expect(updateTool("nonexistent", tmpDir, http)).rejects.toThrow(
-      /not installed/,
-    );
-  });
-
-  it("preserves manifest entry when reinstall fails", async () => {
-    // Set up an existing URL-based tool
-    const moduleDir = join(tmpDir, ".kota", "modules", "weather");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
-
-    saveManifest({
-      tools: {
-        weather: {
-          source: "url",
-          uri: "https://example.com/weather.mjs",
-          version: "latest",
-          files: ["modules/weather"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    // Make the reinstall fail
-    (requestMock = vi.fn()).mockRejectedValue(new Error("network timeout"));
-
-    await expect(updateTool("weather", tmpDir, http)).rejects.toThrow(/network timeout/);
-
-    // The manifest entry should be restored
-    const manifest = loadManifest(tmpDir);
-    expect(manifest.tools.weather).toBeDefined();
-    expect(manifest.tools.weather.uri).toBe("https://example.com/weather.mjs");
-  });
-
-  it("preserves original files on disk when reinstall fails", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "myutil");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export const x = 1;");
-
-    saveManifest({
-      tools: {
-        myutil: {
-          source: "url",
-          uri: "https://example.com/myutil.mjs",
-          version: "latest",
-          files: ["modules/myutil"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    (requestMock = vi.fn()).mockRejectedValue(new Error("DNS failure"));
-
-    await expect(updateTool("myutil", tmpDir, http)).rejects.toThrow();
-
-    // Module directory should still exist on disk
-    expect(existsSync(moduleDir)).toBe(true);
-    expect(readFileSync(join(moduleDir, "index.mjs"), "utf-8")).toBe("export const x = 1;");
-  });
-
-  it("succeeds and updates manifest on successful reinstall", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "mytool");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export default { v: 1 };");
-
-    saveManifest({
-      tools: {
-        mytool: {
-          source: "url",
-          uri: "https://example.com/mytool.mjs",
-          version: "latest",
-          files: ["modules/mytool"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    // Remove existing module dir so installUrl doesn't complain about duplicate
-    rmSync(moduleDir, { recursive: true, force: true });
-
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("export default { v: 2 };", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    const result = await updateTool("mytool", tmpDir, http);
-    expect(result.name).toBe("mytool");
-
-    // Manifest should be updated with new entry
-    const manifest = loadManifest(tmpDir);
-    expect(manifest.tools.mytool).toBeDefined();
-    // New module directory should exist
-    expect(existsSync(join(tmpDir, ".kota", "modules", "mytool"))).toBe(true);
-  });
+it("preserves an untracked module when its destination is occupied", async () => {
+  seed();
+  saveManifest({ tools: {} }, root);
+  await expect(installTool(uri, root, contentPort(replacement))).rejects.toThrow(/already exists in modules/);
+  expect(readFileSync(join(moduleDir(), "index.mjs"), "utf8")).toBe(original);
+  expect(loadManifest(root)).toEqual({ tools: {} });
 });
 
-describe("saveManifest atomic writes", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("does not leave .tmp files after successful save", () => {
-    saveManifest({ tools: {} }, tmpDir);
-    const kotaDir = join(tmpDir, ".kota");
-    const files = readdirSync(kotaDir);
-    expect(files).toContain("tools.json");
-    expect(files).not.toContain("tools.json.tmp");
-  });
-
-  it("recovers manifest from .tmp file when primary is missing", () => {
-    // Simulate crash: tmp was written but rename never happened
-    const kotaDir = join(tmpDir, ".kota");
-    mkdirSync(kotaDir, { recursive: true });
-    const manifest = { tools: { t: { source: "npm" as const, uri: "pkg", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
-    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(manifest, null, 2));
-    // No tools.json exists — only the .tmp
-
-    const loaded = loadManifest(tmpDir);
-    expect(loaded.tools.t).toBeDefined();
-    expect(loaded.tools.t.uri).toBe("pkg");
-  });
-
-  it("prefers primary over .tmp when both exist", () => {
-    const kotaDir = join(tmpDir, ".kota");
-    mkdirSync(kotaDir, { recursive: true });
-    const primary = { tools: { a: { source: "npm" as const, uri: "a", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
-    const stale = { tools: { b: { source: "npm" as const, uri: "b", version: "1.0.0", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
-    writeFileSync(join(kotaDir, "tools.json"), JSON.stringify(primary, null, 2));
-    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(stale, null, 2));
-
-    const loaded = loadManifest(tmpDir);
-    expect(loaded.tools.a).toBeDefined();
-    expect(loaded.tools.b).toBeUndefined();
-  });
-
-  it("falls back to .tmp when primary is corrupted", () => {
-    const kotaDir = join(tmpDir, ".kota");
-    mkdirSync(kotaDir, { recursive: true });
-    writeFileSync(join(kotaDir, "tools.json"), "corrupted{{{");
-    const fallback = { tools: { x: { source: "url" as const, uri: "http://x", version: "latest", files: [], installedAt: "2026-01-01T00:00:00.000Z" } } };
-    writeFileSync(join(kotaDir, "tools.json.tmp"), JSON.stringify(fallback, null, 2));
-
-    const loaded = loadManifest(tmpDir);
-    expect(loaded.tools.x).toBeDefined();
-    expect(loaded.tools.x.uri).toBe("http://x");
-  });
-
-  it("returns empty manifest when both primary and .tmp are corrupted", () => {
-    const kotaDir = join(tmpDir, ".kota");
-    mkdirSync(kotaDir, { recursive: true });
-    writeFileSync(join(kotaDir, "tools.json"), "bad");
-    writeFileSync(join(kotaDir, "tools.json.tmp"), "also bad");
-
-    const loaded = loadManifest(tmpDir);
-    expect(loaded).toEqual({ tools: {} });
-  });
+it("rejects updates of absent installations", async () => {
+  await expect(updateTool("weather", root, contentPort(replacement))).rejects.toThrow(/not installed/);
 });
 
-describe("updateTool backup lifecycle", () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
+it("updates existing files and metadata and removes the old backup", async () => {
+  seed();
+  expect(await updateTool("weather", root, contentPort(replacement))).toEqual({
+    name: "weather", source: "url", files: entry.files,
   });
+  expect(readFileSync(join(moduleDir(), "index.mjs"), "utf8")).toBe(replacement);
+  expect(loadManifest(root).tools.weather).toEqual({ ...entry, installedAt: expect.any(String) });
+  expect(existsSync(`${moduleDir()}.kota-update-bak`)).toBe(false);
+});
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-    vi.restoreAllMocks();
-  });
+it("restores original files and metadata after a download fails, leaving no backup", async () => {
+  seed();
+  const failure = outboundHttpRequestPort(() => { throw new Error("network timeout"); });
+  await expect(updateTool("weather", root, failure)).rejects.toThrow(/network timeout/);
+  expect(loadManifest(root)).toEqual(manifest);
+  expect(readFileSync(join(moduleDir(), "index.mjs"), "utf8")).toBe(original);
+  expect(existsSync(`${moduleDir()}.kota-update-bak`)).toBe(false);
+});
 
-  it("removes .kota-update-bak dirs after successful update", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "tool");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export default { v: 1 };");
-
-    saveManifest({
-      tools: {
-        tool: {
-          source: "url",
-          uri: "https://example.com/tool.mjs",
-          version: "latest",
-          files: ["modules/tool"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    (requestMock = vi.fn()).mockResolvedValue(
-      new Response("export default { v: 2 };", {
-        status: 200,
-        headers: { "Content-Type": "application/javascript" },
-      }),
-    );
-
-    await updateTool("tool", tmpDir, http);
-
-    // Backup directory must not persist
-    expect(existsSync(join(tmpDir, ".kota", "modules", "tool.kota-update-bak"))).toBe(false);
-    // New module directory should exist
-    expect(existsSync(moduleDir)).toBe(true);
-  });
-
-  it("restores manifest when backup rename fails mid-loop", async () => {
-    const moduleDirA = join(tmpDir, ".kota", "modules", "a");
-    const moduleDirB = join(tmpDir, ".kota", "modules", "b");
-    mkdirSync(moduleDirA, { recursive: true });
-    mkdirSync(moduleDirB, { recursive: true });
-    writeFileSync(join(moduleDirA, "index.mjs"), "export const a = 1;");
-    writeFileSync(join(moduleDirB, "index.mjs"), "export const b = 2;");
-
-    saveManifest({
-      tools: {
-        multi: {
-          source: "url",
-          uri: "https://example.com/multi.mjs",
-          version: "latest",
-          files: ["modules/a", "modules/b"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    // Make the second rename fail by placing a file at the backup target for b
-    const backupPath = join(tmpDir, ".kota", "modules", "b.kota-update-bak");
-    mkdirSync(backupPath, { recursive: true });
-    writeFileSync(join(backupPath, "blocker"), "x");
-
-    await expect(updateTool("multi", tmpDir, http)).rejects.toThrow();
-
-    // Manifest should be restored with the tool entry
-    const manifest = loadManifest(tmpDir);
-    expect(manifest.tools.multi).toBeDefined();
-    expect(manifest.tools.multi.uri).toBe("https://example.com/multi.mjs");
-  });
-
-  it("does not leave backup dirs when install fails", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "fail");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
-
-    saveManifest({
-      tools: {
-        fail: {
-          source: "url",
-          uri: "https://example.com/fail.mjs",
-          version: "latest",
-          files: ["modules/fail"],
-          installedAt: "2026-03-15T00:00:00.000Z",
-        },
-      },
-    }, tmpDir);
-
-    (requestMock = vi.fn()).mockRejectedValue(new Error("connection reset"));
-
-    await expect(updateTool("fail", tmpDir, http)).rejects.toThrow(/connection reset/);
-
-    // Backup dir should be cleaned up (restored to original path)
-    expect(existsSync(join(tmpDir, ".kota", "modules", "fail.kota-update-bak"))).toBe(false);
-    // Original module dir restored
-    expect(existsSync(moduleDir)).toBe(true);
-  });
+it("restores the first moved directory and manifest if a later backup rename fails", async () => {
+  const files = ["modules/weather", "modules/second"];
+  seed(files);
+  const blocker = join(root, ".kota", "modules", "second.kota-update-bak");
+  mkdirSync(blocker);
+  writeFileSync(join(blocker, "owner.txt"), "existing work");
+  await expect(updateTool("weather", root, contentPort(replacement))).rejects.toThrow();
+  expect(loadManifest(root)).toEqual({ tools: { weather: { ...entry, files } } });
+  for (const file of files) {
+    expect(readFileSync(join(root, ".kota", file, "index.mjs"), "utf8")).toBe(original);
+  }
+  expect(existsSync(`${moduleDir()}.kota-update-bak`)).toBe(false);
+  expect(readFileSync(join(blocker, "owner.txt"), "utf8")).toBe("existing work");
 });

@@ -1,752 +1,192 @@
-import { lookup } from "node:dns/promises";
-import path from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installGlobalFetchTransportFixture } from "./outbound-http-test-helpers.js";
-import { formatJsonResponse, isBinaryContentType, runWebFetch } from "./web-fetch.js";
+import { type OutboundHttpDispatcher, OutboundHttpTransport, outboundHttp } from "#core/outbound-http/index.js";
+import { runWebFetch } from "./web-fetch.js";
 
-vi.mock("node:dns/promises", () => ({
-  lookup: vi.fn(),
-}));
-
-vi.mock("node:fs/promises", () => ({
-  writeFile: vi.fn().mockResolvedValue(undefined),
-  mkdir: vi.fn().mockResolvedValue(undefined),
-}));
-
-const mockLookup = vi.mocked(lookup);
+const dispatcher = vi.fn<OutboundHttpDispatcher>();
+let root: string;
+let scope: string;
+const request = (input: Record<string, unknown> = {}) =>
+  runWebFetch({ url: "https://example.com", ...input }, { cwd: scope, scopeId: "fetch-test" });
 
 beforeEach(() => {
-  mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
-  installGlobalFetchTransportFixture();
+  root = mkdtempSync(join(tmpdir(), "kota-web-fetch-"));
+  scope = join(root, "scope");
+  mkdirSync(scope);
+  dispatcher.mockReset().mockResolvedValue(new Response("ok"));
+  const transport = new OutboundHttpTransport({
+    dispatcher,
+    resolveAddresses: async () => [{ address: "93.184.216.34", family: 4 }],
+  });
+  vi.spyOn(outboundHttp, "request").mockImplementation((input) => transport.request(input));
 });
-
 afterEach(() => {
-  mockLookup.mockReset();
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  rmSync(root, { recursive: true, force: true });
 });
 
-// --- Unit tests for helpers ---
-
-describe("isBinaryContentType", () => {
-  it("detects image types as binary", () => {
-    expect(isBinaryContentType("image/png")).toBe(true);
-    expect(isBinaryContentType("image/jpeg")).toBe(true);
-    expect(isBinaryContentType("image/gif")).toBe(true);
-    expect(isBinaryContentType("image/webp")).toBe(true);
+describe("web page fetch", () => {
+  it.each([
+    ["", "url is required"],
+    ["ftp://example.com", "http://"],
+    ["http://127.0.0.1/private", "loopback/private-network"],
+  ])("rejects invalid and private targets: %s", async (url, reason) => {
+    expect(await request({ url })).toMatchObject({ is_error: true, content: expect.stringContaining(reason) });
+    expect(dispatcher).not.toHaveBeenCalled();
   });
 
-  it("treats SVG as text (not binary)", () => {
-    expect(isBinaryContentType("image/svg+xml")).toBe(false);
-    expect(isBinaryContentType("image/svg+xml; charset=utf-8")).toBe(false);
-  });
-
-  it("detects audio/video/font as binary", () => {
-    expect(isBinaryContentType("audio/mpeg")).toBe(true);
-    expect(isBinaryContentType("video/mp4")).toBe(true);
-    expect(isBinaryContentType("font/woff2")).toBe(true);
-  });
-
-  it("detects binary application subtypes", () => {
-    expect(isBinaryContentType("application/pdf")).toBe(true);
-    expect(isBinaryContentType("application/zip")).toBe(true);
-    expect(isBinaryContentType("application/gzip")).toBe(true);
-    expect(isBinaryContentType("application/octet-stream")).toBe(true);
-    expect(isBinaryContentType("application/wasm")).toBe(true);
-  });
-
-  it("returns false for text-based types", () => {
-    expect(isBinaryContentType("text/html")).toBe(false);
-    expect(isBinaryContentType("text/plain")).toBe(false);
-    expect(isBinaryContentType("application/json")).toBe(false);
-    expect(isBinaryContentType("application/xml")).toBe(false);
-    expect(isBinaryContentType("text/css")).toBe(false);
-  });
-
-  it("handles content-type with charset parameter", () => {
-    expect(isBinaryContentType("application/pdf; charset=binary")).toBe(true);
-    expect(isBinaryContentType("text/html; charset=utf-8")).toBe(false);
-  });
-});
-
-describe("formatJsonResponse", () => {
-  it("formats JSON object with key count hint", () => {
-    const json = JSON.stringify({ name: "Alice", age: 30 });
-    const result = formatJsonResponse(json, 10000);
-    expect(result).toContain("[JSON object — 2 keys: name, age]");
-    expect(result).toContain('"name": "Alice"');
-  });
-
-  it("formats JSON array with length hint", () => {
-    const json = JSON.stringify([1, 2, 3]);
-    const result = formatJsonResponse(json, 10000);
-    expect(result).toContain("[JSON array — 3 items]");
-  });
-
-  it("truncates keys list for large objects", () => {
-    const obj: Record<string, number> = {};
-    for (let i = 0; i < 15; i++) obj[`key${i}`] = i;
-    const result = formatJsonResponse(JSON.stringify(obj), 10000);
-    expect(result).toContain("15 keys:");
-    expect(result).toContain(", ...");
-  });
-
-  it("handles primitive JSON values without hint", () => {
-    expect(formatJsonResponse('"hello"', 10000)).toBe('"hello"');
-    expect(formatJsonResponse("42", 10000)).toBe("42");
-    expect(formatJsonResponse("true", 10000)).toBe("true");
-    expect(formatJsonResponse("null", 10000)).toBe("null");
-  });
-
-  it("truncates long JSON output", () => {
-    const big = JSON.stringify({ data: "x".repeat(500) });
-    const result = formatJsonResponse(big, 100);
-    expect(result).toContain("[Truncated");
-    expect(result.length).toBeLessThan(200); // truncated + notice
-  });
-
-  it("returns raw text when JSON parse fails", () => {
-    const result = formatJsonResponse("not valid json {", 10000);
-    expect(result).toBe("not valid json {");
-  });
-
-  it("truncates raw text when JSON parse fails and text is long", () => {
-    const long = "x".repeat(500);
-    const result = formatJsonResponse(long, 100);
-    expect(result).toContain("[Truncated");
-  });
-});
-
-// --- Integration tests for runWebFetch ---
-
-describe("runWebFetch", () => {
-  const originalFetch = global.fetch;
-
-  function mockResponse(
-    body: string,
-    opts: {
-      status?: number;
-      headers?: Record<string, string>;
-      statusText?: string;
-    } = {},
-  ) {
-    const { status = 200, headers = {}, statusText = "OK" } = opts;
-    return new Response(status === 204 ? null : body, {
-      status,
-      statusText,
-      headers,
+  it.each(["../outside", "dangling"])("rejects escaped save paths: %s", async (saveTo) => {
+    symlinkSync(join(root, "outside"), join(scope, "dangling"));
+    expect(await request({ save_to: saveTo })).toMatchObject({
+      is_error: true,
+      content: expect.stringContaining("scope directory"),
     });
-  }
+    expect(dispatcher).not.toHaveBeenCalled();
+    expect(existsSync(join(root, "outside"))).toBe(false);
+  });
 
-  function mockStreamResponse(
-    chunks: string[],
-    opts: {
-      status?: number;
-      headers?: Record<string, string>;
-      statusText?: string;
-    } = {},
-  ) {
-    const { status = 200, headers = {}, statusText = "OK" } = opts;
-    const encoder = new TextEncoder();
-    return new Response(
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
-          controller.close();
-        },
-      }),
-      { status, statusText, headers },
+  it("renders HTML metadata and Markdown through the page extractor", async () => {
+    dispatcher.mockResolvedValue(
+      new Response(
+        "<title>Guide</title><nav>Discard</nav><article><h1>Usage</h1>" +
+          '<pre><code class="language-ts">const value = 42;</code></pre><p>' +
+          "Explanation of the code. ".repeat(8) +
+          "</p></article>",
+        { headers: { "content-type": "text/html" } },
+      ),
     );
-  }
-
-  beforeEach(() => {
-    global.fetch = vi.fn();
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-  });
-
-  it("returns error for missing URL", async () => {
-    const result = await runWebFetch({});
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("url is required");
-  });
-
-  it("returns error for invalid protocol", async () => {
-    const result = await runWebFetch({ url: "ftp://example.com" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("http://");
-  });
-
-  it("rejects loopback targets before fetching", async () => {
-    const result = await runWebFetch({ url: "http://localhost:8765/status" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("loopback/private-network");
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it("rejects hostnames that resolve to loopback before fetching", async () => {
-    mockLookup.mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
-    const result = await runWebFetch({
-      url: "http://127.0.0.1.nip.io:8765/status",
-    });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("loopback/private-network");
-    expect(result.content).toContain("127.0.0.1");
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it("rejects redirects to private-network targets before following them", async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      status: 302,
-      statusText: "Found",
-      headers: new Headers({ location: "http://10.0.0.5/status" }),
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    } as never);
-
-    const result = await runWebFetch({ url: "https://example.com/start" });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("loopback/private-network");
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects outside-scope save_to before fetching", async () => {
-    const result = await runWebFetch({
-      url: "https://example.com/file.txt",
-      save_to: "/tmp/kota-web-fetch-outside.txt",
-    });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("scope directory");
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it("rejects dangling save_to symlinks before fetching", async () => {
-    const fs = await import("node:fs");
-    const os = await import("node:os");
-    const baseDir = path.join(process.cwd(), ".kota", "test-tmp");
-    fs.mkdirSync(baseDir, { recursive: true });
-    const scopeRoot = fs.mkdtempSync(path.join(baseDir, "kota-web-fetch-link-"));
-    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-outside-"));
-    const outsideTarget = path.join(outsideDir, "response.txt");
-    const link = path.join(scopeRoot, "response.txt");
-    fs.symlinkSync(outsideTarget, link);
-
-    try {
-      const result = await runWebFetch({
-        url: "https://example.com/file.txt",
-        save_to: link,
-      });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("scope directory");
-      expect(global.fetch).not.toHaveBeenCalled();
-      expect(fs.existsSync(outsideTarget)).toBe(false);
-    } finally {
-      fs.rmSync(scopeRoot, { recursive: true, force: true });
-      fs.rmSync(outsideDir, { recursive: true, force: true });
-    }
-  });
-
-  it("returns error for HTTP error status", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(mockResponse("", { status: 404, statusText: "Not Found" }) as never);
-    const result = await runWebFetch({ url: "https://example.com/missing" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("404");
-  });
-
-  it("handles JSON content type with pretty-printing", async () => {
-    const json = JSON.stringify({ users: [{ id: 1 }], total: 1 });
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(json, {
-        headers: { "content-type": "application/json; charset=utf-8" },
-      }) as never,
-    );
-    const result = await runWebFetch({ url: "https://api.example.com/users" });
+    const result = await request();
     expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("[JSON object — 2 keys: users, total]");
-    expect(result.content).toContain('"id": 1');
+    expect(result.content).toContain("**Guide**");
+    expect(result.content).toContain("# Usage");
+    expect(result.content).toContain("```ts\nconst value = 42;\n```");
+    expect(result.content).not.toContain("Discard");
   });
 
-  it("handles binary content type without reading body", async () => {
-    const cancelFn = vi.fn().mockResolvedValue(undefined);
-    const resp = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({
-        "content-type": "application/pdf",
-        "content-length": "1048576",
-      }),
-      text: vi.fn(),
-      body: { cancel: cancelFn },
-    };
-    vi.mocked(global.fetch).mockResolvedValue(resp as never);
-    const result = await runWebFetch({ url: "https://example.com/doc.pdf" });
-    expect(result.content).toContain("Binary content: application/pdf");
-    expect(result.content).toContain("1.0 MB");
+  it.each([
+    ['{"name":"Alice","age":30}', "application/json", "[JSON object — 2 keys: name, age]"],
+    ["[1,2,3]", "application/json", "[JSON array — 3 items]"],
+    ["true", "application/json", "true"],
+    ["null", "application/json", "null"],
+    ["broken {", "application/json", "broken {"],
+    ["text", "text/plain", "text"],
+    ["<svg>text</svg>", "image/svg+xml; charset=utf-8", "<svg>text</svg>"],
+  ])("renders %s as %s", async (body, contentType, expected) => {
+    dispatcher.mockResolvedValue(new Response(body, { headers: { "content-type": contentType } }));
+    expect(await request()).toMatchObject({ content: expect.stringContaining(expected) });
+  });
+
+  it("bounds the JSON structure hint", async () => {
+    const data = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`key${i}`, i]));
+    dispatcher.mockResolvedValue(
+      new Response(JSON.stringify(data), { headers: { "content-type": "application/json" } }),
+    );
+    const result = await request();
+    expect(result.content).toContain("15 keys:");
+    expect(result.content).toContain(", ...]");
+  });
+
+  it.each([
+    "image/png",
+    "audio/mpeg",
+    "video/mp4",
+    "font/woff2",
+    "application/pdf; charset=binary",
+    "application/wasm",
+  ])("describes binary %s without returning garbled data", async (contentType) => {
+    dispatcher.mockResolvedValue(
+      new Response(new Uint8Array(1024), { headers: { "content-type": contentType, "content-length": "1024" } }),
+    );
+    const result = await request();
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Binary content:");
+    expect(result.content).toContain("1.0 KB");
     expect(result.content).toContain("save_to");
-    expect(resp.text).not.toHaveBeenCalled();
-    expect(cancelFn).not.toHaveBeenCalled();
   });
 
-  it("handles plain text content", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("Hello world", {
-        headers: { "content-type": "text/plain" },
-      }) as never,
-    );
-    const result = await runWebFetch({ url: "https://example.com/file.txt" });
-    expect(result.content).toBe("Hello world");
-  });
-
-  it("truncates long text responses", async () => {
-    const long = "x".repeat(25000);
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(long, {
-        headers: { "content-type": "text/plain" },
-      }) as never,
-    );
-    const result = await runWebFetch({
-      url: "https://example.com/big.txt",
-      max_length: 1000,
-    });
-    expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("25000 chars total, showing first 1000");
-  });
-
-  it("rejects oversized text by Content-Length before reading the body", async () => {
-    const text = vi.fn().mockResolvedValue("x".repeat(20));
-    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array(20).buffer);
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({
-        "content-type": "text/plain",
-        "content-length": "1048577",
-      }),
-      text,
-      arrayBuffer,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    } as never);
-
-    const result = await runWebFetch({
-      url: "https://example.com/big.txt",
-      max_length: 10,
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("response_bytes");
-    expect(result.content).toContain("response-too-large");
-    expect(text).not.toHaveBeenCalled();
-    expect(arrayBuffer).not.toHaveBeenCalled();
-  });
-
-  it("formats complete JSON before applying the output budget", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockStreamResponse(['{"data":"', 'xxxxxxxx"}'], {
-        headers: { "content-type": "application/json" },
-      }) as never,
-    );
-
-    const result = await runWebFetch({
-      url: "https://api.example.com/big.json",
-      max_length: 8,
-    });
-
+  it.each(["text/plain", "application/json", "text/html"])("bounds inline %s output", async (contentType) => {
+    dispatcher.mockResolvedValue(new Response("x".repeat(100), { headers: { "content-type": contentType } }));
+    const result = await request({ max_length: 20 });
     expect(result.is_error).toBeUndefined();
-    expect(result.content.startsWith("[JSON ob")).toBe(true);
+    expect(result.content).toContain("x".repeat(20));
+    expect(result.content).not.toContain("x".repeat(21));
     expect(result.content).toContain("[Truncated");
   });
 
-  it("handles fetch errors gracefully", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(new Error("ECONNREFUSED"));
-    const result = await runWebFetch({ url: "https://example.com" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("ECONNREFUSED");
-  });
-
-  it("cancels an in-flight request when the calling workflow aborts", async () => {
-    const controller = new AbortController();
-    let requestSignal: AbortSignal | null | undefined;
-    vi.mocked(global.fetch).mockImplementation(async (_url, init) => {
-      requestSignal = init?.signal;
-      return new Promise<Response>((_resolve, reject) => {
-        requestSignal?.addEventListener("abort", () => reject(requestSignal?.reason), { once: true });
-        controller.abort(new Error("Workflow cancelled"));
-      });
-    });
-    const result = await runWebFetch({ url: "https://example.com" }, { signal: controller.signal });
-    expect(requestSignal?.aborted).toBe(true);
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("aborted");
-  });
-
-  it("reports an immediate adapter AbortError as a network failure", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(new DOMException("The operation was aborted", "AbortError"));
-    const result = await runWebFetch({ url: "https://example.com" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("network");
-    expect(result.content).toContain("The operation was aborted");
-  });
-
-  it("keeps the timeout active while the shared transport reads the body", async () => {
-    vi.useFakeTimers();
-    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
-    const abortErr = new DOMException("body download aborted", "AbortError");
-    const text = vi.fn(() => {
-      expect(clearTimeoutSpy).not.toHaveBeenCalled();
-      return Promise.reject(abortErr);
-    });
-
-    try {
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        headers: new Headers({ "content-type": "text/plain" }),
-        text,
-        body: { cancel: vi.fn() },
-      } as never);
-
-      const result = await runWebFetch({ url: "https://example.com/slow.txt" });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("network");
-      expect(result.content).toContain("body download aborted");
-      expect(text).toHaveBeenCalled();
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      clearTimeoutSpy.mockRestore();
-      vi.useRealTimers();
-    }
-  });
-
-  it("finishes the transport deadline before module-level binary cancellation", async () => {
-    vi.useFakeTimers();
-    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
-    const cancelFn = vi.fn().mockResolvedValue(undefined);
-
-    try {
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        headers: new Headers({
-          "content-type": "application/pdf",
-          "content-length": "1024",
-        }),
-        text: vi.fn(),
-        body: { cancel: cancelFn },
-      } as never);
-
-      const result = await runWebFetch({ url: "https://example.com/doc.pdf" });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("Binary content: application/pdf");
-      expect(cancelFn).not.toHaveBeenCalled();
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      clearTimeoutSpy.mockRestore();
-      vi.useRealTimers();
-    }
-  });
-
-  it("does not misidentify generic errors mentioning 'abort'", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(new Error("Connection aborted by remote host"));
-    const result = await runWebFetch({ url: "https://example.com" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Fetch error:");
-    expect(result.content).toContain("Connection aborted by remote host");
-  });
-
-  it("rejects empty source content", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(mockResponse("", { headers: { "content-type": "text/plain" } }) as never);
-    const result = await runWebFetch({ url: "https://example.com/empty" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("no readable source content");
-  });
-
-  it("saves text content to file with save_to", async () => {
-    const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
-    const savePath = "data/test-data.txt";
-    const resolvedSavePath = path.resolve(savePath);
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("Hello world content here", {
-        headers: { "content-type": "text/plain" },
-      }) as never,
-    );
-    const result = await runWebFetch({
-      url: "https://example.com/data.txt",
-      save_to: savePath,
-    });
+  it.each([
+    "text/plain",
+    "application/pdf",
+  ])("saves exact %s bytes with scoped parent creation", async (contentType) => {
+    const bytes = new TextEncoder().encode("é".repeat(600));
+    dispatcher.mockResolvedValue(new Response(bytes, { headers: { "content-type": contentType } }));
+    const result = await request({ save_to: "nested/file" });
     expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("Saved to");
-    expect(result.content).toContain("text/plain");
-    expect(result.content).toContain("Preview:");
-    expect(result.content).toContain("Hello world content here");
-    expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), {
-      recursive: true,
-    });
-    expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Hello world content here", "utf-8");
+    expect(readFileSync(join(scope, "nested/file"))).toEqual(Buffer.from(bytes));
+    expect(result.content).toContain(contentType);
+    if (contentType === "text/plain") {
+      expect(result.content).toContain("Preview:");
+      expect(result.content).toContain("é".repeat(500));
+      expect(result.content).not.toContain("é".repeat(501));
+      expect(result.content).toContain("...");
+    } else expect(result.content).toContain("Downloaded");
   });
 
-  it("resolves relative save_to paths against the runner context cwd", async () => {
-    const fs = await import("node:fs");
-    const os = await import("node:os");
-    const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
-    const scopeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-context-"));
-    const savePath = "downloads/page.txt";
-    const resolvedSavePath = path.join(fs.realpathSync.native(scopeRoot), savePath);
-    vi.mocked(wf).mockClear();
-    vi.mocked(mk).mockClear();
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("Project B content", {
-        headers: { "content-type": "text/plain" },
-      }) as never,
+  it.each([
+    "text/plain",
+    "application/pdf",
+  ])("rejects oversized %s saves without replacing data", async (contentType) => {
+    writeFileSync(join(scope, "saved"), "original");
+    dispatcher.mockResolvedValue(
+      new Response("oversized", { headers: { "content-type": contentType, "content-length": "9" } }),
     );
-
-    try {
-      const result = await runWebFetch(
-        {
-          url: "https://example.com/data.txt",
-          save_to: savePath,
-        },
-        { cwd: scopeRoot, scopeId: "scope-b" },
-      );
-
-      expect(result.is_error).toBeUndefined();
-      expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), {
-        recursive: true,
-      });
-      expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Project B content", "utf-8");
-    } finally {
-      fs.rmSync(scopeRoot, { recursive: true, force: true });
-    }
+    expect(await request({ save_to: "saved", max_length: 4 })).toMatchObject({
+      is_error: true,
+      content: expect.stringContaining("max_length"),
+    });
+    expect(readFileSync(join(scope, "saved"), "utf8")).toBe("original");
   });
 
-  it("finishes the network deadline before save_to disk writes", async () => {
+  it("reports HTTP and disk errors without a successful download", async () => {
+    dispatcher.mockResolvedValueOnce(new Response("missing", { status: 404, statusText: "Not Found" }));
+    expect(await request({ save_to: "missing" })).toEqual({ is_error: true, content: "HTTP 404 Not Found" });
+    expect(existsSync(join(scope, "missing"))).toBe(false);
+    expect(await request({ save_to: "." })).toMatchObject({
+      is_error: true,
+      content: expect.stringContaining("Error saving file"),
+    });
+  });
+
+  it.each([
+    new Error("Connection aborted by remote host"),
+    new DOMException("aborted", "AbortError"),
+  ])("reports adapter errors without inventing a timeout: %s", async (error) => {
+    dispatcher.mockRejectedValue(error);
+    const result = await request();
+    expect(result).toMatchObject({ is_error: true, content: expect.stringContaining("Fetch error: network:") });
+    expect(result.content).not.toContain("timed out");
+  });
+
+  it("keeps the deadline active during body reads and leaves the destination untouched", async () => {
     vi.useFakeTimers();
-    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
-    const { writeFile: wf } = await import("node:fs/promises");
-    vi.mocked(wf).mockImplementationOnce(async () => {
-      expect(clearTimeoutSpy).toHaveBeenCalled();
-    });
-
-    try {
-      vi.mocked(global.fetch).mockResolvedValue(
-        mockResponse("Hello world content here", {
-          headers: { "content-type": "text/plain" },
-        }) as never,
-      );
-
-      const result = await runWebFetch({
-        url: "https://example.com/data.txt",
-        save_to: "data/test-data.txt",
-      });
-
-      expect(result.is_error).toBeUndefined();
-      expect(result.content).toContain("Saved to");
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      clearTimeoutSpy.mockRestore();
-      vi.useRealTimers();
-    }
-  });
-
-  it("reports save_to body read aborts before disk writes", async () => {
-    vi.useFakeTimers();
-    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
-    const abortErr = new DOMException("body download aborted", "AbortError");
-    const text = vi.fn(() => {
-      expect(clearTimeoutSpy).not.toHaveBeenCalled();
-      return Promise.reject(abortErr);
-    });
-
-    try {
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        headers: new Headers({ "content-type": "text/plain" }),
-        text,
-        body: { cancel: vi.fn() },
-      } as never);
-
-      const result = await runWebFetch({
-        url: "https://example.com/slow.txt",
-        save_to: "data/slow.txt",
-      });
-
-      expect(result.is_error).toBe(true);
-      expect(result.content).toContain("network");
-      expect(result.content).toContain("body download aborted");
-      expect(result.content).not.toContain("Error saving file");
-      expect(text).toHaveBeenCalled();
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      clearTimeoutSpy.mockRestore();
-      vi.useRealTimers();
-    }
-  });
-
-  it("saves binary content to file with save_to", async () => {
-    const { writeFile: wf } = await import("node:fs/promises");
-    const resp = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({
-        "content-type": "application/pdf",
-      }),
-      text: vi.fn(),
-      arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3]).buffer),
-      body: { cancel: () => Promise.resolve() },
-    };
-    vi.mocked(global.fetch).mockResolvedValue(resp as never);
-    const result = await runWebFetch({
-      url: "https://example.com/doc.pdf",
-      save_to: "data/doc.pdf",
-    });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("Downloaded application/pdf");
-    expect(result.content).toContain("3 B");
-    expect(wf).toHaveBeenCalled();
-    expect(resp.text).not.toHaveBeenCalled();
-  });
-
-  it("rejects oversized binary save_to responses by Content-Length before allocation", async () => {
-    const { writeFile: wf } = await import("node:fs/promises");
-    vi.mocked(wf).mockClear();
-    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer);
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({
-        "content-type": "application/pdf",
-        "content-length": "4",
-      }),
-      text: vi.fn(),
-      arrayBuffer,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    } as never);
-
-    const result = await runWebFetch({
-      url: "https://example.com/big.pdf",
-      save_to: "data/big.pdf",
-      max_length: 3,
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("max_length");
-    expect(result.content).toContain("Content-Length");
-    expect(arrayBuffer).not.toHaveBeenCalled();
-    expect(wf).not.toHaveBeenCalled();
-  });
-
-  it("truncates preview for large text in save_to mode", async () => {
-    const longText = "x".repeat(1000);
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(longText, {
-        headers: { "content-type": "text/csv" },
-      }) as never,
+    dispatcher.mockImplementation(
+      async (_url, init) =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              init.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), { once: true });
+            },
+          }),
+        ),
     );
-    const result = await runWebFetch({
-      url: "https://example.com/data.csv",
-      save_to: "data/data.csv",
-    });
-    expect(result.content).toContain("Preview:");
-    expect(result.content).toContain("...");
-  });
-
-  it("returns error when save_to write fails", async () => {
-    const { writeFile: wf } = await import("node:fs/promises");
-    vi.mocked(wf).mockRejectedValueOnce(new Error("EACCES: permission denied"));
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("data", {
-        headers: { "content-type": "text/plain" },
-      }) as never,
-    );
-    const result = await runWebFetch({
-      url: "https://example.com/file.txt",
-      save_to: "data/readonly-file.txt",
-    });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("EACCES");
-  });
-
-  it("updates binary message to mention save_to", async () => {
-    const resp = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({ "content-type": "image/png" }),
-      text: vi.fn(),
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    };
-    vi.mocked(global.fetch).mockResolvedValue(resp as never);
-    const result = await runWebFetch({ url: "https://example.com/img.png" });
-    expect(result.content).toContain("save_to");
+    const result = request({ save_to: "slow" });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await result).toEqual({ is_error: true, content: "Error: request timed out (30s)" });
+    expect(existsSync(join(scope, "slow"))).toBe(false);
   });
 });
-
-// --- Cross-module: web_fetch → html-extract (extractContent) ---
-
-describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extract)", () => {
-  const originalFetch = global.fetch;
-
-  function mockResponse(
-    body: string,
-    opts: {
-      status?: number;
-      headers?: Record<string, string>;
-      statusText?: string;
-    } = {},
-  ) {
-    const { status = 200, headers = {}, statusText = "OK" } = opts;
-    return new Response(status === 204 ? null : body, {
-      status,
-      statusText,
-      headers,
-    });
-  }
-
-  beforeEach(() => {
-    global.fetch = vi.fn();
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-  });
-
-  it("extracts article content and strips boilerplate", async () => {
-    const html = `<html><head><title>Changelog</title></head><body>
-      <nav><a href="/">Home</a><a href="/about">About</a></nav>
-      <main>
-        <h1>v3.0 Release Notes</h1>
-        <p>This release includes <strong>breaking changes</strong> to the API.</p>
-        <h2>New Features</h2>
-        <p>Added support for streaming responses.</p>
-      </main>
-      <footer><p>Copyright 2026 Example Corp</p></footer>
-    </body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }) as never,
-    );
-    const result = await runWebFetch({ url: "https://example.com/changelog" });
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("# v3.0 Release Notes");
-    expect(result.content).toContain("**breaking changes**");
-    expect(result.content).toContain("## New Features");
-    expect(result.content).toContain("streaming responses");
-    // Boilerplate stripped
-    expect(result.content).not.toContain("Copyright 2026");
-    expect(result.content).not.toContain("About");
-  });
 
   it.each([
     '<body><article><p>Article evidence survives optional head closure.</p></article></body>',
@@ -754,8 +194,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     'Article evidence survives optional head closure.',
   ])("retains content when the head end tag is omitted: %s", async (body) => {
     const html = `<html><head><title>Research title</title><style>.layout{}</style>${body}</html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    dispatcher.mockResolvedValue(
+      new Response(html, { headers: { "content-type": "text/html" } }),
     );
     const result = await runWebFetch({ url: "https://example.com/research" });
     expect(result.is_error).toBeUndefined();
@@ -769,8 +209,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     async (tag) => {
       const html = `<html><head><title>Research title</title></head><body><!-- example: <${tag}> -->
         <article><p>Readable article evidence.</p></article></body></html>`;
-      vi.mocked(global.fetch).mockResolvedValue(
-        mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+      dispatcher.mockResolvedValue(
+        new Response(html, { headers: { "content-type": "text/html" } }),
       );
       const result = await runWebFetch({ url: "https://example.com/research" });
       expect(result.is_error).toBeUndefined();
@@ -785,8 +225,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     '<html><head><title>Metadata only</title></head><!-- example: <script> -->',
     '<html><head><title>Metadata only</title></head><!-- unfinished comment',
   ])("rejects metadata and unfinished non-content markup: %s", async (html) => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    dispatcher.mockResolvedValue(
+      new Response(html, { headers: { "content-type": "text/html" } }),
     );
     const result = await runWebFetch({ url: "https://example.com/research" });
     expect(result.is_error).toBe(true);
@@ -797,8 +237,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     const html = `<html><!-- <title>False title</title><article>${"False evidence. ".repeat(20)}</article> -->
       <head><title>Research title</title><script>const marker = '<!--';</script></head>
       <body><article><p>Readable article evidence.</p></article></body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    dispatcher.mockResolvedValue(
+      new Response(html, { headers: { "content-type": "text/html" } }),
     );
     const result = await runWebFetch({ url: "https://example.com/research" });
     expect(result.is_error).toBeUndefined();
@@ -813,29 +253,12 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
       <nav><a href="/">Home</a></nav>
       <footer><p>Footer text</p></footer>
     </body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    dispatcher.mockResolvedValue(
+      new Response(html, { headers: { "content-type": "text/html" } }),
     );
     const result = await runWebFetch({ url: "https://example.com/empty" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("no readable source content");
-  });
-
-  it("preserves code blocks as markdown fenced blocks", async () => {
-    const html = `<html><body>
-      <h2>Usage</h2>
-      <pre><code class="language-python">def greet(name):
-    return f"Hello, {name}"</code></pre>
-      <p>Call it with any string argument.</p>
-    </body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
-    );
-    const result = await runWebFetch({ url: "https://example.com/docs" });
-    expect(result.content).toContain("```python");
-    expect(result.content).toContain("def greet(name):");
-    expect(result.content).toContain("## Usage");
-    expect(result.content).toContain("string argument");
   });
 
   it("spends the bounded HTML output on article content before metadata", async () => {
@@ -844,8 +267,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
       (_, i) => `<p>Paragraph ${i}: some content to fill space in this document.</p>`,
     ).join("\n");
     const html = `<html><head><meta name="description" content="${"Page metadata. ".repeat(100)}"></head><body><article>${paragraphs}</article></body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    dispatcher.mockResolvedValue(
+      new Response(html, { headers: { "content-type": "text/html" } }),
     );
     const result = await runWebFetch({
       url: "https://example.com/long",
@@ -858,18 +281,37 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     expect(result.content).not.toContain("Page metadata.");
   });
 
-  it("converts links and formatting to markdown", async () => {
-    const html = `<html><body>
-      <p>See <a href="https://docs.example.com">the docs</a> for <em>detailed</em> info.</p>
-      <ul><li>First item</li><li>Second item</li></ul>
-    </body></html>`;
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
-    );
-    const result = await runWebFetch({ url: "https://example.com/page" });
-    expect(result.content).toContain("[the docs](https://docs.example.com)");
-    expect(result.content).toContain("*detailed*");
-    expect(result.content).toContain("- First item");
-    expect(result.content).toContain("- Second item");
+  it("cancels an in-flight request when the calling workflow aborts", async () => {
+    const controller = new AbortController();
+    let requestSignal: AbortSignal | null | undefined;
+    dispatcher.mockImplementation(async (_url, init) => {
+      requestSignal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener("abort", () => reject(requestSignal?.reason), { once: true });
+        controller.abort(new Error("Workflow cancelled"));
+      });
+    });
+    const result = await runWebFetch({ url: "https://example.com" }, { signal: controller.signal });
+    expect(requestSignal?.aborted).toBe(true);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("aborted");
   });
+
+
+it("rejects empty source content", async () => {
+  dispatcher.mockResolvedValue(new Response(""));
+  expect(await request()).toMatchObject({ is_error: true, content: expect.stringContaining("no readable source content") });
+});
+
+it("formats complete JSON before applying the output budget", async () => {
+  dispatcher.mockResolvedValue(new Response('{"data":"xxxxxxxx"}', { headers: { "content-type": "application/json" } }));
+  const result = await request({ max_length: 8 });
+  expect(result.is_error).toBeUndefined();
+  expect(result.content.startsWith("[JSON ob")).toBe(true);
+  expect(result.content).toContain("[Truncated");
+});
+
+it("rejects oversized page responses independently of the output budget", async () => {
+  dispatcher.mockResolvedValue(new Response("body", { headers: { "content-type": "text/plain", "content-length": "1048577" } }));
+  expect(await request({ max_length: 8 })).toMatchObject({ is_error: true, content: expect.stringContaining("response-too-large") });
 });

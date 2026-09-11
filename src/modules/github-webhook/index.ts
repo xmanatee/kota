@@ -157,16 +157,17 @@ function actorIntegrityConfigSets(config: ActorIntegrityConfig | undefined): {
 
 function deriveActorIntegrity(input: {
   sender: GitHubWebhookActor;
-  prAuthor: GitHubWebhookActor;
+  subject:
+    | { kind: "pull_request"; actor: GitHubWebhookActor; headSha: string | null }
+    | { kind: "comment"; actor: GitHubWebhookActor };
   authorAssociation: string | null;
-  headSha: string | null;
   config?: ActorIntegrityConfig;
 }): {
   actorIntegrity: GitHubWebhookActorIntegrity;
   actorIntegrityReason: string;
 } {
   const { blockedActors, trustedAssociations } = actorIntegrityConfigSets(input.config);
-  const blockedActor = [input.sender.login, input.prAuthor.login].find(
+  const blockedActor = [input.sender.login, input.subject.actor.login].find(
     (login) => login !== null && blockedActors.has(normalizeActorLogin(login)),
   );
   if (blockedActor) {
@@ -179,10 +180,12 @@ function deriveActorIntegrity(input: {
   const missing: string[] = [];
   if (!input.sender.login) missing.push("sender.login");
   if (!input.sender.type) missing.push("sender.type");
-  if (!input.prAuthor.login) missing.push("pull_request.user.login");
-  if (!input.prAuthor.type) missing.push("pull_request.user.type");
-  if (!input.authorAssociation) missing.push("pull_request.author_association");
-  if (!input.headSha) missing.push("pull_request.head.sha");
+  if (!input.subject.actor.login) missing.push(`${input.subject.kind}.user.login`);
+  if (!input.subject.actor.type) missing.push(`${input.subject.kind}.user.type`);
+  if (!input.authorAssociation) missing.push(`${input.subject.kind}.author_association`);
+  if (input.subject.kind === "pull_request" && !input.subject.headSha) {
+    missing.push("pull_request.head.sha");
+  }
   if (missing.length > 0) {
     return {
       actorIntegrity: "missing_metadata",
@@ -240,57 +243,6 @@ function findMentionAlias(body: string | null, aliases: readonly string[]): stri
   return null;
 }
 
-function deriveIssueCommentActorIntegrity(input: {
-  sender: GitHubWebhookActor;
-  commenter: GitHubWebhookActor;
-  authorAssociation: string | null;
-  config?: ActorIntegrityConfig;
-}): {
-  actorIntegrity: GitHubWebhookActorIntegrity;
-  actorIntegrityReason: string;
-} {
-  const { blockedActors, trustedAssociations } = actorIntegrityConfigSets(input.config);
-  const blockedActor = [input.sender.login, input.commenter.login].find(
-    (login) => login !== null && blockedActors.has(normalizeActorLogin(login)),
-  );
-  if (blockedActor) {
-    return {
-      actorIntegrity: "blocked_actor",
-      actorIntegrityReason: `blocked actor '${blockedActor}' matched github-webhook actorIntegrity.blockedActors`,
-    };
-  }
-
-  const missing: string[] = [];
-  if (!input.sender.login) missing.push("sender.login");
-  if (!input.sender.type) missing.push("sender.type");
-  if (!input.commenter.login) missing.push("comment.user.login");
-  if (!input.commenter.type) missing.push("comment.user.type");
-  if (!input.authorAssociation) missing.push("comment.author_association");
-  if (missing.length > 0) {
-    return {
-      actorIntegrity: "missing_metadata",
-      actorIntegrityReason: `missing actor trust metadata: ${missing.join(", ")}`,
-    };
-  }
-
-  const authorAssociation = input.authorAssociation;
-  if (authorAssociation === null) {
-    throw new Error("authorAssociation must be present after missing metadata check");
-  }
-  const association = authorAssociation.toUpperCase();
-  if (!trustedAssociations.has(association)) {
-    return {
-      actorIntegrity: "low_trust_actor",
-      actorIntegrityReason: `author association '${authorAssociation}' is below the configured trust threshold`,
-    };
-  }
-
-  return {
-    actorIntegrity: "allowed",
-    actorIntegrityReason: `author association '${authorAssociation}' satisfies the configured trust threshold`,
-  };
-}
-
 function normalizePullRequestPayload(
   raw: JsonObject,
   actorIntegrityConfig: ActorIntegrityConfig | undefined,
@@ -308,9 +260,8 @@ function normalizePullRequestPayload(
   const headSha = head ? stringValue(head.sha) : null;
   const integrity = deriveActorIntegrity({
     sender,
-    prAuthor,
+    subject: { kind: "pull_request", actor: prAuthor, headSha },
     authorAssociation,
-    headSha,
     config: actorIntegrityConfig,
   });
 
@@ -370,9 +321,9 @@ function normalizeIssueCommentMentionDelivery(
   const sender = actorValue(raw.sender);
   const commenter = actorValue(comment ? comment.user : null);
   const authorAssociation = comment ? stringValue(comment.author_association) : null;
-  const integrity = deriveIssueCommentActorIntegrity({
+  const integrity = deriveActorIntegrity({
     sender,
-    commenter,
+    subject: { kind: "comment", actor: commenter },
     authorAssociation,
     config: actorIntegrityConfig,
   });
@@ -477,7 +428,13 @@ function makeWebhookHandler(
 
     let rawPayload: JsonObject;
     try {
-      rawPayload = body.length ? (JSON.parse(body.toString("utf-8")) as JsonObject) : {};
+      const decoded = objectValue(body.length ? JSON.parse(body.toString("utf-8")) : {});
+      if (decoded === null) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Expected JSON object" }));
+        return;
+      }
+      rawPayload = decoded;
     } catch {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Invalid JSON body" }));

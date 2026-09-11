@@ -32,9 +32,9 @@ import {
   type ModuleEventOptions,
   type ModuleEventPayload,
   type ModuleEventPayloadSchema,
-  type ModuleEventSchemaNode,
   type ModuleEventSchemaProperties,
 } from "./module-event.js";
+import { payloadSchemaFromFields } from "./module-event-schema.js";
 
 /** Object-shaped event payload constraint, used only inside this module. */
 type Payload = Record<string, unknown>;
@@ -109,20 +109,6 @@ function withScopePayloadSchema(
     ...schema.properties,
   };
   return { ...schema, properties };
-}
-
-function payloadSchemaFromFields(
-  fields: ReadonlyArray<string>,
-): ModuleEventPayloadSchema {
-  const properties: { [key: string]: ModuleEventSchemaNode } = {};
-  for (const field of fields) {
-    properties[field] = { type: "json" };
-  }
-  return {
-    type: "object",
-    properties,
-    additionalProperties: true,
-  };
 }
 
 /**

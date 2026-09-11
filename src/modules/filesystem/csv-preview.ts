@@ -10,7 +10,7 @@ export const CSV_EXTENSIONS: Record<string, string> = {
 };
 
 /** Parse a CSV/TSV line, handling quoted fields. */
-export function parseCsvRow(line: string, delimiter: string): string[] {
+function parseCsvRow(line: string, delimiter: string): string[] {
   const fields: string[] = [];
   let current = "";
   let inQuotes = false;

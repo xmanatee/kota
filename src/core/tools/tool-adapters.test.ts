@@ -1,1055 +1,215 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod/v3";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import {
-  adaptExport,
-  detectExportFormat,
-  extractJsonSchema,
-  fromOpenAI,
-  fromSimple,
-  fromVercelAI,
-  normalizeResult,
-  type OpenAIFunctionTool,
-  type SimpleTool,
-  type VercelAITool,
-  zodDefToJsonSchema,
-} from "./tool-adapters.js";
+import type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
+import { adaptExport, fromOpenAI, fromSimple, fromVercelAI } from "./tool-adapters.js";
+import { normalizeResult } from "./tool-adapters-zod.js";
 
-/** Helper to get tools as array from a KotaModule (tests always produce static arrays). */
 function toolsOf(mod: KotaModule): ToolDef[] {
-  return Array.isArray(mod.tools) ? mod.tools : [];
+  if (!Array.isArray(mod.tools)) throw new Error("Expected static adapted tools");
+  return mod.tools;
 }
 
-describe("normalizeResult", () => {
-  it("passes through ToolResult objects", () => {
-    const r = normalizeResult({ content: "hello", is_error: false });
-    expect(r).toEqual({ content: "hello", is_error: false });
+const parameters = {
+  type: "object",
+  properties: { query: { type: "string" } },
+  required: ["query"],
+};
+const run = ({ query }: Record<string, unknown>) => ({ query });
+const simple: SimpleTool = { name: "search", description: "Search", parameters, run };
+const openai: OpenAIFunctionTool = {
+  type: "function", function: { name: "search", description: "Search", parameters }, run,
+};
+const vercel: VercelAITool = { description: "Search", parameters, execute: run };
+const adapters = [
+  { name: "simple", make: (params: Record<string, unknown> | undefined) => fromSimple({ ...simple, parameters: params }) },
+  { name: "openai", make: (params: Record<string, unknown> | undefined) => fromOpenAI({ ...openai, function: { ...openai.function, parameters: params } }) },
+  { name: "vercel", make: (params: Record<string, unknown> | undefined) => fromVercelAI({ ...vercel, parameters: params }, "search") },
+];
+
+describe("tool format adaptation", () => {
+  it.each(adapters)("$name propagates parameters, input and normalized output", async ({ make }) => {
+    const def = make(parameters);
+    expect(def.tool).toEqual({ name: "search", description: "Search", input_schema: parameters });
+    expect(await def.runner({ query: "weather" })).toEqual({ content: '{\n  "query": "weather"\n}' });
   });
 
-  it("converts strings", () => {
-    expect(normalizeResult("hello")).toEqual({ content: "hello" });
-  });
-
-  it("converts null/undefined to empty content", () => {
-    expect(normalizeResult(null)).toEqual({ content: "" });
-    expect(normalizeResult(undefined)).toEqual({ content: "" });
-  });
-
-  it("converts numbers", () => {
-    expect(normalizeResult(42)).toEqual({ content: "42" });
-  });
-
-  it("converts booleans", () => {
-    expect(normalizeResult(true)).toEqual({ content: "true" });
-  });
-
-  it("converts plain objects to JSON", () => {
-    const r = normalizeResult({ foo: 1, bar: [2, 3] });
-    expect(r.content).toBe(JSON.stringify({ foo: 1, bar: [2, 3] }, null, 2));
-  });
-
-  it("converts objects with text property", () => {
-    expect(normalizeResult({ text: "hello" })).toEqual({ content: "hello" });
-  });
-
-  it("prefers content over text", () => {
-    expect(normalizeResult({ content: "a", text: "b" })).toEqual({ content: "a", text: "b" });
-  });
-});
-
-describe("fromSimple", () => {
-  it("converts a simple tool definition", async () => {
-    const simple: SimpleTool = {
-      name: "greet",
-      description: "Greet someone",
-      parameters: {
-        type: "object",
-        properties: { name: { type: "string" } },
-        required: ["name"],
-      },
-      run: async ({ name }) => `Hello, ${name}!`,
-    };
-
-    const def = fromSimple(simple);
-    expect(def.tool.name).toBe("greet");
-    expect(def.tool.description).toBe("Greet someone");
-    expect(def.tool.input_schema.properties).toEqual({ name: { type: "string" } });
-
-    const result = await def.runner({ name: "World" });
-    expect(result.content).toBe("Hello, World!");
-  });
-
-  it("defaults parameters to empty object", () => {
-    const def = fromSimple({
-      name: "noop",
-      description: "Does nothing",
-      run: async () => "done",
-    });
-    expect(def.tool.input_schema).toEqual({ type: "object", properties: {} });
-  });
-
-  it("preserves group", () => {
-    const def = fromSimple({
-      name: "t",
-      description: "",
-      run: async () => "",
-      group: "mygroup",
-    });
-    expect(def.group).toBe("mygroup");
-  });
-
-  it("throws on missing name", () => {
-    expect(() =>
-      fromSimple({ name: "", description: "", run: async () => "" }),
-    ).toThrow("non-empty 'name'");
-  });
-
-  it("throws on missing run", () => {
-    expect(() =>
-      fromSimple({ name: "x", description: "" } as unknown as SimpleTool),
-    ).toThrow("'run' function");
-  });
-
-  it("normalizes return values through normalizeResult", async () => {
-    const def = fromSimple({
-      name: "num",
-      description: "",
-      run: async () => 42,
-    });
-    const result = await def.runner({});
-    expect(result.content).toBe("42");
+  it.each(adapters)("$name normalizes absent and non-object parameter schemas", ({ make }) => {
+    for (const params of [undefined, { type: "string" }]) {
+      expect(make(params).tool.input_schema).toEqual({ type: "object", properties: {} });
+    }
   });
 
   it.each([
-    {
-      risk: "safe" as const,
-      kind: "discovery" as const,
-      expected: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
-    },
-    {
-      risk: "safe" as const,
-      kind: "action" as const,
-      expected: { kind: "write", scope: "daemon-state", idempotent: false, openWorld: false },
-    },
-    {
-      risk: "moderate" as const,
-      kind: "action" as const,
-      expected: { kind: "write", scope: "local-fs", idempotent: false, openWorld: false },
-    },
-    {
-      risk: "dangerous" as const,
-      kind: "action" as const,
-      expected: {
-        kind: "destructive",
-        scope: "external-network",
-        idempotent: false,
-        openWorld: true,
-      },
-    },
-  ])("maps external $risk/$kind metadata at the adapter boundary", ({ risk, kind, expected }) => {
-    const definition = fromSimple({
-      name: `effect-${risk}-${kind}`,
-      description: "",
-      risk,
-      kind,
-      run: async () => "ok",
-    });
-    expect(definition.effect).toEqual(expected);
+    ["simple name", () => fromSimple({ ...simple, name: "" }), "non-empty 'name'"],
+    ["simple runner", () => fromSimple({ ...simple, run: undefined } as unknown as SimpleTool), "'run' function"],
+    ["openai name", () => fromOpenAI({ ...openai, function: { name: "" } }), "function.name"],
+    ["openai runner", () => fromOpenAI({ ...openai, run: undefined } as unknown as OpenAIFunctionTool), "'run' function"],
+    ["vercel runner", () => fromVercelAI({ ...vercel, execute: undefined } as unknown as VercelAITool, "search"), "'execute' function"],
+  ] as const)("rejects missing %s", (_name, invoke, message) => {
+    expect(invoke).toThrow(message);
+  });
+
+  it.each([
+    ["safe", "discovery", { kind: "read", scope: "local-fs", idempotent: true, openWorld: false }],
+    ["safe", "action", { kind: "write", scope: "daemon-state", idempotent: false, openWorld: false }],
+    ["moderate", "action", { kind: "write", scope: "local-fs", idempotent: false, openWorld: false }],
+    ["dangerous", "action", { kind: "destructive", scope: "external-network", idempotent: false, openWorld: true }],
+  ] as const)("preserves %s/%s effects across external formats", (risk, kind, effect) => {
+    const metadata = { risk, kind, group: "external" };
+    const defs = [fromSimple({ ...simple, ...metadata }), fromOpenAI({ ...openai, ...metadata }), fromVercelAI({ ...vercel, ...metadata }, "search")];
+    for (const def of defs) expect(def).toMatchObject({ effect, group: "external" });
+  });
+
+  it.each(adapters)("$name defaults undeclared risk to a local write", ({ make }) => {
+    expect(make(parameters).effect).toEqual({ kind: "write", scope: "local-fs", idempotent: false, openWorld: false });
   });
 });
 
-describe("fromOpenAI", () => {
-  it("converts an OpenAI function-calling tool", async () => {
-    const openai: OpenAIFunctionTool = {
-      type: "function",
-      function: {
-        name: "get_weather",
-        description: "Get weather for a location",
-        parameters: {
-          type: "object",
-          properties: { location: { type: "string" } },
-          required: ["location"],
-        },
-      },
-      run: async ({ location }) => ({ temp: 72, location }),
-    };
-
-    const def = fromOpenAI(openai);
-    expect(def.tool.name).toBe("get_weather");
-    expect(def.tool.description).toBe("Get weather for a location");
-
-    const result = await def.runner({ location: "NYC" });
-    expect(JSON.parse(result.content)).toEqual({ temp: 72, location: "NYC" });
-  });
-
-  it("defaults parameters", () => {
-    const def = fromOpenAI({
-      type: "function",
-      function: { name: "ping" },
-      run: async () => "pong",
-    });
-    expect(def.tool.input_schema).toEqual({ type: "object", properties: {} });
-  });
-
-  it("throws on missing function.name", () => {
-    expect(() =>
-      fromOpenAI({
-        type: "function",
-        function: {} as { name: string },
-        run: async () => "",
-      }),
-    ).toThrow("function.name");
-  });
-
-  it("throws on missing run", () => {
-    expect(() =>
-      fromOpenAI({
-        type: "function",
-        function: { name: "x" },
-      } as unknown as OpenAIFunctionTool),
-    ).toThrow("'run' function");
-  });
-});
-
-describe("fromVercelAI", () => {
-  it("converts a Vercel AI SDK tool with JSON Schema parameters", async () => {
-    const vercel: VercelAITool = {
-      description: "Get weather for a location",
-      parameters: {
-        type: "object",
-        properties: { location: { type: "string" } },
-        required: ["location"],
-      },
-      execute: async ({ location }) => ({ temp: 72, location }),
-    };
-
-    const def = fromVercelAI(vercel, "get_weather");
-    expect(def.tool.name).toBe("get_weather");
-    expect(def.tool.description).toBe("Get weather for a location");
-    expect(def.tool.input_schema.properties).toEqual({ location: { type: "string" } });
-
-    const result = await def.runner({ location: "NYC" });
-    expect(JSON.parse(result.content)).toEqual({ temp: 72, location: "NYC" });
-  });
-
-  it("handles Zod-like schema objects", async () => {
-    // Simulate a Zod object schema structure
-    const zodSchema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          city: { _def: { typeName: "ZodString" } },
-          units: {
-            _def: { typeName: "ZodOptional", innerType: { _def: { typeName: "ZodString" } } },
-          },
-        }),
-      },
-    };
-
-    const def = fromVercelAI(
-      { description: "Weather", parameters: zodSchema, execute: async () => "sunny" },
-      "weather",
-    );
-    expect(def.tool.input_schema.properties).toEqual({
-      city: { type: "string" },
-      units: { type: "string" },
-    });
-    expect(def.tool.input_schema.required).toEqual(["city"]);
-  });
-
-  it("handles AI SDK jsonSchema() format", () => {
-    const params = {
-      jsonSchema: {
-        type: "object",
-        properties: { query: { type: "string" } },
-        required: ["query"],
-      },
-    };
-
-    const def = fromVercelAI(
-      { description: "Search", parameters: params, execute: async () => [] },
-      "search",
-    );
-    expect(def.tool.input_schema.properties).toEqual({ query: { type: "string" } });
-  });
-
-  it("throws on missing execute", () => {
-    expect(() =>
-      fromVercelAI({ description: "bad", parameters: {} } as unknown as VercelAITool, "bad"),
-    ).toThrow("'execute' function");
-  });
-
-  it("preserves group", () => {
-    const def = fromVercelAI(
-      { description: "", parameters: {}, execute: async () => "", group: "web" },
-      "t",
-    );
-    expect(def.group).toBe("web");
-  });
-
-  it("normalizes return values", async () => {
-    const def = fromVercelAI(
-      { description: "", parameters: {}, execute: async () => 42 },
-      "num",
-    );
-    const result = await def.runner({});
-    expect(result.content).toBe("42");
-  });
-});
-
-describe("extractJsonSchema", () => {
-  it("returns empty schema for null/undefined", () => {
-    expect(extractJsonSchema(null)).toEqual({ type: "object", properties: {} });
-    expect(extractJsonSchema(undefined)).toEqual({ type: "object", properties: {} });
-  });
-
-  it("passes through JSON Schema objects", () => {
-    const schema = { type: "object", properties: { x: { type: "number" } } };
-    expect(extractJsonSchema(schema)).toEqual(schema);
-  });
-
-  it("extracts from AI SDK jsonSchema()", () => {
-    const wrapped = { jsonSchema: { type: "object", properties: { q: { type: "string" } } } };
-    expect(extractJsonSchema(wrapped)).toEqual({ type: "object", properties: { q: { type: "string" } } });
-  });
-});
-
-describe("zodDefToJsonSchema", () => {
-  it("converts ZodString", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodString" } })).toEqual({ type: "string" });
-  });
-
-  it("converts ZodNumber", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodNumber" } })).toEqual({ type: "number" });
-  });
-
-  it("converts ZodBoolean", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodBoolean" } })).toEqual({ type: "boolean" });
-  });
-
-  it("converts ZodEnum", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodEnum", values: ["a", "b"] } }))
-      .toEqual({ type: "string", enum: ["a", "b"] });
-  });
-
-  it("converts ZodArray", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodArray",
-        type: { _def: { typeName: "ZodString" } },
-      },
-    };
-    expect(zodDefToJsonSchema(schema)).toEqual({ type: "array", items: { type: "string" } });
-  });
-
-  it("converts ZodOptional (unwraps)", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodOptional",
-        innerType: { _def: { typeName: "ZodNumber" } },
-      },
-    };
-    expect(zodDefToJsonSchema(schema)).toEqual({ type: "number" });
-  });
-
-  it("converts ZodDefault (unwraps)", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodDefault",
-        innerType: { _def: { typeName: "ZodBoolean" } },
-      },
-    };
-    expect(zodDefToJsonSchema(schema)).toEqual({ type: "boolean" });
-  });
-
-  it("converts ZodObject with required fields", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          name: { _def: { typeName: "ZodString" } },
-          age: { _def: { typeName: "ZodNumber" } },
-          bio: { _def: { typeName: "ZodOptional", innerType: { _def: { typeName: "ZodString" } } } },
-        }),
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.type).toBe("object");
-    expect(result.properties).toEqual({
-      name: { type: "string" },
-      age: { type: "number" },
-      bio: { type: "string" },
-    });
-    expect(result.required).toEqual(["name", "age"]);
-  });
-
-  it("includes description when present", () => {
-    const schema = { _def: { typeName: "ZodString" }, description: "A user name" };
-    expect(zodDefToJsonSchema(schema)).toEqual({ type: "string", description: "A user name" });
-  });
-
-  it("handles ZodLiteral", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodLiteral", value: "hello" } }))
-      .toEqual({ const: "hello" });
-  });
-
-  it("returns empty object for unknown types", () => {
-    expect(zodDefToJsonSchema({ _def: { typeName: "ZodSomethingNew" } })).toEqual({});
-  });
-
-  it("handles null/undefined input", () => {
-    expect(zodDefToJsonSchema(null)).toEqual({});
-    expect(zodDefToJsonSchema(undefined)).toEqual({});
-  });
-});
-
-describe("adaptExport", () => {
-  it("passes through native KotaModule format", () => {
-    const plugin = {
-      name: "native",
-      tools: [
-        {
-          tool: { name: "t", description: "d", input_schema: { type: "object" } },
-          runner: async () => ({ content: "ok" }),
-        },
-      ],
-    };
-    const result = adaptExport(plugin, "native.js");
-    expect(result.name).toBe("native");
-    expect(result.tools).toHaveLength(1);
-  });
-
-  it("adapts a single simple tool export", async () => {
-    const exported = {
-      name: "hello",
-      description: "Say hello",
-      run: async () => "Hello!",
-    };
-    const plugin = adaptExport(exported, "hello.js");
-    expect(plugin.name).toBe("hello");
-    expect(plugin.tools).toHaveLength(1);
-    expect(toolsOf(plugin)[0].tool.name).toBe("hello");
-
-    const result = await toolsOf(plugin)[0].runner({});
-    expect(result.content).toBe("Hello!");
-  });
-
-  it("adapts a single OpenAI format export", async () => {
-    const exported = {
-      type: "function",
-      function: { name: "calc", description: "Calculate" },
-      run: async () => 42,
-    };
-    const plugin = adaptExport(exported, "calc.mjs");
-    expect(plugin.name).toBe("calc");
-    expect(plugin.tools).toHaveLength(1);
-
-    const result = await toolsOf(plugin)[0].runner({});
-    expect(result.content).toBe("42");
-  });
-
-  it("adapts an array of simple tools", async () => {
-    const exported = [
-      { name: "add", description: "Add", run: async ({ a, b }: { a: number; b: number }) => a + b },
-      { name: "sub", description: "Sub", run: async ({ a, b }: { a: number; b: number }) => a - b },
-    ];
-    const plugin = adaptExport(exported, "math.js");
-    expect(plugin.name).toBe("math");
-    expect(plugin.tools).toHaveLength(2);
-    expect(toolsOf(plugin)[0].tool.name).toBe("add");
-    expect(toolsOf(plugin)[1].tool.name).toBe("sub");
-
-    const r1 = await toolsOf(plugin)[0].runner({ a: 3, b: 2 });
-    expect(r1.content).toBe("5");
-    const r2 = await toolsOf(plugin)[1].runner({ a: 3, b: 2 });
-    expect(r2.content).toBe("1");
-  });
-
-  it("adapts a mixed array of simple and OpenAI tools", () => {
-    const exported = [
-      { name: "simple_tool", description: "Simple", run: async () => "s" },
-      {
-        type: "function",
-        function: { name: "openai_tool", description: "OpenAI" },
-        run: async () => "o",
-      },
-    ];
-    const plugin = adaptExport(exported, "mixed.js");
-    expect(plugin.tools).toHaveLength(2);
-    expect(toolsOf(plugin)[0].tool.name).toBe("simple_tool");
-    expect(toolsOf(plugin)[1].tool.name).toBe("openai_tool");
-  });
-
-  it("adapts a KotaModule with simple-format tools array", async () => {
-    const exported = {
-      name: "hybrid",
-      tools: [
-        { name: "tool_a", description: "A", run: async () => "a" },
-        { name: "tool_b", description: "B", run: async () => "b" },
-      ],
-      onLoad: async () => {},
-    };
-    const plugin = adaptExport(exported, "hybrid.js");
-    expect(plugin.name).toBe("hybrid");
-    expect(plugin.tools).toHaveLength(2);
-    expect(toolsOf(plugin)[0].tool.name).toBe("tool_a");
-    expect(plugin.onLoad).toBeDefined();
-
-    const result = await toolsOf(plugin)[0].runner({});
-    expect(result.content).toBe("a");
-  });
-
-  it("throws on non-object export", () => {
-    expect(() => adaptExport("not an object" as unknown, "bad.js")).toThrow("not an object");
-  });
-
-  it("throws on empty array", () => {
-    expect(() => adaptExport([], "empty.js")).toThrow("empty tool array");
-  });
-
-  it("throws on unrecognized format", () => {
-    expect(() => adaptExport({ foo: "bar" }, "weird.js")).toThrow("unrecognized export format");
-  });
-
-  it("derives plugin name from filename", () => {
-    const exported = {
-      type: "function",
-      function: { name: "t" },
-      run: async () => "",
-    };
-    const plugin = adaptExport(exported, "my-cool-plugin.mjs");
-    expect(plugin.name).toBe("my-cool-plugin");
-  });
-
-  it("handles synchronous run functions", async () => {
-    const exported = {
-      name: "sync",
-      description: "Sync tool",
-      run: () => "sync result",
-    };
-    const plugin = adaptExport(exported, "sync.js");
-    const result = await toolsOf(plugin)[0].runner({});
-    expect(result.content).toBe("sync result");
-  });
-
-  it("adapts a single Vercel AI SDK tool export", async () => {
-    const exported = {
-      description: "Get weather",
-      parameters: { type: "object", properties: { city: { type: "string" } } },
-      execute: async ({ city }: { city: string }) => `Weather in ${city}: sunny`,
-    };
-    const plugin = adaptExport(exported, "weather.js");
-    expect(plugin.name).toBe("weather");
-    expect(plugin.tools).toHaveLength(1);
-    expect(toolsOf(plugin)[0].tool.name).toBe("weather");
-
-    const result = await toolsOf(plugin)[0].runner({ city: "NYC" });
-    expect(result.content).toBe("Weather in NYC: sunny");
-  });
-
-  it("adapts a map of Vercel AI SDK tools", async () => {
-    const exported = {
-      get_weather: {
-        description: "Get weather",
-        parameters: { type: "object", properties: { city: { type: "string" } } },
-        execute: async () => "sunny",
-      },
-      search: {
-        description: "Search web",
-        parameters: { type: "object", properties: { query: { type: "string" } } },
-        execute: async () => "results",
-      },
-    };
-    const plugin = adaptExport(exported, "tools.js");
-    expect(plugin.tools).toHaveLength(2);
-    expect(toolsOf(plugin)[0].tool.name).toBe("get_weather");
-    expect(toolsOf(plugin)[1].tool.name).toBe("search");
-
-    const r1 = await toolsOf(plugin)[0].runner({});
-    expect(r1.content).toBe("sunny");
-  });
-
-  it("adapts a Vercel AI SDK tool with Zod-like parameters", async () => {
-    const exported = {
-      description: "Search",
-      parameters: {
-        _def: {
-          typeName: "ZodObject",
-          shape: () => ({
-            query: { _def: { typeName: "ZodString" } },
-          }),
-        },
-      },
-      execute: async () => "found it",
-    };
-    const plugin = adaptExport(exported, "search.mjs");
-    expect(toolsOf(plugin)[0].tool.input_schema.properties).toEqual({ query: { type: "string" } });
-  });
-
-  it("adapts an array containing Vercel AI SDK tools", () => {
-    const exported = [
-      {
-        description: "Tool A",
-        parameters: { type: "object", properties: {} },
-        execute: async () => "a",
-      },
-    ];
-    const plugin = adaptExport(exported, "vercel-tools.js");
-    expect(plugin.tools).toHaveLength(1);
-    expect(toolsOf(plugin)[0].tool.name).toBe("tool_0");
-  });
-});
-
-describe("error paths", () => {
-  describe("input_schema.type override", () => {
-    it("fromSimple preserves type:object even when parameters has wrong type", () => {
-      const def: SimpleTool = {
-        name: "bad_type",
-        description: "Has non-object type in parameters",
-        parameters: { type: "string" } as Record<string, unknown>,
-        run: async () => "ok",
-      };
-      const result = fromSimple(def);
-      expect(result.tool.input_schema.type).toBe("object");
-    });
-
-    it("fromOpenAI preserves type:object even when parameters has wrong type", () => {
-      const def: OpenAIFunctionTool = {
-        type: "function",
-        function: {
-          name: "bad_type",
-          description: "Has array type",
-          parameters: { type: "array", items: { type: "string" } },
-        },
-        run: async () => "ok",
-      };
-      const result = fromOpenAI(def);
-      expect(result.tool.input_schema.type).toBe("object");
-    });
-
-    it("fromSimple ensures properties field exists even with malformed parameters", () => {
-      const def: SimpleTool = {
-        name: "no_props",
-        description: "No properties field",
-        parameters: { type: "string" } as Record<string, unknown>,
-        run: async () => "ok",
-      };
-      const result = fromSimple(def);
-      expect(result.tool.input_schema.properties).toBeDefined();
-    });
-  });
-
-  describe("partial tool array failure", () => {
-    it("adaptExport skips bad tools in array and keeps valid ones", () => {
-      const exported = [
-        { name: "good", description: "Works", run: async () => "ok" },
-        { broken: true }, // unrecognized format
-        { name: "also_good", description: "Also works", run: async () => "ok2" },
-      ];
-      const plugin = adaptExport(exported, "mixed.js");
-      expect(plugin.tools).toHaveLength(2);
-      expect(toolsOf(plugin)[0].tool.name).toBe("good");
-      expect(toolsOf(plugin)[1].tool.name).toBe("also_good");
-    });
-
-    it("adaptExport throws only when ALL tools in array are bad", () => {
-      const exported = [
-        { broken: true },
-        { also_broken: true },
-      ];
-      expect(() => adaptExport(exported, "all-bad.js")).toThrow();
-    });
-
-    it("KotaModule with mixed valid/invalid tools keeps the valid ones", () => {
-      const exported = {
-        name: "mixed-plugin",
-        tools: [
-          { name: "good_tool", description: "Good", run: async () => "ok" },
-          { unrecognized: true }, // bad tool
-        ],
-      };
-      const plugin = adaptExport(exported, "mixed-plugin.js");
-      expect(plugin.tools).toHaveLength(1);
-      expect(toolsOf(plugin)[0].tool.name).toBe("good_tool");
-    });
-  });
-
-  describe("normalizeResult circular references", () => {
-    it("handles objects with circular references without crashing", () => {
-      const obj: Record<string, unknown> = { a: 1 };
-      obj.self = obj; // circular reference
-      const result = normalizeResult(obj);
-      expect(result.content).toBeDefined();
-      expect(typeof result.content).toBe("string");
-    });
-  });
-
-  describe("normalizeResult Error objects", () => {
-    it("preserves Error message instead of producing '{}'", () => {
-      const err = new Error("something went wrong");
-      const result = normalizeResult(err);
-      expect(result.content).toBe("something went wrong");
-    });
-
-    it("handles Error with empty message — falls back to String(err)", () => {
-      const err = new Error();
-      const result = normalizeResult(err);
-      expect(result.content).toBe("Error");
-    });
-
-    it("handles TypeError", () => {
-      const err = new TypeError("cannot read property 'x' of undefined");
-      const result = normalizeResult(err);
-      expect(result.content).toBe("cannot read property 'x' of undefined");
-    });
-
-    it("handles custom Error subclass", () => {
-      class ApiError extends Error {
-        constructor(
-          message: string,
-          public statusCode: number,
-        ) {
-          super(message);
-        }
-      }
-      const err = new ApiError("Not Found", 404);
-      const result = normalizeResult(err);
-      expect(result.content).toBe("Not Found");
-    });
-  });
-});
-
-describe("zodDefToJsonSchema — wrapper description preservation", () => {
-  it("ZodOptional preserves outer description when inner has none", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodOptional",
-        innerType: { _def: { typeName: "ZodString" } },
-      },
-      description: "An optional name",
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: "string", description: "An optional name" });
-  });
-
-  it("ZodOptional does NOT overwrite inner description", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodOptional",
-        innerType: { _def: { typeName: "ZodString" }, description: "inner desc" },
-      },
-      description: "outer desc",
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.description).toBe("inner desc");
-  });
-
-  it("ZodNullable preserves description and encodes nullability", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodNullable",
-        innerType: { _def: { typeName: "ZodNumber" } },
-      },
-      description: "A nullable count",
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: ["number", "null"], description: "A nullable count" });
-  });
-
-  it("ZodNullable encodes type array even without description", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodNullable",
-        innerType: { _def: { typeName: "ZodString" } },
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.type).toEqual(["string", "null"]);
-  });
-
-  it("ZodNullable skips type array when inner has no type (unknown Zod type)", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodNullable",
-        innerType: { _def: { typeName: "ZodSomethingUnknown" } },
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.type).toBeUndefined();
-  });
-
-  it("ZodDefault preserves description and encodes default value", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodDefault",
-        innerType: { _def: { typeName: "ZodString" } },
-        defaultValue: () => "hello",
-      },
-      description: "A greeting",
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: "string", description: "A greeting", default: "hello" });
-  });
-
-  it("ZodDefault encodes default value without description", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodDefault",
-        innerType: { _def: { typeName: "ZodNumber" } },
-        defaultValue: () => 42,
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: "number", default: 42 });
-  });
-
-  it("ZodDefault handles throwing defaultValue gracefully", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodDefault",
-        innerType: { _def: { typeName: "ZodString" } },
-        defaultValue: () => { throw new Error("broken factory"); },
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: "string" });
-  });
-
-  it("ZodDefault without defaultValue function still works", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodDefault",
-        innerType: { _def: { typeName: "ZodBoolean" } },
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result).toEqual({ type: "boolean" });
-  });
-
-  it("deeply nested wrapper chain preserves outermost description", () => {
-    // z.string().nullable().optional().describe("deep")
-    const schema = {
-      _def: {
-        typeName: "ZodOptional",
-        innerType: {
-          _def: {
-            typeName: "ZodNullable",
-            innerType: { _def: { typeName: "ZodString" } },
-          },
-        },
-      },
-      description: "deep",
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.description).toBe("deep");
-    expect(result.type).toEqual(["string", "null"]);
-  });
-});
-
-describe("zodDefToJsonSchema — ZodObject with nullable/default fields", () => {
-  it("correctly marks ZodDefault fields as not required", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          name: { _def: { typeName: "ZodString" } },
-          count: {
-            _def: {
-              typeName: "ZodDefault",
-              innerType: { _def: { typeName: "ZodNumber" } },
-              defaultValue: () => 0,
-            },
-          },
-        }),
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    expect(result.required).toEqual(["name"]);
-    expect((result.properties as Record<string, Record<string, unknown>>).count.default).toBe(0);
-  });
-
-  it("nullable field inside object encodes type array", () => {
-    const schema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          value: {
-            _def: {
-              typeName: "ZodNullable",
-              innerType: { _def: { typeName: "ZodString" } },
-            },
-          },
-        }),
-      },
-    };
-    const result = zodDefToJsonSchema(schema);
-    const valueSchema = (result.properties as Record<string, Record<string, unknown>>).value;
-    expect(valueSchema.type).toEqual(["string", "null"]);
-  });
-});
-
-describe("fromVercelAI — schema edge cases", () => {
-  it("Zod nullable parameters produce correct input_schema", async () => {
-    const zodSchema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          query: { _def: { typeName: "ZodString" } },
-          limit: {
-            _def: {
-              typeName: "ZodNullable",
-              innerType: { _def: { typeName: "ZodNumber" } },
-            },
-          },
-        }),
-      },
-    };
-    const def = fromVercelAI(
-      { description: "Search", parameters: zodSchema, execute: async () => "ok" },
-      "search",
-    );
-    const limitSchema = (def.tool.input_schema.properties as Record<string, unknown>).limit as Record<string, unknown>;
-    expect(limitSchema.type).toEqual(["number", "null"]);
-  });
-
-  it("Zod default parameters encode default in input_schema", async () => {
-    const zodSchema = {
-      _def: {
-        typeName: "ZodObject",
-        shape: () => ({
-          query: { _def: { typeName: "ZodString" } },
-          limit: {
-            _def: {
-              typeName: "ZodDefault",
-              innerType: { _def: { typeName: "ZodNumber" } },
-              defaultValue: () => 10,
-            },
-          },
-        }),
-      },
-    };
-    const def = fromVercelAI(
-      { description: "Search", parameters: zodSchema, execute: async () => "ok" },
-      "search",
-    );
-    const limitSchema = (def.tool.input_schema.properties as Record<string, unknown>).limit as Record<string, unknown>;
-    expect(limitSchema.default).toBe(10);
-  });
-});
-
-describe("detectExportFormat", () => {
-  it("classifies a native KotaModule shape and yields a typed value", () => {
-    const obj = {
-      name: "native",
-      version: "1.0.0",
-      tools: [
-        {
-          tool: { name: "t", description: "d", input_schema: { type: "object" } },
-          runner: async () => ({ content: "ok" }),
-        },
-      ],
-    };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("kota-module");
-    if (detected?.kind === "kota-module") {
-      // No casts needed: detected.value is typed as KotaModuleShape.
-      const name: string = detected.value.name;
-      expect(name).toBe("native");
-      expect(Array.isArray(detected.value.tools)).toBe(true);
+describe("module export boundary", () => {
+  it.each([
+    ["simple", simple, "search", ["search"]],
+    ["openai", openai, "external_tools", ["search"]],
+    ["vercel", vercel, "external_tools", ["external_tools"]],
+    ["map", { search: vercel, second: vercel }, "external_tools", ["search", "second"]],
+    ["array", [simple, openai, vercel], "external_tools", ["search", "search", "tool_2"]],
+    ["simple with module fields", { ...simple, tools: [] }, "search", ["search"]],
+  ] as const)("adapts %s with executable tools", async (_name, exported, moduleName, toolNames) => {
+    const mod = adaptExport(exported, "external.tools.mjs");
+    expect(mod.name).toBe(moduleName);
+    const defs = toolsOf(mod);
+    expect(defs.map((def) => def.tool.name)).toEqual(toolNames);
+    for (const def of defs) {
+      expect(def.tool.input_schema).toEqual(parameters);
+      expect(JSON.parse((await def.runner({ query: "forwarded" })).content)).toEqual({ query: "forwarded" });
     }
   });
 
-  it("classifies an OpenAI function-calling tool and yields a typed value", () => {
-    const obj = {
-      type: "function",
-      function: { name: "calc", description: "Calculate" },
-      run: async () => 42,
-    };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("openai");
-    if (detected?.kind === "openai") {
-      // No casts needed: detected.value is typed as OpenAIFunctionTool.
-      const fnName: string = detected.value.function.name;
-      expect(fnName).toBe("calc");
-    }
+  it("preserves a native module and its tool behavior", async () => {
+    const native: KotaModule = { name: "native", tools: [fromSimple(simple)] };
+    const mod = adaptExport(native, "native.ts");
+    expect(mod).toBe(native);
+    expect(JSON.parse((await toolsOf(mod)[0].runner({ query: "native" })).content)).toEqual({ query: "native" });
   });
 
-  it("classifies a simple tool shape and yields a typed value", () => {
-    const obj = {
-      name: "hello",
-      description: "Say hello",
-      run: async () => "Hello!",
-    };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("simple");
-    if (detected?.kind === "simple") {
-      // No casts needed: detected.value is typed as SimpleTool.
-      const simpleName: string = detected.value.name;
-      expect(simpleName).toBe("hello");
-      expect(typeof detected.value.run).toBe("function");
-    }
+  it("preserves a native module factory without invoking it during adaptation", () => {
+    const native: KotaModule = { name: "factory", tools: () => { throw new Error("requires activation"); } };
+    expect(adaptExport(native, "factory.ts")).toBe(native);
+    expect(adaptExport({ name: "empty", tools: [] }, "empty.ts")).toEqual({ name: "empty", tools: [] });
   });
 
-  it("classifies a single Vercel AI SDK tool and yields a typed value", () => {
-    const obj = {
-      description: "Get weather",
-      parameters: { type: "object", properties: {} },
-      execute: async () => "sunny",
-    };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("vercel-ai");
-    if (detected?.kind === "vercel-ai") {
-      // No casts needed: detected.value is typed as VercelAITool.
-      const exec: VercelAITool["execute"] = detected.value.execute;
-      expect(typeof exec).toBe("function");
-    }
+  it("retains module metadata and lifecycle while adapting external tool entries", async () => {
+    const onLoad: NonNullable<KotaModule["onLoad"]> = async () => {};
+    const mod = adaptExport({ name: "hybrid", version: "2", description: "Hybrid", tools: [simple], onLoad }, "hybrid.js");
+    expect(mod).toMatchObject({ name: "hybrid", version: "2", description: "Hybrid", onLoad });
+    expect(JSON.parse((await toolsOf(mod)[0].runner({ query: "hybrid" })).content)).toEqual({ query: "hybrid" });
   });
 
-  it("classifies a map of Vercel AI SDK tools and yields typed entries", () => {
-    const obj = {
-      get_weather: {
-        description: "Get weather",
-        parameters: { type: "object", properties: {} },
-        execute: async () => "sunny",
+  it.each([
+    ["scalar", "invalid", "not an object"],
+    ["null", null, "not an object"],
+    ["empty array", [], "empty tool array"],
+    ["unknown object", { unrecognized: true }, "unrecognized export format"],
+    ["empty object", {}, "unrecognized export format"],
+    ["partial map", { good: vercel, bad: "invalid" }, "unrecognized export format"],
+    ["primitive array member", [simple, null], "array items must be objects"],
+    ["all bad array", [{ unrecognized: true }, { ...openai, run: undefined }], "no valid tools"],
+  ] as const)("rejects %s", (_name, exported, message) => {
+    expect(() => adaptExport(exported, "bad.js")).toThrow(message);
+  });
+
+  it.each(["array", "module"])("isolates invalid entries in a %s and retains every healthy runner", async (container) => {
+    const items = [simple, { unrecognized: true }, { ...openai, run: undefined }, vercel, fromSimple({ ...simple, name: "native" })];
+    const mod = adaptExport(container === "array" ? items : { name: "mixed", tools: items }, "mixed.js");
+    const defs = toolsOf(mod);
+    expect(defs.map((def) => def.tool.name)).toEqual(["search", "tool_3", "native"]);
+    for (const def of defs) expect(JSON.parse((await def.runner({ query: "healthy" })).content)).toEqual({ query: "healthy" });
+  });
+});
+
+describe("external result normalization", () => {
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
+  class ApiError extends Error { statusCode = 404; }
+
+  it.each([
+    ["null", null, { content: "" }],
+    ["undefined", undefined, { content: "" }],
+    ["string", "hello", { content: "hello" }],
+    ["number", 42, { content: "42" }],
+    ["boolean", true, { content: "true" }],
+    ["JSON", { items: [1, 2] }, { content: JSON.stringify({ items: [1, 2] }, null, 2) }],
+    ["text", { text: "hello" }, { content: "hello" }],
+    ["tool result", { content: "failed", is_error: true }, { content: "failed", is_error: true }],
+    ["content precedence", { content: "a", text: "b" }, { content: "a", text: "b" }],
+    ["error", new Error("failure"), { content: "failure" }],
+    ["empty error", new Error(), { content: "Error" }],
+    ["error subclass", new ApiError("Not Found"), { content: "Not Found" }],
+    ["circular", circular, { content: "[object — could not serialize (circular reference or non-serializable)]" }],
+  ])("normalizes %s", (_name, input, output) => {
+    expect(normalizeResult(input)).toEqual(output);
+  });
+
+  it.each([
+    ["synchronous", (): number => 42],
+    ["asynchronous", async (): Promise<number> => 42],
+  ] as const)("normalizes %s results at every adapter", async (_name, runner) => {
+    const defs = [fromSimple({ ...simple, run: runner }), fromOpenAI({ ...openai, run: runner }), fromVercelAI({ ...vercel, execute: runner }, "search")];
+    for (const def of defs) expect(await def.runner({})).toEqual({ content: "42" });
+  });
+});
+
+describe("Vercel parameter conversion", () => {
+  it.each([
+    ["raw JSON Schema", parameters],
+    ["AI SDK wrapper", { jsonSchema: parameters }],
+    ["Zod object", z.object({ query: z.string() })],
+  ])("propagates %s through export adaptation", (_name, schema) => {
+    const mod = adaptExport({ ...vercel, parameters: schema }, "search.js");
+    expect(toolsOf(mod)[0].tool.input_schema).toEqual(parameters);
+  });
+
+  it("converts real nested Zod fields, preserving descriptions, nullability and defaults", () => {
+    const schema = z.object({
+      name: z.string().describe("Name"),
+      enabled: z.boolean(),
+      roles: z.array(z.enum(["reader", "writer"])),
+      tag: z.literal("query"),
+      age: z.number().nullable().describe("Age"),
+      bio: z.string().nullable().optional().describe("Biography"),
+      limit: z.number().default(10).describe("Limit"),
+      inner: z.string().describe("inner").optional().describe("outer"),
+      nested: z.object({ value: z.string() }),
+    });
+    const mod = adaptExport({ ...vercel, parameters: schema }, "search.js");
+    expect(toolsOf(mod)[0].tool.input_schema).toEqual({
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name" },
+        enabled: { type: "boolean" },
+        roles: { type: "array", items: { type: "string", enum: ["reader", "writer"] } },
+        tag: { const: "query" },
+        age: { type: ["number", "null"], description: "Age" },
+        bio: { type: ["string", "null"], description: "Biography" },
+        limit: { type: "number", default: 10, description: "Limit" },
+        inner: { type: "string", description: "inner" },
+        nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] },
       },
-      search: {
-        description: "Search",
-        parameters: { type: "object", properties: {} },
-        execute: async () => "results",
-      },
-    };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("vercel-ai-map");
-    if (detected?.kind === "vercel-ai-map") {
-      // No casts needed: each entry's value is typed as VercelAITool.
-      const names: string[] = detected.entries.map(([k]) => k);
-      expect(names).toEqual(["get_weather", "search"]);
-      const firstExecute: VercelAITool["execute"] = detected.entries[0][1].execute;
-      expect(typeof firstExecute).toBe("function");
-    }
+      required: ["name", "enabled", "roles", "tag", "age", "nested"],
+    });
   });
 
-  it("returns null for unrecognized shapes", () => {
-    expect(detectExportFormat({ foo: "bar" })).toBeNull();
-    expect(detectExportFormat({})).toBeNull();
+  it("contains throwing defaults and unsupported nullable Zod fields", () => {
+    const schema = z.object({
+      fallback: z.string().default(() => { throw new Error("unavailable default"); }),
+      opaque: z.unknown().nullable().describe("Opaque"),
+    });
+    expect(fromVercelAI({ ...vercel, parameters: schema }, "search").tool.input_schema).toEqual({
+      type: "object", properties: { fallback: { type: "string" }, opaque: { description: "Opaque" } }, required: ["opaque"],
+    });
   });
 
-  it("does not classify a partial vercel-ai-map (mixed values) as vercel-ai-map", () => {
-    const obj = {
-      ok: { description: "x", parameters: {}, execute: async () => "x" },
-      bad: "not a tool",
-    };
-    expect(detectExportFormat(obj)).toBeNull();
-  });
-
-  it("KotaModule wins over simple-tool when both shapes overlap (no top-level run)", () => {
-    const obj = { name: "hybrid", tools: [] };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("kota-module");
-  });
-
-  it("simple wins over kota-module when a top-level run is present", () => {
-    const obj = { name: "simple", run: async () => "ok", tools: [] };
-    const detected = detectExportFormat(obj);
-    expect(detected?.kind).toBe("simple");
+  it.each([null, undefined, "invalid", {}, z.string()])("normalizes unusable root parameters %#", (schema) => {
+    expect(fromVercelAI({ ...vercel, parameters: schema }, "search").tool.input_schema).toEqual({ type: "object", properties: {} });
   });
 });
