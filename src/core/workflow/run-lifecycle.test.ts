@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -961,21 +961,21 @@ test("publication rejects a copied runtime packet even when a scope still allows
 });
 
 
-test("export failure cannot complete a run and restart finishes retention without repeating execution", async () => {
+test("retention failure cannot complete a run and restart finishes without repeating execution", async () => {
   const value = fixture("export-restart", "none");
   let artifact = "";
   let invalid = "";
   const failed = await lifecycle(value, async context => {
     artifact = join(context.sandbox.artifactDir, "proof.txt");
-    invalid = join(context.sandbox.artifactDir, "linked-proof");
+    invalid = join(value.root, ".kota/runs", value.run.id, "retained-runtime");
     writeFileSync(artifact, "completed execution proof");
-    symlinkSync(artifact, invalid);
+    mkdirSync(invalid, { recursive: true });
     return { kind: "completed" };
   }).execute(value.run, new AbortController().signal);
   expect(failed).toMatchObject({ kind: "suspended", state: "needs_attention" });
   expect(readFileSync(artifact, "utf8")).toBe("completed execution proof");
   expect(value.store.getRun(value.run.id)?.executionCompletedAt).toBeDefined();
-  rmSync(invalid);
+  rmSync(invalid, { recursive: true });
   const stateDir = dirname(value.store.path);
   value.store.close();
   value.store = RunStateDatabase.openExisting(stateDir);
@@ -983,5 +983,5 @@ test("export failure cannot complete a run and restart finishes retention withou
     .execute(value.store.getRun(value.run.id)!, new AbortController().signal);
   expect(resumed).toEqual({ kind: "terminal", state: "succeeded" });
   expect(existsSync(artifact)).toBe(false);
-  expect(readFileSync(join(value.root, ".kota/runs", value.run.id, "evidence-references.md"), "utf8")).toContain("originalSha256");
+  expect(readFileSync(join(invalid, "artifacts/proof.txt"), "utf8")).toBe("completed execution proof");
 });

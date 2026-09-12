@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -87,14 +87,22 @@ const inspectWatchlist = typedCodeStep<Awaited<ReturnType<typeof refreshExplorer
   when: (ctx) => inspectQueue.outputRequired(ctx).needsAttention,
   validate: (raw) => expectStructuredOutput<Awaited<ReturnType<typeof refreshExplorerSources>>>(raw,
     ["sources", "observations", "fingerprint", "shouldReview", "reason", "revisit"]),
-  run: (ctx) => refreshExplorerSources({
-    workspaceRoot: ctx.workspaceRoot,
-    current: decodeExplorerState(ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY).value),
-    runTool: ctx.runTool,
-    capacity: inspectQueue.outputRequired(ctx).capacity,
-    artifactDir: resolveAgentRunDirFromContext(ctx),
-    evidenceDir: ctx.workflow.runDirPath,
-  }),
+  run: async (ctx) => {
+    const previous = decodeExplorerState(ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY).value);
+    const evidence = await refreshExplorerSources({
+      workspaceRoot: ctx.workspaceRoot,
+      current: previous,
+      runTool: ctx.runTool,
+      capacity: inspectQueue.outputRequired(ctx).capacity,
+      artifactDir: resolveAgentRunDirFromContext(ctx),
+      evidenceDir: ctx.workflow.runDirPath,
+    });
+    // Recovery step logs are redacted projections, not domain-state authority.
+    writeJsonFileAtomic(join(ctx.workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT), {
+      ...previous, observedAt: new Date().toISOString(), sources: evidence.sources,
+    });
+    return evidence;
+  },
 });
 
 const explorerWorkflow: WorkflowDefinitionInput = {
@@ -170,20 +178,20 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("inspect-watchlist"),
       run: (ctx) => {
         const evidence = inspectWatchlist.outputRequired(ctx);
-        const previous = decodeExplorerState(ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY).value);
+        const publicationPath = join(ctx.workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT);
+        const observed = readOptionalJsonFile<ExplorerState>(publicationPath);
+        if (observed === null) throw new Error("Explorer source observation artifact is missing");
+        const previous = decodeExplorerState(observed);
         const reviewed = ctx.stepResults.explore?.status === "success";
         const next: ExplorerState = {
           observedAt: new Date().toISOString(),
           lastExplorationAt: reviewed ? new Date().toISOString() : previous.lastExplorationAt,
           lastReviewedFingerprint: reviewed
-            ? explorationFingerprint(ctx.workspaceRoot, evidence.sources)
+            ? explorationFingerprint(ctx.workspaceRoot, previous.sources)
             : previous.lastReviewedFingerprint,
-          sources: evidence.sources,
+          sources: previous.sources,
         };
-        writeJsonFileAtomic(
-          join(ctx.workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT),
-          next,
-        );
+        writeJsonFileAtomic(publicationPath, next);
         return { reviewed, ...next, revisit: evidence.revisit };
       },
     },

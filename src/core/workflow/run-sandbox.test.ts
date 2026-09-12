@@ -4,14 +4,17 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readlinkSync,
+  renameSync,
   rmSync,
+  statSync,
   symlinkSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { resolveRunArtifactHandoff } from "./run-artifact-handoff.js";
 import {
   type RunSandbox,
   RunSandboxManager,
@@ -231,7 +234,7 @@ describe("RunSandboxManager", () => {
 });
 
 
-test("retention failure preserves the sandbox and a restarted cleanup verifies exact originals", () => {
+test("cleanup preserves raw files without review size limits or following fixture links", () => {
   const root = createRepository();
   const manager = new RunSandboxManager(root);
   const sandbox = manager.create({ runId: "retain-proof", repository: "none" });
@@ -240,18 +243,30 @@ test("retention failure preserves the sandbox and a restarted cleanup verifies e
   writeFileSync(source, bytes);
   const linked = join(sandbox.artifactDir, "unsafe-link");
   symlinkSync(source, linked);
-  const failed = manager.cleanup(sandbox);
-  expect(failed.cleaned).toBe(false);
-  expect(failed.blockers.join(" ")).toContain("retention failed");
-  expect(readFileSync(source)).toEqual(bytes);
-  expect(existsSync(sandbox.rootDir)).toBe(true);
-  rmSync(linked);
-  expect(new RunSandboxManager(root).cleanup(sandbox)).toEqual({ cleaned: true, blockers: [] });
-  const receipt = readFileSync(join(root, ".kota/runs/retain-proof/evidence-references.md"), "utf8");
-  const manifestSha256 = receipt.match(/SHA-256: ([a-f0-9]{64})/)![1]!;
-  const handoff = resolveRunArtifactHandoff(root, { runId: "retain-proof", manifestSha256 });
-  const asset = handoff.manifest.entries.find(entry => entry.source.endsWith("packet.bin"));
-  if (asset?.status !== "retained") throw new Error("Missing retained packet");
-  expect(readFileSync(join(root, asset.originalRef))).toEqual(bytes);
+  const large = join(sandbox.artifactDir, "large.bin");
+  writeFileSync(large, "");
+  truncateSync(large, 40 * 1024 * 1024);
+  const original = statSync(large);
+  expect(manager.cleanup(sandbox)).toEqual({ cleaned: true, blockers: [] });
+  const retained = join(root, ".kota/runs/retain-proof/retained-runtime/artifacts");
+  expect(readFileSync(join(retained, "packet.bin"))).toEqual(bytes);
+  expect(readlinkSync(join(retained, "unsafe-link"))).toBe(source);
+  expect(statSync(join(retained, "large.bin"))).toMatchObject({ size: original.size, ino: original.ino });
   expect(existsSync(sandbox.rootDir)).toBe(false);
+  expect(new RunSandboxManager(root).reconcile(sandbox.runId, "none")).toEqual({ status: "removed" });
+});
+
+test("restart completes Git cleanup after raw runtime retention", () => {
+  const root = createRepository();
+  const manager = new RunSandboxManager(root);
+  const sandbox = manager.create({ runId: "cleanup-restart", repository: "write" });
+  writeFileSync(join(sandbox.artifactDir, "proof.txt"), "preserve");
+  const retained = join(root, ".kota/runs", sandbox.runId, "retained-runtime");
+  mkdirSync(join(root, ".kota/runs", sandbox.runId), { recursive: true });
+  renameSync(sandbox.rootDir, retained);
+  const restarted = new RunSandboxManager(root);
+  expect(restarted.adopt(sandbox)).toEqual(sandbox);
+  expect(restarted.cleanup(sandbox)).toEqual({ cleaned: true, blockers: [] });
+  expect(readFileSync(join(retained, "artifacts/proof.txt"), "utf8")).toBe("preserve");
+  expect(restarted.reconcile(sandbox.runId, "write")).toEqual({ status: "removed" });
 });

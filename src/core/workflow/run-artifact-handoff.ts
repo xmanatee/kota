@@ -168,12 +168,6 @@ export function resolveRunArtifactHandoff(scopeRoot: string, selected: LinkedRun
   return { manifestRef, manifestSha256: selected.manifestSha256, manifest, readOnlyPaths };
 }
 
-export function requireRetainedRunArtifacts(input: RetainRunArtifactsInput): void {
-  const handoff = retainRunArtifacts(input);
-  const unavailable = handoff.manifest.entries.filter(entry => entry.status === "unavailable");
-  if (unavailable.length > 0) throw new Error(`Run evidence retention failed: ${JSON.stringify(unavailable)}`);
-}
-
 export const resolveRunArtifactHandoffOperation = defineWorkflowBlockingOperation<{ scopeRoot: string; selected: LinkedRunArtifact }, RunArtifactHandoff>(import.meta.url, "resolveRunArtifactHandoffInWorker");
 export function resolveRunArtifactHandoffInWorker(input: { scopeRoot: string; selected: LinkedRunArtifact }): RunArtifactHandoff {
   return resolveRunArtifactHandoff(input.scopeRoot, input.selected);

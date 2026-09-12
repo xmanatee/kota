@@ -3,7 +3,7 @@ import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, wr
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { requireRetainedRunArtifacts, resolveRunArtifactHandoff, retainRunArtifacts } from "./run-artifact-handoff.js";
+import { resolveRunArtifactHandoff, retainRunArtifacts } from "./run-artifact-handoff.js";
 
 const roots: string[] = [];
 function fixture() {
@@ -76,7 +76,7 @@ test.each(["json", "jsonl", "txt"])("preserves source privacy classification for
   if (extension !== "txt") expect(handoff.manifest.entries.find(entry => entry.source.endsWith(`private-plan.${extension}`))).toMatchObject({ status: "retained", projection: { status: "unavailable" } });
 });
 
-test.each(["symlink", "hardlink", "directory-link"])("rejects %s and keeps retention incomplete", kind => {
+test.each(["symlink", "hardlink", "directory-link"])("keeps %s unavailable to reviewers", kind => {
   const input = fixture();
   const outside = join(input.scopeRoot, "outside");
   mkdirSync(outside);
@@ -87,7 +87,6 @@ test.each(["symlink", "hardlink", "directory-link"])("rejects %s and keeps reten
   else symlinkSync(kind === "directory-link" ? outside : file, target);
   const handoff = retainRunArtifacts(input);
   expect(handoff.manifest.entries).toEqual([expect.objectContaining({ status: "unavailable" })]);
-  expect(() => requireRetainedRunArtifacts(input)).toThrow(/retention failed/);
   expect(readFileSync(file, "utf8")).toBe("unapproved");
 });
 

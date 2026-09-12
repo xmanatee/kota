@@ -50,7 +50,10 @@ and publication.
   run store and grants individual verified projections. Linked snapshots require
   explicit selection and a same-scope run observation. Originals keep exact
   hashes; redacted or unavailable projections never stand in for original bytes.
-  Cleanup verifies retention first and preserves the sandbox on export failure.
+  Cleanup atomically moves private runtime originals into the existing run store;
+  review projection limits or unprojectable test files do not prevent cleanup.
+  Failed retention preserves the sandbox. Restart reconciles partial Git cleanup
+  against the same retained allocation, without rerunning integrated work.
   Repository publication rejects new or changed run packets; artifacts belong
   under the runtime-provided agent and artifact directories. Historical copies
   may be retired only after their retained replacement has been verified.

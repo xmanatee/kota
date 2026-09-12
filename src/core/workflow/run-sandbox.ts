@@ -13,7 +13,6 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 import { defineWorkflowBlockingOperation, runWorkflowBlockingOperation, type WorkflowBlockingOperationRunOptions } from "./blocking-operation.js";
-import { requireRetainedRunArtifacts } from "./run-artifact-handoff.js";
 
 export type RepositoryAccess = "none" | "read" | "write";
 
@@ -290,6 +289,7 @@ export class RunSandboxManager {
 
   reconcile(runId: string, repository: RepositoryAccess): RunSandboxReconciliation {
     const paths = this.pathsFor(runId, repository);
+    this.restoreRuntimeForCleanup(runId, paths);
     const competingWorkspace =
       repository === "none"
         ? join(this.worktreesDir, allocationName(runId))
@@ -315,7 +315,7 @@ export class RunSandboxManager {
     }
 
     if (absentRuntime && !workspaceExists && !branchExists) {
-      return { status: "absent" };
+      return { status: existsSync(this.retainedRuntimePath(runId)) ? "removed" : "absent" };
     }
     if (!completeRuntime && !absentRuntime) {
       throw new Error(`Cannot reconcile run "${runId}": runtime directories are incomplete`);
@@ -365,9 +365,8 @@ export class RunSandboxManager {
       ) {
         throw new Error(`Cannot reconcile run "${runId}": writer branch is not integrated`);
       }
-      if (completeRuntime) this.retainArtifacts(runId, { ...paths, baseCommit: branchHead });
+      if (completeRuntime) this.retainRuntime(runId, paths.rootDir);
       git(this.repoRoot, ["branch", "-d", branch]);
-      if (completeRuntime) rmSync(paths.rootDir, { recursive: true });
       return { status: "removed" };
     }
 
@@ -376,6 +375,7 @@ export class RunSandboxManager {
 
   adopt(sandbox: RunSandbox): RunSandbox {
     this.assertOwnedPaths(sandbox);
+    this.restoreRuntimeForCleanup(sandbox.runId, sandbox);
     for (const path of [
       sandbox.rootDir,
       sandbox.workspaceDir,
@@ -399,11 +399,7 @@ export class RunSandboxManager {
     if (git(this.repoRoot, ["worktree", "list", "--porcelain", "-z"])
       .split("\0").includes(`worktree ${sandbox.workspaceDir}`)) return false;
     if (existsSync(sandbox.rootDir)) {
-      const retained = join(this.repoRoot, ".kota", "runs", sandbox.runId, "retained-runtime");
-      assertContained(this.repoRoot, retained);
-      if (existsSync(retained)) throw new Error(`Run "${sandbox.runId}" already has retained runtime evidence`);
-      mkdirSync(dirname(retained), { recursive: true });
-      renameSync(sandbox.rootDir, retained);
+      this.retainRuntime(sandbox.runId, sandbox.rootDir);
     }
     return true;
   }
@@ -416,9 +412,8 @@ export class RunSandboxManager {
   cleanup(sandbox: RunSandbox): RunSandboxCleanup {
     this.assertOwnedPaths(sandbox);
     if (sandbox.repository === "none") {
-      try { this.retainArtifacts(sandbox.runId, sandbox); }
+      try { this.retainRuntime(sandbox.runId, sandbox.rootDir); }
       catch (error) { return { cleaned: false, blockers: [error instanceof Error ? error.message : "evidence-retention-failed"] }; }
-      rmSync(sandbox.rootDir, { recursive: true });
       return { cleaned: true, blockers: [] };
     }
 
@@ -461,7 +456,7 @@ export class RunSandboxManager {
       }
     }
 
-    try { this.retainArtifacts(sandbox.runId, sandbox); }
+    try { this.retainRuntime(sandbox.runId, sandbox.rootDir); }
     catch (error) { return { cleaned: false, blockers: [error instanceof Error ? error.message : "evidence-retention-failed"] }; }
 
     // Git performs a final dirtiness and ownership check while removing the worktree.
@@ -469,15 +464,31 @@ export class RunSandboxManager {
     if (sandbox.repository === "write") {
       git(this.repoRoot, ["branch", "-d", sandbox.branch]);
     }
-    rmSync(sandbox.rootDir, { recursive: true });
     return { cleaned: true, blockers: [] };
   }
 
-  private retainArtifacts(runId: string, paths: SandboxPaths & { baseCommit?: string }): void {
-    requireRetainedRunArtifacts({ scopeRoot: this.repoRoot, runId, sourceRevision: paths.baseCommit, roots: [
-      { name: "agent", path: join(paths.rootDir, "agent") },
-      { name: "artifacts", path: paths.artifactDir },
-    ] });
+  private retainedRuntimePath(runId: string): string {
+    const retained = join(this.repoRoot, ".kota", "runs", runId, "retained-runtime");
+    assertContained(this.repoRoot, retained);
+    return retained;
+  }
+
+  /** Move private originals without interpreting, following links or duplicating them. */
+  private retainRuntime(runId: string, rootDir: string): void {
+    const retained = this.retainedRuntimePath(runId);
+    if (existsSync(retained)) throw new Error(`Run "${runId}" already has retained runtime evidence`);
+    mkdirSync(dirname(retained), { recursive: true });
+    renameSync(rootDir, retained);
+  }
+
+  private restoreRuntimeForCleanup(runId: string, paths: SandboxPaths): void {
+    if (existsSync(paths.rootDir)) return;
+    const retained = this.retainedRuntimePath(runId);
+    // Retention may have completed before Git removed the worktree or branch.
+    if (existsSync(retained) && (existsSync(paths.workspaceDir) ||
+      gitSucceeds(this.repoRoot, ["show-ref", "--verify", `refs/heads/${this.branchFor(runId)}`]))) {
+      renameSync(retained, paths.rootDir);
+    }
   }
 
   private requireScopeRepository(): string {
