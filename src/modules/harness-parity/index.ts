@@ -120,6 +120,26 @@ const harnessParityModule: KotaModule = {
   description:
     "Runs coding-task scenarios across every registered agent harness and captures paired artifacts.",
   dependencies: ["rendering", "model-clients", "eval-harness"],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [{
+      id: "harness-parity.contained-model-matrix",
+      description: "Run paired model comparisons within host-authorized profiles.",
+      scope: "external",
+      scopePolicyHooks: ["external-effects", "writes"],
+    }],
+    dataClasses: [{
+      id: "harness-parity.results",
+      description: "Paired execution results and provider evidence.",
+      sensitivity: "provider-payload",
+      retention: "run-artifact",
+      redaction: "metadata-only",
+    }],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: ["Live model comparisons invoke external providers."],
+    },
+  },
   tools: [containedMatrixTool],
   commands: (ctx: ModuleContext): Command[] => [
     buildHarnessParityCommand({ ctx }),
