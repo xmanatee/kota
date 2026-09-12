@@ -1,8 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  type OwnedProcessIdentity,
   type ProcessIdentity,
   type ProcessOutcome,
   ProcessSupervisor,
@@ -100,7 +102,8 @@ async function startProcessTree(): Promise<{
 
 function prepareInterruptedRun(
   store: RunStateDatabase,
-  persistedIdentity: ProcessIdentity,
+  persistedIdentity: OwnedProcessIdentity,
+  ...additionalIdentities: OwnedProcessIdentity[]
 ): {
   daemonEpoch: number;
   attempts: ReturnType<RunStateDatabase["beginDaemonSession"]>["recovered"];
@@ -125,13 +128,15 @@ function prepareInterruptedRun(
       acquiredAt: "2026-08-25T10:00:03.000Z",
     }),
   ).toBe(true);
-  store.registerAttemptProcess({
-    runId: "run-a",
-    epoch: first.epoch,
-    processKey: `${persistedIdentity.pid}:${persistedIdentity.osStartToken}`,
-    identity: { ...persistedIdentity },
-    registeredAt: "2026-08-25T10:00:04.000Z",
-  });
+  for (const identity of [persistedIdentity, ...additionalIdentities]) {
+    store.registerAttemptProcess({
+      runId: "run-a",
+      epoch: first.epoch,
+      processKey: "kind" in identity ? `resource:${identity.key}` : `${identity.pid}:${identity.osStartToken}`,
+      identity: { ...identity },
+      registeredAt: "2026-08-25T10:00:04.000Z",
+    });
+  }
   const second = store.beginDaemonSession("2026-08-25T10:01:00.000Z");
   return { daemonEpoch: second.epoch, attempts: second.recovered };
 }
@@ -230,4 +235,89 @@ describe.skipIf(process.platform === "win32")("recoverInterruptedRuns", () => {
       processes: [],
     });
   });
+});
+
+test("restart removes a resource registered before its client launch and preserves ownership if cleanup is unavailable", async () => {
+  const store = createStore();
+  const directory = join(roots.at(-1)!, "temporary-login");
+  mkdirSync(directory);
+  const { daemonEpoch, attempts } = prepareInterruptedRun(store, {
+    kind: "resource", key: randomUUID(), cleanup: { kind: "directory", path: directory },
+  });
+  expect(await recoverInterruptedRuns({ store, daemonEpoch, attempts })).toEqual([]);
+  expect(existsSync(directory)).toBe(false);
+  expect(store.getRun("run-a")?.state).toBe("queued");
+
+  const other = createStore();
+  const interrupted = prepareInterruptedRun(other, {
+    kind: "resource", key: randomUUID(), cleanup: { kind: "command", command: "docker", args: ["rm", "--force", "owned-container"], absentMessage: "No such container" },
+  });
+  const launch = vi.spyOn(ProcessSupervisor.prototype, "run").mockResolvedValue({
+    status: "spawn-failed", attemptedAt: "2026-09-12T00:00:00Z", commandHash: "cleanup",
+    error: { code: "ECONNREFUSED", message: "Container server unavailable" },
+  });
+  try {
+    expect(await recoverInterruptedRuns({ store: other, ...interrupted })).toMatchObject([{ runId: "run-a", reason: expect.stringContaining("Container server unavailable") }]);
+    expect(other.getRun("run-a")?.state).not.toBe("queued");
+    launch.mockResolvedValue({ status: "completed", identity: { pid: 1, processGroupId: 1, osStartToken: "test", observedCommandHash: "test" }, exitCode: 1, signal: null,
+      stdout: { text: "", totalBytes: 0, truncated: false }, stderr: { text: "No such container: owned-container", totalBytes: 34, truncated: false } });
+    expect(await recoverInterruptedRuns({ store: other, ...interrupted })).toEqual([]);
+    expect(other.getRun("run-a")?.state).toBe("queued");
+  } finally { launch.mockRestore(); }
+});
+
+
+test.each(["identity-mismatch", "still-running", "termination-error", "resource-error"] as const)(
+  "restart attempts independent resource cleanup after %s and retains unresolved ownership",
+  async (failure) => {
+    const store = createStore();
+    const directory = join(roots.at(-1)!, "temporary-login");
+    mkdirSync(directory);
+    const identity: ProcessIdentity = { pid: 321, processGroupId: 321, osStartToken: "previous-attempt", observedCommandHash: "client" };
+    const recovery = prepareInterruptedRun(store, identity,
+      { kind: "resource", key: "00000000-0000-4000-8000-000000000001", cleanup: { kind: "command", command: "docker", args: ["rm", "--force", "owned-evaluation"] } },
+      { kind: "resource", key: "00000000-0000-4000-8000-000000000002", cleanup: { kind: "directory", path: directory } },
+    );
+    const completed: ProcessOutcome = { status: "completed", identity, exitCode: 0, signal: null,
+      stdout: { text: "", totalBytes: 0, truncated: false }, stderr: { text: "", totalBytes: 0, truncated: false } };
+    const launch = vi.spyOn(ProcessSupervisor.prototype, "run").mockResolvedValue(failure === "resource-error"
+      ? { status: "spawn-failed", attemptedAt: "2026-09-12T00:00:00Z", commandHash: "cleanup", error: { code: "ECONNREFUSED", message: "Container server unavailable" } }
+      : completed);
+    try {
+      const blocked = await recoverInterruptedRuns({ store, ...recovery, terminate: async () => {
+        if (failure === "termination-error") throw new Error("Process inspection failed");
+        if (failure === "identity-mismatch") return { status: "identity-mismatch", observed: { ...identity, osStartToken: "reused-pid" }, escalated: false };
+        if (failure === "still-running") return { status: "still-running", escalated: true };
+        return { status: "not-running", escalated: false };
+      } });
+      expect(blocked).toHaveLength(1);
+      expect(launch).toHaveBeenCalledTimes(1);
+      expect(existsSync(directory)).toBe(false);
+      expect(store.getRun("run-a")).toMatchObject({ state: "needs_attention", processes: recovery.attempts[0]!.processes,
+        resources: ["repo:default:integration", "task:task-a"], wait: { reason: "daemon-restart-process-recovery" } });
+      launch.mockResolvedValue(completed);
+      const next = store.beginDaemonSession("2026-08-25T10:02:00.000Z");
+      expect(await recoverInterruptedRuns({ store, daemonEpoch: next.epoch, attempts: next.recovered,
+        terminate: async () => ({ status: "not-running", escalated: false }) })).toEqual([]);
+      expect(store.getRun("run-a")).toMatchObject({ state: "queued", processes: [] });
+    } finally { launch.mockRestore(); }
+  },
+);
+
+
+test("restart confirms resource removal after its creating client has stopped", async () => {
+  const store = createStore();
+  const directory = join(roots.at(-1)!, "late-resource");
+  const identity: ProcessIdentity = { pid: 321, processGroupId: 321, osStartToken: "previous-attempt", observedCommandHash: "client" };
+  // Resources are registered before their client launches, matching production.
+  const recovery = prepareInterruptedRun(store,
+    { kind: "resource", key: "00000000-0000-4000-8000-000000000001", cleanup: { kind: "directory", path: directory } },
+    identity,
+  );
+  expect(await recoverInterruptedRuns({ store, ...recovery, terminate: async () => {
+    mkdirSync(directory, { recursive: true });
+    return { status: "terminated", escalated: false };
+  } })).toEqual([]);
+  expect(existsSync(directory)).toBe(false);
+  expect(store.getRun("run-a")).toMatchObject({ state: "queued", processes: [] });
 });

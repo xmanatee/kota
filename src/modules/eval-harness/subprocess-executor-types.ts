@@ -1,10 +1,13 @@
 import type { AgentHarness } from "#core/agent-harness/index.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type {
   ContainerNetworkPolicyRequest,
   ProviderEgressTaskSubprocessBoundaryRequest,
 } from "./provider-egress.js";
 
 export type SubprocessExecutorOptions = {
+  onProcessSpawn?: ProcessSpawnObserver;
+  onExecutionFailure?: (error: Error) => void;
   /** Path to the `kota` binary (`./bin/kota.mjs` when running from the repo). */
   kotaBinaryPath: string;
   /**
@@ -73,7 +76,7 @@ export type SubprocessChildSpec = {
   cwd: string;
   env: NodeJS.ProcessEnv;
   label: string;
-  cleanup?: () => void;
+  cleanup?: () => void | Promise<void>;
 };
 
 export type ContainerIsolationBackend = Extract<

@@ -42,6 +42,12 @@ export function createWorkflowAgentHarnessRunner(
           ...options,
           ...(onProcessSpawn === undefined ? {} : { onProcessSpawn }),
           abortController,
+          onExecutionFailure: (error) => {
+            const classification = classifyThrownAgentError(error);
+            if (!classification || !agentBackoff) return;
+            const signal = { ...classification, reason: incidentReason({ harnessName: harness.name, message: error.message }) };
+            agentBackoff.apply(signal);
+          },
         },
         execution.writer,
       );

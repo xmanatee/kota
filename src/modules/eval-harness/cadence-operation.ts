@@ -157,6 +157,8 @@ export async function runEvalHarnessCadenceInWorker(
     { isolationBackend: input.isolationBackend, hostClass: CADENCE_HOST_CLASS },
     process.env,
     context.signal,
+    context.onProcessSpawn,
+    context.onExecutionFailure,
   );
   const runArtifactBaseDir = join(input.runDirPath, "eval-runs");
   const progressHeartbeat = setInterval(

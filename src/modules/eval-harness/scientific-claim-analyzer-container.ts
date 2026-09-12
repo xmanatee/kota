@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   closeSync,
   lstatSync,
@@ -7,6 +8,7 @@ import {
   statSync,
 } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 
 const ANALYZER_MEMORY_LIMIT_MB = 256;
 const ANALYZER_CPU_LIMIT = "0.5";
@@ -142,8 +144,10 @@ export function scientificClaimAnalyzerContainerArgs(params: {
     throw new Error("analyzer containers require a POSIX uid and gid");
   }
   const memoryLimit = `${ANALYZER_MEMORY_LIMIT_MB}m`;
+  const containerName = `kota-eval-analyzer-${randomUUID()}`;
+  registerOwnedProcessResource({ kind: "command", command: params.isolation.command, args: ["rm", "--force", containerName], absentMessage: "No such container" });
   return [
-    "run",
+    "run", "--name", containerName,
     "--rm",
     "--init",
     "--cidfile",

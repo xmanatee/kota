@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { dirname, isAbsolute, join, } from "node:path";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
 import type { ExecutionNetworkPolicy } from "./provider-egress.js";
 import type { WorkflowExecutionRequest } from "./runner.js";
@@ -58,6 +60,7 @@ export function containerRunArgs(params: {
   workingDir: string;
   envFilePath: string;
   authMount?: string;
+  containerName?: string;
   command: string;
   commandArgs: string[];
 }): string[] {
@@ -66,8 +69,10 @@ export function containerRunArgs(params: {
   const mountArgs = containerMountArgs({
     workingDir: params.workingDir,
   });
+  const containerName = params.containerName ?? `kota-eval-${randomUUID()}`;
+  registerOwnedProcessResource({ kind: "command", command: params.backend.executable, args: ["rm", "--force", containerName], absentMessage: "No such container" });
   return [
-    "run",
+    "run", "--name", containerName,
     "--rm",
     "--init",
     ...containerNetworkArgs(networkPolicy),

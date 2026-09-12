@@ -1,5 +1,6 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import {
   PRESET_ENV_VAR,
   resolveActivePresetFromConfig,
@@ -17,6 +18,7 @@ import {
   detectHostSubprocessResourceProfile,
   type SubprocessIsolationBackend,
 } from "./subprocess-executor.js";
+import type { SubprocessExecutorOptions } from "./subprocess-executor-types.js";
 
 export const DEFAULT_HOST_CLASS = "local-dev";
 
@@ -120,38 +122,74 @@ function buildProfile(options: EvalRunOptions): ResourceProfile {
 }
 
 export type EvalRunExecution = {
+  signal?: AbortSignal;
+  onProcessSpawn?: ProcessSpawnObserver;
   executor: WorkflowExecutor;
   requestedProfile: ResourceProfile;
   isolationBackend: SubprocessIsolationBackend;
   executorEnv: Record<string, string>;
 };
 
+export type PreparedEvalRunExecution = {
+  executorOptions: Omit<SubprocessExecutorOptions, "signal" | "onProcessSpawn" | "onExecutionFailure">;
+  requestedProfile: ResourceProfile;
+  isolationBackend: SubprocessIsolationBackend;
+  executorEnv: Record<string, string>;
+};
+
+export type EvalExecutionContext = {
+  artifactDir: string;
+  signal: AbortSignal;
+  env?: NodeJS.ProcessEnv;
+  prepared?: PreparedEvalRunExecution;
+  onProcessSpawn?: ProcessSpawnObserver;
+  onExecutionFailure?: (error: Error) => void;
+};
+
+/** Resolve adapter-owned auth and harness facts on the trusted module host. */
+export function prepareEvalRunExecution(
+  workspaceRoot: string,
+  options: EvalRunOptions,
+  env: NodeJS.ProcessEnv = process.env,
+): PreparedEvalRunExecution {
+  const isolationBackend = isolationBackendForRun(options);
+  const executorEnv = executorExtraEnvForRun(workspaceRoot, isolationBackend, env);
+  return {
+    executorOptions: {
+      kotaBinaryPath: resolveKotaBinary(),
+      isolationBackend,
+      extraEnv: executorEnv,
+      ...(isolationBackend.kind === "container" ? {
+        containerAuth: resolveAgentHarness(resolveActivePresetFromConfig(loadConfig(workspaceRoot), env).harness)
+          .resolveIsolatedContainerAuth?.(env),
+      } : {}),
+      providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(workspaceRoot, isolationBackend, env),
+    },
+    requestedProfile: buildProfile(options), isolationBackend, executorEnv,
+  };
+}
+
+export function instantiateEvalRunExecution(
+  prepared: PreparedEvalRunExecution,
+  context?: Partial<Pick<EvalExecutionContext, "signal" | "onProcessSpawn" | "onExecutionFailure">>,
+): EvalRunExecution {
+  return {
+    executor: createSubprocessExecutor({ ...prepared.executorOptions, ...context }),
+    signal: context?.signal,
+    onProcessSpawn: context?.onProcessSpawn,
+    requestedProfile: prepared.requestedProfile,
+    isolationBackend: prepared.isolationBackend,
+    executorEnv: prepared.executorEnv,
+  };
+}
+
 export function createEvalRunExecution(
   workspaceRoot: string,
   options: EvalRunOptions,
   env: NodeJS.ProcessEnv = process.env,
   signal?: AbortSignal,
+  onProcessSpawn?: ProcessSpawnObserver,
+  onExecutionFailure?: (error: Error) => void,
 ): EvalRunExecution {
-  const isolationBackend = isolationBackendForRun(options);
-  const executorEnv = executorExtraEnvForRun(workspaceRoot, isolationBackend, env);
-  return {
-    executor: createSubprocessExecutor({
-      kotaBinaryPath: resolveKotaBinary(),
-      isolationBackend,
-      extraEnv: executorEnv,
-      signal,
-      ...(isolationBackend.kind === "container" ? {
-        containerAuth: resolveAgentHarness(resolveActivePresetFromConfig(loadConfig(workspaceRoot), env).harness)
-          .resolveIsolatedContainerAuth?.(env),
-      } : {}),
-      providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
-        workspaceRoot,
-        isolationBackend,
-        env,
-      ),
-    }),
-    requestedProfile: buildProfile(options),
-    isolationBackend,
-    executorEnv,
-  };
+  return instantiateEvalRunExecution(prepareEvalRunExecution(workspaceRoot, options, env), { signal, onProcessSpawn, onExecutionFailure });
 }

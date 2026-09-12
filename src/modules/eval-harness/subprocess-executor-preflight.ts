@@ -37,6 +37,7 @@ function preflightContainerBackend(
 
   const probe = spawnSync(backend.executable, ["--version"], {
     encoding: "utf8",
+      timeout: 5000, killSignal: "SIGKILL",
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (probe.status !== 0 || probe.error !== undefined) {
@@ -67,6 +68,7 @@ function preflightContainerBackend(
     ["image", "inspect", backend.image],
     {
       encoding: "utf8",
+      timeout: 5000, killSignal: "SIGKILL",
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

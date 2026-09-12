@@ -10,6 +10,7 @@ import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import type {
@@ -136,6 +137,7 @@ export type WorkflowStepResult =
   | WorkflowNonAgentStepResult;
 
 export type WorkflowStepContext = {
+  onProcessSpawn?: ProcessSpawnObserver;
   /** The current step's cancellation and timeout signal during runtime execution. */
   signal?: AbortSignal;
   approvalQueue?: ApprovalQueue;

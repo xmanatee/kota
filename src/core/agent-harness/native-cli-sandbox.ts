@@ -341,7 +341,7 @@ export async function withNativeCliSandbox<T>(
       env,
     });
   } finally {
-    runAuthorization?.close();
+    await runAuthorization?.close();
     await egressProxy?.close();
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }

@@ -1,4 +1,6 @@
 import { Worker } from "node:worker_threads";
+import { drainOwnedProcesses, parseProcessResource } from "#core/execution/owned-process-resources.js";
+import { type OwnedProcessIdentity, type ProcessSpawnObserver, ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 
 export type WorkflowBlockingOperation<TInput, TOutput> = {
@@ -18,6 +20,8 @@ export type WorkflowBlockingOperationRunner = {
 export type WorkflowBlockingOperationContext = {
   signal: AbortSignal;
   reportProgress: (label?: string) => void;
+  onProcessSpawn?: ProcessSpawnObserver;
+  onExecutionFailure?: (error: Error) => void;
 };
 
 export type WorkflowBlockingOperationHandler<TInput, TOutput> = (
@@ -48,6 +52,8 @@ type SerializedBlockingOperationError = {
 };
 
 type BlockingWorkerMessage =
+  | { type: "process"; identity: OwnedProcessIdentity; ack: SharedArrayBuffer }
+  | { type: "execution-failure"; message: string }
   | { type: "result"; output: BlockingWorkerPayload }
   | { type: "progress"; label?: string }
   | { type: "error"; error: SerializedBlockingOperationError };
@@ -55,6 +61,8 @@ type BlockingWorkerMessage =
 export type WorkflowBlockingOperationRunOptions = {
   signal?: AbortSignal;
   reportProgress?: WorkflowStepProgressReporter;
+  onProcessSpawn?: ProcessSpawnObserver;
+  onExecutionFailure?: (error: Error) => void;
 };
 
 export class WorkflowBlockingOperationError extends Error {
@@ -128,9 +136,11 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
   return new Promise<TOutput>((resolve, reject) => {
     const operationId = `${operation.moduleUrl}#${operation.exportName}`;
     let settled = false;
+    let workerExited = false;
     let abortReason: Error | undefined;
     let abortTermination: ReturnType<typeof setTimeout> | undefined;
     let worker: Worker;
+    const identities: OwnedProcessIdentity[] = [];
     try {
       worker = createBlockingWorker({
         moduleUrl: operation.moduleUrl,
@@ -149,8 +159,17 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
     const settle = (callback: () => void): void => {
       if (settled) return;
       settled = true;
-      dispose();
-      callback();
+      options.signal?.removeEventListener("abort", onAbort);
+      // Resource cleanup starts before worker exit: synchronous subprocesses
+      // may otherwise prevent terminate() from completing. Registration is now
+      // closed, and a final sweep after exit covers registration/launch races.
+      if (!workerExited) {
+        abortTermination = setTimeout(() => { void worker.terminate(); }, 250);
+      }
+      void drainOwnedProcesses(identities, () => workerExited).then(() => {
+        dispose();
+        callback();
+      });
     };
     const onAbort = (): void => {
       if (settled || abortReason !== undefined) return;
@@ -160,18 +179,30 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
       } catch {
         // A worker that has already exited is handled by its exit event.
       }
-      // Keep ownership until exit: cooperative operations can reap their
-      // subprocesses before the caller observes cancellation.
-      abortTermination = setTimeout(() => {
-        void worker.terminate();
-      }, 250);
-      abortTermination.unref();
+      settle(() => reject(abortReason));
     };
 
     options.signal?.addEventListener("abort", onAbort, { once: true });
     if (options.signal?.aborted) onAbort();
     worker.on("message", (message: BlockingWorkerMessage) => {
+      if (message.type === "process") {
+        const ack = new Int32Array(message.ack);
+        let accepted = false;
+        try {
+          const identity = "kind" in message.identity ? parseProcessResource(message.identity) : ProcessSupervisor.parsePersistedIdentity(message.identity);
+          identities.push(identity);
+          // A process may already have spawned when cancellation races its
+          // notification. Persist ownership even when further launch is denied.
+          options.onProcessSpawn?.(identity);
+          accepted = !settled && abortReason === undefined;
+        } catch { /* The worker fails closed before launching the resource. */ } finally { Atomics.store(ack, 0, accepted ? 1 : -1); Atomics.notify(ack, 0); }
+        return;
+      }
       if (settled || abortReason !== undefined) return;
+      if (message.type === "execution-failure") {
+        options.onExecutionFailure?.(new Error(message.message));
+        return;
+      }
       if (message.type === "progress") {
         options.reportProgress?.({
           kind: "code-heartbeat",
@@ -200,6 +231,7 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
     });
     worker.on("error", (error) => {
       if (abortReason !== undefined) return;
+      abortReason = error;
       settle(() =>
         reject(
           new WorkflowBlockingOperationError(operationId, error.message, {
@@ -210,11 +242,13 @@ export function runWorkflowBlockingOperation<TInput, TOutput>(
       );
     });
     worker.on("exit", (code) => {
+      workerExited = true;
       if (settled) return;
       if (abortReason !== undefined) {
         settle(() => reject(abortReason));
         return;
       }
+      abortReason = new Error("Blocking worker exited before returning a result");
       settle(() =>
         reject(
           new WorkflowBlockingOperationError(

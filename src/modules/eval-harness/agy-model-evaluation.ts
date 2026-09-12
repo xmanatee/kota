@@ -23,9 +23,11 @@ import {
   evalRunsRootFor,
   fixturesRootFor,
 } from "./eval-operations.js";
+import type { EvalExecutionContext } from "./eval-run-execution.js";
 import {
   createEvalRunExecution,
   type EvalRunExecution,
+  instantiateEvalRunExecution,
 } from "./eval-run-execution.js";
 import { type EvalSetReport, runEvalSet } from "./eval-set.js";
 import { type LoadedFixture, loadFixture } from "./fixture.js";
@@ -42,7 +44,7 @@ export type AgyModelEvaluationDependencies = {
   probeAvailability(
     requestedModels: readonly string[],
     execution: EvalRunExecution,
-  ): AgyModelAvailabilityProbe;
+  ): AgyModelAvailabilityProbe | Promise<AgyModelAvailabilityProbe>;
   createExecution(
     workspaceRoot: string,
     options: AgyModelEvaluationOptions,
@@ -114,6 +116,7 @@ export async function runAgyModelEvaluationSuite(
   workspaceRoot: string,
   options: AgyModelEvaluationOptions,
   dependencyOverrides: Partial<AgyModelEvaluationDependencies> = {},
+  context?: EvalExecutionContext,
 ): Promise<AgyModelEvaluationResult> {
   const deps = { ...DEFAULT_DEPENDENCIES, ...dependencyOverrides };
   const candidates = uniqueCandidates(options.candidates);
@@ -146,14 +149,16 @@ export async function runAgyModelEvaluationSuite(
   }
 
   const startedAt = deps.now();
-  const artifactDir = deps.createArtifactDir(workspaceRoot, startedAt);
+  const artifactDir = context?.artifactDir ?? deps.createArtifactDir(workspaceRoot, startedAt);
   const forcedEnv: NodeJS.ProcessEnv = {
     ...process.env,
     [PRESET_ENV_VAR]: "antigravity-cli",
   };
   let execution: EvalRunExecution;
   try {
-    execution = deps.createExecution(workspaceRoot, options, forcedEnv);
+    execution = context?.prepared ? instantiateEvalRunExecution(context.prepared, context) : context
+      ? createEvalRunExecution(workspaceRoot, options, context.env ?? forcedEnv, context.signal, context.onProcessSpawn, context.onExecutionFailure)
+      : deps.createExecution(workspaceRoot, options, forcedEnv);
   } catch (error) {
     return {
       ok: false,
@@ -162,7 +167,7 @@ export async function runAgyModelEvaluationSuite(
       artifactDir,
     };
   }
-  const availability = deps.probeAvailability(candidates, execution);
+  const availability = await deps.probeAvailability(candidates, execution);
   writeFileSync(
     join(artifactDir, "agy-availability.json"),
     JSON.stringify(availability.evidence, null, 2),

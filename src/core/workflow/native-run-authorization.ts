@@ -9,6 +9,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { nativeToolExecutor } from "#core/tools/native-tool-execution.js";
+import { nativeToolRequests, requestNativeTool } from "./native-tool-transport.js";
 import { allocationName, canonicalRepositoryRoot } from "./run-sandbox.js";
 import { RunStateDatabase } from "./run-state-database.js";
 
@@ -50,9 +52,9 @@ function fingerprint(identity: NativeRunIdentity): string {
 }
 
 /**
- * Offline request/reply boundary. Only request names cross into the host; no
- * agent-controlled file contents or links are opened. Each fresh challenge gets
- * one boolean reply in a runtime-owned, sandbox-read-only directory.
+ * Offline request/reply boundary. Writer challenges receive a boolean reply.
+ * Opted-in tools decode bounded request contents and use the hosting invocation
+ * authority; responses and artifacts remain runtime-owned and worker-read-only.
  */
 export function startNativeRunAuthorization(
   workspace: string,
@@ -63,7 +65,7 @@ export function startNativeRunAuthorization(
   readableRoots: string[];
   writableRoots: string[];
   writeProtectedRoots: string[];
-  close(): void;
+  close(): Promise<void>;
 } | undefined {
   const identity = runIdentity(workspace, env);
   if (identity === null) {
@@ -77,7 +79,7 @@ export function startNativeRunAuthorization(
   }
   const serviceParent = join(identity.rootDir, "native-authorizations");
   for (const root of [identity.workspaceDir, ...mutableRoots]) {
-    for (const protectedRoot of [stateDir, serviceParent]) {
+    for (const protectedRoot of [stateDir, serviceParent, join(identity.rootDir, "native-tool-artifacts")]) {
       if (isWithin(realpathSync(root), protectedRoot)) {
         throw new Error("Native run authority must be outside sandbox mutable roots");
       }
@@ -102,11 +104,19 @@ export function startNativeRunAuthorization(
     const responses = join(serviceRoot, "responses");
     mkdirSync(requests);
     mkdirSync(responses);
+    writeFileSync(join(responses, "tool-protocol"), "1", { flag: "wx" });
+    const artifactParent = join(identity.rootDir, "native-tool-artifacts");
+    mkdirSync(artifactParent, { recursive: true });
+    if (realpathSync(artifactParent) !== artifactParent) throw new Error(DENIED);
+    const artifactRoot = join(artifactParent, invocation);
+    mkdirSync(artifactRoot);
+    const toolRequests = nativeToolRequests(requests, responses, requireActiveWriter, nativeToolExecutor(artifactRoot, { runId: identity.runId, workspaceDir: identity.workspaceDir, scopeRoot: canonicalRepositoryRoot(workspace) }));
     const expectedFingerprint = fingerprint(identity);
     const answered = new Set<string>();
     const timer = setInterval(() => {
       try {
         const pending = new Set(readdirSync(requests));
+        toolRequests.poll(pending);
         for (const name of answered) {
           if (!pending.has(name)) {
             rmSync(join(responses, name), { force: true });
@@ -130,13 +140,16 @@ export function startNativeRunAuthorization(
     timer.unref();
     return {
       env: { KOTA_RUN_AUTHORIZATION: invocation },
-      readableRoots: [responses, requests],
+      readableRoots: [responses, requests, artifactRoot],
       writableRoots: [requests],
-      writeProtectedRoots: [responses],
-      close() {
+      writeProtectedRoots: [responses, artifactRoot],
+      async close() {
         clearInterval(timer);
-        store.close();
-        rmSync(serviceRoot!, { recursive: true, force: true });
+        try { await toolRequests.close(); }
+        finally {
+          store.close();
+          rmSync(serviceRoot!, { recursive: true, force: true });
+        }
       },
     };
   } catch (error) {
@@ -186,4 +199,17 @@ export function nativeRunWriterAuthorization(
       rmSync(request, { force: true });
     }
   };
+}
+
+/** Native clients inherit only their invocation locator, never daemon credentials. */
+export async function invokeNativeRunTool(
+  workspace: string, name: string, input: Record<string, unknown>, signal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const identity = runIdentity(workspace, env);
+  const invocation = env.KOTA_RUN_AUTHORIZATION;
+  if (!identity || !invocation || !/^[a-f0-9]{32}$/.test(invocation)) throw new Error(DENIED);
+  const serviceRoot = join(identity.rootDir, "native-authorizations", invocation);
+  if (realpathSync(serviceRoot) !== serviceRoot) throw new Error(DENIED);
+  return requestNativeTool(serviceRoot, name, input, signal);
 }

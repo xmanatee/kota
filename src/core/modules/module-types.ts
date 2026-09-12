@@ -179,6 +179,8 @@ export type CreateSessionOptions = {
 
 /** A tool definition contributed by a module. */
 export type ToolDef = {
+  /** Opt into the native invocation transport; shared tool authorization still applies. */
+  nativeInvocation?: boolean;
   tool: KotaTool;
   runner: ToolRunner;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */

@@ -105,3 +105,12 @@ compare-and-set, and events publish only after run success.
   changes regression scores.
 - Provider/model evaluations require their declared container, egress policy,
   candidate availability, and artifact evidence; they fail visibly when prerequisites are unavailable.
+
+Native workflow callers use the [contained evaluation surface](contained-evaluation.md).
+Host environment profiles bound its scope, scenarios, image, egress and resources;
+worker arguments never supply host capabilities. Resolve adapter facts on the
+module host, then use the shared blocking worker and run process registry.
+Register independent container resources before launch, including verifier and
+availability containers. Availability uses the same asynchronous process supervisor
+and cancellation signal as candidate execution. Temporary auth snapshots also belong to that cleanup
+lifetime. Results remain under the originating run's runtime-owned artifacts.

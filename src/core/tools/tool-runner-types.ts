@@ -16,6 +16,7 @@ import type {
 	ScopePolicyAuthority,
 	ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { Transport } from "#core/loop/transport.js";
 import type {
 	McpInputResolver,
@@ -62,6 +63,9 @@ export type LocalToolExecution = {
 };
 
 export type ToolCallExecutionOptions = {
+  /** Report delegated execution failures to the owning runtime incident gate. */
+  onExecutionFailure?: (error: Error) => void;
+  onProcessSpawn?: ProcessSpawnObserver;
 	resultLimit: number;
 	verbose: boolean;
 	autonomyMode: AutonomyMode;

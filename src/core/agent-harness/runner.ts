@@ -12,6 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { withNativeToolExecution } from "#core/tools/native-tool-execution.js";
 import {
   registerSessionEnvironment,
   unregisterSessionEnvironment,
@@ -273,7 +274,9 @@ async function executeAgentHarness(
         effectiveOptions,
         (runOptions) => {
           if (requireNativeQuarantine) continuity.beginNativeExecution();
-          const execution = harness.run(runOptions, cancellation.writer);
+          const execution = harness.toolControl === "native"
+            ? withNativeToolExecution(runOptions, () => harness.run(runOptions, cancellation.writer))
+            : harness.run(runOptions, cancellation.writer);
           try { cancellation.assertNativeQuarantineRegistered(); }
           catch (error) { void execution.catch(() => {}); throw error; }
           return execution;

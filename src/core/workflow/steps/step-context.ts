@@ -477,6 +477,7 @@ export function createStepContext(
     ...(deps.deadLetterQueue !== undefined
       ? { deadLetterQueue: deps.deadLetterQueue }
       : {}),
+    onProcessSpawn: deps.runContext?.processes.register,
     reportProgress: () => {},
     triggerWorkflow: async (workflowName, payload, waitFor, signal, triggerId) => {
       if (!deps.triggerWorkflow) {

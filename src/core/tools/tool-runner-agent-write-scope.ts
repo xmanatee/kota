@@ -68,7 +68,7 @@ export function isAgentOutputOnlyWrite(
 ): boolean {
   if (options.agentOutputDir === undefined) return false;
   if (!effect) return false;
-  const queries = scopePolicyToolEffectQueries(block.name, effect, block.input, targets);
+  const queries = scopePolicyToolEffectQueries(block.name, effect, block.input, targets).filter(isLocalWriteQuery);
   if (queries.length === 0) return false;
 
   const cwd = options.cwd ?? process.cwd();

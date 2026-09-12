@@ -118,6 +118,7 @@ export function commitModuleTools(
     );
     trackModuleRegistration(state, mod.name, registerTool(def.tool, def.runner, mod.name, {
       effect: def.effect,
+      nativeInvocation: def.nativeInvocation,
       moduleName: mod.name,
       ...(manifestEffect
         ? { manifestEffect: { ...manifestEffect, moduleName: mod.name } }

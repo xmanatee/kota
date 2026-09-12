@@ -1,8 +1,10 @@
-import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentEffort } from "#core/agent-harness/index.js";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
+import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import {
   parseAntigravityCliModelCatalog,
   resolveAntigravityCliCatalogModel,
@@ -13,6 +15,7 @@ import {
   type AgyModelAvailabilityEvidence,
 } from "./agy-model-evaluation-types.js";
 import type { EvalRunExecution } from "./eval-run-execution.js";
+import { forceRemoveContainerReference } from "./isolated-container-process.js";
 import type { WorkflowExecutionRequest } from "./runner.js";
 import {
   containerKotaDistDir,
@@ -36,7 +39,7 @@ export type AgyModelsCommandResult = {
 
 export type AgyModelsCommandRunner = (
   execution: EvalRunExecution,
-) => AgyModelsCommandResult;
+) => AgyModelsCommandResult | Promise<AgyModelsCommandResult>;
 
 export type AgyModelAvailabilityProbe =
   | { ok: true; evidence: AgyModelAvailabilityEvidence }
@@ -49,9 +52,10 @@ export type AgyModelAvailabilityProbe =
 
 export const parseAgyAvailableModels = parseAntigravityCliModelCatalog;
 
-export function runAgyModelsCommand(
+export async function runAgyModelsCommand(
   execution: EvalRunExecution,
-): AgyModelsCommandResult {
+): Promise<AgyModelsCommandResult> {
+  execution.signal?.throwIfAborted();
   const backend = execution.isolationBackend;
   if (backend.kind !== "container") {
     return {
@@ -85,6 +89,7 @@ export function runAgyModelsCommand(
   }
 
   const workingDir = mkdtempSync(join(tmpdir(), "kota-agy-model-availability-"));
+  registerOwnedProcessResource({ kind: "directory", path: workingDir });
   const request: WorkflowExecutionRequest = {
     workflowName: "agy-model-availability",
     workingDir,
@@ -103,45 +108,50 @@ export function runAgyModelsCommand(
     executionProfile.networkPolicy,
   );
   const envFile = writeContainerEnvFile(containerEnv);
+  const containerName = `kota-agy-availability-${randomUUID()}`;
+  const cliEnv = dockerCliEnv(executionProfile.networkPolicy);
+  const cleanupContainer = async () => {
+    const cleanup = await forceRemoveContainerReference(backend.executable, containerName, cliEnv);
+    if (cleanup.error || (cleanup.status !== 0 && !cleanup.stderr?.includes("No such container"))) {
+      throw new Error(`AGY availability container cleanup failed: ${cleanup.error?.message ?? cleanup.stderr ?? cleanup.status}`);
+    }
+  };
   try {
-    const result = spawnSync(
-      backend.executable,
-      containerRunArgs({
-        backend,
-        executionProfile,
-        workingDir,
-        envFilePath: envFile.path,
-        command: "agy",
-        commandArgs: ["models"],
+    const result = await new ProcessSupervisor({
+      command: backend.executable,
+      args: containerRunArgs({
+        backend, containerName, executionProfile, workingDir,
+        envFilePath: envFile.path, command: "agy", commandArgs: ["models"],
       }),
-      {
-        cwd: workingDir,
-        encoding: "utf8",
-        env: dockerCliEnv(executionProfile.networkPolicy),
-        maxBuffer: 1024 * 1024,
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: 30_000,
-      },
-    );
+      cwd: workingDir, env: cliEnv,
+      captureLimitBytesPerStream: 1024 * 1024, terminationGraceMs: 1000,
+      signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(execution.signal ? [execution.signal] : [])]),
+      onSpawn: execution.onProcessSpawn,
+    }).run();
+    execution.signal?.throwIfAborted();
+    if (result.status === "spawn-failed") {
+      return { status: null, stdout: "", stderr: "", runtimeDetail, errorMessage: result.error.message };
+    }
     return {
-      status: result.status,
-      stdout: typeof result.stdout === "string" ? result.stdout : "",
-      stderr: typeof result.stderr === "string" ? result.stderr : "",
-      runtimeDetail,
-      ...(result.error !== undefined && { errorMessage: result.error.message }),
+      status: result.exitCode, stdout: result.stdout.text, stderr: result.stderr.text, runtimeDetail,
+      ...(result.status === "aborted" && { errorMessage: "AGY availability exceeded its deadline" }),
     };
   } finally {
-    envFile.cleanup();
-    rmSync(workingDir, { recursive: true, force: true });
+    try {
+      await cleanupContainer();
+    } finally {
+      envFile.cleanup();
+      rmSync(workingDir, { recursive: true, force: true });
+    }
   }
 }
 
-export function probeAgyModelAvailability(
+export async function probeAgyModelAvailability(
   requestedModels: readonly string[],
   execution: EvalRunExecution,
   runCommand: AgyModelsCommandRunner = runAgyModelsCommand,
-): AgyModelAvailabilityProbe {
-  const commandResult = runCommand(execution);
+): Promise<AgyModelAvailabilityProbe> {
+  const commandResult = await runCommand(execution);
   const availableModels = parseAgyAvailableModels(
     [commandResult.stdout, commandResult.stderr].join("\n"),
   );

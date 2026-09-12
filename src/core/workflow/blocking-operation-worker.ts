@@ -1,4 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
+import { withOwnedProcessResources } from "#core/execution/owned-process-resources.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type {
   WorkflowBlockingOperationContext,
   WorkflowBlockingOperationHandler,
@@ -56,7 +58,15 @@ async function main(): Promise<void> {
         `Module ${data.moduleUrl} does not export blocking operation ${data.exportName}`,
       );
     }
+    const onProcessSpawn: ProcessSpawnObserver = (identity) => {
+      const ack = new Int32Array(new SharedArrayBuffer(4));
+      port.postMessage({ type: "process", identity, ack: ack.buffer });
+      Atomics.wait(ack, 0, 0, 10_000);
+      if (Atomics.load(ack, 0) !== 1) throw new Error("Runtime did not accept process resource ownership");
+    };
     const context: WorkflowBlockingOperationContext = {
+      onProcessSpawn,
+      onExecutionFailure: (error) => port.postMessage({ type: "execution-failure", message: error.message }),
       signal: abortController.signal,
       reportProgress: (label) =>
         port.postMessage({
@@ -64,7 +74,7 @@ async function main(): Promise<void> {
           ...(label !== undefined ? { label } : {}),
         }),
     };
-    const output = await operation(data.input, context);
+    const output = await withOwnedProcessResources(onProcessSpawn, () => operation(data.input, context));
     port.postMessage({ type: "result", output });
   } catch (error) {
     const normalized = error instanceof Error ? error : new Error(String(error));

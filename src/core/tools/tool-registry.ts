@@ -3,6 +3,7 @@ import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
 import type { ToolEffect } from "./effect.js";
 import {
@@ -21,6 +22,9 @@ import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 
 export type { ToolResult, ToolResultBlock };
 export type ToolRunnerContext = {
+  /** Report delegated execution failures to the owning runtime incident gate. */
+  onExecutionFailure?: (error: Error) => void;
+  onProcessSpawn?: ProcessSpawnObserver;
 	approvalQueue?: ApprovalQueue;
 	sessionId?: string;
 	toolUseId?: string;

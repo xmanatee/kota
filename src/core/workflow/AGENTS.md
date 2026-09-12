@@ -126,3 +126,14 @@ and publication.
 Use `typedCodeStep<T>` for consumed code-step output. Its decoder validates fresh
 and persisted values; `output` is optional, while `outputRequired` rejects a
 missing value. Untyped steps remain appropriate for scalar or unread output.
+
+Native authorization also transports bounded calls to explicitly opted-in module
+tools. Invocation authority comes from the hosting agent context and current run
+attempt, never request fields. The shared tool pipeline still checks scope and
+effects. Calls drain before the native authorization lifetime closes.
+Blocking workers synchronously acknowledge durable process/resource registration
+before proceeding; cancellation starts independent cleanup before waiting for
+worker exit. Cleanup failures retain the invocation while other owners are drained;
+return requires worker exit, confirmed client termination, and a final resource
+removal sweep after those producers have stopped. Restart recovery uses the same process registry for idempotent resource removal and
+preserves ownership when removal cannot be confirmed.

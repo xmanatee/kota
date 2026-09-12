@@ -65,3 +65,47 @@ export async function runProgressFixture(
   }
   return { value: input.value, blockedForMs: Date.now() - startedAt };
 }
+
+/** An allocated external resource remains owned even if the worker is terminated. */
+export async function runOwnedResourceFixture(
+  input: { directory: string; mode: "return" | "throw" | "block" },
+  context: WorkflowBlockingOperationContext,
+): Promise<string> {
+  const { registerOwnedProcessResource } = await import("#core/execution/owned-process-resources.js");
+  const { mkdirSync } = await import("node:fs");
+  registerOwnedProcessResource({ kind: "directory", path: input.directory });
+  mkdirSync(input.directory);
+  writeFileSync(`${input.directory}/owned`, "resource");
+  context.reportProgress("resource-ready");
+  if (input.mode === "throw") throw new Error("resource operation failed");
+  if (input.mode === "block") while (true) { /* Deliberately uncooperative external operation. */ }
+  return "resource completed";
+}
+
+
+export async function runCleanupFaultFixture(
+  input: { directory: string; processIds?: number[]; container?: boolean; synchronousChildStarted?: string; reportBeforeRegistration?: boolean },
+  context: WorkflowBlockingOperationContext,
+): Promise<string> {
+  const { registerOwnedProcessResource } = await import("#core/execution/owned-process-resources.js");
+  const { mkdirSync } = await import("node:fs");
+  if (input.reportBeforeRegistration) context.reportProgress("before-registration");
+  for (const pid of input.processIds ?? []) {
+    context.onProcessSpawn?.({ pid, processGroupId: pid, osStartToken: "fixture", observedCommandHash: "external-process-port" });
+  }
+  registerOwnedProcessResource({ kind: "directory", path: input.directory });
+  mkdirSync(input.directory);
+  if (input.container) registerOwnedProcessResource({ kind: "command", command: "docker", args: ["rm", "--force", "cleanup-fixture"] });
+  if (input.synchronousChildStarted) {
+    const { spawnSync } = await import("node:child_process");
+    // This child is released by cleanup of its registered resource. It detects
+    // the deadlock caused by waiting for worker exit before starting cleanup.
+    const result = spawnSync(process.execPath, ["-e", `
+      const fs = require("node:fs");
+      fs.writeFileSync(process.argv[1], "started");
+      while (fs.existsSync(process.argv[2])) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    `, input.synchronousChildStarted, input.directory], { timeout: 3000, killSignal: "SIGKILL" });
+    if (result.error) throw result.error;
+  }
+  return "cleanup complete";
+}

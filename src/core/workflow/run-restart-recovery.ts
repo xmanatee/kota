@@ -1,3 +1,4 @@
+import { parseProcessResource } from "#core/execution/owned-process-resources.js";
 import {
   type ProcessIdentity,
   ProcessSupervisor,
@@ -35,20 +36,23 @@ export async function recoverInterruptedRuns(input: {
     if (attempt.previousEpoch <= 0) {
       reason = "the interrupted run has no valid owning daemon epoch";
     } else {
+      // Each record has independent ownership. A stale PID must not prevent
+      // cleanup of other processes, containers, or credential snapshots.
       for (const persisted of attempt.processes) {
         try {
+          if (persisted.kind === "resource") {
+            await ProcessSupervisor.cleanupResource(parseProcessResource(persisted).cleanup);
+            continue;
+          }
           const outcome = await terminate(parseIdentity(persisted), graceMs);
           if (outcome.status === "identity-mismatch") {
-            reason = "a persisted process PID now belongs to a different process";
-            break;
+            reason ??= "a persisted process PID now belongs to a different process";
           }
           if (outcome.status === "still-running") {
-            reason = "an owned process group remained alive after forced termination";
-            break;
+            reason ??= "an owned process group remained alive after forced termination";
           }
         } catch (error) {
-          reason = error instanceof Error ? error.message : String(error);
-          break;
+          reason ??= error instanceof Error ? error.message : String(error);
         }
       }
     }

@@ -1,6 +1,7 @@
 import { closeSync, constants, fstatSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import type { SubprocessExecutorOptions } from "./subprocess-executor-types.js";
 
 type ContainerAuth = NonNullable<SubprocessExecutorOptions["containerAuth"]>;
@@ -48,6 +49,7 @@ export function snapshotContainerAuth(auth: ContainerAuth, workingDir: string): 
   try { directory = mkdtempSync(join(tmpdir(), "kota-eval-login-")); }
   catch (error) { closeSync(fd); throw error; }
   try {
+    registerOwnedProcessResource({ kind: "directory", path: directory });
     writeFileSync(join(directory, auth.fileName), readFileSync(fd), { mode: 0o600, flag: "wx" });
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

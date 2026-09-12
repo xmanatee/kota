@@ -28,7 +28,7 @@ const UNUSED_AVAILABILITY_EXECUTION: EvalRunExecution = {
 };
 
 describe("AGY model availability", () => {
-  it("parses and de-duplicates candidate ids from agy models output", () => {
+  it("parses and de-duplicates candidate ids from agy models output", async () => {
     expect(
       parseAgyAvailableModels(
         "Available models:\n- gemini-3.6-flash-high default\n" +
@@ -37,15 +37,15 @@ describe("AGY model availability", () => {
     ).toEqual(["gemini-3.5-pro-high", "gemini-3.6-flash-high"]);
   });
 
-  it("refuses to fall back to a host model catalog", () => {
-    expect(runAgyModelsCommand(UNUSED_AVAILABILITY_EXECUTION)).toMatchObject({
+  it("refuses to fall back to a host model catalog", async () => {
+    expect(await runAgyModelsCommand(UNUSED_AVAILABILITY_EXECUTION)).toMatchObject({
       status: null,
       errorMessage: expect.stringContaining("host execution is forbidden"),
     });
   });
 
-  it("fails visibly when any requested candidate is unavailable", () => {
-    const result = probeAgyModelAvailability(
+  it("fails visibly when any requested candidate is unavailable", async () => {
+    const result = await probeAgyModelAvailability(
       ["gemini-3.6-flash", "gemini-missing"],
       UNUSED_AVAILABILITY_EXECUTION,
       () => ({
@@ -74,8 +74,8 @@ describe("AGY model availability", () => {
     });
   });
 
-  it("requires the effort-qualified catalog entry for a candidate", () => {
-    const highAvailable = probeAgyModelAvailability(
+  it("requires the effort-qualified catalog entry for a candidate", async () => {
+    const highAvailable = await probeAgyModelAvailability(
       ["gemini-3.6-flash"],
       UNUSED_AVAILABILITY_EXECUTION,
       () => ({
@@ -95,7 +95,7 @@ describe("AGY model availability", () => {
       },
     });
 
-    const baseOnly = probeAgyModelAvailability(
+    const baseOnly = await probeAgyModelAvailability(
       ["gemini-3.6-flash"],
       UNUSED_AVAILABILITY_EXECUTION,
       () => ({

@@ -272,7 +272,7 @@ function assertToolDefinitions(moduleName: string, values: readonly unknown[]): 
     const label = `Module "${moduleName}" tool[${index}]`;
     assertRecord(value, label);
     assertKnownFields(value, new Set([
-      "tool", "runner", "group", "effect", "resolveEffect", "resolveFilesystemTargets",
+      "tool", "runner", "group", "effect", "resolveEffect", "resolveFilesystemTargets", "nativeInvocation",
     ]), label);
     assertRecord(value.tool, `${label}.tool`);
     assertKnownFields(
@@ -290,6 +290,7 @@ function assertToolDefinitions(moduleName: string, values: readonly unknown[]): 
     }
     if (typeof value.runner !== "function") throw new Error(`${label}.runner must be a function`);
     if (value.group !== undefined) assertNonEmptyString(value.group, `${label}.group`);
+    if (value.nativeInvocation !== undefined && typeof value.nativeInvocation !== "boolean") throw new Error(`${label}.nativeInvocation must be a boolean`);
     if (value.resolveEffect !== undefined && typeof value.resolveEffect !== "function") {
       throw new Error(`${label}.resolveEffect must be a function when declared`);
     }

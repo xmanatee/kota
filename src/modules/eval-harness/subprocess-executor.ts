@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { forceRemoveContainerReference } from "./isolated-container-process.js";
+
 /**
  * Subprocess-backed workflow executor.
  *
@@ -7,8 +10,8 @@
  * fixture budget the executor kills it with SIGTERM and reports `timeout`.
  */
 
-import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
+import { type ProcessSpawnObserver, ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import { writeStderr } from "#modules/rendering/transport.js";
 import { containerAuthIssue, snapshotContainerAuth } from "./container-auth.js";
 import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
@@ -116,10 +119,10 @@ export function createSubprocessExecutor(
           request,
           existingWorkflowRunIds,
           startMs,
-          options.signal,
+          options.signal, options.onProcessSpawn, options.onExecutionFailure,
         );
       } finally {
-        childSpec.cleanup?.();
+        await childSpec.cleanup?.();
       }
     },
   };
@@ -162,10 +165,13 @@ function buildChildSpec(params: {
     );
     const containerEnvFile = writeContainerEnvFile({ ...containerEnv, ...login?.env });
     envFile = containerEnvFile;
+    const containerName = `kota-eval-${randomUUID()}`;
+    const containerCliEnv = dockerCliEnv(params.request.executionProfile.networkPolicy);
     return {
       command: backend.executable,
       args: containerRunArgs({
         backend,
+        containerName,
         executionProfile: params.request.executionProfile,
         workingDir: params.request.workingDir,
         envFilePath: containerEnvFile.path,
@@ -174,9 +180,14 @@ function buildChildSpec(params: {
         commandArgs: workflowExecArgs(backend.kotaBinaryPath, params.request),
       }),
       cwd: params.request.workingDir,
-      env: dockerCliEnv(params.request.executionProfile.networkPolicy),
+      env: containerCliEnv,
       label: `container isolation backend "${backend.executable}"`,
-      cleanup: () => { containerEnvFile.cleanup(); login?.cleanup(); },
+      cleanup: async () => {
+        try {
+          const result = await forceRemoveContainerReference(backend.executable, containerName, containerCliEnv);
+          if (result.error || (result.status !== 0 && !result.stderr?.includes("No such container"))) throw new Error(`Container cleanup failed: ${result.error?.message ?? result.stderr ?? result.status}`);
+        } finally { containerEnvFile.cleanup(); login?.cleanup(); }
+      },
     };
   } catch (error) { envFile?.cleanup(); login?.cleanup(); throw error; }
 }
@@ -187,41 +198,27 @@ async function runChildAndReadOutcome(
   existingWorkflowRunIds: ReadonlySet<string>,
   startMs: number,
   signal?: AbortSignal,
+  onProcessSpawn?: ProcessSpawnObserver,
+  onExecutionFailure?: (error: Error) => void,
 ): Promise<WorkflowExecutionOutcome> {
-  const child = spawn(childSpec.command, childSpec.args, {
-    cwd: childSpec.cwd,
-    env: childSpec.env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  child.stdout.resume();
-  child.stderr.on("data", (chunk) => {
-    writeStderr(String(chunk));
-  });
-
+  const budget = new AbortController();
   let timedOut = false;
   const budgetTimer = setTimeout(() => {
     timedOut = true;
-    child.kill("SIGTERM");
+    budget.abort(new Error("Evaluation fixture budget exceeded"));
   }, request.budgetMs);
-  const onAbort = (): void => {
-    child.kill("SIGTERM");
-  };
-  signal?.addEventListener("abort", onAbort, { once: true });
-
-  let code: number | null;
-  let spawnError: Error | null;
+  let outcome: Awaited<ReturnType<ProcessSupervisor["run"]>>;
   try {
-    ({ code, spawnError } = await new Promise<{
-      code: number | null;
-      spawnError: Error | null;
-    }>((resolve) => {
-      child.on("exit", (exitCode) => resolve({ code: exitCode, spawnError: null }));
-      child.on("error", (err) => resolve({ code: null, spawnError: err }));
-    }));
-  } finally {
-    clearTimeout(budgetTimer);
-    signal?.removeEventListener("abort", onAbort);
-  }
+    outcome = await new ProcessSupervisor({
+      command: childSpec.command, args: childSpec.args, cwd: childSpec.cwd, env: childSpec.env,
+      captureLimitBytesPerStream: 64 * 1024, terminationGraceMs: 1000,
+      signal: signal ? AbortSignal.any([signal, budget.signal]) : budget.signal,
+      onSpawn: onProcessSpawn,
+      onOutput: (event) => { if (event.stream === "stderr") writeStderr(event.data); },
+    }).run();
+  } finally { clearTimeout(budgetTimer); }
+  const code = outcome.status === "spawn-failed" ? null : outcome.exitCode;
+  const spawnError = outcome.status === "spawn-failed" ? outcome.error : null;
   signal?.throwIfAborted();
 
   const durationMs = Date.now() - startMs;
@@ -247,6 +244,8 @@ async function runChildAndReadOutcome(
     : null;
 
   if (code !== 0) {
+    onExecutionFailure?.(new Error(outcome.status === "spawn-failed" ? outcome.error.message : outcome.stderr.text));
+    signal?.throwIfAborted();
     return {
       kind: "error",
       durationMs,

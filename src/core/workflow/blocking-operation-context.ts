@@ -21,6 +21,7 @@ export function withWorkflowBlockingOperation(
     runBlocking: (operation, input) =>
       runWorkflowBlockingOperation(operation, input, {
         signal: context.signal,
+        onProcessSpawn: context.onProcessSpawn,
         reportProgress: context.reportProgress,
       }),
   };

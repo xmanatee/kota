@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import type {
   AvailableExecutableVerifierSandbox,
   ExecutableVerifierContext,
@@ -116,6 +117,7 @@ function verifierContainerArgs(params: {
   }
   const profile = params.executionProfile.observedOrEnforcedProfile;
   const memoryLimit = `${profile.memoryKillThresholdMB}m`;
+  registerOwnedProcessResource({ kind: "command", command: params.sandbox.command, args: ["rm", "--force", params.containerName], absentMessage: "No such container" });
   const cpuTimeLimitSeconds = Math.max(1, Math.ceil(params.timeoutMs / 1_000));
   return [
     "run",

@@ -8,6 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
+import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import { envWithoutSourceConditionNodeOption } from "#core/util/node-options.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -189,6 +190,7 @@ export function writeContainerEnvFile(
   env: Record<string, string>,
 ): ContainerEnvFile {
   const dir = mkdtempSync(join(tmpdir(), "kota-eval-container-env-"));
+  registerOwnedProcessResource({ kind: "directory", path: dir });
   const path = join(dir, "env");
   writeFileSync(path, dockerEnvFileContent(env), {
     encoding: "utf8",

@@ -89,6 +89,8 @@ export async function executeToolBlock(
 		return toolResultEntry(block, staleResult);
 	}
 	const runnerContext = {
+    onProcessSpawn: options.onProcessSpawn,
+    onExecutionFailure: options.onExecutionFailure,
 		...(approvalQueue !== undefined ? { approvalQueue } : {}),
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,

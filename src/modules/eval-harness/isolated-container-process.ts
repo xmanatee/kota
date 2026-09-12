@@ -13,6 +13,7 @@ export type IsolatedContainerProcessResult = {
 };
 
 export type IsolatedContainerCleanupResult = {
+  stderr?: string;
   error?: Error;
   signal: NodeJS.Signals | null;
   status: number | null;
@@ -54,8 +55,10 @@ export function forceRemoveContainerReference(
   return new Promise((resolve) => {
     const child = spawn(command, ["rm", "--force", reference], {
       env,
-      stdio: ["ignore", "ignore", "ignore"],
+      stdio: ["ignore", "ignore", "pipe"],
     });
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4096); });
     let cleanupError: Error | undefined;
     const timeout = setTimeout(() => {
       cleanupError = processError(
@@ -70,6 +73,7 @@ export function forceRemoveContainerReference(
     child.once("close", (status, signal) => {
       clearTimeout(timeout);
       resolve({
+        stderr,
         ...(cleanupError !== undefined && { error: cleanupError }),
         signal,
         status,

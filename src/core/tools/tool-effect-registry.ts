@@ -11,6 +11,8 @@ export type ToolEffectResolver = (
 ) => ToolEffect | undefined;
 
 export type ToolEffectMetadata = {
+  /** Opt into the native invocation transport; shared tool authorization still applies. */
+  nativeInvocation?: boolean;
   effect: ToolEffect;
   resolveEffect?: ToolEffectResolver;
   /** Complete filesystem mutation targets; omission leaves local writes unknown. */

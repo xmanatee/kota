@@ -19,7 +19,7 @@ import { createEvalRunExecution } from "./eval-run-execution.js";
 afterEach(cleanupAgyModelEvaluationTestEnvironment);
 
 describe("AGY model availability container", () => {
-  it("probes models through the production candidate container execution", () => {
+  it("probes models through the production candidate container execution", async () => {
     const runtimeDir = tempDir("kota-agy-production-runtime-");
     const containerLog = join(runtimeDir, "availability-container.jsonl");
     const options = configureFakeCandidateContainer(runtimeDir, containerLog);
@@ -28,7 +28,7 @@ describe("AGY model availability container", () => {
       [PRESET_ENV_VAR]: "antigravity-cli",
     });
 
-    expect(runAgyModelsCommand(execution)).toMatchObject({
+    expect(await runAgyModelsCommand(execution)).toMatchObject({
       status: 0,
       stdout: expect.stringContaining(`${AGY_OPTIONS.candidates[0]}-high`),
     });

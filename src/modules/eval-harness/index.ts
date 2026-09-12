@@ -27,6 +27,7 @@ import type {
   EvalRunOptions,
   EvalRunResult,
 } from "./client.js";
+import { containedEvaluationTool } from "./contained-evaluation.js";
 import { evalHarnessControlRoutes } from "./eval-control-routes.js";
 import {
   listEvalFixtures,
@@ -53,6 +54,7 @@ const evalHarnessModule: KotaModule = {
     "repo-tasks",
   ],
   events: [evalHarnessSetCompleted],
+  tools: [containedEvaluationTool],
   commands: (ctx) => [buildEvalCommand(ctx)],
   routes: (ctx) => evalHarnessRoutes(ctx),
   controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),

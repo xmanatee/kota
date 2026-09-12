@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
-import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
+import type { OwnedProcessIdentity } from "#core/execution/process-supervisor.js";
 import { nativeRunWriterAuthorization } from "./native-run-authorization.js";
 import type { RunResourceProfile } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
@@ -99,7 +99,7 @@ export function fingerprintToolEffectRequest(
 }
 
 export type RunProcessRegistry = Readonly<{
-  register(identity: ProcessIdentity): void;
+  register(identity: OwnedProcessIdentity): void;
 }>;
 
 const RUN_REPOSITORY_ACCESS = Symbol("run-repository-access");
@@ -237,11 +237,11 @@ function deepFreeze<T>(value: T): T {
 
 export function createRunContext(input: CreateRunContextInput): RunContext {
   const processes: RunProcessRegistry = Object.freeze({
-    register(identity: ProcessIdentity): void {
+    register(identity: OwnedProcessIdentity): void {
       input.store.registerAttemptProcess({
         runId: input.runId,
         epoch: input.daemonEpoch,
-        processKey: `${identity.pid}:${identity.osStartToken}`,
+        processKey: "kind" in identity ? `resource:${identity.key}` : `${identity.pid}:${identity.osStartToken}`,
         identity: { ...identity },
         registeredAt: input.now(),
       });

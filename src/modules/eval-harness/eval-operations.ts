@@ -17,7 +17,8 @@ import type {
   EvalRunResult,
 } from "./client.js";
 import { toEvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
-import { createEvalRunExecution } from "./eval-run-execution.js";
+import type { EvalExecutionContext } from "./eval-run-execution.js";
+import { createEvalRunExecution, instantiateEvalRunExecution } from "./eval-run-execution.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import {
@@ -62,6 +63,7 @@ export async function runEvalHarness(
   workspaceRoot: string,
   options: EvalRunOptions = {},
   bus?: EventBus,
+  execution?: EvalExecutionContext,
 ): Promise<EvalRunResult> {
   const fixturesRoot = fixturesRootFor();
   let fixtures: ReturnType<typeof loadAllFixtures>;
@@ -89,17 +91,19 @@ export async function runEvalHarness(
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const runArtifactBaseDir = join(evalRunsRootFor(workspaceRoot), stamp);
+  const runArtifactBaseDir = execution?.artifactDir ?? join(evalRunsRootFor(workspaceRoot), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
-  const { executor, requestedProfile } = createEvalRunExecution(
+  const { executor, requestedProfile } = execution?.prepared ? instantiateEvalRunExecution(execution.prepared, execution) : createEvalRunExecution(
     workspaceRoot,
     options,
+    execution?.env, execution?.signal, execution?.onProcessSpawn, execution?.onExecutionFailure,
   );
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
   let report: Awaited<ReturnType<typeof runEvalSet>>;
   try {
     report = await runEvalSet({
       workspaceRoot,
+      env: execution?.env,
       fixtures,
       executor,
       requestedProfile,

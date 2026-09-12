@@ -7,7 +7,7 @@ import type {
   ScopePolicyAuthority,
   ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
-import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -95,6 +95,8 @@ export type AgentOutputSchema = Record<string, AgentOutputSchemaValue>;
  * validated by the resolved adapter's `validateStepOptions`.
  */
 export type AgentHarnessRunOptions = {
+  /** Report delegated execution failures to the owning runtime incident gate. */
+  onExecutionFailure?: (error: Error) => void;
   prompt: string;
   model?: string;
   /**
@@ -201,7 +203,7 @@ export type AgentHarnessRunOptions = {
    * isolated process group. Runtime owners use this to durably fence recovery
    * before the child can perform meaningful work.
    */
-  onProcessSpawn?: (identity: ProcessIdentity) => void;
+  onProcessSpawn?: ProcessSpawnObserver;
   /**
    * Run-local cancellation control installed by `runAgentHarness` for native
    * tool loops. Callers do not provide this field; a native adapter declaring

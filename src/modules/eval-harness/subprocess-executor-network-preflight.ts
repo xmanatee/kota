@@ -139,6 +139,7 @@ export function preflightContainerNetworkPolicy(
     ["network", "inspect", request.enforcement.networkName],
     {
       encoding: "utf8",
+      timeout: 5000, killSignal: "SIGKILL",
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

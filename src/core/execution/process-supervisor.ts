@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { rm } from "node:fs/promises";
 
 const MAX_TIMER_MS = 2_147_483_647;
 const PROCESS_POLL_MS = 20;
@@ -26,7 +27,19 @@ export type ProcessIdentity = Readonly<{
   osStartToken: string;
 }>;
 
-export type ProcessSpawnObserver = (identity: ProcessIdentity) => void;
+export type ProcessCleanupCommand = Readonly<{ kind: "directory"; path: string }> | Readonly<{
+  kind: "command";
+  command: string;
+  args: readonly string[];
+  absentMessage?: string;
+}>;
+export type ProcessResourceIdentity = Readonly<{
+  kind: "resource";
+  key: string;
+  cleanup: ProcessCleanupCommand;
+}>;
+export type OwnedProcessIdentity = ProcessIdentity | ProcessResourceIdentity;
+export type ProcessSpawnObserver = (identity: OwnedProcessIdentity) => void;
 
 export type ProcessVerification =
   | Readonly<{ status: "owned"; observed: ProcessIdentity }>
@@ -339,6 +352,18 @@ export class ProcessSupervisor {
     return sameIdentity(identity, observed)
       ? { status: "owned", observed }
       : { status: "identity-mismatch", observed };
+  }
+
+  static async cleanupResource(cleanup: ProcessCleanupCommand): Promise<void> {
+    if (cleanup.kind === "directory") { await rm(cleanup.path, { recursive: true, force: true }); return; }
+    const result = await new ProcessSupervisor({
+      command: cleanup.command, args: cleanup.args, cwd: "/", env: process.env,
+      captureLimitBytesPerStream: 4096, terminationGraceMs: 1000,
+      signal: AbortSignal.timeout(5000),
+    }).run();
+    if (result.status === "completed" && (result.exitCode === 0 ||
+      (cleanup.absentMessage !== undefined && result.stderr.text.includes(cleanup.absentMessage)))) return;
+    throw new Error(`Owned process resource cleanup failed: ${result.status === "spawn-failed" ? result.error.message : result.stderr.text}`);
   }
 
   static async terminateOwnedProcess(
