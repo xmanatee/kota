@@ -1,5 +1,6 @@
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import { writeSecurityReviewAgentInput } from "./agent-input.js";
 import {
   securityReviewCandidateScanOperation,
 } from "./blocking-operations.js";
@@ -18,6 +19,7 @@ type AgentCandidatePacket = Pick<
   "artifactPath" | "candidateCount" | "truncated"
 > & {
   candidates: AgentCandidate[];
+  redacted: boolean;
 };
 
 // This ordinary code-step output is replayed by the runtime on retry. Only
@@ -118,10 +120,14 @@ export function scannedCandidates(ctx: Pick<WorkflowStepContext, "stepOutputs" |
 // scan reference and its pinned input, including after persisted finalization.
 export const describeCandidates = typedCodeStep<AgentCandidatePacket>({
   id: "describe-candidates", type: "code", exposeOutputToAgent: true,
-  validate: (raw) => expectStructuredOutput<AgentCandidatePacket>(raw, ["candidates", "candidateCount", "artifactPath", "truncated"]),
+  rerunOnRetry: true,
+  validate: (raw) => expectStructuredOutput<AgentCandidatePacket>(raw, ["candidates", "candidateCount", "artifactPath", "truncated", "redacted"]),
   run: (ctx) => {
-    const { candidates, candidateCount, artifactPath, truncated } = scannedCandidates(ctx);
-    return { candidates, candidateCount, artifactPath, truncated };
+    const { candidates, candidateCount, truncated } = scannedCandidates(ctx);
+    const exported = writeSecurityReviewAgentInput(ctx, "security-review-candidates.json", {
+      source: scanCandidates.outputRequired(ctx), candidates, candidateCount, truncated,
+    }, candidates.flatMap(({ id, surface, path, matcher }) => [id, surface, path, matcher]));
+    return { candidates, candidateCount, truncated, ...exported };
   },
 });
 

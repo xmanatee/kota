@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
@@ -29,17 +29,46 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       const { verdict: _verdict, rationale: _rationale, ...finding } = fixture.confirmedFindingForClaim("Task writes lack authority");
       finding.candidateId = `secret-handling:${path}:1`;
       finding.affectedPath = path;
-      finding.evidence = [{ path, line: 2, excerpt: "writeFileSync(taskPath, body);" }];
+      finding.evidence = [{ path, line: 2, excerpt: "writeFileSync(taskPath, body); // token=fixture-sensitive-value" }];
       finding.id = "standalone-instance-lock-credential-disclosure";
       finding.violatedInvariant = "runtime-credentials-must-not-enter-agent-context";
       const investigation = { coverage: [{ path, disposition: "reviewed", rationale: "Inspected writer entry point and callers" }], findings: [finding, { ...finding, id: "rejected", evidenceIdentity: "hypothetical" }] };
+      const handoffPaths: string[] = [];
       const result = await new WorkflowScenarioDriver(workflow, {
-        workspaceRoot: fixture.workspaceRoot, ports: { runCommand: runGitEvidenceCommand, state }, trigger: { event: "autonomy.security-review.requested", payload: {} },
-        stepOutputs: {
-          "investigate-candidates": investigation,
-          "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "Caller controls task body at the mutation boundary" }, { id: "rejected", verdict: "rejected", rationale: "No second reachable sink" }], summary: "One supported variant" },
-        },
+        workspaceRoot: fixture.workspaceRoot,
+        ports: { runCommand: runGitEvidenceCommand, state, runAgent: ({ stepId, prompt }) => {
+          const outputId = stepId === "investigate-candidates" ? "describe-candidates" : "describe-investigation";
+          const block = prompt.split(`<step id="${outputId}"`)[1]?.split("</step>")[0];
+          const artifactPath = block?.match(/"artifactPath": "([^"]+)"/)?.[1];
+          if (!artifactPath) throw new Error("Reviewer received no readable input path");
+          handoffPaths.push(artifactPath);
+          const text = readFileSync(artifactPath, "utf8");
+          const exported = JSON.parse(text);
+          expect(exported.untrusted).toBe(true);
+          expect(exported.input.source.sha256).toMatch(/^[a-f0-9]{64}$/);
+          if (stepId === "investigate-candidates") {
+            expect(exported.input.candidates).toContainEqual(expect.objectContaining({ id: finding.candidateId, surface: "secret-handling" }));
+            expect(exported.input.contentDigests).toBeUndefined();
+            expect(exported.input.evidenceRequests).toBeUndefined();
+            return investigation;
+          }
+          expect(exported.redacted).toBe(true);
+          expect(text).not.toContain("fixture-sensitive-value");
+          expect(exported.input.findings[0]).toMatchObject({
+            id: finding.id, violatedInvariant: finding.violatedInvariant,
+            evidence: [{ path, line: 2, excerpt: "writeFileSync(taskPath, body); // token=[redacted]" }],
+          });
+          // Export tampering cannot replace publication's domain authority.
+          writeFileSync(artifactPath, "{}\n");
+          return { findings: exported.input.findings.map(({ id }: { id: string }) => ({
+            id, verdict: id === finding.id ? "confirmed" : "rejected",
+            rationale: id === finding.id ? "Caller controls task body at the mutation boundary" : "No second reachable sink",
+          })), summary: "One supported variant" };
+        } },
+        trigger: { event: "autonomy.security-review.requested", payload: {} },
       }).run();
+      expect(handoffPaths).toHaveLength(2);
+      for (const handoff of handoffPaths) expect(handoff.startsWith(`${result.runDirPath}/`)).toBe(false);
       expect(result.status, result.error).toBe("success");
       const after = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
       expect(after.pending).toHaveLength(1);
@@ -449,9 +478,21 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       fixture.commitProjectState();
       const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
       const failedRunId = "security-review-failed-investigation";
+      const exportedPaths: string[] = [];
+      const readCandidates = (prompt: string) => {
+        const block = prompt.split('<step id="describe-candidates"')[1]?.split("</step>")[0];
+        const artifactPath = block?.match(/"artifactPath": "([^"]+)"/)?.[1];
+        if (!artifactPath) throw new Error("Missing candidate export");
+        exportedPaths.push(artifactPath);
+        return JSON.parse(readFileSync(artifactPath, "utf8")).input;
+      };
       const failed = await new WorkflowScenarioDriver(workflow, {
         runId: failedRunId, workspaceRoot: fixture.workspaceRoot,
-        ports: { state, runCommand: runGitEvidenceCommand, runAgent: async () => { throw new Error("Provider unavailable"); } },
+        ports: { state, runCommand: runGitEvidenceCommand, runAgent: async ({ prompt }) => {
+          expect(readCandidates(prompt).candidateCount).toBe(1);
+          writeFileSync(exportedPaths[0]!, "stale export");
+          throw new Error("Provider unavailable");
+        } },
         trigger: { event: "autonomy.security-review.requested", payload: {} },
       }).run();
       expect(failed.status).toBe("failed");
@@ -460,11 +501,15 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       fixture.writeProjectFile(other, "export const mayRead = (user) => user.permission === 'read';\n");
       fixture.commitProjectState("new head before runtime retry");
       const retry = await new WorkflowScenarioDriver(workflow, {
-        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
+        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand, runAgent: ({ prompt }) => {
+          expect(readCandidates(prompt).candidates.map(({ path }: { path: string }) => path).sort()).toEqual([path, other].sort());
+          return { findings: [], coverage: [path, other].map((path) => ({ path, disposition: "reviewed", rationale: "Inspected current caller authority and transport" })) };
+        } },
         trigger: { event: "autonomy.security-review.requested", payload: { retryOf: failedRunId } },
-        stepOutputs: { "investigate-candidates": { findings: [], coverage: [path, other].map((path) => ({ path, disposition: "reviewed", rationale: "Inspected current caller authority and transport" })) } },
       }).run();
       expect(retry.status, retry.error).toBe("success");
+      expect(exportedPaths).toHaveLength(2);
+      expect(exportedPaths[0]).not.toBe(exportedPaths[1]);
       const input = JSON.parse(readFileSync(join(retry.runDirPath, "security-review-input.json"), "utf8"));
       const oldInput = JSON.parse(readFileSync(join(failed.runDirPath, "security-review-input.json"), "utf8"));
       expect(input.currentHead.sha).not.toBe(oldInput.currentHead.sha);

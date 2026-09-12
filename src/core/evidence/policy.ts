@@ -73,7 +73,7 @@ const URL_KEY_PATTERN = /(url|uri|endpoint)/i;
 const URL_SECRET_PARAM_PATTERN =
   /(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|code|state|cookie)/i;
 const SENSITIVE_TEXT_ASSIGNMENT_PATTERN =
-  /\b(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie|bearer)(\s*[:=]\s*)([^\s,;&]+)/gi;
+  /\b(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|access[-_]?token|refresh[-_]?token|cookie|bearer)(["']?\s*[:=]\s*)("(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\s,;&]+)/gi;
 const BEARER_TEXT_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/-]+/gi;
 const SECRET_VALUE_TEXT_PATTERN =
   /\b(?:sk-[A-Za-z0-9_-]{12,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b/g;
@@ -295,9 +295,14 @@ export function redactSensitiveValues(text: string): string {
   return text
     .replace(URL_TEXT_PATTERN, (match) => redactSensitiveUrl(match))
     .replace(BEARER_TEXT_PATTERN, "Bearer [redacted]")
-    .replace(SENSITIVE_TEXT_ASSIGNMENT_PATTERN, (_match, key, separator, value) =>
-      `${key}${separator}${isAlreadyRedactedText(value) ? value : EVIDENCE_REDACTED}`
-    )
+    .replace(SENSITIVE_TEXT_ASSIGNMENT_PATTERN, (_match, key: string, separator: string, value: string) => {
+      // Source excerpts may contain JSON or quoted assignments. Consume the
+      // entire string, including spaces and escaped quotes, and retain its
+      // delimiters so redaction does not corrupt neighboring evidence fields.
+      const quote = value.startsWith('"') ? '"' : value.startsWith("'") ? "'" : "";
+      const content = quote ? value.slice(1, value.endsWith(quote) ? -1 : undefined) : value;
+      return `${key}${separator}${quote}${isAlreadyRedactedText(content) ? content : EVIDENCE_REDACTED}${quote}`;
+    })
     .replace(SECRET_VALUE_TEXT_PATTERN, EVIDENCE_REDACTED)
     .replace(EMAIL_TEXT_PATTERN, EVIDENCE_REDACTED)
     .replace(SSN_TEXT_PATTERN, EVIDENCE_REDACTED);

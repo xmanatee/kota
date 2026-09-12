@@ -129,6 +129,7 @@ export type WorkflowScenarioOptions = {
     runAgent?: (input: {
       stepId: string;
       cwd: string;
+      prompt: string;
     }) => WorkflowScenarioOutput | Promise<WorkflowScenarioOutput>;
     runCommand?: WorkflowCommandRunner;
     /** Use the registered production tools or supply controlled tool outcomes. */
@@ -330,6 +331,7 @@ export class WorkflowScenarioDriver {
             ? await agentPort({
                 stepId,
                 cwd: options.cwd ?? workspaceDir,
+                prompt: options.prompt,
               })
             : nextOutput(stepId);
           const record = output !== null && typeof output === "object"

@@ -205,4 +205,25 @@ describe("evidence policy", () => {
       "https://%5Bredacted%5D:%5Bredacted%5D@example.test/callback?next=/setup#access_token=%5Bredacted%5D&view=ready",
     );
   });
+
+  it("redacts quoted credential assignments without swallowing adjacent domain evidence", () => {
+    const source = JSON.stringify({
+      token: "fixture-sensitive-value", password: 'fixture, password with "escaped quotes"',
+      accessToken: "fixture-access-value", id: "standalone-instance-lock-credential-disclosure",
+      violatedInvariant: "runtime-credentials-must-not-enter-agent-context",
+    });
+    const redacted = redactSensitiveValues(source);
+    expect(JSON.parse(redacted)).toEqual({
+      token: "[redacted]", password: "[redacted]", accessToken: "[redacted]",
+      id: "standalone-instance-lock-credential-disclosure",
+      violatedInvariant: "runtime-credentials-must-not-enter-agent-context",
+    });
+    expect(redactSensitiveValues(redacted)).toBe(redacted);
+    expect(redactSensitiveValues("{'password': 'a phrase, with spaces', 'line': 7}"))
+      .toBe("{'password': '[redacted]', 'line': 7}");
+    expect(redactSensitiveValues('password="a phrase with spaces"; line=7'))
+      .toBe('password="[redacted]"; line=7');
+    expect(redactSensitiveValues('{"token":"truncated secret value'))
+      .toBe('{"token":"[redacted]"');
+  });
 });

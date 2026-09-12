@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Give isolated security reviewers usable, scoped investigation handoffs
 
@@ -48,3 +47,33 @@ Update the prompt to use the maintained handoff rather than protected run paths.
   fix loads. Preserve its evidence request and pending finding; do not manufacture
   a verdict or mark unchecked coverage consumed. The monitor owns activation,
   not a builder restarting its parent before publication.
+
+
+## Resolution
+
+Selected candidates and integrity-checked investigation findings now export to
+the runtime-owned agent directory. Exposed paths and the reviewer prompt use
+those exports. Shared evidence value redaction preserves security terminology
+and lineage, marks removed values, and rejects any identity requiring redaction.
+Canonical originals remain the authority for complete verdict validation and
+finalization. Retryable export steps refresh their input from that authority.
+
+The existing workflow journey reads the actual paths from the agent prompt,
+returns verdicts using exported identities, and verifies canonical finalization
+even after export tampering. A restricted Node subprocess reads the exported
+findings while canonical reads are denied. Focused cases cover retained-source
+refresh, missing/corrupt originals, credential redaction, identity rejection,
+and exclusion of unrelated run evidence. Runtime retry also checks refreshed
+candidate files after a failed attempt. Validation details and environment
+limitations are retained in this builder run's summary and logs.
+
+## Post-publication observation
+
+The monitor owns activation and recovery of
+`2026-09-12T10-21-59-916Z-security-review-l7r4ez` after this fix integrates and
+loads. Use the normal workflow retry/recovery control for that original run;
+preserve its evidence request, pending finding and lineage. Require actual
+independent verdicts before consuming coverage. This builder has not restarted
+its parent, retried the production review, manufactured a verdict, or changed
+production coverage. That deployment observation follows this completed
+implementation step.

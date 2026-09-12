@@ -16,6 +16,7 @@ import {
 } from "./candidate-steps.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
+  describeInvestigation,
   finalizeSecurityReview,
   recordedInvestigation,
   recordInvestigationFindings,
@@ -84,6 +85,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
     },
     recordInvestigationFailure,
     recordInvestigationFindings,
+    describeInvestigation,
     {
       id: "revalidate-findings",
       type: "agent",

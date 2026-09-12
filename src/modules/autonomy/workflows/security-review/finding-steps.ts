@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import { typedCodeStep } from "#core/workflow/step-input-code.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
+import { writeSecurityReviewAgentInput } from "./agent-input.js";
 import { refreshReviewInput, scanCandidates, scannedCandidates } from "./candidate-steps.js";
 import { finalizeSecurityReviewRefusal } from "./refusal-steps.js";
 import { type ReviewInputReference, readSecurityReviewCandidates, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
@@ -37,7 +38,6 @@ function investigationOutput(
 export const recordInvestigationFindings = typedCodeStep<ReviewInputReference>({
   id: "record-investigation-findings",
   type: "code",
-  exposeOutputToAgent: true,
   when: stepSucceeded("investigate-candidates"),
   validate: (raw) => reviewInputReferenceSchema.parse(raw),
   run: (ctx) => {
@@ -46,6 +46,27 @@ export const recordInvestigationFindings = typedCodeStep<ReviewInputReference>({
     const packet = scannedCandidates(ctx);
     validateInvestigationCandidates(output, packet);
     return investigationArtifact.write(ctx.workflow.runDirPath, output);
+  },
+});
+
+export const describeInvestigation = typedCodeStep<{ artifactPath: string; redacted: boolean }>({
+  id: "describe-investigation", type: "code", exposeOutputToAgent: true,
+  rerunOnRetry: true,
+  when: (ctx) => recordInvestigationFindings.output(ctx) !== undefined,
+  validate: (raw) => expectStructuredOutput(raw, ["artifactPath", "redacted"]),
+  run: (ctx) => {
+    const investigation = recordedInvestigation(ctx);
+    if (!investigation) throw new Error("Security investigation is missing");
+    return writeSecurityReviewAgentInput(ctx, "security-review-investigation.json", {
+      source: recordInvestigationFindings.outputRequired(ctx), ...investigation,
+    }, [...investigation.coverage.flatMap((coverage) => [
+      coverage.path, ...coverage.disposition === "unavailable" ? coverage.prerequisitePaths : [],
+    ]), ...investigation.findings.flatMap((finding) => [
+      finding.id, finding.candidateId, finding.productionOwner, finding.violatedInvariant,
+      finding.evidenceIdentity, finding.affectedPath, ...finding.evidence.map(({ path }) => path),
+      ...finding.existingTaskId === null ? [] : [finding.existingTaskId],
+      ...finding.evidenceLineage === null ? [] : [finding.evidenceLineage.reference],
+    ])]);
   },
 });
 

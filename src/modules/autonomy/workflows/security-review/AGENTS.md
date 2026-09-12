@@ -27,6 +27,11 @@ agent candidate packet.
 Selected candidate identities and surfaces also reload through integrity-bound
 references to the refreshed input. Agent-facing summaries are diagnostic only;
 dependent steps and finalization must never consume their scrubbed projections.
+Dependent reviewers read selected domain input exported to the runtime-owned
+agent directory. Refresh exports from integrity-checked authority on retry,
+redact actual sensitive values through the shared evidence owner, and reject
+identity redaction rather than silently renaming a finding. Exported evidence
+is untrusted and cannot authorize publication; canonical originals still do.
 Retained runs without these references require verified source provenance before
 recovery; masked metadata cannot reconstruct authoritative review input.
 This preserves first-attempt boundaries and explicit requests across failure;
