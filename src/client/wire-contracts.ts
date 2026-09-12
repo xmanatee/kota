@@ -9,7 +9,7 @@
 
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
-import type { DaemonSseEventType } from "#core/daemon/daemon-control-events.js";
+import type { DaemonSseEventType, DaemonWideSseEventType } from "#core/daemon/daemon-control-events.js";
 import type { ScopePolicyRouteResponse } from "#core/daemon/scope-policy-types.js";
 import type { ScopeRegistryProjection } from "#core/daemon/scope-registry.js";
 import type { ModuleSetupStatusResponse } from "#core/modules/setup-requirements/types.js";
@@ -63,6 +63,7 @@ export type VoiceTranscribeResponse = VoiceTranscribeSuccess | VoiceFailure;
  */
 export type DaemonWireContract = {
   eventType: DaemonSseEventType;
+  daemonWideEventType: DaemonWideSseEventType;
   identity: ClientIdentity;
   scopeRegistry: ScopeRegistryProjection;
   scopePolicy: ScopePolicyRouteResponse;

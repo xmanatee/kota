@@ -1,7 +1,10 @@
-import { createServer, type Server } from "node:http";
+import { createServer, IncomingMessage, type Server, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import { DaemonControlClient } from "./daemon-client.js";
+import { completeDaemonClientHandlers } from "./daemon-client-test-support.js";
 import { routeInvocationContract } from "./route-invocation-test-support.js";
 import { buildRequestHandler, type ServerContext } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
@@ -182,3 +185,27 @@ function closeServer(server: Server): Promise<void> {
     server.close(() => resolve());
   });
 }
+
+
+it.each([
+  { query: "scopeId=scope-a&after=epoch%3A42", upstream: "/events?after=epoch%3A42&scopeId=scope-a" },
+  { query: "", upstream: "/events" },
+])("preserves dashboard stream selection and cursor through the real daemon transport: $query", async ({ query, upstream }) => {
+  const fetchPort = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response('id: epoch:43\nevent: task.changed\ndata: {"scopeId":"scope-a"}\n\n'));
+  const client = DaemonControlClient.fromAddress({ port: 43210, pid: 1234, startedAt: "2026-09-12T00:00:00Z", token: "daemon-token" }, completeDaemonClientHandlers());
+  const req = new IncomingMessage(new Socket());
+  req.method = "GET";
+  req.url = `/api/daemon/events${query ? `?${query}` : ""}`;
+  req.headers.authorization = "Bearer web-token";
+  const res = new ServerResponse(req);
+  const write = vi.spyOn(res, "write").mockReturnValue(true);
+  try {
+    await makeRequestHandler([], "web-token", { getDaemonClient: () => client })(req, res);
+    expect(String(fetchPort.mock.calls[0]?.[0])).toBe(`http://127.0.0.1:43210${upstream}`);
+    expect(write.mock.calls.map(([chunk]) => String(chunk))).toEqual(['id: epoch:43\nevent: task.changed\ndata: {"scopeId":"scope-a"}\n\n']);
+  } finally {
+    fetchPort.mockRestore();
+    req.destroy();
+    res.emit("close");
+  }
+});

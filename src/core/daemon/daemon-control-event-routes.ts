@@ -1,11 +1,24 @@
 import type { EventJournalQuery } from "#core/events/event-journal.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import { daemonEventMatchesScope } from "./daemon-control-events.js";
 import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
 import type { EventSchemaDetail, EventSchemaSummary } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 
+import type { BufferedEvent } from "./event-ring-buffer.js";
+
 export const SSE_HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** Live delivery and replay share one projection, including scope rejection. */
+export function writeDaemonSseEvent(
+  res: Pick<NodeJS.WritableStream, "write">,
+  entry: BufferedEvent,
+  scopeId: string | null,
+): void {
+  if (!daemonEventMatchesScope(entry.event, scopeId)) return;
+  res.write(`id: ${entry.id}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event.payload)}\n\n`);
+}
 
 export function startSseHeartbeat(
   res: Pick<NodeJS.WritableStream, "write">,
@@ -97,7 +110,7 @@ function eventSchemaSummary(detail: EventSchemaDetail): EventSchemaSummary {
 }
 
 export function buildDaemonEventControlRoutes(
-  deps: BuiltinControlRouteDeps,
+  deps: Pick<BuiltinControlRouteDeps, "eventBuffer" | "eventJournal" | "sseClients">,
 ): ControlRouteRegistration[] {
   const { eventBuffer, eventJournal, sseClients } = deps;
   return [
@@ -132,6 +145,7 @@ export function buildDaemonEventControlRoutes(
       capabilityScope: "read",
       handler: (req, res) => {
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const scopeId = url.searchParams.get("scopeId");
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -145,18 +159,18 @@ export function buildDaemonEventControlRoutes(
           if (!Number.isNaN(sinceMs)) {
             const afterId = typeof afterParam === "string" ? afterParam : undefined;
             for (const entry of eventBuffer.query(sinceMs, undefined, afterId)) {
-              res.write(`id: ${entry.id}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event.payload)}\n\n`);
+              writeDaemonSseEvent(res, entry, scopeId);
             }
           }
         } else {
           const afterId = typeof afterParam === "string" ? afterParam : undefined;
           if (afterId) {
             for (const entry of eventBuffer.query(undefined, undefined, afterId)) {
-              res.write(`id: ${entry.id}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event.payload)}\n\n`);
+              writeDaemonSseEvent(res, entry, scopeId);
             }
           }
         }
-        sseClients.add(res);
+        sseClients.set(res, scopeId);
         const stopHeartbeat = startSseHeartbeat(res);
         res.once("close", () => {
           stopHeartbeat();

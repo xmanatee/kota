@@ -32,7 +32,12 @@ every scoped daemon request.
 - The header `ScopeSelector` (`src/components/sidebar/ScopeSelector.tsx`)
   hides itself when the projection has exactly one directory scope, so the
   KOTA-on-itself experience is unchanged.
-- SSE invalidation in `useDaemonEvents` reads the active scopeId. The shared
+- The SSE transport selects the same scopeId as queries. Daemon live delivery
+  and replay share scope filtering; omitted selectors retain the global operator
+  stream. Only declared daemon-wide event types may omit payload scopeId, with
+  that classification generated from the daemon contract for browser filtering.
+  Retired connections cannot deliver callbacks, and scope changes start a fresh
+  subscription and cursor. The shared
   graph's `refreshEvents` and log-stream event types own surface invalidation
   and live log subscriptions; non-graph queries keep their narrow typed
   handlers. The selector's reactive `scopeId` drives both query keys and

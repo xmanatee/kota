@@ -14,6 +14,7 @@ import {
   DaemonChatPool,
 } from "./daemon-chat-pool.js";
 import { DaemonControlRequestAuthorizer } from "./daemon-control-auth.js";
+import { writeDaemonSseEvent } from "./daemon-control-event-routes.js";
 import type { DaemonControlServerOptions } from "./daemon-control-options.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
@@ -38,7 +39,7 @@ export type { ScopePolicyRouteResponse } from "./scope-policy.js";
 export class DaemonControlServer {
   private server: Server | null = null;
   private port: number | null = null;
-  private sseClients = new Set<ServerResponse>();
+  private sseClients = new Map<ServerResponse, string | null>();
   private unsubscribeEvents: (() => void) | null = null;
   private readonly eventBuffer: EventRingBuffer;
   private readonly chatPool: DaemonChatPool | null;
@@ -151,7 +152,7 @@ export class DaemonControlServer {
       this.chatPool?.closeAll();
       this.unsubscribeEvents?.();
       this.unsubscribeEvents = null;
-      for (const res of this.sseClients) {
+      for (const res of this.sseClients.keys()) {
         if (!res.writableEnded) res.end();
       }
       this.sseClients.clear();
@@ -180,16 +181,10 @@ export class DaemonControlServer {
   listChatSessionIds(scopeId: string): string[] {
     return this.chatPool?.list(scopeId).map((session) => session.id) ?? [];
   }
-  private serializeEvent(entry: BufferedEvent): string {
-    const { event } = entry;
-    return `id: ${entry.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
-  }
-
   private broadcast(entry: BufferedEvent): void {
-    const chunk = this.serializeEvent(entry);
-    for (const res of this.sseClients) {
+    for (const [res, scopeId] of this.sseClients) {
       try {
-        res.write(chunk);
+        writeDaemonSseEvent(res, entry, scopeId);
       } catch {
         this.sseClients.delete(res);
       }

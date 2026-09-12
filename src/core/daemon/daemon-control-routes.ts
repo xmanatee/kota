@@ -25,7 +25,7 @@ export type BuiltinControlRouteDeps = {
   handle: DaemonControlHandle;
   eventBuffer: EventRingBuffer;
   eventJournal?: EventJournal;
-  sseClients: Set<ServerResponse>;
+  sseClients: Map<ServerResponse, string | null>;
   chatPool: DaemonChatPool | null;
   makeAgent: DaemonChatMakeAgent | null;
   defaultAutonomyMode: AutonomyMode | undefined;

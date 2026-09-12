@@ -5,6 +5,7 @@ import Foundation
 
 struct DaemonWireContract: Codable, Equatable {
     let eventType: DaemonSseEventType
+    let daemonWideEventType: DaemonWideSseEventType
     let identity: ClientIdentity
     let scopeRegistry: ScopeRegistryProjection
     let scopePolicy: ScopePolicyRouteResponse
@@ -44,6 +45,11 @@ enum DaemonSseEventType: String, Codable, Equatable, CaseIterable {
     case ownerQuestionDismissed = "owner.question.dismissed"
     case ownerQuestionExpired = "owner.question.expired"
     case queueChanged = "queue.changed"
+}
+
+enum DaemonWideSseEventType: String, Codable, Equatable, CaseIterable {
+    case daemonConfigReload = "daemon.config.reload"
+    case scopeLifecycleChanged = "scope.lifecycle.changed"
 }
 
 struct ClientIdentity: Codable, Equatable {

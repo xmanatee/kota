@@ -8,6 +8,9 @@
         "eventType": {
           "$ref": "#/definitions/DaemonSseEventType"
         },
+        "daemonWideEventType": {
+          "$ref": "#/definitions/DaemonWideSseEventType"
+        },
         "identity": {
           "$ref": "#/definitions/ClientIdentity"
         },
@@ -71,6 +74,7 @@
       },
       "required": [
         "eventType",
+        "daemonWideEventType",
         "identity",
         "scopeRegistry",
         "scopePolicy",
@@ -115,6 +119,14 @@
         "owner.question.expired",
         "queue.changed"
       ]
+    },
+    "DaemonWideSseEventType": {
+      "type": "string",
+      "enum": [
+        "daemon.config.reload",
+        "scope.lifecycle.changed"
+      ],
+      "description": "Only events whose declared payload is daemon-wide may omit attribution."
     },
     "ClientIdentity": {
       "type": "object",

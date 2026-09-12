@@ -95,7 +95,7 @@ export function makeRemoteReconnectHandle(
           handler({ type: "workflow.started", payload });
           handler({
             type: "queue.changed",
-            payload: { source: "workflow.started", workflow: payload.workflow },
+            payload: { scopeId: payload.scopeId, source: "workflow.started", workflow: payload.workflow },
           });
         }),
         bus.on("workflow.step.completed", (payload) =>

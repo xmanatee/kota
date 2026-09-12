@@ -207,6 +207,8 @@ ${parsers.join("\n\n")}
 }
 
 function emitTransportGraph(schema) {
+  const daemonWideType = schema.definitions.DaemonWireContract.properties.daemonWideEventType;
+  const daemonWideSchema = daemonWideType.$ref ? schema.definitions[referenceName(daemonWideType.$ref)] : daemonWideType;
   const eventType = schema.definitions.DaemonWireContract.properties.eventType;
   const eventSchema = eventType.$ref ? schema.definitions[referenceName(eventType.$ref)] : eventType;
   if (!Array.isArray(eventSchema.enum) || !eventSchema.enum.every((value) => typeof value === "string")) {
@@ -217,6 +219,7 @@ function emitTransportGraph(schema) {
     `export const DAEMON_CONTRACT_VERSION = ${JSON.stringify(DAEMON_CONTRACT_VERSION)} as const;`,
     `export const DAEMON_ROUTES = ${JSON.stringify(routes, null, 2)} as const;`,
     `export const DAEMON_EVENT_TYPES = ${JSON.stringify(eventSchema.enum, null, 2)} as const;`,
+    `export const DAEMON_WIDE_EVENT_TYPES = ${JSON.stringify(daemonWideSchema.enum, null, 2)} as const;`,
     `export type DaemonEventType = (typeof DAEMON_EVENT_TYPES)[number];`,
     `export const DAEMON_CAPABILITY_IDS = ${JSON.stringify(DAEMON_CAPABILITY_GRAPH, null, 2)} as const;`,
   ].join("\n\n");

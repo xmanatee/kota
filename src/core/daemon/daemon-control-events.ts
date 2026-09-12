@@ -3,8 +3,9 @@ import type { BusEvents } from "#core/events/event-bus-types.js";
 
 /** Operator queue invalidation synthesized from workflow lifecycle events. */
 export type QueueChangedPayload =
-	| { source: "workflow.started"; workflow: string }
+	| { scopeId: string; source: "workflow.started"; workflow: string }
 	| {
+			scopeId: string;
 			source: "workflow.completed";
 			workflow: string;
 			status: BusEvents["workflow.completed"]["status"];
@@ -50,12 +51,13 @@ export function subscribeToDaemonEvents(
 			if (event.type === "workflow.started") {
 				handler({
 					type: "queue.changed",
-					payload: { source: event.type, workflow: event.payload.workflow },
+					payload: { scopeId: event.payload.scopeId, source: event.type, workflow: event.payload.workflow },
 				});
 			} else if (event.type === "workflow.completed") {
 				handler({
 					type: "queue.changed",
 					payload: {
+						scopeId: event.payload.scopeId,
 						source: event.type,
 						workflow: event.payload.workflow,
 						status: event.payload.status,
@@ -78,3 +80,20 @@ export type DaemonTimelineEvent = DaemonSseStreamEvent & {
 	/** ISO timestamp for human-facing ordering and timestamp catch-up. */
 	timestamp: string;
 };
+
+/** Only events whose declared payload is daemon-wide may omit attribution. */
+export type DaemonWideSseEventType = Exclude<
+  DaemonSseEvent,
+  { payload: { scopeId: string } }
+>["type"];
+
+const daemonWideEvents = {
+  "daemon.config.reload": true,
+  "scope.lifecycle.changed": true,
+} satisfies Record<DaemonWideSseEventType, true>;
+
+export function daemonEventMatchesScope(event: DaemonSseEvent, scopeId: string | null): boolean {
+  if (scopeId === null) return true;
+  if ("scopeId" in event.payload) return event.payload.scopeId === scopeId;
+  return Object.hasOwn(daemonWideEvents, event.type);
+}

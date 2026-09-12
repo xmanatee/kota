@@ -135,7 +135,7 @@ export interface DaemonTransport {
   /**
    * Open the daemon SSE stream and yield decoded events.
    */
-  events(init?: { signal?: AbortSignal; after?: string }): AsyncGenerator<DaemonSseStreamEvent>;
+  events(init?: { signal?: AbortSignal; after?: string; scopeId?: string }): AsyncGenerator<DaemonSseStreamEvent>;
 
   /**
    * Issue a raw fetch against the daemon. Used by callers that need the
@@ -205,12 +205,15 @@ class HttpDaemonTransport implements DaemonTransport {
     return response;
   }
 
-  async *events(init?: { signal?: AbortSignal; after?: string }): AsyncGenerator<DaemonSseStreamEvent> {
+  async *events(init?: { signal?: AbortSignal; after?: string; scopeId?: string }): AsyncGenerator<DaemonSseStreamEvent> {
+    const params = new URLSearchParams();
+    if (init?.after !== undefined) params.set("after", init.after);
+    if (init?.scopeId !== undefined) params.set("scopeId", init.scopeId);
     const { response: res } = await outboundHttp.requestStream(
       {
         profile: OUTBOUND_HTTP_PROFILES.daemonLoopback,
         operation: "daemon-transport.events",
-        url: `${this.baseUrl}/events${init?.after ? `?after=${encodeURIComponent(init.after)}` : ""}`,
+        url: `${this.baseUrl}/events${params.size ? `?${params}` : ""}`,
         headers: this.authHeaders(),
         ...(init?.signal !== undefined && { signal: init.signal }),
       },

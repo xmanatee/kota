@@ -3,6 +3,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 import {
 	type DaemonSseEvent,
+  daemonEventMatchesScope,
 	subscribeToDaemonEvents,
 } from "./daemon-control-events.js";
 
@@ -37,12 +38,13 @@ it("forwards workflow events before queue invalidation and releases the subscrip
 		{ type: "workflow.started", payload: started },
 		{
 			type: "queue.changed",
-			payload: { source: "workflow.started", workflow: "build" },
+			payload: { scopeId: "scope-test", source: "workflow.started", workflow: "build" },
 		},
 		{ type: "workflow.completed", payload: completed },
 		{
 			type: "queue.changed",
 			payload: {
+				scopeId: "scope-test",
 				source: "workflow.completed",
 				workflow: "build",
 				status: "success",
@@ -54,4 +56,19 @@ it("forwards workflow events before queue invalidation and releases the subscrip
 	bus.emit("workflow.started", started);
 	bus.emit("workflow.completed", completed);
 	expect(received).toHaveLength(4);
+});
+
+
+it("rejects foreign and unattributed scoped events without suppressing declared daemon events", () => {
+  const events: DaemonSseEvent[] = [
+    { type: "session.unregistered", payload: { scopeId: "a", id: "a" } },
+    { type: "session.unregistered", payload: { scopeId: "b", id: "b" } },
+    // Malformed wire input must not acquire daemon-wide visibility.
+    JSON.parse('{"type":"session.unregistered","payload":{"id":"missing"}}'),
+    JSON.parse('{"type":"session.unregistered","payload":{"scopeId":null,"id":"null"}}'),
+    { type: "queue.changed", payload: { scopeId: "b", source: "workflow.started", workflow: "build" } },
+    { type: "scope.lifecycle.changed", payload: { transition: "registered", affectedScopeId: "b", directoryRoot: "/b", displayName: "B" } },
+  ];
+  expect(events.filter(event => daemonEventMatchesScope(event, "a"))).toEqual([events[0], events[5]]);
+  expect(events.filter(event => daemonEventMatchesScope(event, null))).toEqual(events);
 });

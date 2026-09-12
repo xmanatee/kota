@@ -153,8 +153,10 @@ export function buildRequestHandler(ctx: ServerContext) {
       }
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
       const controller = new AbortController();
-      const after = new URL(req.url ?? "/", "http://localhost").searchParams.get("after");
-      const gen = client.events({ signal: controller.signal, ...(after ? { after } : {}) });
+      const params = new URL(req.url ?? "/", "http://localhost").searchParams;
+      const after = params.get("after") ?? req.headers["last-event-id"];
+      const scopeId = params.get("scopeId");
+      const gen = client.events({ signal: controller.signal, ...(typeof after === "string" ? { after } : {}), ...(scopeId !== null ? { scopeId } : {}) });
       res.once("close", () => controller.abort());
       try {
         for await (const event of gen) {

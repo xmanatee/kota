@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Keep dashboard live events in the selected scope
@@ -50,3 +49,34 @@ operator stream available to consumers that actually request it.
   update the existing scoped guidance, which currently promises this isolation.
 
 No new client store, polling loop or duplicated per-surface filter is required.
+
+
+## Completion evidence
+
+The dashboard selects its query scope on the SSE request through the web proxy
+and daemon transport. Live delivery and replay share the daemon projection;
+queue notifications preserve their source scope. Browser filtering consumes the
+generated daemon-wide event classification and rejects foreign or unattributed
+scoped payloads before invalidation or log append. Each connection has guarded
+callbacks, each scope selection has a fresh cursor, and log state is scope-bound.
+Updated the web client's scoped guidance.
+
+Validated the production hook with ScopeProvider, QueryClient, the conformance
+bundle and controlled EventSource: foreign sentinel and malformed attribution
+produce no log or invalidation; matching events update; scope switches clear logs
+and cursor; retired callbacks have no effect; reconnect preserves selection and
+cursor with single delivery; declared daemon-wide events still invalidate.
+The web suite passed 41 tests. The real proxy/client/transport passed two network
+port cases, and event projection/replay/transport owner tests passed 16 cases.
+`pnpm check:fast`, web TypeScript compilation and Vite production build passed.
+Vite used the default Browserslist targets explicitly to avoid ancestor config
+reads outside the sandbox, and a fresh output directory avoided denied directory
+removal. Cached lockfile packages supplied web dependencies.
+
+Socket-based daemon suites could not bind localhost (EPERM). Executed alternate
+proof uses the real route, EventRingBuffer and common live/replay writer with
+only the response network port controlled. Swift test/build was attempted with
+local scratch/cache directories but could not complete in this sandbox; native
+runtime validation is unperformed. The mobile typecheck command reported a skip
+because its dependencies are absent; it is not counted as passing proof.
+Generated binding freshness passed.

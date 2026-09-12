@@ -31,18 +31,22 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
   const queryClient = useQueryClient();
   const scopeId = useScopeId();
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const [liveLogEntries, setLiveLogEntries] = useState<LiveUiLogEntries>({});
+  const [liveLogs, setLiveLogs] = useState<{
+    scopeId: string;
+    entries: LiveUiLogEntries;
+  }>({ scopeId, entries: {} });
   const sourceRef = useRef<DaemonEventSource | null>(null);
   const uiSubscriptions = collectUiEventSubscriptions(bundle);
 
   useEffect(() => {
     if (scopeId === "") {
       setStatus("disconnected");
-      setLiveLogEntries({});
+      setLiveLogs({ scopeId, entries: {} });
       return;
     }
-    setLiveLogEntries({});
+    setLiveLogs({ scopeId, entries: {} });
     const source = new DaemonEventSource({
+      scopeId,
       onStatusChange: setStatus,
       onMalformedEvent: ({ error, event }) => {
         console.warn(`Malformed daemon event "${event}": ${error.message}`);
@@ -70,12 +74,13 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
         const streamIds = uiSubscriptions.streamIdsByEvent.get(eventType);
         if (!streamIds || streamIds.length === 0) return;
         const entry = uiLogEntry(eventType, payload);
-        setLiveLogEntries((current) => {
-          const next = { ...current };
+        setLiveLogs((current) => {
+          const entries = current.scopeId === scopeId ? current.entries : {};
+          const next = { ...entries };
           for (const streamId of streamIds) {
-            next[streamId] = [...(current[streamId] ?? []), entry].slice(-100);
+            next[streamId] = [...(entries[streamId] ?? []), entry].slice(-100);
           }
-          return next;
+          return { scopeId, entries: next };
         });
       });
     }
@@ -88,7 +93,10 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
     };
   }, [queryClient, scopeId, uiSubscriptions]);
 
-  return { status, liveLogEntries };
+  return {
+    status,
+    liveLogEntries: liveLogs.scopeId === scopeId ? liveLogs.entries : {},
+  };
 }
 
 function collectUiEventSubscriptions(
