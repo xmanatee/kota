@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres]
 ---
@@ -74,3 +74,57 @@ there is currently no Google provider-egress network. Intrinsic-reasoning models
 must not receive unsupported effort flags. Record unavailable rows and quota
 without blind retries. Readiness and model listing do not replace benchmark
 traces, repeats, rubric evidence or a routing decision.
+
+## Blocked on
+
+```text
+kind: operator-capture
+path: .kota/runs
+description: Task-linked evidence of runtime-authorized contained AGY eval execution capability, or equivalent attributable benchmark execution evidence.
+```
+
+The path is a discovery hint for the existing blocked-task reviewer, not a
+requirement for manual collection or one capture directory. Equivalent scoped
+capability or execution exports can satisfy the prerequisite.
+
+This native builder invocation needs a runtime-authorized container execution
+capability to prepare the image and internal Google proxy and run the existing
+`eval agy-models` owner. On 2026-09-12, Docker socket access was denied by this
+invocation's sandbox. The available tools expose no host execution/export port;
+the native request/reply service only validates active task-writer authority.
+Reading canonical run exports outside the worktree was also denied. Resume when
+the runtime supplies a contained execution capability for this task, or equivalent
+attributable execution evidence through an accessible export. Do not grant
+candidate code host authority or change the live daemon's preset.
+
+This is an invocation-access prerequisite, not evidence that the host Docker
+engine, AGY login, provider credentials, entitlement, or models are unavailable.
+Image/proxy preparation remains builder work after that capability is available.
+
+## Current attempt evidence (2026-09-12)
+
+Run `2026-09-12T06-40-57-819Z-builder-n2rhhp` retained evidence under its
+runtime-owned `agent/agy-model-routing/` directory:
+
+- `pnpm build` passed; the compiled KOTA payload, lockfile and dependency policy
+  are retained in `kota-build.tar.gz` with a SHA-256 digest. This is build input,
+  not a prepared or validated Linux KOTA/AGY container image.
+- All 15 tests across four focused AGY eval-owner suites passed. They cover
+  runner orchestration, scenario instructions and scoring, and container-only
+  availability rejection; they do not measure candidate quality.
+- The production fixture loader and instruction-source validator accepted all
+  three scenarios. `scenarios.json` and 44 hashed source snapshots retain the
+  exact planning, scoped-coding and repair inputs.
+- `execution-plan.json` pins source revision `9fb05ca587f8` and includes the
+  current `gemini-3.7-flash` plus requested `gemini-3.6-flash` and
+  `gemini-3.1-pro`, each at KOTA `max` with three planned repeats per scenario.
+  Image/network/proxy names are proposed, not observed infrastructure.
+- The real eval availability owner stopped at container preflight with Docker
+  socket permission denied (`availability-preflight.json`, `docker-probe.json`).
+  It never launched `agy models` or a candidate and did not fall back to host
+  execution. Empty available-model output therefore means unobserved availability.
+
+Routing disposition: **needs more data**. Zero scenario repeats ran; model/effort
+propagation, quota, rubric verdicts, changed paths, `pass@3` and `pass^3` remain
+unmeasured. No production routing change or favorable benchmark claim is justified.
+The full three-repeat comparison and image/egress/auth validation remain unmet.
