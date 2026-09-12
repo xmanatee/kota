@@ -4,6 +4,12 @@
 # Mark entries with `status: inaccessible` if a URL cannot be reached.
 
 resources:
+  - url: https://github.com/Tencent/teamai-cli
+    added: "2026-09-12"
+    notes: "From data/inbox/links-to-explore.md. README read on September 12: distributes team skills, rules, hooks and MCP configuration across agent harnesses, with optional knowledge recall and friction-based learning suggestions. Monitor shared-context distribution and learning quality as peer-runtime research; adoption needs concrete KOTA outcome evidence."
+  - url: https://github.com/danielmiessler/LifeOS
+    added: "2026-09-12"
+    notes: "From data/inbox/links-to-explore.md. README read on September 12: personal context, persistent memory, skills, routing and self-improvement layered on coding harnesses. Monitor memory continuity, capability-aware setup and evidence-backed verification as peer-runtime research; README claims are not verified product outcomes."
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
     status: inaccessible
