@@ -521,3 +521,5 @@ control their parent daemon. After activation, use the existing native inspectio
 and run actions with three repeats, establish actual image/auth/proxy readiness
 and positive/negative containment, then collect and judge the full matrix.
 Runtime publication carries the integer repair independently of this prerequisite.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T20:04:50.473Z -->

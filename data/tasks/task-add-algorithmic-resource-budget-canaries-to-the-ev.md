@@ -336,3 +336,5 @@ tree. These establish fixture loading and scorer rejection, not model quality.
 Logs are `eval-list.log` and `scorer-test.log` in this run's agent directory.
 No live nested agent ran, and no live resource-budget result, aggregate metric,
 containment pass or completed benchmark is claimed.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T20:04:50.473Z -->

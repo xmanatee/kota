@@ -306,3 +306,5 @@ provenance, forbidden filesystem access, and missing or exceeded analyzer
 containment from accepted evidence; they do not establish live model success.
 Inspection evidence and current verification logs are under this run's agent
 directory; no host policy, other task or retained writer was changed.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T20:04:50.473Z -->
