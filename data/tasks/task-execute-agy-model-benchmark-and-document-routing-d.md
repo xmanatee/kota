@@ -1,7 +1,7 @@
 ---
 status: open
 priority: p1
-depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres]
+depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres, task-enable-runtime-mediated-contained-evaluation]
 ---
 # Execute AGY model benchmark and document routing decision evidence
 
@@ -90,15 +90,11 @@ host check at 08:13 UTC could list Docker images and networks; an old KOTA image
 exists, but the Google internal egress network is not provisioned. This is setup
 and invocation routing work within the project, not an owner credential block.
 
-Use the existing eval-harness runner and its client/API boundary for contained
-execution from an authorized runtime context. A native coding worker does not
-need unrestricted Docker access. If this path is not callable by an automation,
-make the bounded eval action available through the existing module/tool/action
-mechanism. Preserve task/run attribution, cancellation, provider readiness and
-returned artifacts; do not add a second scheduler, general host shell, or expose
-the Docker socket or host credentials to candidate code. Coordinate shared auth
-and local routing with the active rollout-evaluation task rather than duplicating
-its changes. Produce the current image recipe and restricted Google egress setup
+`task-enable-runtime-mediated-contained-evaluation` owns the shared callable
+evaluation boundary. Consume that capability instead of implementing a second
+bridge or granting candidate code host authority. Coordinate shared auth and
+local routing with the rollout-evaluation task rather than duplicating its
+changes. Produce the current image recipe and restricted Google egress setup
 using existing container owners, then execute the prepared comparison.
 
 A denied worker socket must not end another attempt with only the same blocked
