@@ -1,8 +1,46 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make blocked outcomes actionable and recoverable
+
+## Completion receipt (September 12)
+
+Validated the existing shared disposition/recovery path under the current owner
+waiver. The scoped runtime export captured at 2026-09-12T06:59:13.048Z confirms
+all four original owners succeeded, merged their recorded revisions, and released
+all resources. Read-only Git checks confirm each revision is in this checkout.
+The current contract records cleared sandbox allocations; the export itself has
+no allocation field. No present retained owner, task contract or resource was changed.
+
+qj0mm4 reconciled to `41b708fd...` and published `13b64d459`; continuation validation
+remains in its open task, with missing historical calibration non-gating under the
+waiver and no counterfactual savings claim. hjhox7 published `a1022e259`; its bounded
+same-ID task is archived done, while the frozen-baseline 50% minimum/70% stretch
+remains with the aggregate verifier and dependency-linked tasks. 720nnv published
+`1743ee4d3` safely but has no executed Linux confidentiality pass. un8vlq published
+`00588eaa6` as containment; secure usable persistence remains explicit open work.
+
+All eight historical evidence tasks are already open under their current contracts.
+Their image, routing, egress and model setup gaps are actionable work; no new file,
+permission or preflight establishes live acceptance. The run summary records each
+case's missing result or actual conditional credential/authority prerequisite and
+preserves non-gating operational follow-up. No task was promoted by this assessment.
+
+Proof: 117 focused checks passed; 52 recovery/lifecycle/publication checks passed
+with six promoter publication journeys limited by the known supervised validator
+`spawnSync /bin/ps EPERM`; five real-worker/control integration scenarios passed.
+These cover safe incomplete publication gating, failed-check rejection, source-drift
+protection, same-run reconciliation/deduplication, unchanged-blocker restraint,
+retained ownership, cancellation and cleanup. Historical critic rejections and
+subsequent safe publication are attributable in the supplied runtime records.
+Controlled reviewer tests are not model calibration or Linux boundary execution.
+No further production mechanism gap was found; implementation and policy are unchanged.
+
+Evidence is in builder run `2026-09-12T06-40-59-793Z-builder-k259r0`, agent artifacts
+`blocked-outcomes-summary.md`, `historical-disposition-receipts.json`, the supplied
+`issue-evidence.json`, and the disposition validation logs. This closes only the
+shared task under its superseding contract, not the other owners' product outcomes.
+
 
 ## Current Contract
 
