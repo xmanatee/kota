@@ -55,5 +55,10 @@ result/option types). Core owns canonical queued-run and wire-trigger assembly.
 the contract; `buildWorkflowDaemonHandler(link)` is the daemon-side factory
 that routes the namespace methods through the typed
 `DaemonTransport`. Trigger event, schema, payload, run id, and eligibility must
-have identical semantics on both paths. Wire paths and reshape semantics are
-pinned in `daemon-client.test.ts`.
+have identical semantics on both paths. Client tests own request selection, response reshaping, and typed domain errors
+through controlled transport ports. Route tests own proxy fallback, retrigger
+handoff, and artifact/SSE projection; daemon-control and workflow runtime tests
+own authorization, admission, durable pause, cancellation, and retained recovery.
+CLI tests retain parsing and operator guidance; dry-run decision cases also check
+their rendering. Trial isolation uses the real runtime, and simulation composes
+existing preview owners without reproducing coordinator semantics.

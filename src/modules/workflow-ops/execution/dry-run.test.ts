@@ -147,6 +147,16 @@ describe("buildDryRunPlan", () => {
     expect(plan.steps).toHaveLength(1);
     expect(plan.steps[0].id).toBe("my-step");
     expect(plan.steps[0].whenResult).toBe("no-condition");
+    expect(plan.pass).toBe(true);
+    expect(plan.diagnostics).toEqual([]);
+    expect(plan.triggerMatch).toBeUndefined();
+    const output = formatDryRunPlan(plan);
+    expect(output).toContain("test-workflow");
+    expect(output).toContain("src/modules/test/workflows/test/workflow.ts");
+    expect(output).toContain("Steps (1)");
+    expect(output).toContain("my-step");
+    expect(output).not.toContain("when:");
+    expect(formatDryRunResult(plan)).toContain("Result: PASS");
   });
 
   it("marks steps skipped when when predicate returns false with empty context", async () => {
@@ -155,6 +165,7 @@ describe("buildDryRunPlan", () => {
     });
     const plan = await buildDryRunPlan(def);
     expect(plan.steps[0].whenResult).toBe("skipped");
+    expect(formatDryRunPlan(plan)).toContain("would skip");
   });
 
   it("marks steps as runs when when predicate returns true with empty context", async () => {
@@ -163,6 +174,7 @@ describe("buildDryRunPlan", () => {
     });
     const plan = await buildDryRunPlan(def);
     expect(plan.steps[0].whenResult).toBe("runs");
+    expect(formatDryRunPlan(plan)).toContain("true with empty context");
   });
 
   it("marks steps error when when predicate throws", async () => {
@@ -181,6 +193,9 @@ describe("buildDryRunPlan", () => {
     const plan = await buildDryRunPlan(def);
     expect(plan.steps[0].whenResult).toBe("error");
     expect(plan.steps[0].whenError).toBe("bad context access");
+    const output = formatDryRunPlan(plan);
+    expect(output).toContain("error");
+    expect(output).toContain("bad context access");
   });
 
   it("rejects command execution from dry-run predicates explicitly", async () => {
@@ -237,6 +252,10 @@ describe("buildDryRunPlan", () => {
     expect(plan.steps[0].children![0].id).toBe("child-a");
     expect(plan.steps[0].children![1].id).toBe("child-b");
     expect(plan.steps[0].children![0].whenResult).toBe("no-condition");
+    const output = formatDryRunPlan(plan);
+    expect(output).toContain("Steps (3)");
+    expect(output).toContain("child-a");
+    expect(output).toContain("child-b");
   });
 
   it("shows correct config for agent step", async () => {
@@ -333,6 +352,11 @@ describe("buildDryRunPlan with options", () => {
     expect(result.diagnostics[0].stepId).toBe("lint");
     expect(result.diagnostics[0].message).toContain("nonexistent-tool");
     expect(result.diagnostics[0].message).toContain("not registered");
+    const output = formatDryRunResult(result);
+    expect(output).toContain("Result: FAIL");
+    expect(output).toContain("Diagnostics:");
+    expect(output).toContain("ERROR");
+    expect(output).toContain("nonexistent");
   });
 
   it("checks tool availability in nested parallel steps", async () => {
@@ -367,6 +391,7 @@ describe("buildDryRunPlan with options", () => {
     expect(result.triggerMatch).toBeDefined();
     expect(result.triggerMatch!.matched).toBe(true);
     expect(result.triggerMatch!.matchedEvent).toBe("task.ready");
+    expect(formatDryRunResult(result)).toContain("Trigger: matched");
   });
 
   it("resolves registered event schema refs for trigger match and step context", async () => {
@@ -690,131 +715,4 @@ describe("buildDryRunPlan with options", () => {
     expect(result.diagnostics[0].stepId).toBe("step-a");
     expect(result.diagnostics[1].stepId).toBe("step-b");
   });
-
-  it("passes with no options (backward compatible)", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "step-one", type: "code", run: () => null }],
-    });
-    const result = await buildDryRunPlan(def);
-    expect(result.pass).toBe(true);
-    expect(result.diagnostics).toHaveLength(0);
-    expect(result.triggerMatch).toBeUndefined();
-  });
-});
-
-describe("formatDryRunPlan", () => {
-  it("includes workflow name, definition path, and step count", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "step-one", type: "code", run: () => null }],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).toContain("test-workflow");
-    expect(output).toContain("src/modules/test/workflows/test/workflow.ts");
-    expect(output).toContain("Steps (1)");
-    expect(output).toContain("step-one");
-  });
-
-  it("notes when predicate returning false as would-skip", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "maybe-step", type: "code", run: () => null, when: () => false }],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).toContain("would skip");
-  });
-
-  it("notes when predicate returning true as runs", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "active-step", type: "code", run: () => null, when: () => true }],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).toContain("true with empty context");
-  });
-
-  it("notes when predicate error with message", async () => {
-    const def = makeDefinition({
-      steps: [
-        {
-          id: "bad-step",
-          type: "code",
-          run: () => null,
-          when: () => {
-            throw new Error("oops");
-          },
-        },
-      ],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).toContain("error");
-    expect(output).toContain("oops");
-  });
-
-  it("counts parallel children in total step count", async () => {
-    const def = makeDefinition({
-      steps: [
-        { id: "first", type: "code", run: () => null },
-        {
-          id: "parallel-group",
-          type: "parallel",
-          steps: [
-            { id: "child-a", type: "code", run: () => null },
-            { id: "child-b", type: "code", run: () => null },
-          ],
-        },
-      ],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).toContain("Steps (4)");
-    expect(output).toContain("child-a");
-    expect(output).toContain("child-b");
-  });
-
-  it("shows no condition annotation for steps without when", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "always-step", type: "code", run: () => null }],
-    });
-    const plan = await buildDryRunPlan(def);
-    const output = formatDryRunPlan(plan);
-    expect(output).not.toContain("when:");
-  });
-});
-
-describe("formatDryRunResult", () => {
-  it("shows PASS for valid workflow", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "step-one", type: "code", run: () => null }],
-    });
-    const result = await buildDryRunPlan(def);
-    const output = formatDryRunResult(result);
-    expect(output).toContain("Result: PASS");
-  });
-
-  it("shows FAIL with diagnostics for missing tool", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "lint", type: "tool", tool: "nonexistent" }],
-    });
-    const result = await buildDryRunPlan(def, {
-      availableToolNames: new Set(["shell"]),
-    });
-    const output = formatDryRunResult(result);
-    expect(output).toContain("Result: FAIL");
-    expect(output).toContain("Diagnostics:");
-    expect(output).toContain("ERROR");
-    expect(output).toContain("nonexistent");
-  });
-
-  it("shows trigger match info", async () => {
-    const def = makeDefinition({
-      triggers: [{ event: "manual", cooldownMs: 0 }],
-      steps: [{ id: "step", type: "code", run: () => null }],
-    });
-    const result = await buildDryRunPlan(def, { payload: {} });
-    const output = formatDryRunResult(result);
-    expect(output).toContain("Trigger: matched");
-  });
-
 });

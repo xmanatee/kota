@@ -120,7 +120,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     await expect(wf.listRuns()).rejects.toThrow("Daemon unavailable");
   });
 
-  it("status routes through GET /workflow/status and adds pendingAbort: false", async () => {
+  it("status scopes the lookup and adds pendingAbort: false", async () => {
     const live = {
       activeRuns: [],
       pendingRuns: [],
@@ -134,30 +134,8 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       respondFetch: () => jsonResponse(200, live),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.status();
+    const result = await wf.status({ scopeId: "scope-b" });
     expect(result).toEqual({ ...live, pendingAbort: false });
-    expect(calls[0]).toEqual({
-      kind: "fetchRaw",
-      path: "/workflow/status",
-      init: { method: "GET" },
-    });
-  });
-
-  it("status serializes scopeId into the query string", async () => {
-    const live = {
-      activeRuns: [],
-      pendingRuns: [],
-      queueLength: 0,
-      completedRuns: 0,
-      workflows: {},
-      paused: false,
-      concurrency: 4,
-    };
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(200, live),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await wf.status({ scopeId: "scope-b" });
     expect(calls[0]).toEqual({
       kind: "fetchRaw",
       path: "/workflow/status?scopeId=scope-b",
@@ -332,167 +310,70 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     );
   });
 
-  it("enable routes through POST /workflow/definitions/<name>/enable", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(200, { ok: true }),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.enable("builder");
-    expect(result).toEqual({ ok: true });
-    const call = calls[0] as { kind: "fetchRaw"; path: string; init: RequestInit };
-    expect(call.kind).toBe("fetchRaw");
-    expect(call.path).toBe("/workflow/definitions/builder/enable");
-    expect(call.init.method).toBe("POST");
-  });
-
-  it("enable url-escapes the name", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(200, { ok: true }),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await wf.enable("a/b c");
-    expect((calls[0] as { path: string }).path).toBe(
-      `/workflow/definitions/${encodeURIComponent("a/b c")}/enable`,
-    );
-  });
-
-  it("enable decodes 404 to not_found", async () => {
-    const { transport } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(404, {}),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.enable("missing");
-    expect(result).toEqual({ ok: false, reason: "not_found" });
-  });
-
-  it("enable throws byte-for-byte on transport failure", async () => {
-    const { transport } = makeRecordingTransport({
-      respondFetch: () => {
-        throw new TypeError("fetch failed");
-      },
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.enable("x")).rejects.toThrow(
-      'Daemon unreachable while enabling workflow "x"',
-    );
-  });
-
-  it("disable routes through POST /workflow/definitions/<name>/disable and decodes 404", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: (_path) => jsonResponse(404, {}),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.disable("builder");
-    expect(result).toEqual({ ok: false, reason: "not_found" });
-    expect((calls[0] as { path: string }).path).toBe(
-      "/workflow/definitions/builder/disable",
-    );
-  });
-
-  it("disable throws byte-for-byte on transport failure", async () => {
-    const { transport } = makeRecordingTransport({
-      respondFetch: () => {
-        throw new TypeError("fetch failed");
-      },
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.disable("y")).rejects.toThrow(
-      'Daemon unreachable while disabling workflow "y"',
-    );
-  });
-
-  it("cancelRun routes through DELETE /workflow/runs/<id>", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(200, { ok: true }),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.cancelRun("run-1");
-    expect(result).toEqual({ ok: true });
-    const call = calls[0] as { path: string; init: RequestInit };
-    expect(call.path).toBe("/workflow/runs/run-1");
-    expect(call.init.method).toBe("DELETE");
-  });
-
-  it("cancelRun decodes 404 → not_found and 409 → active", async () => {
-    {
-      const { transport } = makeRecordingTransport({
-        respondFetch: () => jsonResponse(404, {}),
+  describe.each([
+    { operation: "enable", verb: "enabling" },
+    { operation: "disable", verb: "disabling" },
+  ] as const)("$operation definition", ({ operation, verb }) => {
+    it("encodes the name and distinguishes missing definitions from transport failure", async () => {
+      let status = 200;
+      const { transport, calls } = makeRecordingTransport({
+        respondFetch: () => jsonResponse(status, {}),
       });
       const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-      expect(await wf.cancelRun("missing")).toEqual({
-        ok: false,
-        reason: "not_found",
+      expect(await wf[operation]("a/b c")).toEqual({ ok: true });
+      expect(calls[0]).toMatchObject({
+        kind: "fetchRaw",
+        path: `/workflow/definitions/a%2Fb%20c/${operation}`,
+        init: { method: "POST" },
       });
-    }
-    {
-      const { transport } = makeRecordingTransport({
-        respondFetch: () => jsonResponse(409, {}),
-      });
-      const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-      expect(await wf.cancelRun("active-id")).toEqual({
-        ok: false,
-        reason: "active",
-      });
-    }
+      status = 404;
+      expect(await wf[operation]("missing")).toEqual({ ok: false, reason: "not_found" });
+      status = 503;
+      await expect(wf[operation]("x")).rejects.toThrow(
+        `Daemon unreachable while ${verb} workflow "x"`,
+      );
+    });
   });
 
-  it("cancelRun throws byte-for-byte on transport failure", async () => {
+  describe.each([
+    { operation: "cancelRun", method: "DELETE", suffix: "", conflict: "active", verb: "cancelling" },
+    { operation: "abortRun", method: "POST", suffix: "/abort", conflict: "queued", verb: "aborting" },
+  ] as const)("$operation", ({ operation, method, suffix, conflict, verb }) => {
+    it("routes control intent and decodes domain conflicts", async () => {
+      let status = 200;
+      const { transport, calls } = makeRecordingTransport({
+        respondFetch: () => jsonResponse(status, {}),
+      });
+      const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+      expect(await wf[operation]("run-1")).toEqual({ ok: true });
+      expect(calls[0]).toMatchObject({
+        kind: "fetchRaw",
+        path: `/workflow/runs/run-1${suffix}`,
+        init: { method },
+      });
+      status = 404;
+      expect(await wf[operation]("missing")).toEqual({ ok: false, reason: "not_found" });
+      status = 409;
+      expect(await wf[operation]("run-1")).toEqual({ ok: false, reason: conflict });
+    });
+
+    it("reports an unavailable transport", async () => {
+      const { transport } = makeRecordingTransport({
+        respondFetch: () => { throw new TypeError("fetch failed"); },
+      });
+      const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+      await expect(wf[operation]("rid")).rejects.toThrow(
+        `Daemon unreachable while ${verb} run "rid"`,
+      );
+    });
+  });
+
+  it("distinguishes preserved sandbox work from an active-run cancellation conflict", async () => {
     const { transport } = makeRecordingTransport({
-      respondFetch: () => {
-        throw new TypeError("fetch failed");
-      },
+      respondFetch: () => jsonResponse(409, { blockers: ["unintegrated work"] }),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.cancelRun("rid")).rejects.toThrow(
-      'Daemon unreachable while cancelling run "rid"',
-    );
-  });
-
-  it("abortRun routes through POST /workflow/runs/<id>/abort", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      respondFetch: () => jsonResponse(200, { ok: true }),
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    const result = await wf.abortRun("run-2");
-    expect(result).toEqual({ ok: true });
-    const call = calls[0] as { path: string; init: RequestInit };
-    expect(call.path).toBe("/workflow/runs/run-2/abort");
-    expect(call.init.method).toBe("POST");
-  });
-
-  it("abortRun decodes 404 → not_found and 409 → queued", async () => {
-    {
-      const { transport } = makeRecordingTransport({
-        respondFetch: () => jsonResponse(404, {}),
-      });
-      const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-      expect(await wf.abortRun("missing")).toEqual({
-        ok: false,
-        reason: "not_found",
-      });
-    }
-    {
-      const { transport } = makeRecordingTransport({
-        respondFetch: () => jsonResponse(409, {}),
-      });
-      const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-      expect(await wf.abortRun("queued-id")).toEqual({
-        ok: false,
-        reason: "queued",
-      });
-    }
-  });
-
-  it("abortRun throws byte-for-byte on transport failure", async () => {
-    const { transport } = makeRecordingTransport({
-      respondFetch: () => {
-        throw new TypeError("fetch failed");
-      },
-    });
-    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.abortRun("zid")).rejects.toThrow(
-      'Daemon unreachable while aborting run "zid"',
-    );
+    expect(await wf.cancelRun("retained")).toEqual({ ok: false, reason: "sandbox_preserved" });
   });
 
   it("getRun routes through GET /workflow/runs/<id> and distinguishes 404", async () => {

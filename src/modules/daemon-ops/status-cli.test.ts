@@ -40,50 +40,29 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("offline mode");
   });
 
-  it("shows daemon as running with pid and uptime", () => {
+  it.each([false, true])("renders live work and sessions with dispatch paused=%s", (workflowPaused) => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,
       daemonPid: 12345,
       daemonUptimeMs: 2 * 60 * 60 * 1000 + 14 * 60 * 1000,
+      activeRuns: 2,
+      queuedRuns: 3,
+      sessions: 1,
+      workflowPaused,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
     }));
     expect(out).toContain("running");
     expect(out).toContain("pid 12345");
     expect(out).toContain("2h 14m");
-  });
-
-  it("shows active and queued run counts", () => {
-    const out = formatStatusOutput(makeSnap({
-      daemonRunning: true,
-      daemonPid: 12345,
-      activeRuns: 2,
-      queuedRuns: 3,
-      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-    }));
     expect(out).toContain("2 active, 3 queued");
-  });
-
-  it("shows when workflow dispatch is paused", () => {
-    const out = formatStatusOutput(makeSnap({
-      daemonRunning: true,
-      daemonPid: 12345,
-      workflowPaused: true,
-      queuedRuns: 3,
-      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-    }));
-    expect(out).toContain("Dispatch");
-    expect(out).toContain("paused");
-    expect(out).toContain("kota workflow resume");
-  });
-
-  it("shows session count", () => {
-    const out = formatStatusOutput(makeSnap({
-      daemonRunning: true,
-      daemonPid: 12345,
-      sessions: 1,
-      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-    }));
     expect(out).toContain("1 interactive");
+    expect(out).toContain("Dispatch");
+    if (workflowPaused) {
+      expect(out).toContain("paused");
+      expect(out).toContain("kota workflow resume");
+    } else {
+      expect(out).not.toContain("paused");
+    }
   });
 
   it("renders durable run counts while dispatch is offline", () => {
