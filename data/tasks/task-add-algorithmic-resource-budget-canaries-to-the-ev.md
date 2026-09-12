@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-enable-runtime-mediated-contained-evaluation]
 ---
@@ -248,3 +248,52 @@ resource exhaustion.
 ## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 with current container/egress options. Retain resource-budget-result.json, generated cases, shortcut rejection and budget metrics, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: The trusted host must supply scope-authorized KOTA_EVAL_CONTAINED_PROFILES for builder-algorithmic-resource-budget-canary; an attributable available grant permits resuming setup and the live evaluation.
+```
+
+This existing metadata kind tracks externally controlled execution availability.
+The path is an evidence-discovery hint, not a required capture location or file
+existence gate. Host setup can be automated by its authorized lifecycle owner.
+
+The trusted host must grant a contained-evaluation profile for this scope and
+`builder-algorithmic-resource-budget-canary`. In repair attempt 1 of builder
+`2026-09-12T14-17-50-103Z-builder-z75940`, the production command
+`pnpm kota eval contained '{"operation":"inspect"}'` reached the native tool
+and returned `is_error: true`: `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted
+host environment.` Invocation `ff30f36936c05d3c383e945af7ca5689`, tool use
+`tool-e9bc7cfc0e634a9e7eb15125e0857d9d`, identifies that response. The exact
+runtime response is retained as `contained-inspect-response.json` in this run's
+agent artifacts.
+
+This is a missing host execution grant, not an inferred Docker, image, proxy or
+credential absence. The implementation dependency is complete and the native
+transport works. The host-owned profile authorizes the canonical scope, fixture,
+preset, repeats, resource limits, current-source image/image-local executable,
+and restricted provider-egress. The supported request schema cannot configure
+those grants or prepare host images; local environment edits cannot configure
+the trusted service. No credential was requested or inspected, and no host
+execution or confinement bypass was attempted.
+
+Resume after the host lifecycle owner supplies that profile through the existing
+trusted environment and makes it visible to a native invocation. Inspect the
+actual grant, finish any image/egress setup through permitted host capabilities,
+and run the authorized profile with this fixture and `repeatCount: 1`. Inspect
+passing predicates, generated canary results, objective metrics, and real nested
+builder provenance before marking done. This does not require human capture,
+manual benchmark execution, a new implementation dependency, or a separate
+readiness artifact. The builder must not restart its parent daemon.
+
+Repair validation: `pnpm kota eval list` exits successfully and loads this
+fixture without schema/provenance errors. The focused owner scorer test passes
+(1 passed, 6 unrelated cases deselected), rejecting sample-only, comparison-proxy,
+hardcoded-answer and case-metadata shortcuts. These are partial fixture proofs;
+no live nested agent ran and no live resource-budget metric is claimed. Only
+this task's blocked disposition changed; the fixture and execution owners remain
+unchanged. The prior yield-only assessment is superseded by this observed
+execution prerequisite.
