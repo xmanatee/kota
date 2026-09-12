@@ -25,24 +25,11 @@ describe("approval-queue daemon client mutations", () => {
     }]);
   });
 
-  it("routes reject without a reason as an undefined reason body", async () => {
-    const approval = makeApproval("a-bare", "rejected");
-    const { transport, calls } = makeRecordingTransport(() => ({ approval }));
-    const client = approvalQueueModule.daemonClient!(transport).approvals!;
-
-    await expect(client.reject("a-bare")).resolves.toEqual({ ok: true, approval });
-    expect(calls[0]).toMatchObject({
-      path: "/approvals/a-bare/reject",
-      init: { body: JSON.stringify({ reason: undefined }) },
-      shape: "fetchRaw",
-    });
-  });
-
   it("threads scopeId through list and mutations", async () => {
     const approval = makeApproval("a-scope", "approved");
     const { transport, calls } = makeRecordingTransport((_method, path, _body, shape) =>
       shape === "requestStrict"
-        ? { approvals: [] }
+        ? { approvals: [approval] }
         : path.includes("/approve")
           ? {
               approval,
@@ -58,7 +45,8 @@ describe("approval-queue daemon client mutations", () => {
     );
     const client = approvalQueueModule.daemonClient!(transport).approvals!;
 
-    await client.list({ status: "pending", scopeId: "scope-b" });
+    await expect(client.list({ status: "approved", scopeId: "scope-b" }))
+      .resolves.toEqual({ approvals: [approval] });
     await client.approve(
       "a-scope",
       "a".repeat(64),
@@ -68,7 +56,7 @@ describe("approval-queue daemon client mutations", () => {
     await client.reject("a-scope", "no", { scopeId: "scope-b" });
 
     expect(calls.map((call) => call.path)).toEqual([
-      "/approvals?status=pending&scopeId=scope-b",
+      "/approvals?status=approved&scopeId=scope-b",
       "/approvals/a-scope/approve?scopeId=scope-b",
       "/approvals/a-scope/reject?scopeId=scope-b",
     ]);

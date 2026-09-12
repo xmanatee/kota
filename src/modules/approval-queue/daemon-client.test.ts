@@ -1,43 +1,4 @@
-/**
- * Approval-queue namespace daemon-side handler test.
- *
- * The approvals namespace migrated out of the core stub into
- * `daemonClient(link)` on the approval-queue module. This test pins the
- * invariants the migration relies on:
- *
- *  1. The approval-queue module exposes a `daemonClient(link)` factory and
- *     the factory returns a handler for the `approvals` namespace.
- *  2. `list()` is wired through `DaemonTransport.requestStrict<T>` with
- *     method `GET`, path `/approvals`, and an undefined body when no
- *     filter is provided. The daemon route's `readStatusFilter` defaults
- *     to `pending` when no `?status=` query is present, matching the
- *     local handler.
- *  3. `list({ status })` for every `ApprovalStatus | "all"` value routes
- *     through `requestStrict<T>` with the matching `?status=...` query
- *     string, including a status containing reserved characters threaded
- *     through `encodeURIComponent`.
- *  4. `approve(id, note?)` is wired through `fetchRaw` with method
- *     `POST`, path `/approvals/${encodeURIComponent(id)}/approve`, and
- *     body `{ note }`.
- *  5. `reject(id, reason?)` is wired through `fetchRaw` with method
- *     `POST`, path `/approvals/${encodeURIComponent(id)}/reject`, and
- *     body `{ reason }`.
- *  6. Every `ApprovalsListResult` payload decodes through `requestStrict<T>`
- *     unchanged — empty approvals plus a multi-entry payload mixing
- *     pending / approved / rejected statuses.
- *  7. Every approval mutation arm decodes correctly: a `200` approve
- *     response carries an explicit resolution, a `200` reject response
- *     carries the updated approval, and a `null` (404) response collapses into
- *     `{ ok: false, reason: "not_found" }`, while a typed 400 invalid-id
- *     response collapses into `{ ok: false, reason: "invalid_id" }`.
- *  8. Removing the approval-queue module's daemonClient contribution
- *     makes the assembled client fail loudly with a clear "approvals"
- *     missing-handler error.
- *  9. Supplying the contribution to the assembly path satisfies coverage.
- */
-
 import { describe, expect, it } from "vitest";
-import type { ApprovalStatus } from "#core/daemon/approval-queue.js";
 import type { ApprovalsListResult } from "./client.js";
 import {
   ENCODING_SENSITIVE_ID,
@@ -61,61 +22,6 @@ describe("approval-queue module daemonClient(link)", () => {
         shape: "requestStrict",
       },
     ]);
-  });
-
-  it("routes list({ status }) for every ApprovalStatus | 'all' value through GET /approvals?status=...", async () => {
-    const cases: (ApprovalStatus | "all")[] = [
-      "pending",
-      "approved",
-      "rejected",
-      "expired",
-      "all",
-    ];
-    for (const status of cases) {
-      const expected: ApprovalsListResult = { approvals: [] };
-      const { transport, calls } = makeRecordingTransport(() => expected);
-      const contributed = approvalQueueModule.daemonClient!(transport);
-      const result = await contributed.approvals!.list({ status });
-      expect(result).toEqual(expected);
-      expect(calls).toEqual([
-        {
-          method: "GET",
-          path: `/approvals?status=${encodeURIComponent(status)}`,
-          body: undefined,
-          shape: "requestStrict",
-        },
-      ]);
-    }
-  });
-
-  it("threads a status containing reserved characters through encodeURIComponent on the query string", async () => {
-    const weird = "weird+status %value" as unknown as ApprovalStatus | "all";
-    const expected: ApprovalsListResult = { approvals: [] };
-    const { transport, calls } = makeRecordingTransport(() => expected);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    await contributed.approvals!.list({ status: weird });
-    expect(calls).toEqual([
-      {
-        method: "GET",
-        path: `/approvals?status=${encodeURIComponent(weird)}`,
-        body: undefined,
-        shape: "requestStrict",
-      },
-    ]);
-  });
-
-  it("decodes a multi-entry ApprovalsListResult payload mixing pending / approved / rejected statuses", async () => {
-    const expected: ApprovalsListResult = {
-      approvals: [
-        makeApproval("a-1", "pending"),
-        makeApproval("a-2", "approved"),
-        makeApproval("a-3", "rejected"),
-      ],
-    };
-    const { transport } = makeRecordingTransport(() => expected);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.list({ status: "all" });
-    expect(result).toEqual(expected);
   });
 
   it("routes approve(id, note?) through POST /approvals/:id/approve with encodeURIComponent and { note } body", async () => {
@@ -149,48 +55,6 @@ describe("approval-queue module daemonClient(link)", () => {
         shape: "fetchRaw",
       },
     ]);
-  });
-
-  it("routes approve(id) without a note as { note: undefined } body", async () => {
-    const approval = makeApproval("a-bare", "approved");
-    const resolution = {
-      kind: "tool_execution" as const,
-      execution: {
-        status: "succeeded" as const,
-        output: { redacted: true as const, reason: "tool-io" as const },
-      },
-    };
-    const { transport, calls } = makeRecordingTransport(() => ({ approval, resolution }));
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("a-bare", "a".repeat(64));
-    expect(result).toEqual({ ok: true, approval, resolution });
-    expect(calls).toEqual([
-      {
-        path: "/approvals/a-bare/approve",
-        init: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reviewDigest: "a".repeat(64),
-            note: undefined,
-          }),
-        },
-        shape: "fetchRaw",
-      },
-    ]);
-  });
-
-  it("preserves daemon approval execution projections", async () => {
-    const approval = makeApproval("a-exec", "approved");
-    const execution = {
-      status: "succeeded" as const,
-      output: { redacted: true as const, reason: "tool-io" as const, bytes: 12 },
-    };
-    const resolution = { kind: "tool_execution" as const, execution };
-    const { transport } = makeRecordingTransport(() => ({ approval, resolution }));
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("a-exec", "a".repeat(64));
-    expect(result).toEqual({ ok: true, approval, resolution });
   });
 
   it("preserves an explicit workflow-gate approval resolution", async () => {

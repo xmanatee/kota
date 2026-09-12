@@ -1,5 +1,4 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +11,7 @@ import {
 	clearApprovalExecutionTestTools,
 	registerApprovalExecutionTestTools,
 } from "./approval-execution-test-tools.integration.js";
+import { approvalDecisionBody, mockRequest, mockResponse, reviewDigest } from "./approval-route-test-support.integration.js";
 import { handleApproveAllApprovals, handleApproveApproval } from "./routes.js";
 
 const executeTool = vi.fn<ToolRunner>();
@@ -54,57 +54,6 @@ async function waitUntil(
 	throw new Error(message);
 }
 
-function mockRequestBody(body: Record<string, unknown>): IncomingMessage {
-	const encodedBody = Buffer.from(JSON.stringify(body));
-	let dataHandler: ((chunk: Buffer) => void) | undefined;
-	let endHandler: (() => void) | undefined;
-	return {
-		headers: { "content-type": "application/json" },
-		on: (event: string, callback: (data?: Buffer) => void) => {
-			if (event === "data") dataHandler = callback as (chunk: Buffer) => void;
-			if (event === "end") endHandler = callback as () => void;
-			if (dataHandler === undefined || endHandler === undefined) return;
-			dataHandler(encodedBody);
-			endHandler();
-			dataHandler = undefined;
-			endHandler = undefined;
-		},
-	} as unknown as IncomingMessage;
-}
-
-function mockRequest(reviewDigest: string): IncomingMessage {
-	return mockRequestBody({ reviewDigest });
-}
-
-function mockResponse(): {
-	res: ServerResponse;
-	result: { status: number; body: Record<string, unknown> | null };
-} {
-	const result: { status: number; body: Record<string, unknown> | null } = {
-		status: 0,
-		body: null,
-	};
-	const res = {
-		setHeader: vi.fn(),
-		writeHead: (status: number) => {
-			result.status = status;
-		},
-		end: (data: string) => {
-			result.body = JSON.parse(data) as Record<string, unknown>;
-		},
-		on: vi.fn(),
-	} as unknown as ServerResponse;
-	return { res, result };
-}
-
-function reviewDigest(queue: ApprovalQueue, id: string): string {
-	const item = queue.get(id);
-	if (!item) throw new Error(`Missing approval ${id}`);
-	const review = queue.projectForClient(item).review;
-	if (review.status !== "available") throw new Error("Expected review descriptor");
-	return review.digest;
-}
-
 describe("approval review receipt binding", () => {
 	beforeEach(() => {
 		registerApprovalExecutionTestTools(executeTool);
@@ -144,7 +93,7 @@ describe("approval review receipt binding", () => {
 		const { res, result } = mockResponse();
 
 		await handleApproveApproval(
-			mockRequest(reviewDigest(queue, first.id)),
+			mockRequest(approvalDecisionBody(queue, first.id)),
 			res,
 			second.id,
 			null,
@@ -205,7 +154,7 @@ describe("approval review receipt binding", () => {
 			const { res, result } = mockResponse();
 
 			await handleApproveApproval(
-				mockRequest(reviewDigest(queue, pending.id)),
+				mockRequest(approvalDecisionBody(queue, pending.id)),
 				res,
 				pending.id,
 				null,
@@ -276,7 +225,7 @@ describe("approval review receipt binding", () => {
 			const { res, result } = mockResponse();
 
 			await handleApproveAllApprovals(
-				mockRequestBody({ reviews }),
+				mockRequest({ reviews }),
 				res,
 				null,
 				queue,

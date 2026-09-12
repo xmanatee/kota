@@ -59,5 +59,9 @@ queue transitions, execution leases, and receipts stay with their owners.
 Route checks share only HTTP ports and review-receipt construction. Daemon-control
 checks retain the real HTTP registration/authentication boundary; queue filtering
 belongs to core, while route checks prove query forwarding and safe projections.
+Keep effect and replay observations with the shared approval mutation path;
+control-route checks need representative body decoding and dispatch, not another
+queue transition or redaction matrix. Client checks own wire decoding and scope
+forwarding; typed status catalogs do not need enumeration through every adapter.
 MCP and scope-execution scenarios retain their distinct execution and isolation
 oracles. Group scenarios by behavior, with fixture lifecycle owned by that suite.

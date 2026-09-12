@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
+import { approvalBatchDecisionBody, mockRequest, mockResponse } from "./approval-route-test-support.integration.js";
 import { handleApproveAllApprovals } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
@@ -18,53 +18,6 @@ function makeQueue(): ApprovalQueue {
 		`kota-approvals-approve-all-race-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 	);
 	return new ApprovalQueue(dir);
-}
-
-function mockResponse() {
-	const result = { status: 0, body: null as unknown };
-	const res = {
-		setHeader: vi.fn(),
-		writeHead: (status: number) => {
-			result.status = status;
-		},
-		end: (data: string) => {
-			result.body = JSON.parse(data);
-		},
-		on: vi.fn(),
-	} as unknown as ServerResponse;
-	return { res, result };
-}
-
-function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
-	const buf = Buffer.from(JSON.stringify(body));
-	let dataHandler: ((chunk: Buffer) => void) | null = null;
-	let endHandler: (() => void) | null = null;
-	const req = {
-		headers: { "content-type": "application/json" },
-		on: (event: string, cb: (data?: Buffer) => void) => {
-			if (event === "data") dataHandler = cb as (chunk: Buffer) => void;
-			if (event === "end") endHandler = cb as () => void;
-			if (dataHandler && endHandler) {
-				dataHandler(buf);
-				endHandler();
-				dataHandler = null;
-				endHandler = null;
-			}
-		},
-	};
-	return req as unknown as IncomingMessage;
-}
-
-function approvalBatchRequest(queue: ApprovalQueue): IncomingMessage {
-	return mockRequest({
-		reviews: queue.list("pending").map((item) => {
-			const review = queue.projectForClient(item).review;
-			if (review.status !== "available") {
-				throw new Error(`Approval ${item.id} is not reviewable`);
-			}
-			return { id: item.id, digest: review.digest };
-		}),
-	});
 }
 
 function gatedInitializeMcpServerScript(
@@ -218,7 +171,7 @@ describe("approval approve-all preflight race", () => {
 			const { res, result } = mockResponse();
 
 			const response = withCwd(scopeRoot, () =>
-				handleApproveAllApprovals(approvalBatchRequest(queue), res, null, queue)
+				handleApproveAllApprovals(mockRequest(approvalBatchDecisionBody(queue)), res, null, queue)
 			);
 			await waitForFile(markerPath);
 			const queuedDuringPreflight = queue.enqueue(

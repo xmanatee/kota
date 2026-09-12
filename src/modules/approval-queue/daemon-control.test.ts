@@ -6,7 +6,6 @@ import {
   ApprovalQueue,
   getApprovalQueue,
   resetApprovalQueue,
-  setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
@@ -30,7 +29,7 @@ import {
   clearApprovalExecutionTestTools,
   registerApprovalExecutionTestTools,
 } from "./approval-execution-test-tools.integration.js";
-import { approvePending, reviewDigest } from "./approval-route-test-support.integration.js";
+import { reviewDigest } from "./approval-route-test-support.integration.js";
 import { approvalControlRoutes } from "./routes.js";
 
 const TEST_TOKEN = "approvals-test-token";
@@ -245,10 +244,11 @@ describe("approval-queue module daemon-control routes", () => {
   });
   describe("registration seam", () => {
     it("requires the daemon bearer token on all five routes", async () => {
+      const item = queue.enqueue("shell", { command: "deploy.sh" }, "dangerous", "deploy");
       for (const init of [
         { path: "/approvals", method: "GET" },
-        { path: "/approvals/anything/approve", method: "POST" },
-        { path: "/approvals/anything/reject", method: "POST" },
+        { path: `/approvals/${item.id}/approve`, method: "POST" },
+        { path: `/approvals/${item.id}/reject`, method: "POST" },
         { path: "/approvals/approve-all", method: "POST" },
         { path: "/approvals/reject-all", method: "POST" },
       ]) {
@@ -257,6 +257,8 @@ describe("approval-queue module daemon-control routes", () => {
         });
         expect(res.status).toBe(401);
       }
+      expect(queue.get(item.id)?.status).toBe("pending");
+      expect(executeTool).not.toHaveBeenCalled();
     });
   });
 
@@ -347,104 +349,15 @@ describe("approval-queue module daemon-control routes", () => {
       const res = await fetchWith(
         port,
         `/approvals/${item.id}/approve`,
-        approvalPost(queue, item.id),
+        approvalPost(queue, item.id, "reviewed over HTTP"),
       );
       expect(res.status).toBe(200);
       const body = (await res.json()) as { approval: { id: string; status: string } };
       expect(body.approval.id).toBe(item.id);
-      expect(body.approval.status).toBe("approved");
-    });
-
-    it("executes against raw queue input while returning redacted approval and execution projections", async () => {
-      const item = queue.enqueue(
-        "shell",
-        { command: "deploy.sh", accessToken: "raw-token" },
-        "moderate",
-        "deploy",
+      expect(body.approval).toMatchObject({ status: "approved", approvalNote: "reviewed over HTTP" });
+      expect(executeTool).toHaveBeenCalledExactlyOnceWith(
+        { command: "deploy.sh" }, expect.objectContaining({ cwd: process.cwd() }),
       );
-      vi.mocked(executeTool).mockResolvedValueOnce({ content: "deployed raw-token" });
-
-      const res = await fetchWith(
-        port,
-        `/approvals/${item.id}/approve`,
-        approvalPost(queue, item.id),
-      );
-
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as {
-        approval: { input: Record<string, unknown>; status: string };
-        resolution: {
-          kind: string;
-          execution: { status: string; output: { redacted: true; reason: string } };
-        };
-      };
-      expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
-        { command: "deploy.sh", accessToken: "raw-token" },
-        expect.objectContaining({ cwd: process.cwd() }),
-      );
-      expect(body.approval.status).toBe("approved");
-      expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });
-      expect(body.resolution).toMatchObject({
-        kind: "tool_execution",
-        execution: {
-          status: "succeeded",
-          output: { redacted: true, reason: "tool-io" },
-        },
-      });
-      expect(JSON.stringify(body)).not.toContain("raw-token");
-      expect(JSON.stringify(body)).not.toContain("deployed raw-token");
-    });
-
-    it("fails closed after daemon restart when raw queue input is unavailable", async () => {
-      const item = queue.enqueue(
-        "shell",
-        { command: "deploy.sh", accessToken: "raw-token" },
-        "moderate",
-        "deploy",
-      );
-      const restarted = new ApprovalQueue(queueDir);
-      setApprovalQueueInstance(restarted);
-
-      const res = await fetchWith(port, `/approvals/${item.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewDigest: "a".repeat(64) }),
-      });
-
-      expect(res.status).toBe(409);
-      const body = (await res.json()) as {
-        reason: string;
-        approvals: Array<{ id: string; status: string }>;
-      };
-      expect(body.reason).toBe("approval_input_unavailable");
-      expect(body.approvals).toEqual([expect.objectContaining({ id: item.id, status: "pending" })]);
-      expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
-      expect(restarted.get(item.id)?.status).toBe("pending");
-      expect(JSON.stringify(body)).not.toContain("raw-token");
-    });
-
-    it("attaches the note from the request body", async () => {
-      const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
-
-      const res = await fetchWith(
-        port,
-        `/approvals/${item.id}/approve`,
-        approvalPost(queue, item.id, "please add a unit test"),
-      );
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { approval: { approvalNote?: string } };
-      expect(body.approval.approvalNote).toBe("please add a unit test");
-    });
-
-    it("returns 404 when the approval is missing", async () => {
-      const res = await fetchWith(port, "/approvals/deadbeef/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewDigest: "a".repeat(64) }),
-      });
-      expect(res.status).toBe(404);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toBe("Approval not found or not pending");
     });
 
     it("rejects an encoded slash approval id before queue mutation", async () => {
@@ -456,18 +369,6 @@ describe("approval-queue module daemon-control routes", () => {
       const body = (await res.json()) as { reason: string };
       expect(body.reason).toBe("invalid_approval_id");
       expect(queue.get(item.id)?.status).toBe("pending");
-    });
-
-    it("returns 404 when the approval is no longer pending", async () => {
-      const item = queue.enqueue("shell", { command: "echo" }, "safe", "already approved");
-      approvePending(queue, item.id);
-
-      const res = await fetchWith(port, `/approvals/${item.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewDigest: "a".repeat(64) }),
-      });
-      expect(res.status).toBe(404);
     });
   });
 
@@ -488,21 +389,6 @@ describe("approval-queue module daemon-control routes", () => {
       expect(body.approval.status).toBe("rejected");
       expect(body.approval.rejectionReason).toBe("not now");
     });
-
-    it("rejects without a reason when the body omits it", async () => {
-      const item = queue.enqueue("shell", { command: "reboot" }, "dangerous", "system reboot");
-
-      const res = await fetchWith(port, `/approvals/${item.id}/reject`, { method: "POST" });
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { approval: { status: string; rejectionReason?: string } };
-      expect(body.approval.status).toBe("rejected");
-      expect(body.approval.rejectionReason).toBeUndefined();
-    });
-
-    it("returns 404 when the approval is missing", async () => {
-      const res = await fetchWith(port, "/approvals/deadbeef/reject", { method: "POST" });
-      expect(res.status).toBe(404);
-    });
   });
 
   describe("POST /approvals/approve-all", () => {
@@ -515,14 +401,6 @@ describe("approval-queue module daemon-control routes", () => {
       const body = (await res.json()) as { approvals: Array<{ status: string }>; count: number };
       expect(body.count).toBe(2);
       expect(body.approvals.every((a) => a.status === "approved")).toBe(true);
-    });
-
-    it("returns an empty bulk envelope when nothing is pending", async () => {
-      const res = await fetchWith(port, "/approvals/approve-all", approveAllPost(queue));
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { approvals: unknown[]; count: number };
-      expect(body.count).toBe(0);
-      expect(body.approvals).toEqual([]);
     });
   });
 
@@ -544,21 +422,6 @@ describe("approval-queue module daemon-control routes", () => {
       expect(body.count).toBe(2);
       expect(body.approvals.every((a) => a.status === "rejected")).toBe(true);
       expect(body.approvals.every((a) => a.rejectionReason === "cleanup")).toBe(true);
-    });
-  });
-
-  describe("capability scope", () => {
-    it("rejects mutating routes when the bearer token is absent (control scope still requires auth)", async () => {
-      const item = queue.enqueue("shell", { command: "echo" }, "safe", "demo");
-      const noAuth = await globalThis.fetch(
-        `http://127.0.0.1:${port}/approvals/${item.id}/approve`,
-        {
-          method: "POST",
-        },
-      );
-      expect(noAuth.status).toBe(401);
-      // The item is still pending after the unauthorized request.
-      expect(queue.list("pending")).toHaveLength(1);
     });
   });
 

@@ -6,52 +6,18 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
+import { mockRequest, mockResponse } from "./approval-route-test-support.integration.js";
 import { handleApproveApproval } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
 	executeTool: vi.fn(),
 }));
-
-function mockResponse() {
-	const result = { status: 0, body: null as unknown };
-	const res = {
-		setHeader: vi.fn(),
-		writeHead: (status: number) => {
-			result.status = status;
-		},
-		end: (data: string) => {
-			result.body = JSON.parse(data);
-		},
-		on: vi.fn(),
-	} as unknown as ServerResponse;
-	return { res, result };
-}
-
-function mockRequest(reviewDigest: string): IncomingMessage {
-	const body = Buffer.from(JSON.stringify({ reviewDigest }));
-	let dataHandler: ((chunk: Buffer) => void) | null = null;
-	let endHandler: (() => void) | null = null;
-	return {
-		headers: { "content-type": "application/json" },
-		on: (event: string, callback: (data?: Buffer) => void) => {
-			if (event === "data") dataHandler = callback as (chunk: Buffer) => void;
-			if (event === "end") endHandler = callback as () => void;
-			if (dataHandler && endHandler) {
-				dataHandler(body);
-				endHandler();
-				dataHandler = null;
-				endHandler = null;
-			}
-		},
-	} as unknown as IncomingMessage;
-}
 
 function gatedMcpServerScript(markerPath: string, releasePath: string): string {
 	return `
@@ -179,7 +145,7 @@ describe("approval descriptor preflight race", () => {
 			if (review.status !== "available") throw new Error("expected review descriptor");
 			await withCwd(scopeRoot, async () => {
 				const response = handleApproveApproval(
-					mockRequest(review.digest),
+					mockRequest({ reviewDigest: review.digest }),
 					res,
 					item.id,
 					null,
