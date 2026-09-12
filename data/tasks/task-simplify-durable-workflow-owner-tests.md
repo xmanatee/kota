@@ -1,7 +1,6 @@
 ---
 status: open
 priority: p1
-depends_on: [task-prove-seventy-percent-test-loc-reduction]
 ---
 
 # Consolidate durable workflow tests around their production owners

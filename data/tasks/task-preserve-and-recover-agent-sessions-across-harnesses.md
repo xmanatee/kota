@@ -78,12 +78,20 @@ Provide a concise adapter matrix: native or KOTA-owned persistence, storage owne
 resume path, exercised evidence, and any justified limitation. A documented
 exception must explain why available mechanisms cannot preserve continuity.
 
-Demonstrate interruption and daemon restart after a thread starts but before its
-agent step returns: saved work and session identity survive, the continuation
-uses prior conversational context, ownership stays unique, and current policy is
-enforced. Include a native Codex recovery and an existing model-client recovery;
-exercise other adapters through their real interfaces with controlled external
-ports, reporting unavailable live-provider validation explicitly.
+Validate interruption and reconstruction at the shared persistence/process owner:
+saved work and session identity survive, the continuation receives prior context,
+ownership stays unique, and current policy is enforced. Exercise native Codex and
+model-client adapters through their real interfaces with controlled external ports;
+run authenticated live recovery when the execution context permits it. A denied
+nested daemon or provider probe is a reported validation limitation, not a reason
+to strand an otherwise correct implementation. The launching daemon's restart
+and post-publication live recall are operational follow-up, not prerequisites
+for this builder to publish. Never claim those unperformed checks passed.
+
+Continue retained run `2026-09-11T04-24-50-234Z-builder-lqcsbw` under this revised
+contract through normal recovery. Preserve its existing changes and finish the
+implementation with available proportionate verification; do not start over or
+wait for an operator to manufacture historical artifacts.
 
 Keep shared behavior tests at the shared owner and adapter tests to distinct
 provider behavior. Reuse existing fixtures and cover missing-session recovery,

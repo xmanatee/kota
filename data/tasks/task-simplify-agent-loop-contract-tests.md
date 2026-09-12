@@ -1,7 +1,6 @@
 ---
 status: open
 priority: p1
-depends_on: [task-prove-seventy-percent-test-loc-reduction]
 ---
 
 # Simplify shared agent-loop and harness contract verification

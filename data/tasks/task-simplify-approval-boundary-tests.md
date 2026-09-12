@@ -1,7 +1,6 @@
 ---
 status: open
 priority: p1
-depends_on: [task-prove-seventy-percent-test-loc-reduction]
 ---
 
 # Simplify approval verification while retaining action authorization proofs

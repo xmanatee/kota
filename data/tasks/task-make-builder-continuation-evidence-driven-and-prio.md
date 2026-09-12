@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Make automation continuation evidence driven and priority aware
+
+## Current Contract
+
+Reopened under the September 12 owner waiver: use available scoped trajectories
+and supported lifecycle probes, not an exact 200-run export or prescribed directory.
+Missing historical snapshots are non-gating calibration follow-up; completion-only
+records cannot prove decision correctness or counterfactual hours saved. Keep
+preserve-yield/resume, checkpoint-failure and integration-observability proof.
+Run qj0mm4 has published `13b64d459` and released its resources/sandbox; the
+historical access limitation below is not a retained claim or a new credential need.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -59,9 +72,10 @@ rather than starting duplicate work.
   decision: `continue`, `decompose`, `preserve-yield`, or `needs-owner`.
 - A normal agent run with fresh verification progress completes without an extra
   AI call or lifecycle transition.
-- Replays of the 9.0-hour, 9.6-hour, and 6.5-hour historical trajectories reach
-  an inspectable decision at the first genuinely new continuation boundary;
-  repeated unchanged evidence is a no-op.
+- Replay available attributable historical trajectories through the candidate
+  policy and record the first genuinely new continuation decision. Preserve the
+  cited 9.0-, 9.6- and 6.5-hour cases as calibration targets, explicitly reporting
+  unavailable snapshots; repeated unchanged evidence is a no-op.
 - A fixture proves that preserved-yield frees the agent slot for newly proven
   P0 work and later resumes the same task, sandbox, resource, diff, and
   evidence lineage without duplicate publications or tasks.
@@ -90,8 +104,8 @@ protecting valuable in-progress implementation from forced termination.
 
 ## Acceptance Evidence
 
-- A latest-200-run replay comparing builder agent-hours, repair iterations,
-  yielded/resumed runs, task outcomes, and duplicate work before and after.
+- A pinned available run cohort comparing builder agent-hours, repair iterations,
+  yielded/resumed runs, task outcomes and duplicate work where records support it.
 - Focused lifecycle artifacts for normal completion, converging continuation,
   preserve-yield-resume, decomposition, and checkpoint failure.
 
@@ -112,14 +126,6 @@ the original run and repair attempt; retain a concise result, verification and
 usage without exposing private reasoning or credentials. Prove that monitoring
 can distinguish active repair, serialized publication waiting and a genuine stall
 without a separate logger, watchdog, agent protocol or workflow-specific state.
-
-## Blocked on
-
-```
-kind: operator-capture
-path: .kota/runs/builder-continuation-calibration/
-description: attributable, writer-readable canonical-runtime export and replay of the cited 2026-08-13 through 2026-08-15 builder repair snapshots plus a matching latest-200-run window with repair iterations, yielded/resumed transitions, task outcomes, and stable duplicate-work identities; replay the 9.0-, 9.6-, and 6.5-hour trajectories through the candidate continuation policy and retain the first typed decision for each plus before/after builder agent-hours and duplicate-work outcomes. Equivalent authorized scoped exports at other paths are acceptable. Completion-only captures do not establish these trajectories.
-```
 
 ## Retained implementation and evidence, September 10
 
@@ -145,7 +151,7 @@ case cannot run here because process supervision's `/bin/ps` call returns EPERM.
 Those limitations are separate from the passing checks and do not establish
 missing host capabilities.
 
-The original historical acceptance remains unmet. The supplied issue export
+The requested historical calibration was not established. The supplied issue export
 only links this task through an unrelated September 8 recovery-state capture.
 The writer inventory exposes one readable July metadata record. Targeted
 canonical historical and September 10 metadata reads returned PermissionError;
@@ -161,6 +167,5 @@ production integration policy, run store, and CLI log renderer;
 `continuation-evidence-access.json` pins the inspected evidence inventory and
 access outcomes; `baseline-lifecycle-validation.txt` records the unchanged-code
 comparison; `verification.md` records proof selection and remaining limitations.
-The task remains blocked until equivalent attributable historical evidence is
-available for the required replay. The controlled inspection fixture is not a
-live canonical-runtime calibration.
+The controlled inspection fixture is not a live canonical-runtime calibration;
+the current contract distinguishes usable proof from unobserved history.

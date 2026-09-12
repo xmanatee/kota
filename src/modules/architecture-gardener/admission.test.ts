@@ -12,8 +12,8 @@ const friction: ArchitectureObservation = {
   ...structural, id: "delivery", kind: "delivery-friction", category: "delivery", fingerprint: "delivery-v1",
   summary: "Billing delivery failed while loading the receipt module.",
 };
-const evaluate = (observations: ArchitectureObservation[], previousReview?: SettledGardenerReview) => evaluateAdmission({
-  targetScope: "repo", observations, previousReview, explicitRequest: false, requestFingerprint: null,
+const evaluate = (observations: ArchitectureObservation[], previousReview?: SettledGardenerReview, idle = false) => evaluateAdmission({
+  targetScope: "repo", observations, previousReview, idle, explicitRequest: false, requestFingerprint: null,
   followUpFingerprints: [], reviewedTaskEvidence: [],
 });
 const settle = (observations: ArchitectureObservation[], deliveryIssueKeys: string[]): SettledGardenerReview => ({
@@ -24,6 +24,17 @@ const settle = (observations: ArchitectureObservation[], deliveryIssueKeys: stri
 });
 
 describe("gardener evidence admission", () => {
+  it("reviews meaningful idle structural evidence once without requiring a delivery failure", () => {
+    expect(evaluate([], undefined, true).admitted).toBe(false);
+    expect(evaluate([friction], undefined, true).admitted).toBe(false);
+    const metric = { ...structural, kind: "complexity-concentration" as const, category: "complexity" as const };
+    expect(evaluate([metric], undefined, true).admitted).toBe(false);
+    expect(evaluate([structural], undefined, true).admitted).toBe(true);
+    const previous = JSON.parse(JSON.stringify(settle([structural], []))) as SettledGardenerReview;
+    expect(evaluate([structural], previous, true).admitted).toBe(false);
+    expect(evaluate([{ ...structural, fingerprint: "new-boundary" }], previous, true).admitted).toBe(true);
+  });
+
   it("settles the causal judgment while ignoring unrelated delivery churn", () => {
     expect(evaluate([structural]).admitted).toBe(false);
     expect(evaluate([friction]).admitted).toBe(false);
@@ -43,7 +54,7 @@ describe("gardener evidence admission", () => {
   });
 
   it("permits justified requests and terminal outcome evidence once across restart", () => {
-    const input = { targetScope: "repo", observations: [], explicitRequest: true, requestFingerprint: "new-causal-evidence",
+    const input = { targetScope: "repo", observations: [], idle: false, explicitRequest: true, requestFingerprint: "new-causal-evidence",
       previousReview: undefined, followUpFingerprints: [], reviewedTaskEvidence: [] };
     expect(evaluateAdmission(input).admitted).toBe(true);
     const previousReview = JSON.parse(JSON.stringify({ ...settle([], []), requestFingerprint: input.requestFingerprint })) as SettledGardenerReview;

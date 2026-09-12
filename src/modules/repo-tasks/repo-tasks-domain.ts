@@ -23,6 +23,7 @@ export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
 export const REPO_TASK_ARCHIVE_DIR = join(REPO_TASKS_DIR, "archive");
 export const REPO_INBOX_DIR = join(REPO_DATA_DIR, "inbox");
+export const REPO_INBOX_RESOURCE = "autonomy:inbox-triage";
 
 export {
   buildIndexableTaskText,

@@ -110,7 +110,7 @@ describe("RunStateDatabase", () => {
     }
   });
 
-  test("preserves a yielded resource and resumes its lineage after priority blockers finish", () => {
+  test.each(["succeeded", "needs_attention", "waiting", "backoff"] as const)("preserves a yielded resource and resumes when its priority blocker becomes %s", (disposition) => {
     let store = createStore();
     let { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
@@ -163,12 +163,13 @@ describe("RunStateDatabase", () => {
     });
 
     store.admitRun(run("successor", { resources: ["task:current"] }));
+    store.admitRun(run("run-urgent", { resources: ["task:urgent"] }));
     const stateDir = dirname(store.path);
     store.close();
     store = openStore(stateDir);
     epoch = store.beginDaemonSession("2026-08-25T10:00:03.100Z").epoch;
     expect(store.getRun("run-yielded")).toMatchObject({ state: "waiting", sandbox });
-    expect(store.listDispatchableRuns({ now: later, limit: 10, excludedScopeIds: [] })).toEqual([]);
+    expect(store.listDispatchableRuns({ now: later, limit: 10, excludedScopeIds: [] }).map((run) => run.id)).toEqual(["run-urgent"]);
     expect(store.resumeSatisfiedContinuationRuns(later)).toEqual([]);
     expect(store.getRun("successor")).toMatchObject({ state: "queued", attempt: 0 });
 
@@ -177,26 +178,21 @@ describe("RunStateDatabase", () => {
     expect(store.startRun("other-scope", epoch, later)).toBe(1);
     store.finishRun("other-scope", epoch, "succeeded", later);
 
-    store.admitRun({
-      id: "run-urgent",
-      scopeId: "scope-a",
-      workflow: "builder",
-      repository: "write",
-      trigger: { event: "task.ready", schemaRef: null, payload: {} },
-      resources: ["task:urgent"],
-      admittedAt: "2026-08-25T10:00:03.500Z",
-    });
     store.startRun("run-urgent", epoch, "2026-08-25T10:00:04.000Z");
     expect(
       store.resumeSatisfiedContinuationRuns("2026-08-25T10:00:04.500Z"),
     ).toEqual([]);
 
-    store.finishRun(
-      "run-urgent",
-      epoch,
-      "succeeded",
-      "2026-08-25T10:00:05.000Z",
-    );
+    if (disposition === "succeeded") {
+      store.finishRun("run-urgent", epoch, "succeeded", "2026-08-25T10:00:05.000Z");
+    } else if (disposition === "backoff") {
+      store.deferRun({ runId: "run-urgent", epoch, deferredAt: "2026-08-25T10:00:05.000Z",
+        resumeAt: "2026-08-26T10:00:00.000Z" });
+    } else {
+      store.admitRun(run("urgent-contender", { resources: ["task:urgent"] }));
+      store.suspendRun({ runId: "run-urgent", epoch, state: disposition,
+        wait: { reason: "external-prerequisite" }, suspendedAt: "2026-08-25T10:00:05.000Z" });
+    }
     expect(
       store.resumeSatisfiedContinuationRuns("2026-08-25T10:00:06.000Z"),
     ).toEqual(["run-yielded"]);

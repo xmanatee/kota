@@ -1,8 +1,23 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Security review: Browser profile persistence checks filesystem authority separately from the write. When persistProfile is enabled, a concurrent writer able to replace the profile file or an ancestor directory can redirect the path after validation but before Playwright writes it. This can write authenticated browser state outside the agent's declared write roots with the host process's permissions. The canonical-path recheck does not make the subsequent pathname-based write atomic.
+
+## Current Contract
+
+Reopened for the missing secure persistence implementation and supported contained
+setup. The prior un8vlq writer published `00588eaa6` and released its resources
+and sandbox; there is no retained task claim to adopt. Keep fail-closed containment
+until the owning write primitive proves successful private publication and denial
+under root/staging relocation with unchanged outside sentinels. A directory handle
+or repeated pathname check is still insufficient. Historical Darwin/nested-sandbox
+denials are context limits, not grounds to defer implementation or invent missing
+credentials. Escalate only a specific unavailable execution authority after useful
+setup is exhausted; never restore the defeated writer merely to claim persistence.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 
 ## Problem
@@ -132,29 +147,6 @@ This is a containment mitigation, not completion of the requested persistence
 backend. The original finding and evidence above remain applicable to any
 attempt to restore pathname-based writes without an enforced boundary.
 
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs/browser-profile-persistence-authority/proof.md
-description: Host-level proof of a credential writer preserving declared pathname authority across root and staging relocation, with successful private publication and retained outside sentinels
-
-An authorized, contained execution surface for implementing and validating a
-runtime credential writer under root/staging relocation. The writer itself is
-still unimplemented; obtaining evidence alone does not complete this task.
-Prior nested macOS sandbox activation was denied in this writer, which does not
-establish host capability absence. The supplied runtime's contained-workspace
-resolver also rejects Darwin because its required process-lifetime boundary
-uses Linux PID namespaces. Candidate code must retain runtime containment.
-
-The path above is a suggested evidence locator, not an exclusive required
-capture. Equivalent task-linked scoped execution or capability exports are
-acceptable when they identify the actual runtime, candidate source, enforced
-isolation, successful private publication, race rejection, and unchanged outside
-sentinels. Manual host execution and renewed permission are not prerequisites
-when an already authorized contained surface is available. A directory handle,
-repeated pathname checks, or sandbox availability alone do not prove the
-credential-write guarantee.
-
 ## Repair verification
 
 Browser owner tests: 13 suites, 89 tests passed, including explicit-save and
@@ -165,8 +157,8 @@ under the run directory with dependencies installed from the offline cache,
 because this repair workspace's node_modules is empty and read-only.
 
 The decisive security proof is removal of the credential write path; no claimed
-successful persistence or race-safe writer remains. The task is blocked rather
-than done because the requested usable persistence primitive remains unavailable.
+successful persistence or race-safe writer was established. The requested usable
+persistence primitive remained unimplemented; containment was not completion.
 
 ## Second repair review
 
@@ -178,8 +170,8 @@ A fresh minimal macOS confinement probe exited 71 with
 `sandbox-exec: sandbox_apply: Operation not permitted`. The existing runtime
 sandbox launcher supplies process confinement, not a separately proven atomic
 credential-write primitive. Reintroducing the previously defeated directory
-handle writer would violate the task's security constraints. The external
-precondition above remains unsatisfied, so this task remains blocked.
+handle writer would violate the task's security constraints. That attempt did not
+establish a permitted execution surface or successful secure persistence.
 
 The focused browser profile lifecycle suite passed all 11 tests against a
 source-identical validation copy (every workspace src file was compared).

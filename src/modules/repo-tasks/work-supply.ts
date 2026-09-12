@@ -8,6 +8,7 @@ import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
 import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "./published-task-queue.js";
 import {
+  REPO_INBOX_RESOURCE,
   type RepoTaskQueueSnapshot,
   selectActionableRepoTasks,
 } from "./repo-tasks-domain.js";
@@ -80,7 +81,8 @@ export function inspectRepoWorkSupply(
   const rank = (owner: TaskWorkOwner) => retained.has(owner.taskId) &&
     (owner.state === "waiting" || owner.state === "needs_attention") ? 0 : owner.state === "queued" ? 2 : 1;
   owners.sort((a, b) => rank(a) - rank(b) || a.runId.localeCompare(b.runId));
-  const dispatchableCount = availableTaskIds.length + queue.inboxCount;
+  const inboxOwned = runtime.runs.some((run) => run.resources.includes(REPO_INBOX_RESOURCE));
+  const dispatchableCount = availableTaskIds.length + (inboxOwned ? 0 : queue.inboxCount);
   return {
     ...queue,
     ownershipAvailable: runtime.available,

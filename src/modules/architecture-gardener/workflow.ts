@@ -11,9 +11,11 @@ import { createGeneratedWorkQuestionQueue } from "#modules/autonomy/generated-wo
 import { canPublishGeneratedWorkOwnerEffects, finalizeGeneratedWorkOwnerEffects } from "#modules/autonomy/generated-work-proposal.js";
 import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
 import { improvementHandoffRequested, improvementHandoffSchema } from "#modules/autonomy/improvement-handoff.js";
+import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_AGENT_HANG_TIMEOUT_MS, AUTONOMY_AGENT_TIER, stepSucceeded } from "#modules/autonomy/shared.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
+import { repoWorkSupplyOperation, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { type AdmissionEvaluation, evaluateAdmission, relevantDeliveryCohort } from "./admission.js";
 import { decodeGardenerDecision, gardenerDecisionOutputSchema } from "./decision.js";
 import { architectureReviewRequested } from "./events.js";
@@ -107,6 +109,10 @@ const inspect = typedCodeStep<InvestigationInput>({
   validate: (raw) => expectStructuredOutput<InvestigationInput>(raw, ["observations", "admission", "linkedTasks", "terminalTaskEvidence", "handoff", "unresolvedTaskIds"]),
   run: async (ctx) => {
     const state = ctx.state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value ?? emptyGardenerRunState();
+    const queue = ctx.trigger.event === "autonomy.queue.empty"
+      ? await ctx.runBlocking(repoWorkSupplyOperation, resolveRepoWorkSupplyInput({
+        workspaceRoot: ctx.scopeRoot, scopeRoot: ctx.scopeRoot, stateDir: ctx.runtimeStateDir,
+      })) : null;
     const observations = await ctx.runBlocking(collectObservationsOperation, { workspaceRoot: ctx.workspaceRoot });
     const projection = decodeAutonomyIssueProjection(ctx.state.read<AutonomyIssueProjection>(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value);
     observations.push(...deliveryObservations(projection));
@@ -136,6 +142,19 @@ const inspect = typedCodeStep<InvestigationInput>({
     const heldTaskIds = readHeldTaskIds(ctx.runEvidence, ctx.workflow.runId);
     const terminalTaskEvidence = linked.filter((task) => task.state === "done" || task.state === "dropped")
       .map((task) => computeFingerprint({ id: task.id, state: task.state, body: task.body, held: heldTaskIds?.includes(task.id) ?? null }));
+    const admission = evaluateAdmission({ targetScope, observations: relevant, explicitRequest,
+      idle: queue !== null,
+      requestFingerprint,
+      previousReview: state.dispositions[targetScope]?.review,
+      followUpFingerprints: terminalTaskEvidence,
+      reviewedTaskEvidence: state.reviewedTaskEvidence,
+    });
+    if (queue && (!assessAutonomyQueue(queue).empty || queue.runningCount + queue.queuedCount >= queue.capacity)) {
+      admission.admitted = false;
+      admission.reason = queue.ownershipAvailable
+        ? "Useful delivery work has priority over idle investigation."
+        : "Idle investigation awaits available runtime ownership.";
+    }
     return {
       handoff,
       requestFingerprint,
@@ -147,12 +166,7 @@ const inspect = typedCodeStep<InvestigationInput>({
       linkedTasks: linked.map((task) => ({ taskId: task.id, state: task.state,
         path: `data/tasks/${task.state === "done" || task.state === "dropped" ? "archive/" : ""}${task.id}.md`,
         fingerprint: gardenerTaskFingerprint(ctx.workspaceRoot, task.id) })),
-      admission: evaluateAdmission({ targetScope, observations: relevant, explicitRequest,
-        requestFingerprint,
-        previousReview: state.dispositions[targetScope]?.review,
-        followUpFingerprints: terminalTaskEvidence,
-        reviewedTaskEvidence: state.reviewedTaskEvidence,
-      }),
+      admission,
     };
   },
 });
@@ -279,6 +293,7 @@ const architectureGardenerWorkflow: WorkflowDefinitionInput = {
   description: "Investigate changed architecture and delivery evidence, then propose implementation work or justify no action.",
   defaultAutonomyMode: "autonomous",
   triggers: [
+    { event: "autonomy.queue.empty" },
     { event: architectureReviewRequested.name, queueMode: "all" },
     { event: improvementHandoffRequested.name, filter: { owner: "architecture-gardener" }, queueMode: "all" },
     { event: "workflow.completed", filter: { workflow: ["builder"] } },

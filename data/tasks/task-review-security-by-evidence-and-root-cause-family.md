@@ -1,8 +1,22 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Review security by evidence and root-cause family
+
+## Current Contract
+
+Reopened for resource-safe publication/replay validation through available scoped
+evidence and the supported isolated runtime. Preserve full finding lineage,
+unchecked coverage, independent variants and rejection of unsafe task mutation.
+The September 12 owner waiver makes the later live yield/occupancy comparison
+non-gating follow-up; no savings or improved security are inferred from counts.
+The old database builder has released its claim, but today's retained security
+scan/finalization run is owned separately. Leave its contract and live outbox
+recovery to that owner; do not duplicate its repair or manufacture canonical proof.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -126,7 +140,7 @@ change and replay, plus a real `retryOf` run at a newer head; modified and delet
 keyword-only guards remain due and selected. The owner portfolio reports 50 passed
 and the same single `/bin/ps` publication failure; worker integration passes.
 Details are in `agent/security-review-evidence/repair-2-summary.md` and its validation
-logs. The existing external prerequisites below remain unchanged.
+logs.
 
 The third critic repair retains established semantic surfaces alongside reviewed
 content digests, so completed explicit reports remain reviewable after keyword-free
@@ -156,7 +170,6 @@ deletion. Five focused cases reproduced the defects before the fix; the final si
 regressions pass. The affected owner portfolio reports 65 passed and the existing
 single `/bin/ps` publication failure; worker integration and `pnpm check:fast` pass.
 Details are in `agent/security-review-evidence/repair-5-summary.md` and its logs.
-The existing external prerequisites remain unchanged.
 
 ## Live verification (2026-09-09 20:03 UTC)
 
@@ -213,10 +226,9 @@ Evidence and before/after interpretation are in this run's
 returns no security-review runs; canonical run-directory enumeration again
 returns EPERM. No original transcript cohort or after-change live agent durations
 were obtained, and no occupancy saving or production yield improvement is claimed.
-The existing Blocked on acceptance below still applies; these safe retained
-changes do not constitute full completion of the original task.
+These were partial implementation results, not a live outcome measurement.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Reopened for concrete post-integration defects. Prior persistence and coverage
 repairs remain valid; the historical external capture is acceptance work, not a
@@ -302,14 +314,9 @@ and preserves the completed evidence. No canonical pending state was edited.
 The regression reproduced reopening before the fix and now exercises version-1
 pending migration against production-rendered legacy task evidence, multiple
 excerpts, unchanged archive bytes, rejected unknown lineage and retained new
-variants. The supported operator-capture precondition below makes this task
-visible to the existing recovery owner. A read-only production discovery and
-classification probe returns operator-capture-due, requiring outcome/provenance
-review rather than treating directory existence as completion. Equivalent
-already-authorized exports remain acceptable; no renewed permission or manual
-capture is required. Evidence is in this run's agent/security-review-evidence/
-repair-blocked-recovery.json and repair validation logs. The original canonical
-publication and live-cohort acceptance remains outstanding.
+variants. The historical discovery probe returned operator-capture-due;
+this was discovery, not acceptance evidence. Results remain in this run's
+agent/security-review-evidence/repair-blocked-recovery.json and repair logs.
 
 ## Critic repair: completed partial-request coverage (2026-09-10)
 
@@ -322,7 +329,6 @@ a new explicit request and changed content still admit review. `pnpm check:fast`
 passes; the affected owner portfolio reports 82 passes and the existing single
 publication failure at `spawnSync /bin/ps EPERM`. Evidence is in this run's
 `agent/security-review-evidence/repair-2-summary.md` and its validation logs.
-The publication and live-measurement prerequisites below remain outstanding.
 
 ## Critic repair: pending lineage handoff (2026-09-10)
 
@@ -334,7 +340,7 @@ does not mutate task contracts. Production-workflow/materializer regressions
 cover both unchanged and new-variant recovery, multiple synonymous legacy entries,
 preserved completed evidence and publication of a distinct finding. Validation
 details are in this run's `agent/security-review-evidence/repair-3-summary.md`.
-Canonical publication and live measurement remain outstanding as described below.
+Canonical publication and live measurement were not observed in that attempt.
 
 ## Critic repair: historical replay after later completion (2026-09-10)
 
@@ -346,8 +352,7 @@ unreferenced historical replay, unchanged referenced/versioned replays and a
 further distinct variant. Retained legacy hashes also remain verifiable after
 new evidence is appended; lossy historical evidence still requires lineage.
 Validation is recorded in this run's
-`agent/security-review-evidence/repair-4-summary.md`. The canonical publication
-and live-measurement prerequisites remain outstanding.
+`agent/security-review-evidence/repair-4-summary.md`.
 
 ## Critic repair: unresolved pending identity isolation (2026-09-10)
 
@@ -363,8 +368,7 @@ The production review regression reproduced all three identity failures before
 the fix. Publication replay exercises durable removal of only the valid entry,
 retention of the unresolved entry, unchanged task contracts and rejection of the
 unresolved target. Evidence and validation results are recorded in this run's
-`agent/security-review-evidence/repair-5-summary.md`. Canonical publication and
-the live-cohort acceptance below remain outstanding.
+`agent/security-review-evidence/repair-5-summary.md`.
 
 ## Critic repair: independent same-task evidence publication (2026-09-10)
 
@@ -383,8 +387,7 @@ task check against this workspace. The reported missing export names the separat
 canonical checkout, whose code cannot be inspected or changed in this sandbox;
 that runtime import failure is not claimed repaired by the local worker proof.
 Details are in this run's `agent/security-review-evidence/repair-6-summary.md` and
-its validation logs. Canonical publication and live-cohort acceptance remain
-outstanding under the existing prerequisites below.
+its validation logs.
 
 ## Critic repair: changing batch eligibility (2026-09-10)
 
@@ -401,32 +404,3 @@ settles a replay without duplicating evidence. It preserves the original task
 evidence and retains canonical pending entries until publication succeeds. Full publication still
 reaches the existing denied process-identity probe. Validation and its limits are
 recorded in this run's `agent/security-review-evidence/repair-7-summary.md`.
-The canonical publication and live-cohort prerequisites below remain outstanding.
-
-## Blocked on
-
-```
-kind: operator-capture
-path: .kota/runs
-description: Attributable scoped review evidence, resource-safe canonical publication/reconciliation, and a pinned live after-cohort; collect through existing authorized evidence/recovery owners or equivalent exports, without renewed permission or mandatory manual capture.
-```
-
-The path is a discovery hint only. Inspect equivalent authorized evidence wherever
-it is available; directory existence does not establish acceptance. Resume through
-the normal task mutation owner after reviewing outcomes and execution provenance.
-
-- Authorized scoped evidence/export of the pinned canonical review runs and a
-  live after-cohort after integration. The workspace CLI lists no review runs;
-  exact canonical metadata/investigation/revalidation reads returned EPERM.
-  Consume the evidence boundary owned by
-  `task-make-blocked-outcomes-actionable-and-recoverable` or an equivalent
-  authorized export, without canonical database or daemon-control access.
-- Canonical publication/recovery must reconcile the observed pending entries
-  under the database task's existing resource ownership and prove the full
-  publication journey in an execution profile supporting its supervised
-  process-identity probe. Preserve the retained database builder's contract.
-  Then assess live coverage, actionable outcomes and agent time against an
-  attributable pinned baseline. The implementation repairs above are complete;
-  these are still-unobserved publication and measurement acceptance outcomes.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

@@ -1,8 +1,20 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Retain inbox work ownership across yield and resume
+
+## Current Contract
+
+Reopened under the September 12 owner direction for implementable safe cleanup
+and inbox progress. The shared priority/work-supply fix is intended to release
+the current inbox yield; its activation and resulting live progress are not yet
+claimed here. Validate the owning behavior with available supported proof and
+report unperformed checks honestly. No operator-capture ritual or control of the
+launching daemon is required to finish independently validated implementation.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -38,6 +50,12 @@ globally serialize writers, add an inbox scheduler/store, or grant task-specific
 exceptions to the shared runtime. This is the bounded ownership gap underlying
 the observed duplicate runs, not a redo of the broader continuation-policy task.
 
+Finish safe missing-worktree disposition through the existing cleanup/recovery
+owner. Use attributable branch, artifact and publication evidence to distinguish
+settled work from ambiguous retained work; missing files or an empty historical
+snapshot alone do not authorize cleanup. Reuse the shared priority and inbox
+work-supply owners rather than duplicating their admission rules.
+
 ## Acceptance
 
 - Repeated equivalent events before/after yield and daemon restart retain one
@@ -46,13 +64,13 @@ the observed duplicate runs, not a redo of the broader continuation-policy task.
   work, sorts the capture once, validates/publishes through normal integration,
   releases resources and permits subsequent captures. Unchanged blocked work
   must not consume repeated agent decisions merely because cooldown elapsed.
-- Reconcile the eleven existing runs through normal runtime cancellation or
-  recovery after inspecting their current artifacts and diffs. Keep one valid
-  continuation where appropriate; preserve ambiguous or dirty work. Clean
-  redundant sandboxes only with recorded terminal ownership, never direct
-  database rewrites, branch deletion or blanket worktree removal.
-- Use focused admission/yield/recovery proof and an attributable live inventory
-  showing no new equivalent runs, safe cleanup and eventual inbox progress.
+- Validate missing-worktree disposition at the owning cleanup/recovery boundary:
+  verified settled work can receive a durable disposition, while ambiguous or
+  dirty work stays preserved. Reuse the completed reconciliations below; never
+  forge a checkout, rewrite the database or relax ownership checks.
+- Use proportionate supported admission/yield/recovery and cleanup/progress proof.
+  Actual legacy-run reconciliation and live publication after activation remain
+  runtime-owned operational follow-up, not this builder's completion gate.
   Preserve the original capture and owner-authored task edits throughout.
 
 ## Retained implementation
@@ -73,11 +91,7 @@ and successor eligibility after success/cancellation. Run evidence is under
 `2026-09-11T15-54-55-003Z-builder-cfxg15` (including test logs and
 `reconciliation-assessment.json`). No capture or other task contract was edited.
 
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Resolve the one missing-worktree legacy disposition through the runtime owner and observe the current claimed inbox run resume, publish and release ownership after its real prerequisites clear.
+## Observed Reconciliation And Follow-up
 
 The declaration integrated as `c90520e42` and activated on September 11.
 The September 12 operator inventory verified twelve resource-less, yielded
@@ -99,7 +113,7 @@ Keep `2026-09-11T16-44-52-830Z-inbox-sorter-udfvtw`, which uniquely owns
 `scope:8nrg1m:autonomy:inbox-triage`, and its single queued successor y4pewi.
 Repeated dispatcher observations update that successor without allocating a
 new checkout. Live retained resume, inbox publication, release and subsequent
-capture admission still need verification; cleanup alone is not acceptance.
+capture admission remain runtime-owned follow-up, not proven by cleanup alone.
 The original capture and all dirty unrelated work remain untouched.
 
 The builder's earlier scoped export covered only two runs and could not expose

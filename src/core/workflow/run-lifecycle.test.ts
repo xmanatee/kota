@@ -152,12 +152,12 @@ describe("RunLifecycle", () => {
     value.store.close();
     value.store = new RunStateDatabase(stateDir);
     value.epoch = value.store.beginDaemonSession("2026-08-25T10:00:04.000Z").epoch;
-    expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:00.000Z")).toEqual([]);
     expect(readFileSync(join(value.root, "captures/first.md"), "utf8")).toBe("Original intent\n");
 
     value.store.admitRun({ id: "urgent", scopeId: value.run.scopeId, workflow: "urgent", repository: "none",
       trigger: { event: "manual", schemaRef: null, payload: {} }, resources: ["task:urgent"],
       admittedAt: "2026-08-25T11:00:01.000Z" });
+    expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:01.500Z")).toEqual([]);
     value.store.startRun("urgent", value.epoch, "2026-08-25T11:00:02.000Z");
     write(value.root, "captures/new.md", "New capture\n");
     write(value.root, "tasks/owner.md", "Owner correction\n");

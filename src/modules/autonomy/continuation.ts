@@ -16,10 +16,9 @@ import {
   resolveAgentJudgeRunContract,
 } from "#modules/autonomy/agent-judge.js";
 import { listBuilderTaskDispatches } from "#modules/autonomy/workflows/builder/task-contract.js";
-import {
-  getRepoTaskQueueSnapshot,
-  type RepoTaskPriority,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import { readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
+import type { RepoTaskPriority } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { inspectRepoWorkSupply, type RepoWorkSupplyInput, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 
 const PRIORITY = Object.freeze({ p0: 0, p1: 1, p2: 2, p3: 3 });
 
@@ -30,7 +29,7 @@ export type AutonomyContinuationSubject = Readonly<{
 }>;
 
 type AutonomyContinuationContextInput = AutonomyContinuationSubject &
-  Readonly<{ scopeRoot: string }>;
+  Readonly<{ workSupplyInput: RepoWorkSupplyInput }>;
 
 function priorityValue(priority: RepoTaskPriority): number {
   return PRIORITY[priority];
@@ -39,8 +38,17 @@ function priorityValue(priority: RepoTaskPriority): number {
 export function collectAutonomyContinuationContext(
   input: AutonomyContinuationContextInput,
 ): WorkflowContinuationContext {
-  const queue = listBuilderTaskDispatches(input.scopeRoot);
-  const queueSnapshot = getRepoTaskQueueSnapshot(input.scopeRoot);
+  const published = readPublishedRepoTaskQueue(input.workSupplyInput.scopeRoot);
+  const supply = inspectRepoWorkSupply(input.workSupplyInput, published);
+  const retained = new Set(supply.owners.filter((owner) =>
+    owner.state === "waiting" || owner.state === "needs_attention").map((owner) => owner.taskId));
+  const available = new Set([
+    ...supply.availableTaskIds,
+    ...supply.owners.filter((owner) => owner.state === "queued" && !retained.has(owner.taskId))
+      .map((owner) => owner.taskId),
+  ]);
+  const queue = listBuilderTaskDispatches(input.workSupplyInput.scopeRoot, published)
+    .filter((task) => available.has(task.taskId));
   return Object.freeze({
     taskContract: input.taskContract,
     current: Object.freeze({
@@ -49,7 +57,7 @@ export function collectAutonomyContinuationContext(
       priorityLabel: input.priority,
     }),
     queue: Object.freeze({
-      revision: queueSnapshot.headSha,
+      revision: published.queue.headSha,
       available: Object.freeze(queue.map((task) =>
         Object.freeze({
           id: task.taskId,
@@ -151,7 +159,9 @@ export function autonomyContinuationPolicy(input: Readonly<{
       const subject = input.resolveSubject(ctx);
       return withWorkflowBlockingOperation(ctx).runBlocking(
         collectAutonomyContinuationContextOperation,
-        { scopeRoot: ctx.scopeRoot, ...subject },
+        { workSupplyInput: resolveRepoWorkSupplyInput({
+          workspaceRoot: ctx.scopeRoot, scopeRoot: ctx.scopeRoot, stateDir: ctx.runtimeStateDir,
+        }), ...subject },
       );
     },
     decide: async (ctx, parentStep, packet: WorkflowContinuationPacket) => {

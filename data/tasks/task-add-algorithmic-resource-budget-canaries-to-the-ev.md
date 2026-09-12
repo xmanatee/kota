@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Add algorithmic resource-budget canaries to the eval harness
+
+## Current Contract
+
+Prepare the current-source isolated image, image-local executable and supported
+provider-egress/auth route, then run the canary through the existing eval owner.
+No human capture is required. Preserve deterministic budgets, shortcut rejection,
+candidate containment and actual nested-agent result provenance. A missing image
+or unconfigured proxy is setup work; only a specific unavailable credential or
+execution authority warrants an external block after useful work is exhausted.
+Do not report a calibration or readiness pass as a live-builder result.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -110,8 +123,8 @@ host default. The fixture's local/deterministic requirement applies to its data
 and analysis, not to removal of the runner's security boundary.
 
 The owner has authorized Docker-based validation. Use that authority only through
-an available permitted execution path; a tool-policy denial remains a real
-capability blocker. KOTA should collect results automatically when authorized,
+an available permitted execution path. A denial limits that context; continue
+useful supported setup and collect results automatically when authorized,
 without requiring a person to type the command. Keep credentials private and
 verify live outcome and provenance, not just readiness or a nonempty transcript.
 
@@ -221,14 +234,6 @@ resource exhaustion.
 - Evidence of a temporary sample-only or threshold-relaxing shortcut causing
   the fixture to fail, with the shortcut reverted before staging.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 with current container/egress options. Retain resource-budget-result.json, generated cases, shortcut rejection and budget metrics, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Current-source image with image-local KOTA executable, functional provider-egress proxy and authentication inside the required isolated candidate execution. Docker and host Codex login were verified on 2026-09-10; they are not missing permissions. Use an authorized current eval run and inspect its returned evidence location, not directory existence. Preserve all required positive/negative, transcript, isolation and scoring evidence; readiness alone is not a passing live result.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

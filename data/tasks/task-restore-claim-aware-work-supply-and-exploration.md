@@ -1,8 +1,20 @@
 ---
-status: blocked
+status: open
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
+
+## Current Contract
+
+Under the September 12 owner waiver, use the supported dispatcher/explorer
+composition to finish useful source consumption, unchanged-input suppression and
+slot-refill validation. Preserve trigger provenance, honest ownership counts,
+source failures, no-action decisions, retained work and pauses. A further production
+capture is non-gating operational follow-up, superseding historical live-only
+completion wording; never manufacture an opportunity or claim unobserved refill.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -110,8 +122,8 @@ evidence. Do not catch all failures as no-action, bypass authority/cancellation,
 raise limits without analysis, or weaken the web-access security boundary.
 Use the existing scenarios to prove the real runner contract with mixed healthy,
 oversized and inaccessible sources; preserve genuinely fatal runtime failures.
-Then complete the original live acceptance. The capture below remains an
-acceptance obligation, not a reason to defer this already reproduced repair.
+The historical live observation remained unverified, but did not prevent
+repairing the reproduced defect.
 
 ## Source collection repair (2026-09-09)
 
@@ -143,7 +155,7 @@ The reproduced implementation repair is complete. Live source review, unchanged-
 suppression, and slot refill remain unverified until runtime integration and an
 operator-resumed run of this revision. A read of the cited live explorer step
 artifact was denied; no live data or launching-daemon controls were changed.
-The operator capture below remains the concrete prerequisite for completion.
+That attempt did not observe the post-integration live outcomes.
 
 ## Live exploration finding (2026-09-09)
 
@@ -180,23 +192,8 @@ Prove the real web-tool/explorer boundary with representative HTML whose article
 follows more than 20 KB of head markup: retain article evidence, observe a changed
 article under unchanged head markup, and suppress repeat review of unchanged
 content. Include unusable and oversized responses without losing failure evidence
-or weakening bounds. Then finish the existing live acceptance below. The remaining
-live observation obligation does not prevent this implementation repair.
-
-## Outstanding live acceptance
-
-After integration, retain attributable dispatcher/explorer evidence at
-`.kota/operator-captures/claim-aware-work-supply-live.md` or an equivalent runtime
-artifact, including useful source review, unchanged-input suppression, and slot
-refill after completion.
-
-The builder instructions explicitly prohibit controlling the launching daemon,
-and this native permission profile denies its canonical SQLite files. Therefore
-this run cannot supply the required live resumed-dispatcher observation or prove
-live slot refill. Preserve retained owners, pauses, and backoff. Capture trigger
-provenance, available/running/queued/retained counts, an explorer's justified
-opportunity or specific no-action revisit condition, the subsequent unchanged
-input decision, and slot refill after completion in the named operator artifact.
+or weakening bounds. The unobserved live follow-up did not prevent this
+implementation repair.
 
 ## Collection quality repair (2026-09-10)
 
@@ -235,7 +232,7 @@ The web-fetch regression cases reproduced both defects before the repair. All
 production/test typechecks and scoped lint. The broader four-file extraction
 owner run passed 193 checks with one sandbox-denied save-path cleanup failure.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Operator activation completed at 2026-09-10T01:47:22.368Z: old daemon PID 79706
 was drained with zero active workflows; normal daemon stop allowed launchd to
@@ -249,11 +246,3 @@ Watchlist serialization corruption has a separate precise repair task; avoid
 conflating changed escaping with new source evidence. Retain the original
 unchanged-input decision and capacity-refill requirements, and do not manufacture
 opportunities merely to make an idle queue nonempty.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Attributable post-activation useful source review, unchanged-input suppression and capacity refill through normal dispatch. The extraction fix is now loaded; activation and host permission are no longer missing. The operator monitor collects live evidence using the preserved explorer run and subsequent public dispatch, not a privileged candidate action.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

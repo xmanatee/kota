@@ -55,6 +55,14 @@ recovery contracts. Workflows declare semantic work through those shared owners.
 - A task describes a coherent consumer outcome and observable acceptance.
   Builders discover implementation steps. A failed run warrants diagnosis;
   decomposition needs useful conceptual seams and must preserve owner intent.
+- Keep work open while implementation, environment setup or alternative scoped
+  validation can advance it. Block only on a specific prerequisite outside the
+  available authority, such as an unavailable credential or an owner decision.
+  Runtime-owned publication and subsequent deployment observation follow the
+  builder step; they cannot be prerequisites for finishing that same step.
+  Report unperformed checks honestly and use proportionate available proof.
+  Post-deployment monitoring must not gate independent work whose code prerequisite
+  has already integrated. Proven functional or security defects still require repair.
 - Prefer owner-visible product outcomes to internal meta-work. Fix confusing
   client, CLI, setup, approval or blocked-work journeys before adding mechanisms,
   unless safety or a runtime-stopping failure takes precedence. Inspect the real

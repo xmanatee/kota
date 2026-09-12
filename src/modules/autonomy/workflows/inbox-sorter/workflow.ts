@@ -19,6 +19,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { REPO_INBOX_RESOURCE } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { taskQueueIntegrationPolicy, taskQueueValidationCommand } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   type InboxSorterAssessment,
@@ -108,7 +109,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
   repository: "write",
   integration: taskQueueIntegrationPolicy(),
-  resources: () => ["autonomy:inbox-triage"],
+  resources: () => [REPO_INBOX_RESOURCE],
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],

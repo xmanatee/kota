@@ -381,4 +381,33 @@ describe("semantic progress reflection", () => {
     }
   });
 
+  it("retains a delivery boundary for unheld inbox work but admits it once that inbox is retained", async () => {
+    const root = track("held-inbox");
+    for (const id of ["task-first", "task-second"]) writeTask(root, "open", id);
+    write(root, "data/inbox/task-capture.md", "Investigate a captured failure.\n");
+    commit(root, "seed work and capture");
+    expect((await inspect(root)).shouldEmit).toBe(false);
+    for (const id of ["task-first", "task-second"]) moveTask(root, id, "open", "done");
+    commit(root, "deliver both outcomes");
+    expect((await inspect(root)).shouldEmit).toBe(false);
+
+    const database = new RunStateDatabase(join(root, ".kota"));
+    const now = new Date().toISOString();
+    const { epoch } = database.beginDaemonSession(now);
+    database.admitRun({ id: "held-sorter", scopeId: deriveDirectoryScopeId(root), workflow: "inbox-sorter", repository: "write",
+      trigger: { event: "autonomy.inbox.available", schemaRef: null, payload: {} },
+      resources: ["autonomy:inbox-triage"], admittedAt: now });
+    database.startRun("held-sorter", epoch, now);
+    database.suspendRun({ runId: "held-sorter", epoch, state: "waiting", suspendedAt: now });
+    database.close();
+    write(root, ".kota/runs/held-sorter/metadata.json", JSON.stringify({
+      metadataVersion: 1, id: "held-sorter", workflow: "inbox-sorter", definitionPath: "workflow.ts",
+      trigger: { event: "autonomy.inbox.available", schemaRef: null, payload: {} },
+      startedAt: now, completedAt: now, status: "interrupted", runDir: ".kota/runs/held-sorter", steps: [],
+    }));
+    expect(await inspect(root)).toMatchObject({ shouldEmit: true, payload: { boundary: "evidence-window", inputRevision: 1 } });
+    expect((await inspect(root)).shouldEmit).toBe(false);
+    expect((await inspect(root, root, 1)).shouldEmit).toBe(false);
+  });
+
 });

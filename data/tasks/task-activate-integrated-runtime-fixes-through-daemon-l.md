@@ -1,8 +1,20 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Activate integrated runtime fixes through daemon lifecycle
+
+## Current Contract
+
+Reopened under the September 12 owner waiver. Finish any lifecycle defects and
+validate real process handoff, isolated restart, ownership and refill through an
+available supported context; controlled-port assertions alone are insufficient.
+The already observed production activations remain partial evidence. A further
+launching-daemon rollout is non-gating operational follow-up, owned by the host
+lifecycle, not permission for a builder to restart its parent or bypass isolation.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -34,9 +46,9 @@ never silently rewrite queued/held contracts or discard worktrees.
 
 Use existing lifecycle scenarios for relevant integration, no-op data commit,
 coalescing while active work drains, paused/backed-off startup and failed startup.
-Then demonstrate a harmless runtime revision activating once with queue/ownership
-preserved, fresh API/process evidence and capacity refill. Keep implementation and
-testing with lifecycle owners, not builder-specific exceptions.
+Demonstrate activation with queue/ownership preserved, fresh API/process identity
+and capacity refill through the supported isolated lifecycle. Keep implementation
+and testing with lifecycle owners, not builder-specific exceptions.
 
 ## Implementation and verification
 
@@ -61,7 +73,7 @@ changed runtime code can activate. The parked supervisor remains resident for
 launchd KeepAlive and systemd; daemon initialization independently rejects
 unchanged failed revisions. Production and test typechecking and focused lint
 pass alongside the owner tests. The subprocess boundary is controlled, so this
-proof does not replace the live acceptance condition below.
+proof did not establish a production activation.
 
 Each new process also revalidates previously active targets against its loaded
 revision and confirms readiness again. Regression proof rejects stale or unknown
@@ -83,7 +95,7 @@ failed targets. A real child-process probe authenticates the inherited reservati
 publishes and removes its control identity, and repeats through a supervised
 replacement before final lock cleanup. Core lock tests also reject the wrong
 parent or token. This proves the process handoff without a network listener;
-the complete live activation acceptance below remains blocked.
+a complete live activation was not observed by that probe.
 
 Supervisor cancellation proof sends SIGTERM and SIGINT through the supervisor
 to real replacement children during preflight. Intentional stop waits for child
@@ -91,9 +103,9 @@ exit, releases the reservation, retains an unfailed activation target, and admit
 the unchanged runtime on the next start. A child returning the restart exit code
 after a stop request cannot override cancellation and spawn another replacement.
 These focused process checks cover the retained shutdown repair; they do not
-substitute for the complete live acceptance below.
+establish an additional production activation.
 
-## Blocked on
+## Historical Live Observations
 
 Live monitoring on September 10 observed a successful first activation:
 integration `5f3b76bd5` requested restart at 15:50:29Z; PID 47676 drained after
@@ -125,24 +137,3 @@ absence of work or provider backoff. Attribute host suspension separately from
 the expensive preflight owned by the existing P0 evidence-collection task.
 Evaluate this repeated-update journey when judging activation acceptance; do
 not bypass the shared restart owner or interrupt healthy work to force refill.
-
-kind: operator-capture
-path: .kota/runs
-description: Runtime-owned isolated live activation evidence with fresh process/API identity, preserved queued ownership, and capacity refill; equivalent attributable exports are accepted.
-
-Attributable live activation evidence from a runtime-owned isolated execution
-that permits loopback listeners and process identity inspection. This builder's
-sandbox rejects the existing daemon restart scenarios with `listen EPERM` and
-the validator/process recovery boundary with `/bin/ps EPERM` / `spawn-failed`.
-Those denials describe this execution environment, not host capability or missing
-credentials. No callable scoped runtime probe/export was available in this step.
-
-Resume by running the real lifecycle scenarios and collecting a harmless
-integrated runtime revision activating once, with fresh API/process identity,
-preserved queue/ownership, and subsequent capacity refill. Equivalent attributable
-runtime-owned evidence is sufficient; no specific capture directory or manual
-operator procedure is required. The launching daemon must remain under its host
-lifecycle owner. Controlled-port tests and static checks do not satisfy this
-remaining live acceptance condition.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

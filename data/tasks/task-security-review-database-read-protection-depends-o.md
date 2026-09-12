@@ -1,8 +1,25 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Security review: Database read protection depends on writer authorization. A native CLI invocation without writer identity, running from the daemon's canonical repository, receives repository-wide read access without denials for kota.sqlite or its journals. On a multi-scope daemon, this exposes other scopes' persisted workflow data. The writer fix therefore leaves a non-writer cross-scope confidentiality gap.
+
+## Current Contract
+
+Reopened for supported Linux validation setup and any resulting confinement repair.
+The 720nnv writer published `1743ee4d3` and released its resources/sandbox; static
+and policy-construction checks are not an executed security pass. Exercise the
+non-writer database, late-journal and absent-state boundaries with synthetic data,
+preserving intended repository reads and artifact writes. Use an authorized Linux
+bubblewrap context or equivalent attributable boundary proof, not raw host data or
+a weakened launcher. A denied nested probe alone does not establish impossibility;
+only a specific unavailable execution authority after setup is exhausted warrants
+a block. The confidentiality finding remains unclosed until its guarantee is proven.
+
+security family: 0d08d683e9a7787d3a4e0da83efee038bb24506b96c6a42898dea41b55935c86
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 
 ## Problem
@@ -205,23 +222,6 @@ listener-setup failure with EPERM on 127.0.0.1. Production and test typechecks,
 Biome for both repaired TypeScript files, task validation, and scoped diff
 whitespace validation passed. This compiler-boundary proof resolves the reported replay
 defect; the executed Linux confinement requirement below remains outstanding.
-
-## Blocked on
-
-```text
-kind: operator-capture
-path: .kota/runs/native-database-read-protection/linux-validation.txt
-description: Attributable execution of this patch's non-writer database/late-journal and absent-state regressions on a permitted Linux bubblewrap runtime, including retained repository and artifact access.
-```
-
-A scoped validation runtime permitted to execute Linux bubblewrap, or equivalent
-attributable execution evidence for this retained patch, is still required.
-The path above is the existing automated discovery location, not a requirement
-to use one filename or perform manual execution; equivalent runtime exports
-may satisfy review. Strict type verification is now complete. The task remains
-blocked on executed confinement evidence, not dependency installation.
-
-security family: 0d08d683e9a7787d3a4e0da83efee038bb24506b96c6a42898dea41b55935c86
 
 ## Additional confirmed evidence
 

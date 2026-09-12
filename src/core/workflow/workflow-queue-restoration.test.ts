@@ -137,7 +137,6 @@ describe("durable workflow queue restoration", () => {
     observe(2);
     observe(2);
     const afterCooldown = new Date(Date.now() + 60_000).toISOString();
-    expect(runState.resumeSatisfiedContinuationRuns(afterCooldown)).toEqual([]);
     expect(runState.listDispatchableRuns({ now: afterCooldown, limit: 10, excludedScopeIds: [] })).toEqual([]);
     expect(runState.listRuns(SCOPE_ID)).toHaveLength(2);
     expect(runState.getRun(owner)).toMatchObject({ state: "waiting", attempt: 1, resources: ["triage:whole-scope"] });

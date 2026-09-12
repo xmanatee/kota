@@ -1,9 +1,22 @@
 ---
-status: blocked
+status: open
 priority: p1
 depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres]
 ---
 # Execute AGY model benchmark and document routing decision evidence
+
+## Current Contract
+
+Prepare and validate the current KOTA/AGY image and internal Google egress/auth
+route through existing owners, then run the three-repeat comparison. Missing
+image/proxy setup is builder work; a verified unavailable provider credential or
+entitlement is a concrete blocker. Retain current-model and requested historical
+rows, quota and actual effort behavior. Let measured results determine the routing
+decision, including needs-more-data or rejection; the historical request to confirm
+a preferred model is not permission to force a favorable verdict or switch production.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -48,7 +61,7 @@ and `gemini-3.6-flash-high` availability cannot be verified. The screened
 preflight transcript and fail-closed `needs-more-data` decision are recorded in
 `.kota/runs/2026-08-11T11-04-08-772Z-builder-l9gfun/evidence/artifacts/agy-model-routing/`.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Host Docker engine and AGY authentication/model discovery now work (Docker
 29.3.1, AGY 1.1.27). Remove them as current blockers. The shipped AGY default is
@@ -61,11 +74,3 @@ there is currently no Google provider-egress network. Intrinsic-reasoning models
 must not receive unsupported effort flags. Record unavailable rows and quota
 without blind retries. Readiness and model listing do not replace benchmark
 traces, repeats, rubric evidence or a routing decision.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Verified current KOTA/AGY candidate image, authenticated isolated execution and an internal Google provider-egress network/proxy, followed by the required real three-repeat suite with returned artifacts and quota evidence. Host Docker and AGY model discovery are ready; container readiness and live results remain unproven. Equivalent attributable artifact locations are accepted.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

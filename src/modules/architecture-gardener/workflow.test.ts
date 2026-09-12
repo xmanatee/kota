@@ -683,6 +683,56 @@ describe("Architecture Gardener Workflow", () => {
     expect(settled.steps.investigate?.status).toBe("skipped");
   });
 
+  it("uses idle capacity despite retained tasks and inbox without repeating a settled review", async () => {
+    writeFileSync(join(testWorkspace, "src/core/bad.ts"), 'import "#modules/foo/index.js";');
+    mkdirSync(join(testWorkspace, "data/inbox"));
+    writeFileSync(join(testWorkspace, "data/inbox/task-capture.md"), "Investigate a captured failure.\n");
+    writeFileSync(join(testWorkspace, "data/tasks/task-retained.md"), "---\nstatus: open\npriority: p1\n---\n# Retained delivery\n\nPreserve the existing delivery contract while its owner is waiting.\n");
+    runGit(testWorkspace, ["add", "."]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "structural evidence"]);
+    const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "idle-state"));
+    const database = new RunStateDatabase(state.stateDir);
+    const now = new Date().toISOString();
+    const { epoch } = database.beginDaemonSession(now);
+    for (const [id, resource] of [["held-builder", "task:task-retained"], ["held-sorter", "autonomy:inbox-triage"]] as const) {
+      database.admitRun({ id, scopeId: state.scopeId, workflow: id === "held-builder" ? "builder" : "inbox-sorter", repository: "write",
+        trigger: { event: "manual", schemaRef: null, payload: {} }, resources: [resource], admittedAt: now });
+      database.startRun(id, epoch, now);
+      database.suspendRun({ runId: id, epoch, state: "waiting", suspendedAt: now });
+    }
+    database.close();
+    const review = () => new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger: { event: "autonomy.queue.empty", payload: {} },
+      ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
+      stepOutputs: { investigate: { action: "no-action", rationale: "The import requires caller evidence before proposing a change.",
+        evidenceRefs: ["src/core/bad.ts"], revisit: { reason: "Changed import ownership.", deliveryIssueKeys: [] },
+        existingTaskId: null, proposal: null } },
+    }).run();
+    const first = await review();
+    expect(first.status, first.error).toBe("success");
+    expect(first.steps.investigate.status).toBe("success");
+    const repeated = await review();
+    expect(repeated.status, repeated.error).toBe("success");
+    expect(repeated.steps.investigate.status).toBe("skipped");
+    expect(listFullRepoTasks(testWorkspace).map((task) => task.id)).toEqual(["task-retained"]);
+  });
+
+  it.each(["task", "inbox"])("keeps newly available %s work ahead of an idle gardener request", async (supply) => {
+    writeFileSync(join(testWorkspace, "src/core/bad.ts"), 'import "#modules/foo/index.js";');
+    const path = supply === "task" ? "data/tasks/task-independent.md" : "data/inbox/task-capture.md";
+    mkdirSync(dirname(join(testWorkspace, path)), { recursive: true });
+    writeFileSync(join(testWorkspace, path), supply === "task"
+      ? "---\nstatus: open\npriority: p1\n---\n# Deliver the independent outcome\n\nOperators can inspect failure evidence from the status view.\n"
+      : "Investigate the captured failure.\n");
+    runGit(testWorkspace, ["add", "."]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "available delivery"]);
+    const result = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger: { event: "autonomy.queue.empty", payload: {} },
+    }).run();
+    expect(result.status, result.error).toBe("success");
+    expect(result.steps.investigate.status).toBe("skipped");
+  });
+
   it.each(["src/modules/foo", "module:foo", "src/modules/foo/index.ts"])(
     "readmits %s for changed imports and clone sites, but suppresses unrelated or repeated evidence",
     async (targetScope) => {

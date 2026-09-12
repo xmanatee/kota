@@ -60,6 +60,7 @@ describe("explorer workflow thin queue gating", () => {
       ...options,
       workspaceRoot: tempDir,
       ports: {
+        state: { stateDir: join(tempDir, ".kota"), scopeId: deriveDirectoryScopeId(tempDir) },
         runCommand: successfulWorkflowCommandRun,
         ...options.ports,
       },
@@ -104,5 +105,34 @@ describe("explorer workflow thin queue gating", () => {
       needsAttention: false,
     });
     expect(result.steps.explore.status).toBe("skipped");
+  });
+
+  it.each([
+    { held: true, tasks: 0, explore: true },
+    { held: true, tasks: 1, explore: true },
+    { held: true, tasks: 5, explore: false },
+    { held: false, tasks: 0, explore: false },
+  ])("rechecks inbox ownership before exploration: $held held, $tasks tasks", async ({ held, tasks, explore }) => {
+    mkdirSync(join(tempDir, "data/inbox"));
+    writeFileSync(join(tempDir, "data/inbox/task-capture.md"), "Investigate a grounded improvement.\n");
+    for (let index = 0; index < tasks; index++) writeTask(`task-independent-${index}`);
+    if (held) {
+      const database = new RunStateDatabase(join(tempDir, ".kota"));
+      const now = new Date().toISOString();
+      const { epoch } = database.beginDaemonSession(now);
+      database.admitRun({ id: "held-sorter", scopeId: deriveDirectoryScopeId(tempDir), workflow: "inbox-sorter", repository: "write",
+        trigger: { event: "autonomy.inbox.available", schemaRef: null, payload: {} },
+        resources: ["autonomy:inbox-triage"], admittedAt: now });
+      database.startRun("held-sorter", epoch, now);
+      database.suspendRun({ runId: "held-sorter", epoch, state: "waiting", suspendedAt: now });
+      database.close();
+    }
+    const result = await runExplorerScenario({
+      trigger: { event: "autonomy.queue.empty", payload: {} },
+      stepOutputs: { explore: { turns: [], totalCostUsd: 0.02 } },
+    });
+    expect(result.status, result.error).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({ inboxCount: 1, availableCount: tasks, needsAttention: explore });
+    expect(result.steps.explore.status).toBe(explore ? "success" : "skipped");
   });
 });

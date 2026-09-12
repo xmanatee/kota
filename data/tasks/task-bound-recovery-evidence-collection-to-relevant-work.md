@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p0
 ---
 # Make recovery evidence collection proportional to relevant work
+
+## Current Contract
+
+Run `ddrk4y` published `feed4edbe73` and succeeded on September 11 with no
+resources or sandbox allocation remaining (September 12 read-only inspection).
+Reopened to finish the scoped investigator-content requirement above and any
+remaining measured-history/control-responsiveness checks. Under the owner's
+waiver, observing this writer's future deployment is not a completion gate.
+Reuse valid run evidence; do not infer deployed behavior from publication or
+grant investigators raw host authority. Host activation follow-up stays runtime-owned.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -105,12 +118,13 @@ Keep one filesystem-safety boundary and one runtime-owned execution lifecycle.
 - Existing evidence security and semantic tests remain valid at their owning
   layers; extend focused behavior cases rather than duplicating low-level tests
   in every workflow. Cancellation leaves no continuing evidence worker.
-- Observe real dispatch, activation drain completion and capacity refill after
-  integration. Preserve held writers and their task/resource ownership.
+- Verify dispatch, activation drain completion and capacity refill through the
+  supported production composition. Preserve held writers and their task/resource
+  ownership; launching-daemon rollout observation is operational follow-up.
 
 This corrects an internal implementation defect. It needs no new owner permission
-or manual capture. Existing recovery and activation tasks retain their separate
-live acceptance requirements; this task does not claim them completed.
+or manual capture. Existing recovery and activation tasks own their separate
+functional requirements; this task does not claim them completed.
 
 
 ## Implementation and verification — September 11
@@ -161,23 +175,3 @@ The representative-history rerun held at 70 reads/two helpers; concurrent
 preflights reached the next step within 1.41 seconds and control-request pairs
 within 23 ms (`repair-runtime.log`). Task-named export discovery and content
 attribution passed at the evidence owner (`repair-behavior.log`).
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Automatically collected, task-attributable runtime evidence after this changeset publishes and activates, showing real dispatch, drain completion, capacity refill and preserved held-writer ownership; equivalent scoped exports are accepted.
-
-The implementation and independent safety checks are complete. The remaining
-acceptance is observation of this revision on the launching daemon after
-runtime-owned publication and activation. Publication follows this agent step;
-this step cannot observe its own future integration, and its workflow rails
-prohibit controlling the launching daemon. The test daemon above proves the
-production composition under representative history, not deployment of this
-changeset. No new permission, manual capture, credential change or safety-pause
-change is requested. Resume once the runtime's existing activation/recovery
-owners expose attributable post-integration evidence. Preserve the original
-held writers and their task/resource lineage. The separate activation and
-recovery tasks retain their own live acceptance contracts.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T10:24:11.823Z -->

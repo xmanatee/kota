@@ -20,6 +20,7 @@ export function relevantDeliveryCohort(
 export function evaluateAdmission(input: {
   targetScope: string;
   observations: readonly ArchitectureObservation[];
+  idle: boolean;
   explicitRequest: boolean;
   requestFingerprint: string | null;
   previousReview: SettledGardenerReview | undefined;
@@ -38,7 +39,7 @@ export function evaluateAdmission(input: {
     (input.requestFingerprint !== null && input.requestFingerprint !== previous.requestFingerprint));
   const automatic = previous
     ? changedStructure || changedRelevantDelivery
-    : structuralObservations.length > 0 && input.observations.some((o) => o.category === "delivery");
+    : structuralObservations.length > 0 && (input.idle || input.observations.some((o) => o.category === "delivery"));
   const admitted = newRequest || newTaskEvidence || automatic;
   return {
     targetScope: input.targetScope,
@@ -49,10 +50,12 @@ export function evaluateAdmission(input: {
       ? "Explicit justified request for investigation; no improvement is verified."
       : newTaskEvidence
         ? "Linked implementation has settled; inspect its actual outcome and any deferred proposal."
-        : admitted
-          ? "Structural evidence or the settled judgment's relevant delivery evidence changed."
-          : previous
-            ? `Settled judgment remains current. Revisit: ${previous.decision.revisit.reason}`
-            : "Automatic investigation needs structural evidence and delivery friction; metrics alone are diagnostic.",
+        : admitted && !previous && input.idle
+          ? "Idle capacity permits investigation of unreviewed structural evidence; no improvement is verified."
+          : admitted
+            ? "Structural evidence or the settled judgment's relevant delivery evidence changed."
+            : previous
+              ? `Settled judgment remains current. Revisit: ${previous.decision.revisit.reason}`
+              : "Automatic investigation needs structural evidence and either idle capacity or delivery friction; metrics alone are diagnostic.",
   };
 }

@@ -1,8 +1,20 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Preserve watchlist values across YAML updates
+
+## Current Contract
+
+The September 12 owner waiver makes a subsequent production explorer capture
+non-gating. Validate the editor-first YAML boundary and explorer review suppression
+through available supported context, reusing the real-file evidence below where
+still applicable. Repair any remaining semantic churn; do not restore the retired
+serializer or treat a fresh artifact path as proof. Historical live gaps remain
+unobserved, not failures or a claim of deployed success.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -31,22 +43,8 @@ defect. Prove direct single-source edits preserve semantic values of all other
 entries and that completed-change validation accepts quotes, literal backslashes,
 multiline text and dates while rejecting malformed input. Use proportionate
 existing tests and one real-file check,
-not field-by-field configuration assertions. Observe a live explorer update
+not field-by-field configuration assertions. Exercise the supported explorer path
 without unrelated escaping churn; unchanged evidence must not trigger review.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Runtime-owned candidate explorer execution with live source observations, unchanged unrelated YAML values, and repeat-review suppression; equivalent attributable exports are accepted.
-
-Runtime-owned live explorer evidence for the candidate YAML implementation. The
-required live update and subsequent unchanged-evidence review skip have not been
-observed. Resume when an authorized isolated execution or attributable export
-provides the candidate code/run identity, live source observations, before/after
-watchlist values showing no unrelated escaping churn, and the later review
-decision on unchanged evidence. No new owner permission or prescribed capture
-directory is required; equivalent accessible evidence is sufficient.
 
 ## Retained implementation and evidence
 
@@ -72,7 +70,5 @@ The existing probe, before/after files, source capture, historical reproduction,
 and snapshot attribution are copied to
 `.kota/runs/watchlist-yaml-repair-evidence/` for workspace-local review; originals
 remain in the builder run evidence. `live-acceptance-status.json` records the
-collection assessment. The original acceptance criteria above remain unmet only
-for the live explorer observation.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->
+collection assessment. A live explorer observation was not obtained by that
+attempt; the current contract assigns it to operational follow-up.

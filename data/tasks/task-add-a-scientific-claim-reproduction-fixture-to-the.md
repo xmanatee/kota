@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Add a scientific-claim reproduction fixture to the eval harness
+
+## Current Contract
+
+Build/identify the current-source image and image-local KOTA executable, configure
+the existing provider-egress/auth owners, and execute the supported isolated eval.
+These are setup and validation work, not an operator-capture prerequisite. Preserve
+verifier isolation, shortcut rejection, claim/holdout results and live provenance;
+calibration is not a nested-agent pass. Block only if a specific unavailable
+credential or execution authority prevents further useful work, naming the exact
+requirement without exposing secrets or inferring absence from an old denial.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -99,8 +112,8 @@ host default. The fixture's local/deterministic requirement applies to its data
 and analysis, not to removal of the runner's security boundary.
 
 The owner has authorized Docker-based validation. Use that authority only through
-an available permitted execution path; a tool-policy denial remains a real
-capability blocker. KOTA should collect results automatically when authorized,
+an available permitted execution path. A denial limits that context; continue
+useful supported setup and collect results automatically when authorized,
 without requiring a person to type the command. Keep credentials private and
 verify live outcome and provenance, not just readiness or a nonempty transcript.
 
@@ -183,8 +196,7 @@ the nested builder because Codex authentication was unavailable to the probe.
 A direct builder-sandbox retry also stopped before the nested agent because the
 sandbox rejects the loopback listener required by the builder runtime. Neither
 attempt produced `claim-result.json`, predicate results, or an objective metric,
-so the task remains blocked until the operator-capture precondition above is
-satisfied.
+so neither attempt supplied a passing live result.
 
 ## Status (2026-07-25 scorer hardening)
 
@@ -206,17 +218,9 @@ adversarial cases fail as expected, and the objective-metric comparison passes.
 A regression and direct eval using the symlinked `/tmp` path now pass the same
 calibration before execution reaches nested builder execution
 step and stops at the sandbox's loopback-listener preflight. The remaining
-product criterion is the authenticated trusted-host live eval evidence named
-by the operator-capture precondition.
+product criterion is authenticated, isolated live eval evidence, not a prescribed
+operator capture.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 with current container/egress options. Retain claim-result.json, claim-holdout-result.json, predicate details and objective metric, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Current-source image with image-local KOTA executable, functional provider-egress proxy and authentication inside the required isolated candidate execution. Docker and host Codex login were verified on 2026-09-10; they are not missing permissions. Use an authorized current eval run and inspect its returned evidence location, not directory existence. Preserve all required positive/negative, transcript, isolation and scoring evidence; readiness alone is not a passing live result.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

@@ -45,11 +45,19 @@ remaining candidate-input defect, not a repeat of its completed repair.
   same authoritative inputs; invalid or changed artifacts fail visibly without
   publishing coverage. Extend the existing owner-level verification rather than
   duplicating a workflow test matrix.
-- Recover the retained run through the existing finalization/recovery owner.
-  Preserve its completed investigation and independent revalidation; use the
-  original source artifacts only when provenance and pinned content verify.
-  Do not rerun successful agent steps just to replace masked metadata. If the
-  retained result cannot be verified, preserve it with an explicit blocker.
-- Verify live finalization, truthful coverage/publication, resource release and
-  subsequent review admission after activation. Ordinary builder routing must
-  remain available. Report actual recovery separately from a fixture replay.
+- Make retained-run recovery work through the existing finalization owner.
+  Preserve completed investigation and independent revalidation; reuse original
+  source artifacts only when provenance and pinned content verify. Unverifiable
+  old results remain retained without claiming coverage; they do not prevent
+  publishing the correction. Do not rerun successful agent work merely to replace
+  masked diagnostics.
+- Verify persistence, finalization and failure rejection through the real owners
+  with representative artifacts. The live retained review's finalization and
+  resource release occur after this correction activates and are operational
+  follow-up, not an impossible prerequisite for publishing this builder's code.
+  Report actual recovery separately from a local replay; never claim unperformed
+  live checks passed. Ordinary builder routing must remain available.
+
+Continue retained builder `2026-09-11T15-54-54-471Z-builder-q50y5g` with its useful
+changes under this revised contract. Complete available validation and publish;
+do not wait for access to the launching daemon or duplicate its recovery owner.

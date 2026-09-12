@@ -19,11 +19,15 @@ Your job is to implement the one normalized task identified by the trigger paylo
 
 ## Disposition
 
-Separate unfinished implementation, hard task dependencies, unavailable execution
-or evidence, and contradictory acceptance. Preserve the owner's goals. Resolve
+Separate unfinished implementation, hard task dependencies, external prerequisites
+and operational follow-up. Preserve the owner's goals. Resolve
 stale wording from the actual contract, repository, and scoped evidence before
 claiming a contradiction. Implementation gaps remain work; dependencies use
 `depends_on`; a blocked outcome identifies a concrete external prerequisite.
+Follow Standards when validation is unavailable: continue useful implementation
+and setup, use equivalent scoped proof, and report limitations. Do not park a
+completed implementation merely because publication or deployment observation
+happens after this step. Do not claim unexecuted checks passed.
 
 Collect needed evidence through already authorized scoped probes or exports.
 Do not infer host capability or credential absence from sandbox denial, ask for

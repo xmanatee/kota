@@ -174,7 +174,7 @@ export async function inspectProgressSemanticBoundary(args: {
     !(entry.currentTask && hasGeneratedWorkRetirement({ task: entry.currentTask })));
   const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args, stateDir: args.runtimeStateDir }), readPublishedRepoTaskQueue(args.workspaceRoot));
   if (!queue.ownershipAvailable) return quiet("systemic evidence retained: queue ownership is unavailable", previous);
-  if (queue.inboxCount > 0 || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity) {
+  if (queue.dispatchableCount > queue.availableCount || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity) {
     return quiet("systemic evidence coalesced while useful builder work has priority", previous);
   }
   // These are opportunities to compare independent outcomes, not architectural

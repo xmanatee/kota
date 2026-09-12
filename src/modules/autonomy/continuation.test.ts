@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { collectBuilderContinuationContext } from "./continuation.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { collectAutonomyContinuationContext } from "./continuation.js";
 
 const roots: string[] = [];
 
@@ -27,8 +28,8 @@ afterEach(() => {
   }
 });
 
-describe("builder continuation context", () => {
-  test("retains the immutable admitted contract after the isolated task has moved terminal", () => {
+describe("autonomy continuation context", () => {
+  test("preserves the admitted contract and excludes retained priority blockers", () => {
     const workspaceRoot = root("workspace");
     const scopeRoot = root("scope");
     writeFileSync(
@@ -51,12 +52,17 @@ describe("builder continuation context", () => {
     execFileSync("git", ["add", "data/tasks"], { cwd: scopeRoot });
     execFileSync("git", ["commit", "-q", "-m", "tasks"], { cwd: scopeRoot });
 
-    const context = collectBuilderContinuationContext({
-      scopeRoot,
-      taskId: "task-current",
-      priority: "p1",
+    const store = new RunStateDatabase(join(scopeRoot, ".kota"));
+    store.registerScope({ id: "scope-a", rootPath: scopeRoot, createdAt: "2026-09-12T00:00:00Z" });
+    const { epoch } = store.beginDaemonSession("2026-09-12T00:00:00Z");
+    const input = {
+      workSupplyInput: { scopeRoot, workspaceRoot: scopeRoot, stateDir: join(scopeRoot, ".kota"), capacity: 2 },
+      id: "task-current",
+      priority: "p1" as const,
       taskContract: "status: open\npriority: p1\n\n# Immutable admitted task",
-    });
+    };
+    try {
+    const context = collectAutonomyContinuationContext(input);
 
     expect(context.current).toEqual({
       id: "task-current",
@@ -75,5 +81,19 @@ describe("builder continuation context", () => {
       priority: 0,
       resource: "task:task-urgent",
     });
+    store.admitRun({ id: "urgent", scopeId: "scope-a", workflow: "writer", repository: "write",
+      trigger: { event: "manual", schemaRef: null, payload: {} }, resources: ["task:task-urgent"],
+      admittedAt: "2026-09-12T00:00:01Z" });
+    expect(collectAutonomyContinuationContext(input).queue.available[0].id).toBe("task-urgent");
+    store.startRun("urgent", epoch, "2026-09-12T00:00:02Z");
+    store.admitRun({ id: "urgent-contender", scopeId: "scope-a", workflow: "writer", repository: "write",
+      trigger: { event: "manual", schemaRef: null, payload: {} }, resources: ["task:task-urgent"],
+      admittedAt: "2026-09-12T00:00:04Z" });
+    store.suspendRun({ runId: "urgent", epoch, state: "needs_attention", wait: { reason: "external-unavailable" },
+      suspendedAt: "2026-09-12T00:00:05Z" });
+    expect(collectAutonomyContinuationContext(input).queue.available.map((task) => task.id)).toEqual(["task-current"]);
+    } finally {
+      store.close();
+    }
   });
 });

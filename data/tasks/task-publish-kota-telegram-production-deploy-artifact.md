@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p3
 ---
 # Publish KOTA Telegram production deploy artifact
+
+## Current Contract
+
+The September 12 owner waiver reopens artifact implementation/setup and supported
+integration validation. The legitimate staging `/status` exchange is operational
+follow-up, not a builder completion gate or proof supplied by the existing smoke.
+Preserve one Bot API poll owner, rollback, private secret resolution and clear
+voice failure behavior. Any real staging run requires host-owned poll handoff and
+an authentic chat input; do not impersonate the owner or claim production readiness
+from a controlled transport response.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -39,8 +52,9 @@ artifact does not ship credentials.
   command plus populated secrets.
 - A README or `AGENTS.md` section describes the artifact's inputs,
   what supervisor it targets, and how to roll back.
-- A live-run or integration artifact under `.kota/runs/` records at
-  least one end-to-end launch against a staging bot.
+- A supported isolated integration exercises the actual deploy artifact,
+  supervisor/daemon launch, health, rollback and secret-input boundaries.
+  A real staging-bot exchange remains explicitly unverified until observed.
 
 ## Source / Intent
 
@@ -59,8 +73,8 @@ repeatable operator flow.
 
 - Static tests and deploy artifact checks prove the artifact is internally
   consistent.
-- A `.kota/runs/` launch artifact from a staging bot records the final
-  end-to-end proof before this blocked task can move to done.
+- Retain available launch/integration evidence and distinguish it from the
+  non-gating staging interaction follow-up authorized by the owner's waiver.
 - Rollback and secret-input behavior are documented in the deploy artifact or
   nearest module instructions.
 
@@ -84,18 +98,17 @@ the OpenAI-compatible harness; it no longer requires Anthropic specifically.
 not consume Telegram updates because the daemon-owned interactive channel is
 the single Bot API update consumer.
 
-## Blocker
+## Historical Staging Evidence
 
 `.kota/runs/telegram-deploy-staging/smoke.txt` captures the Docker install
 path with the populated local `.env`, successful image build/container start,
 and a passing `deploy/telegram-assistant/smoke-test.sh docker` retry once the
 container reached healthy state. It does not capture an actual Telegram
 `/status` exchange or another bot interaction performed through the staging
-deployment, so the task remains blocked pending the operator-capture artifact.
+deployment. This smoke result did not establish a real staging exchange.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Existing Docker smoke evidence and populated deployment credential inputs are
 already present. No mandatory sudo, systemd reinstall or new token is required.
@@ -107,9 +120,3 @@ the same token or drain unrelated automation just to reproduce an old install.
 The remaining proof is a real /status exchange attributable to that staging
 deployment, with healthy supervisor and rollback/secret-input behavior retained.
 Do not synthesize an inbound owner message or expose deployment secrets.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: A real Telegram /status request and reply attributable to the controlled staging deployment, alongside its current health/launch evidence. Existing credentials and Docker smoke are partial evidence; no sudo or exact capture-directory name is required. Coordinate single Bot API poll ownership with the active host before deployment.

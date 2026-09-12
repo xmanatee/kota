@@ -1,8 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
-# Capture an end-to-end coding-task parity artifact under .kota/runs/ for each registered agent harness
+# Validate end-to-end coding-task parity across registered agent harnesses
+
+## Current Contract
+
+Reopened to implement/probe compatible model/auth routing and run available
+coding-capable adapters. Under the September 12 owner waiver, an unavailable
+adapter row is an explicit follow-up, not a gate on useful supported-route work.
+Keep every adapter accounted for, with paired prompt/trace/diff/verifier evidence
+for executed rows and precise credential/capability limits for unrun rows.
+No all-adapter parity claim follows from partial results; historical fixed-path
+and human-only capture requirements are superseded, not the need for real outcomes.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -30,14 +43,12 @@ either converted into follow-up tasks or explained why they do not block
 - Use a real coding task whose success can be reduced to an inspectable
   artifact (tests passing, file diff, runtime probe). Do not rely on
   subjective "feels equivalent" judgments.
-- Run each scenario under every registered harness and pair the results in
-  one directory, exactly like the rendering task's peer-CLI comparison
-  pattern.
+- Account for every registered harness and pair executed results by scenario
+  and model. Equivalent runner-returned artifact locations are accepted.
 - Do not introduce a parallel benchmarking framework. Reuse the existing
   `AgentHarness.run` path the CLI already calls.
-- Operator-facilitated steps (if any harness requires human credentials or
-  a non-headless runner) belong in a separate `blocked` bucket with an
-  explicit enabler task, not in a silently skipped scenario.
+- Name genuinely missing credentials or non-headless inputs per harness without
+  silently skipping the row or blocking work on other supported routes.
 
 ## Done When
 
@@ -122,12 +133,9 @@ Phase 2 — authorized live capture (still incomplete):
 
 ## Status (2026-05-07 blocker audit)
 
-The block is still real and operator-gated: the infrastructure is shipped, but
-the remaining evidence consumes live harness credentials and nested agent
-execution. Autonomy should not fake this with a local dry run. The current
-unblock action is exactly the `kota harness-parity run` capture described in
-the precondition; if it is not captured, blocked-promoter should re-instruct it
-after the 14-day operator-capture cadence rather than letting it disappear.
+The infrastructure was shipped, but all-harness live evidence was missing.
+That audit prescribed an operator-capture cadence, superseded by the current
+contract. A local dry run was not evidence of coding-task parity.
 
 ## Status (2026-06-15 blocked audit)
 
@@ -136,11 +144,11 @@ A bounded local probe succeeded for one small slice:
 fix-arithmetic-bug --harness codex --max-turns 4 --out
 .kota/runs/blocked-audit-2026-06-15/harness-parity-codex/fix-arithmetic-bug`
 passed with `verification=pass`, one turn, and one changed file. That proves
-the Codex harness path is locally viable. It does not unblock this task because
-the precondition requires the operator-captured all-registered-harness artifact
-under `.kota/runs/harness-parity-*`.
+the Codex harness path was locally viable. The audit did not promote the task
+under its then-current all-harness capture rule; the path itself does not
+invalidate this partial result.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 The June 15 Codex/GPT-5.5 slice passed verification with one changed file. Its
 directory prefix does not invalidate it; it remains historical partial evidence,
@@ -150,11 +158,3 @@ auth contract. Authorized runtime collection is allowed; no human must type each
 command. Preserve paired prompt/trace/diff/verifier artifacts, missing-auth rows
 and explicit text-only capability gaps. Do not reclassify absent credentials as
 an incapable model or an unfinished row as passed.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Attributable current paired coding-task results for required registered adapters, through authorized compatible model/auth routing. Accept equivalent returned artifact locations and historical partial evidence with provenance; complete missing live rows and record capability-gap decisions. Host Codex/AGY readiness exists, but all-row credentials and execution have not been established.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

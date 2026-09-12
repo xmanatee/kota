@@ -1,9 +1,23 @@
 ---
-status: blocked
+status: open
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 ---
 # Run live OpenRouter and local model rollout evaluation
+
+## Current Contract
+
+Reopened for the two explicit native/local routing gaps below and supported
+image, egress and model setup. Existing credential resolution is implementation
+work; an empty local model inventory is setup work. Use available owner-mediated
+auth and isolated execution, reporting any genuinely unavailable credential or
+entitlement precisely. Historical sandbox denials do not justify deferring these
+changes or imply host absence. Keep the full cohort, comparable metrics, exact
+Codex baseline, 90% pass^k/no-P0 promotion gate and denied unintended access.
+No live row, supported tier or replacement claim follows from a preflight skip.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -91,10 +105,9 @@ availability was not checked. No local model was discovered or guessed.
 All performance metrics and support tiers are unavailable, rather than zero
 or fabricated classifications.
 
-The task remains unfinished in the active queue, marked blocked under the
-builder's required lifecycle rule. This records the concrete external
-precondition while preserving the task's intent that a skip cannot count as
-completion. Production presets and operator recommendations are unchanged.
+That attempt recorded an unfinished, blocked disposition under the then-current
+lifecycle rule. It supplied no rollout evidence and changed no production presets
+or recommendations; the current contract supersedes that disposition.
 
 Resume in a runtime-authorized evaluation context with access to the existing
 OpenRouter credential, native Codex baseline execution, and an identified local
@@ -110,7 +123,7 @@ Evidence: builder run 2026-09-09T15-01-01-382Z-builder-4endrv,
 runtime agent artifacts rollout-preflight.mjs, rollout-preflight.json, and
 rollout-decision.md. Task integrity validation is retained in validate-tasks.txt.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Reopened for an internal execution gap before the empirical matrix. In
 harness-parity/model-matrix-eval.ts around line 209, the eval executor hardcodes
@@ -189,31 +202,6 @@ artifacts `rollout-preflight.json`, `readiness/eval-preflight/`,
 `matrix-auth-isolation-test.txt`, `owner-tests.txt`, `check-fast.txt`,
 `matrix-cli-help.txt`, and `matrix-cli-invalid-isolation.txt`.
 
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs/*
-description: Attributable readiness evidence from a runtime-authorized contained evaluation context able to use Docker, discover/install a local model, and use existing provider credentials through their owners. Native/local routing also requires the implementation below.
-
-The path is a discovery hint; equivalent scoped probes or exports are valid.
-Existing run directories and historical host checks do not establish readiness
-in the evaluation context. Review execution provenance and successful isolation,
-egress/auth, baseline, and local-runtime readiness before reopening through the
-normal task operation. Collection is already authorized; no renewed permission
-or manual operator capture is required when scoped collection is available.
-
-A runtime-authorized contained evaluation context with access to Docker, local
-model discovery/install, and owner-mediated use of the existing provider and
-native baseline credentials. This agent's current filesystem/network policy
-prevents those scoped operations, despite the task's existing authorization.
-External readiness alone cannot resume the full matrix. Complete the native/local
-routing implementation below, then establish a compatible isolated image and working egress/auth,
-installing an appropriate local model within measured capacity, and running the
-preserved cohort with comparable evidence. Do not expose deployment secrets or
-grant candidate code host authority. The shared whole-container provider-egress
-policy is still non-gating and must satisfy the required evidence/boundary
-conditions before model promotion. A preflight skip does not complete this task.
-
 ## Repair review — unsupported routes contained
 
 The earlier result overstated execution readiness. Docker readiness and existing
@@ -238,11 +226,10 @@ rejection retains isolation and does not substitute host execution or a cloud ro
   model-client owners, including endpoint propagation, supported network policy,
   and positive inference plus denied unintended access. Then discover/install a
   suitable local model within measured host capacity and run raw/scaffold rows.
-- Independently resolve the external execution-context access described in
-  Blocked on. Access to Docker, host auth, or a populated Ollama server alone is
-  insufficient. The task stays blocked for that external precondition and remains
-  unfinished for the two internal routing requirements; containment is not their
-  implementation and does not complete the rollout task.
+- Establish supported contained execution after implementing the routes. Access
+  to Docker, host auth or a populated Ollama server alone is insufficient.
+  Containment-by-rejection is not working routing; validate positive inference
+  and credential/network confinement before the empirical rollout decision.
 
 All original candidate, metric, equal-repeat, 90% baseline pass^k/no-P0, and tier
 requirements remain unchanged. No live inference ran, no support decision is
@@ -255,5 +242,3 @@ launch, sequential repeats, offline scorer, missing-isolation, and schema reject
 cases still pass. These establish containment and retained behavior, not live
 routing or model quality. Repair-specific static checks and operator preflight
 results are recorded in the run summary and repair2 artifacts.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

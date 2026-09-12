@@ -22,6 +22,7 @@ import { scopePolicySnapshotForTest } from "#modules/autonomy/workflows/scope-im
 import { renderDashboard } from "#modules/daemon-ops/dashboard.js";
 import { makeSnapshot, stripAnsi } from "#modules/daemon-ops/dashboard-test-support.js";
 import { DaemonTaskQueueProjection } from "#modules/daemon-ops/task-queue-projection.js";
+import { REPO_INBOX_RESOURCE } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { listRepoTasks, showTask } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { handleTaskStatus } from "#modules/repo-tasks/routes-state-handlers.js";
 import { mockResponse } from "#modules/repo-tasks/routes-test-helpers.js";
@@ -86,6 +87,20 @@ it("dispatches only independent unclaimed work while preserving retained owners 
     database.startRun(`run-${id}`, epoch, new Date().toISOString());
     database.suspendRun({ runId: `run-${id}`, epoch, state: "needs_attention", suspendedAt: new Date().toISOString() });
   }
+  mkdirSync(join(root, "data/inbox"));
+  writeFileSync(join(root, "data/inbox/held.md"), "Preserve this retained capture");
+  database.admitRun({ id: "held-inbox", scopeId, workflow: "inbox-sorter", repository: "write",
+    trigger: { event: "manual", schemaRef: null, payload: {} },
+    resources: [REPO_INBOX_RESOURCE], admittedAt: new Date().toISOString() });
+  evidence.createRun({
+    name: "inbox-sorter", enabled: true, repository: "write", tags: [],
+    integration: { validationCommand: ["pnpm", "validate-tasks"] },
+    definitionPath: "retained-inbox.scenario.ts", moduleRoot: root,
+    triggers: [], steps: [{ id: "sort", type: "code", run: () => undefined }],
+  }, { event: "manual", schemaRef: null, payload: {} }, "held-inbox")
+    .finish({ status: "failed", durationMs: 1, error: "Retained priority yield" });
+  database.startRun("held-inbox", epoch, new Date().toISOString());
+  database.suspendRun({ runId: "held-inbox", epoch, state: "waiting", suspendedAt: new Date().toISOString() });
   database.close();
   commitInput();
   const retainedDashboard = await renderWorkSupply();
@@ -104,6 +119,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   expect(listRepoTasks(root).workSupply).toMatchObject({
     actionableCount: 4, availableCount: 0, retainedCount: 4, runningCount: 0,
     availableTaskIds: [], hasDispatchableWork: false,
+    inboxCount: 1, dispatchableCount: 0,
   });
   expect(retained.emitted.some((event) => event.event === "autonomy.queue.available")).toBe(false);
   expect(retained.emitted.some((event) => event.event === "autonomy.queue.empty")).toBe(true);
@@ -117,7 +133,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   writeTask("task-external");
   writeTask("task-dependent");
   writeFileSync(join(root, "data/tasks/task-draft.md"), "---\nstatus: open\npriority: p1\n---\n# Unfinished draft\n\n<!-- intent still being edited -->\n");
-  mkdirSync(join(root, "data/inbox"));
+  mkdirSync(join(root, "data/inbox"), { recursive: true });
   writeFileSync(join(root, "data/inbox/draft.md"), "Unpublished inbox capture");
   const workingList = listRepoTasks(root);
   expect(workingList.workSupply).toEqual(publishedSupply);
@@ -131,7 +147,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   const status = mockResponse();
   await handleTaskStatus(status.res, root);
   expect(status.result).toMatchObject({ status: 200, body: {
-    counts: { inbox: 1, open: 7, blocked: 0 },
+    counts: { inbox: 2, open: 7, blocked: 0 },
     tasks: { open: expect.arrayContaining([expect.objectContaining({ id: "task-draft" })]) },
     workSupply: publishedSupply,
   } });

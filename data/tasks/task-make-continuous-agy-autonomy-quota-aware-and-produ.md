@@ -1,9 +1,21 @@
 ---
-status: blocked
+status: open
 priority: p1
 depends_on: [task-prove-agy-builder-parity-end-to-end]
 ---
 # Make continuous AGY autonomy quota-aware and productive
+
+## Current Contract
+
+Reopened under the September 12 owner waiver to finish canary setup and validate
+quota suppression, successful-empty handling, durable windows and same-lineage
+recovery through available supported context. A host-owned AGY rollout and its
+real 3h/6h measurements are non-gating operational follow-up, superseding the
+historical elapsed-evidence block. Do not switch Codex production, start a competing
+daemon, waive quality pauses or represent simulated time as an observed live window.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -61,9 +73,11 @@ minor issues become deduplicated tasks while useful work continues.
   horizon and no duplicate DLQ/task/reviewer storm.
 - Dispatch does not launch AGY agent work while the incident is active, but
   resumes preserved eligible work after recovery evidence.
-- The three-hour and at least one six-hour canary artifacts quantify useful
-  completions, failure causes, backoff ratio, retries, review yield, instruction
-  adherence, unrelated edits, and final recovery hygiene.
+- The canary can collect its three-hour and subsequent six-hour windows with
+  useful completions, failure causes, backoff ratio, retries, review yield,
+  instruction adherence, unrelated edits and recovery hygiene. Validate the
+  collection/decision path in supported context; elapsed production observations
+  remain rollout follow-up, not a prerequisite for finishing this implementation.
 - A material quality or productivity regression pauses autonomy automatically
   through the canonical control path and records why; minor findings are
   deduplicated without stopping productive work.
@@ -121,10 +135,10 @@ exactly once.
 A read-only reviewer must cite the collected evidence for every settled run
 before the canary can decide. Its daemon one-shot review joins the fleet gate
 before sending; a newly classified provider or successful-empty failure parks
-agent dispatch and checkpoints those runs for later review. The task remains blocked on the elapsed
-authenticated live evidence required by Acceptance Evidence.
+agent dispatch and checkpoints those runs for later review. That attempt did not
+observe the elapsed authenticated canary windows.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 AGY host authentication/model discovery now works, but no command-owned canary
 baseline and elapsed observation windows were established by today's readiness
@@ -134,11 +148,3 @@ start a competing daemon to manufacture evidence. Use the existing agy-canary
 AGY window is arranged through the host lifecycle. Preserve 3h/6h useful-work
 review, quota suppression, same-lineage recovery and continue/pause evidence.
 Do not reduce elapsed acceptance to a readiness check.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: An authorized controlled AGY runtime window with a command-captured baseline, first three-hour and subsequent six-hour evidence, quality review, quota suppression and retained-work resumption. Current Codex production selection is intentional; readiness alone cannot supply these elapsed outcomes. Returned attributable artifacts are accepted without a mandatory fixed directory.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

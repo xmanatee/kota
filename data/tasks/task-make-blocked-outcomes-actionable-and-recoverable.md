@@ -1,8 +1,25 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Make blocked outcomes actionable and recoverable
+
+## Current Contract
+
+September 12 read-only runtime inspection supersedes the stale four-owner waits:
+qj0mm4 published `13b64d459`, hjhox7 `a1022e259`, 720nnv `1743ee4d3`, and
+un8vlq `00588eaa6`. All four succeeded with zero resources and cleared sandbox
+allocations. Safe publication is not acceptance of their remaining calibration,
+writer, database-confinement or usable browser-persistence outcomes.
+
+Reopened to validate the shared disposition/recovery path against these available
+records and supported isolated scenarios, fixing any remaining mechanism gap.
+The owner's waiver removes a separate operator-capture gate, not source-drift,
+unsafe-partial rejection or retained-claim protection. Report case dispositions
+and real missing prerequisites; do not mutate today's different retained owners.
+
+This contract supersedes historical blocking and operational-capture requirements.
+
 
 ## Problem
 
@@ -37,7 +54,7 @@ Capture discovery is not acceptance: inspect outcome, provenance and required
 positive/negative behavior before promotion. Only a relevant contract, evidence,
 capability or dependency change should restart a failed attempt.
 
-## Current Cases To Resolve
+## Historical Cases
 
 - qj0mm4, continuation: 21 repairs. Pin the latest-200 calibration cohort at
   assessment time instead of chasing a moving window. The August 14 6.47-hour
@@ -108,7 +125,7 @@ Full comparison, case dispositions, commands/limitations, and discovery results
 are retained in builder run 2026-09-09T16-49-09-994Z-builder-omacue agent artifacts
 blocked-outcomes-summary.md and blocked-discovery.json.
 
-## Current disposition (2026-09-10)
+## Historical disposition (2026-09-10)
 
 Reopened for the unfinished shared mechanism, not for another blind attempt at
 the four retained builders. The earlier implementation and safe dispositions
@@ -218,11 +235,11 @@ cleanup or the four external owner outcomes; their outstanding acceptance and
 retained ownership remain as recorded above. Commands and results are retained
 in this run's ordinary summary and repair-4 logs.
 
-## Latest live owner outcomes
+## Historical live owner outcomes
 
 September 10 monitoring verified original run `720nnv` integrated `1743ee4d3`
 at 18:20:12Z, published its completion, released every resource and removed its
-worktree. Its task remains blocked for the real Linux confinement proof; this
+worktree. Its task then remained blocked for Linux confinement proof; this
 is a successful safe incomplete disposition, not security acceptance.
 
 Original run `qj0mm4` returned to `needs_attention` at 18:12:33Z. Its recovery
@@ -239,11 +256,3 @@ through the existing owner once the assessment is coherent.
 original retained work. Neither has a new accepted outcome yet. Preserve the
 browser persistence obligation and retained verification work; apply the current
 owner-approved reduction contract rather than restoring its obsolete target.
-
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Attributable current scoped runtime exports and owner dispositions for qj0mm4, hjhox7, 720nnv and un8vlq after the shared recovery path is integrated; prove relevant-change same-lineage recovery or explicit owner retention/cleanup, and distinguish each remaining prerequisite. Existing authorized runtime exports/probes may collect these results automatically; no new permission or ceremonial capture location is required.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T06:22:46.511Z -->

@@ -7,8 +7,11 @@ implementation to builders through the existing publication transaction.
 - Keep AST dependency, ownership and cycle observations factual. Clone sites and
   apparent unused symbols require caller and dynamic-entrypoint investigation;
   diagnostic counts never create tasks, impose quotas or veto a change.
-- Automatic observations run after builder delivery and durable issue changes.
-  Initial automatic review needs structural and delivery-friction evidence.
+- Automatic observations run after builder delivery, durable issue changes, and
+  empty-queue events. Idle review rechecks claim-aware supply and spare delivery
+  capacity; retained tasks and inbox ownership do not veto independent work.
+  Initial review needs structural evidence, plus delivery friction unless idle.
+  An unchanged cohort never forces another agent review or task production.
   Settled judgments retain their relevant delivery issue keys and revisit reason;
   structural changes, changes to those issues, a new justified scoped request,
   or linked terminal evidence may reopen investigation. Unrelated issue churn

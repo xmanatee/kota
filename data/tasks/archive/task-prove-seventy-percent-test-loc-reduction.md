@@ -1,35 +1,32 @@
 ---
-status: blocked
-priority: p1
-depends_on: [task-collapse-root-integration-and-test-support]
+status: done
 ---
 
 # Integrate retained verification simplifications without expanding the scope
 
 ## Outcome
 
-Review, repair and publish the useful changes already retained by builder run
-`2026-09-08T22-45-09-535Z-builder-hjhox7`. This is a bounded integration task,
-not an instruction for one builder to finish the repository-wide reduction.
+Review, repair and publish the useful changes retained by builder run
+`2026-09-08T22-45-09-535Z-builder-hjhox7`. This bounded integration is complete;
+it is not completion of the repository-wide reduction.
 The owner now requires 50% overall reduction, with 70% a stretch goal; the
 aggregate contract belongs to `task-verify-fifty-percent-test-reduction`.
 
-## Retained Work And Recovery
+## Completion Receipt
 
-Keep this task id so the original run can reconcile its changed contract and
-adopt its owned workspace through ordinary recovery. Its sandbox allocation is
-`2026-09-08t22-45-09-535z-builder-9cf8a78f014841c477fc6aa35a30bd3c3bfed1290af9b002bf763626a689410a`
-under `.kota/runtime/` and `.kota/runtime/worktrees/`. Read its run metadata,
-latest repair summary, critic findings, diff and validation evidence. The
-September 11 postcheck-22 inventory records 265,690 test LOC versus the frozen
-334,805 baseline; it is a work-in-progress snapshot, not a published result.
+September 12 read-only runtime inspection confirms publication of
+`a1022e259efc4d4c1d046a7ac417b86924baf5c9`, successful completion at
+2026-09-11T06:48:19.817Z, zero resources and a cleared sandbox allocation.
+The merged revision is an ancestor of current HEAD; its runtime integration
+receipt records a passing static gate. Publication and cleanup satisfy the bounded
+intent under the September 12 owner waiver. No old checkout needs adoption.
+The eight direct reduction children no longer depend on this task; their remaining
+owner/consumer dependencies and the final 50% audit are unchanged.
 
-The earlier immutable admission still requires 70%. A canonical task edit does
-not update that admission or restore its ephemeral Codex conversation. Reconcile
-through the runtime's retained-run recovery before executing this revised scope;
-never rewrite the database, admitted snapshot, or another running writer's files.
-Do not start a duplicate writer or discard the retained work. If that ownership
-cannot be recovered, preserve it and report the precise recovery prerequisite.
+Historical failed and unperformed changed-writer/onboarding checks below remain
+limitations, not newly passing results. They are proportionate validation follow-up
+for the affected owners, not a mandatory operator-capture or repeat-publication
+gate. No aggregate reduction or unobserved deployed behavior is claimed.
 
 ## Required Changes
 
@@ -104,23 +101,12 @@ directories; fresh compilation proves emission but not asset packaging. Existing
 onboarding journey failures are likewise not claimed as successful execution.
 The supplied issue export contains no applicable changed-writer evidence.
 
-## Blocked on
+## Historical Verification Limits
 
-kind: operator-capture
-path: .kota/runs
-description: Runtime-owned contained validation and integration evidence for this retained changeset, including changed-writer validation rejection, invariant rejection, successful publication/cleanup and onboarding composition; equivalent attributable scoped exports are accepted.
-
-The runtime must provide an authorized validation execution profile supporting
-its own process observation and port probes, or equivalent attributable evidence,
-then reconcile this writer with current main and rerun invalidated checks through
-its normal integration owner. It must record the resulting revision and safe
-claim/workspace cleanup. This agent cannot perform runtime-owned rebase,
-publication or launching-daemon activation; no permission change, manual capture,
-credential absence or host capability absence is inferred from sandbox denial.
-No integration or full task completion is claimed. Preserve this run, its task
-resource and every retained change until those prerequisites are satisfied.
-The blocker is the remaining bounded execution/publication acceptance, not the
-retired repository-wide reduction target. No sibling task was changed.
+The runtime's integrated static gate passed; the earlier typecheck failures below
+are historical repair evidence. Static success is not proof of the outstanding
+contained writer and onboarding scenarios. Preserve their historical results and
+the original run evidence without re-creating its released claim or sandbox.
 
 ## Integration conflict repair — September 11
 
@@ -151,5 +137,3 @@ scoped authorization. These errors are not a passing static gate. The earlier
 workspace totals remain historical pre-integration observations. Runtime still
 owns staging, continuation, complete validation, publication and final cleanup;
 this repair does not claim an integrated revision or task completion.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-11T10:24:11.823Z -->

@@ -726,10 +726,7 @@ export class RunStateDatabase {
     })();
   }
 
-  /**
-   * Resume evidence-preserved runs only after every higher-priority resource
-   * named by their continuation packet has completed a later admitted run.
-   */
+  /** Priority yields defer to runnable work, not to the completion of blocked work. */
   resumeSatisfiedContinuationRuns(resumedAt: string): string[] {
     const rows = this.database
       .prepare(
@@ -738,15 +735,13 @@ export class RunStateDatabase {
          ORDER BY admitted_at, rowid`,
       )
       .all() as Array<{ id: string; scope_id: string; wait_json: string }>;
-    const completedBlocker = this.database.prepare(
-      `SELECT 1
+    const currentBlockers = this.database.prepare(
+      `SELECT blocker.id, blocker.state
        FROM run_resource_requests AS request
        JOIN runs AS blocker ON blocker.id = request.run_id
        WHERE request.resource_key = ?
          AND blocker.id != ?
-         AND blocker.finished_at >= ?
-         AND blocker.state IN ('succeeded', 'failed', 'cancelled')
-       LIMIT 1`,
+         AND blocker.state IN ('queued', 'running', 'integrating')`,
     );
     const resumed: string[] = [];
     this.database.transaction(() => {
@@ -771,14 +766,14 @@ export class RunStateDatabase {
         ) {
           continue;
         }
-        const satisfied = record.blockerResources.every(
-          (resource) =>
-            completedBlocker.get(
-              this.scopeResourceKey(row.scope_id, resource),
-              row.id,
-              record.decidedAt,
-            ) !== undefined,
-        );
+        const runnable = new Set(this.listDispatchableRuns({
+          now: resumedAt, limit: Number.MAX_SAFE_INTEGER, excludedScopeIds: [],
+        }).map((run) => run.id));
+        const satisfied = record.blockerResources.every((resource) => {
+          const blockers = currentBlockers.all(this.scopeResourceKey(row.scope_id, resource), row.id) as
+            Array<{ id: string; state: DurableRunState }>;
+          return !blockers.some((blocker) => blocker.state !== "queued" || runnable.has(blocker.id));
+        });
         if (!satisfied) continue;
         const updated = this.database.prepare(
           `UPDATE runs
