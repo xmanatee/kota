@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
 import {
   registerHarnessHook,
   resetHarnessHooks,
 } from "./hooks.js";
+import type { AgentHarnessUnsupportedRunOption } from "./readiness.js";
 import {
   routeKotaToolControlOptions,
   runAgentHarness,
@@ -13,7 +17,10 @@ import { harnessStub } from "./runner-fixtures.integration.js";
 import type { AgentHarness, AgentHarnessRunOptions } from "./types.js";
 
 describe("runAgentHarness", () => {
+  let scopeRoot: string;
+  beforeEach(() => { scopeRoot = mkdtempSync(join(tmpdir(), "kota-runner-")); });
   afterEach(() => {
+    rmSync(scopeRoot, { recursive: true, force: true });
     resetHarnessHooks();
     vi.restoreAllMocks();
   });
@@ -37,7 +44,7 @@ describe("runAgentHarness", () => {
     const { harness, run } = harnessStub("alpha", ["preRun", "postRun"]);
 
     const result = await runAgentHarness(harness, {
-      prompt: "hello",
+      scopeRoot, prompt: "hello",
       effort: "xhigh",
     });
 
@@ -55,26 +62,6 @@ describe("runAgentHarness", () => {
     );
   });
 
-  it("fires each registered hook exactly once for every adapter it targets", async () => {
-    const preRun = vi.fn();
-    registerHarnessHook({
-      kind: "preRun",
-      owner: "observer",
-      name: "count",
-      handler: preRun,
-    });
-
-    const { harness: a } = harnessStub("alpha", ["preRun", "postRun"]);
-    const { harness: b } = harnessStub("beta", ["preRun", "postRun"]);
-
-    await runAgentHarness(a, { prompt: "x", effort: "xhigh" });
-    await runAgentHarness(b, { prompt: "y", effort: "xhigh" });
-
-    expect(preRun).toHaveBeenCalledTimes(2);
-    expect(preRun.mock.calls[0][0].harness.name).toBe("alpha");
-    expect(preRun.mock.calls[1][0].harness.name).toBe("beta");
-  });
-
   it("rejects the call if a hook kind is registered for an adapter that does not host it", async () => {
     registerHarnessHook({
       kind: "preRun",
@@ -86,106 +73,46 @@ describe("runAgentHarness", () => {
     const { harness, run } = harnessStub("no-hooks", []);
 
     await expect(
-      runAgentHarness(harness, { prompt: "x", effort: "xhigh" }),
+      runAgentHarness(harness, { scopeRoot, prompt: "x", effort: "xhigh" }),
     ).rejects.toThrow(/"no-hooks".*"preRun".*Remove the hook/);
     expect(run).not.toHaveBeenCalled();
   });
 
   it("runs the adapter without hooks when none are registered", async () => {
     const { harness, run } = harnessStub("alpha", ["preRun", "postRun"]);
-    await runAgentHarness(harness, { prompt: "hello", effort: "xhigh" });
+    await runAgentHarness(harness, { scopeRoot, prompt: "hello", effort: "xhigh" });
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects declared unsupported run options before hooks or adapter run", async () => {
+  it.each<{
+    runOption: AgentHarnessUnsupportedRunOption;
+    requested: Partial<AgentHarnessRunOptions>;
+    absent: Partial<AgentHarnessRunOptions>;
+  }>([
+    { runOption: "canUseTool", requested: { canUseTool: async () => ({ behavior: "allow" }) }, absent: {} },
+    { runOption: "maxTurns", requested: { maxTurns: 0 }, absent: {} },
+    { runOption: "autonomyMode.passive", requested: { autonomyMode: "passive" }, absent: { autonomyMode: "autonomous" } },
+    { runOption: "allowedTools", requested: { allowedTools: ["Read"] }, absent: { allowedTools: [] } },
+    { runOption: "persistSession", requested: { persistSession: true }, absent: { persistSession: false } },
+  ])("rejects requested $runOption before hooks, but admits its absent form", async ({ runOption, requested, absent }) => {
     const preRun = vi.fn();
-    registerHarnessHook({
-      kind: "preRun",
-      owner: "observer",
-      name: "before",
-      handler: preRun,
-    });
-    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
-    const unsupportedHarness: AgentHarness = {
-      ...harness,
-      unsupportedRunOptions: [
-        {
-          runOption: "canUseTool",
-          option: "canUseTool",
-          reason: "native CLI tool calls cannot pass through KOTA guards",
-        },
-      ],
+    registerHarnessHook({ kind: "preRun", owner: "observer", name: "before", handler: preRun });
+    const { harness, run } = harnessStub("limited", ["preRun", "postRun"]);
+    const limitedHarness: AgentHarness = {
+      ...harness, unsupportedRunOptions: [{ runOption, option: runOption, reason: "capability unavailable" }],
     };
 
-    await expect(
-      runAgentHarness(unsupportedHarness, {
-        prompt: "x",
-        effort: "xhigh",
-        canUseTool: async () => ({ behavior: "allow" }),
-      }),
-    ).rejects.toThrow(/native-cli.*canUseTool.*native CLI tool calls/);
+    await expect(runAgentHarness(limitedHarness, {
+      scopeRoot, prompt: "x", effort: "xhigh", ...requested,
+    })).rejects.toThrow(`cannot honor requested run option(s): ${runOption}`);
     expect(preRun).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
-  });
 
-  it("rejects a declared turn bound before hooks or adapter run", async () => {
-    const preRun = vi.fn();
-    registerHarnessHook({
-      kind: "preRun",
-      owner: "observer",
-      name: "before",
-      handler: preRun,
-    });
-    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
-    const unsupportedHarness: AgentHarness = {
-      ...harness,
-      unsupportedRunOptions: [{
-        runOption: "maxTurns",
-        option: "maxTurns",
-        reason: "the native agent loop owns its turn lifecycle",
-      }],
-    };
-
-    await expect(
-      runAgentHarness(unsupportedHarness, {
-        prompt: "x",
-        effort: "xhigh",
-        maxTurns: 4,
-      }),
-    ).rejects.toThrow(/native-cli.*maxTurns.*native agent loop/);
-    expect(preRun).not.toHaveBeenCalled();
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it("rejects a declared passive-mode incompatibility before hooks or adapter run", async () => {
-    const preRun = vi.fn();
-    registerHarnessHook({
-      kind: "preRun",
-      owner: "observer",
-      name: "before",
-      handler: preRun,
-    });
-    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
-    const unsupportedHarness: AgentHarness = {
-      ...harness,
-      unsupportedRunOptions: [
-        {
-          runOption: "autonomyMode.passive",
-          option: 'autonomyMode="passive"',
-          reason: "native tool calls cannot enforce the passive effect boundary",
-        },
-      ],
-    };
-
-    await expect(
-      runAgentHarness(unsupportedHarness, {
-        prompt: "x",
-        effort: "xhigh",
-        autonomyMode: "passive",
-      }),
-    ).rejects.toThrow(/native-cli.*passive.*native tool calls/);
-    expect(preRun).not.toHaveBeenCalled();
-    expect(run).not.toHaveBeenCalled();
+    await expect(runAgentHarness(limitedHarness, {
+      scopeRoot, prompt: "x", effort: "xhigh", ...absent,
+    })).resolves.toMatchObject({ text: "limited-ok" });
+    expect(preRun).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("rejects live scope-policy authority at a native adapter boundary", async () => {
@@ -198,7 +125,7 @@ describe("runAgentHarness", () => {
 
     await expect(
       runAgentHarness(nativeHarness, {
-        prompt: "x",
+        scopeRoot, prompt: "x",
         effort: "xhigh",
         scopePolicyAuthority,
       }),

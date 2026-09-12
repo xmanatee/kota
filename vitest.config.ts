@@ -9,7 +9,7 @@ const CLI_TEST_FILES = [
 ];
 const INTEGRATION_TEST_FILES = "src/**/*.integration.test.ts";
 const PROTOCOL_TEST_FILES = [
-  "src/core/agent-harness/neutral-protocol-shape.test.ts",
+  "src/core/agent-harness/message-codec.test.ts",
   "src/core/mcp/client-http-redirect-policy.test.ts",
   "src/core/mcp/client-oauth-endpoint-policy.test.ts",
   "src/core/mcp/client-oauth-redirect-policy.test.ts",

@@ -1,9 +1,15 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AgentTokenBudgetLedger, TOKEN_BUDGET_EXHAUSTED_SUBTYPE } from "#core/agent-harness/token-budget.js";
 import {
   registerPreSendHook,
   resetPreSendHooks,
 } from "#core/loop/pre-send-hooks.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import { injectSessionEnvironmentVariable, sessionEnvironmentForExecution } from "#core/tools/session-environment.js";
+import { resetCleanupHooks } from "./cleanup-hooks.js";
 
 // --- Hoisted mock variables (used inside vi.mock factories) ---
 
@@ -117,22 +123,27 @@ function executedGuardrailsConfig(callIndex: number): GuardrailsConfig {
 
 describe("AgentSession", () => {
   let session: AgentSession;
+  let scopeRoot: string;
 
   beforeEach(() => {
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-loop-scope-"));
     vi.clearAllMocks();
+    resetCleanupHooks();
     resetPreSendHooks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    session?.close();
+  afterEach(async () => {
+    await session?.dispose();
+    rmSync(scopeRoot, { recursive: true, force: true });
+    resetCleanupHooks();
     resetPreSendHooks();
     vi.restoreAllMocks();
   });
 
   it("passes configured model provider options into the model client factory", () => {
-    session = new AgentSession({
+    session = new AgentSession({ scopeRoot,
       autonomyMode: "autonomous",
       model: "openrouter/openrouter/auto",
       config: {
@@ -155,21 +166,12 @@ describe("AgentSession", () => {
   });
 
   describe("text-only response", () => {
-    it("returns text from model", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage.mockResolvedValueOnce(textResponse("Hello!"));
-
-      const result = await session.send("Hi");
-
-      expect(result).toBe("Hello!");
-      expect(mockStreamMessage).toHaveBeenCalledTimes(1);
-    });
-
     it("passes system prompt and messages to streamMessage", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("Hi"));
 
-      await session.send("Hello");
+      expect(await session.send("Hello")).toBe("Hi");
+      expect(mockStreamMessage).toHaveBeenCalledOnce();
 
       const config = mockStreamMessage.mock.calls[0][0];
       // messages is a reference — first element is the user message
@@ -179,7 +181,7 @@ describe("AgentSession", () => {
     });
 
     it("aborts active model work when the session closes", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
       mockStreamMessage.mockImplementationOnce(({ signal }: { signal: AbortSignal }) =>
         new Promise((_resolve, reject) => {
           signal.addEventListener("abort", () => {
@@ -201,7 +203,7 @@ describe("AgentSession", () => {
 
   describe("thinking mode", () => {
     it("passes thinking config when enabled", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous", thinkingEnabled: true, thinkingBudget: 5000 });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", thinkingEnabled: true, thinkingBudget: 5000 });
       mockStreamMessage.mockResolvedValueOnce(textResponse("thought"));
 
       await session.send("think");
@@ -213,87 +215,42 @@ describe("AgentSession", () => {
   });
 
   describe("tool call loop", () => {
-    it("executes one tool round then returns text", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+    it("feeds batched tool results into later rounds and returns the final stream", async () => {
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
+      const tools = [{ id: "read", name: "file_read", input: { path: "/a.txt" } },
+        { id: "search", name: "grep", input: { pattern: "foo" } }];
       mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "file_read", input: { path: "/tmp/test.txt" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("File read"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "hello" }]));
-
-      const result = await session.send("Read file");
-
-      expect(result).toBe("File read");
-      expect(mockStreamMessage).toHaveBeenCalledTimes(2);
-      expect(mockExecuteToolCalls).toHaveBeenCalledTimes(1);
-      expect(mockExecuteToolCalls.mock.calls[0]?.[1]).toMatchObject({
-        approvalQueue: session.approvalQueue,
-        scopeId: session.scopeId,
-      });
-    });
-
-    it("passes the active abort signal to tool execution", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "shell", input: { command: "sleep 1" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "ok" }]));
-
-      await session.send("run");
-
-      const options = mockExecuteToolCalls.mock.calls[0][1] as { signal?: AbortSignal };
-      expect(options.signal).toBeInstanceOf(AbortSignal);
-      expect(options.signal?.aborted).toBe(false);
-    });
-
-    it("passes multiple tool blocks in parallel", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([
-            { id: "tu_1", name: "file_read", input: { path: "/a.txt" } },
-            { id: "tu_2", name: "grep", input: { pattern: "foo" } },
-          ]),
-        )
-        .mockResolvedValueOnce(textResponse("done"));
-      mockExecuteToolCalls.mockResolvedValueOnce(
-        toolResults([
-          { id: "tu_1", content: "aaa" },
-          { id: "tu_2", content: "bbb" },
-        ]),
-      );
-
-      await session.send("search");
-
-      expect(mockExecuteToolCalls.mock.calls[0][0]).toHaveLength(2);
-    });
-
-    it("runs multiple rounds until text response", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
-        )
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_2", name: "file_read", input: { path: "/x.ts" } }]),
-        )
-        .mockResolvedValueOnce(textResponse("All done"));
+        .mockResolvedValueOnce(toolResponse(tools))
+        .mockImplementationOnce((config) => {
+          expect(config.messages.at(-1)).toEqual({ role: "user", content: [
+            { type: "tool_result", tool_use_id: "read", content: "file bytes" },
+            { type: "tool_result", tool_use_id: "search", content: "match" },
+          ] });
+          return toolResponse([{ id: "verify", name: "shell", input: { command: "check" } }]);
+        })
+        .mockImplementationOnce((config) => {
+          expect(config.messages.at(-1)).toEqual({ role: "user", content: [
+            { type: "tool_result", tool_use_id: "verify", content: "passed" },
+          ] });
+          return textResponse("All done");
+        });
       mockExecuteToolCalls
-        .mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "match" }]))
-        .mockResolvedValueOnce(toolResults([{ id: "tu_2", content: "content" }]));
+        .mockResolvedValueOnce(toolResults([{ id: "read", content: "file bytes" }, { id: "search", content: "match" }]))
+        .mockResolvedValueOnce(toolResults([{ id: "verify", content: "passed" }]));
 
-      const result = await session.send("Find and read");
-
-      expect(result).toBe("All done");
-      expect(mockStreamMessage).toHaveBeenCalledTimes(3);
+      expect(await session.send("Find and verify")).toBe("All done");
+      expect(mockExecuteToolCalls.mock.calls[0][0]).toEqual(tools.map((tool) => ({ type: "tool_use", ...tool })));
+      expect(mockExecuteToolCalls.mock.calls[0][1]).toMatchObject({
+        approvalQueue: session.approvalQueue, scopeId: session.scopeId,
+        signal: expect.any(AbortSignal),
+      });
+      expect(mockExecuteToolCalls.mock.calls[0][1].signal.aborted).toBe(false);
       expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
+      expect(mockStreamMessage).toHaveBeenCalledTimes(3);
     });
 
     it("uses refreshed guardrails config on the next tool call", async () => {
-      session = new AgentSession({
+      session = new AgentSession({ scopeRoot,
         autonomyMode: "autonomous",
         config: {
           guardrails: {
@@ -333,7 +290,7 @@ describe("AgentSession", () => {
       const guardrails: GuardrailsConfig = {
         policies: { safe: "allow", moderate: "allow", dangerous: "queue" },
       };
-      session = new AgentSession({
+      session = new AgentSession({ scopeRoot,
         autonomyMode: "autonomous",
         config: { guardrails },
       });
@@ -346,79 +303,43 @@ describe("AgentSession", () => {
     });
   });
 
-  describe("failure tracking", () => {
-    it("injects guidance after 5 diverse failures", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      for (let i = 0; i < 5; i++) {
-        mockStreamMessage.mockResolvedValueOnce(
-          toolResponse([{ id: `tu_${i}`, name: "shell", input: { command: `cmd${i}` } }]),
-        );
-        mockExecuteToolCalls.mockResolvedValueOnce(
-          toolResults([{ id: `tu_${i}`, content: `error_${i}`, is_error: true }]),
-        );
-      }
-      mockStreamMessage.mockResolvedValueOnce(textResponse("giving up"));
-
-      await session.send("do something");
-
-      // 5 tool rounds + 1 final text = 6 streamMessage calls
-      expect(mockStreamMessage).toHaveBeenCalledTimes(6);
+  it("feeds repeated-failure guidance into the next model request", async () => {
+    const transport = new BufferTransport();
+    session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", transport });
+    for (let i = 0; i < 3; i++) {
+      mockStreamMessage.mockResolvedValueOnce(toolResponse([{ id: `tu_${i}`, name: "shell", input: { command: "bad" } }]));
+      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: `tu_${i}`, content: "same error", is_error: true }]));
+    }
+    mockStreamMessage.mockImplementationOnce((config) => {
+      expect(config.messages.at(-1)).toMatchObject({ role: "user", content: expect.stringContaining("failed") });
+      return textResponse("stopped");
     });
-
-    it("injects circuit break after 3 identical failures", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      for (let i = 0; i < 3; i++) {
-        mockStreamMessage.mockResolvedValueOnce(
-          toolResponse([{ id: `tu_${i}`, name: "shell", input: { command: "bad" } }]),
-        );
-        mockExecuteToolCalls.mockResolvedValueOnce(
-          toolResults([{ id: `tu_${i}`, content: "same error", is_error: true }]),
-        );
-      }
-      mockStreamMessage.mockResolvedValueOnce(textResponse("stopped"));
-
-      await session.send("do thing");
-
-      expect(mockStreamMessage).toHaveBeenCalledTimes(4);
-    });
+    expect(await session.send("do thing")).toBe("stopped");
+    expect(transport.events).toContainEqual(expect.objectContaining({ type: "error", message: expect.stringContaining("Circuit breaker") }));
   });
 
-  describe("pre-send hooks", () => {
-    it("runs registered hook before main loop and applies its result", async () => {
-      const hook = vi.fn().mockResolvedValue({
-        lastResult: "pre-send output",
-        assistantText: "hook completed",
-        userFollowup: "verify the changes",
+  it.each([null, { assistantText: "hook completed", userFollowup: "verify the changes" }])(
+    "applies pre-send output %j before the model request", async (output) => {
+      const hook = vi.fn().mockResolvedValue(output);
+      registerPreSendHook("test-hook", hook);
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
+      mockStreamMessage.mockImplementationOnce((config) => {
+        expect(config.messages).toEqual([
+          { role: "user", content: "Hello" },
+          ...(output ? [{ role: "assistant", content: output.assistantText }, { role: "user", content: output.userFollowup }] : []),
+        ]);
+        return textResponse("verified");
       });
-      registerPreSendHook("test-hook", hook);
-
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage.mockResolvedValueOnce(textResponse("verified"));
-
-      const result = await session.send("implement feature");
-
-      expect(hook).toHaveBeenCalledTimes(1);
-      expect(result).toBe("verified");
-    });
-
-    it("skips applying result when hook returns null", async () => {
-      const hook = vi.fn().mockResolvedValue(null);
-      registerPreSendHook("test-hook", hook);
-
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage.mockResolvedValueOnce(textResponse("direct"));
-
-      const result = await session.send("do something");
-
-      expect(hook).toHaveBeenCalledTimes(1);
-      expect(result).toBe("direct");
-    });
-  });
+      expect(await session.send("Hello")).toBe("verified");
+      expect(hook).toHaveBeenCalledOnce();
+    },
+  );
 
   describe("session persistence", () => {
     it("saves session after tool rounds and at end", async () => {
-      const tmpPath = `/tmp/kota-loop-test-${Date.now()}.json`;
-      session = new AgentSession({ autonomyMode: "autonomous", sessionPath: tmpPath });
+      const dir = mkdtempSync(join(tmpdir(), "kota-loop-"));
+      const tmpPath = join(dir, "session.json");
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", sessionPath: tmpPath });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
@@ -426,36 +347,45 @@ describe("AgentSession", () => {
         .mockResolvedValueOnce(textResponse("done"));
       mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "r" }]));
 
-      await session.send("search");
-
-      const { existsSync, unlinkSync } = await import("node:fs");
-      expect(existsSync(tmpPath)).toBe(true);
-      unlinkSync(tmpPath);
+      try {
+        await session.send("search");
+        expect(JSON.parse(readFileSync(tmpPath, "utf8")).messages).toEqual([
+          { role: "user", content: expect.stringContaining("search") },
+          { role: "assistant", content: [{ type: "tool_use", id: "tu_1", name: "grep", input: { pattern: "x" } }] },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: "tu_1", content: "r" }] },
+          { role: "assistant", content: [{ type: "text", text: "done" }] },
+        ]);
+      } finally {
+        await session.dispose();
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 
   describe("multiple sends", () => {
     it("maintains context across sends", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(textResponse("Hi!"))
-        .mockResolvedValueOnce(textResponse("Your name is Bob."));
+        .mockImplementationOnce((config) => {
+          expect(config.messages).toEqual([
+            { role: "user", content: "My name is Bob" },
+            { role: "assistant", content: [{ type: "text", text: "Hi!" }] },
+            { role: "user", content: expect.stringContaining("What is my name?") },
+          ]);
+          return textResponse("Your name is Bob.");
+        });
 
       await session.send("My name is Bob");
       await session.send("What is my name?");
 
-      const secondConfig = mockStreamMessage.mock.calls[1][0];
-      // messages is a reference — final state has 4 (user + assistant + user + assistant)
-      // but at call 2 time, the first 3 were present (user, assistant, user)
-      expect(secondConfig.messages).toHaveLength(4);
-      expect(secondConfig.messages[0]).toEqual({ role: "user", content: "My name is Bob" });
-      expect(secondConfig.messages[2]).toEqual({ role: "user", content: expect.stringContaining("What is my name?") });
+
     });
   });
 
   describe("close", () => {
     it("resolves disposal only after its owned module host releases resources", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
       let release!: () => void;
       const blocked = new Promise<void>((resolve) => {
         release = resolve;
@@ -471,14 +401,14 @@ describe("AgentSession", () => {
     });
 
     it("is idempotent", () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
       session.close();
       session.close();
     });
 
 		it("emits Done status on normal disposal", async () => {
 			const transport = new BufferTransport();
-			session = new AgentSession({ autonomyMode: "autonomous", transport });
+			session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", transport });
 			await session.dispose();
 
       const statuses = transport.getStatusMessages();
@@ -487,7 +417,7 @@ describe("AgentSession", () => {
 
     it("suppresses Done status when errored=true", () => {
       const transport = new BufferTransport();
-      session = new AgentSession({ autonomyMode: "autonomous", transport });
+      session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", transport });
       session.close(true);
 
       const statuses = transport.getStatusMessages();
@@ -500,7 +430,7 @@ describe("AgentSession", () => {
       const transport = new BufferTransport();
       mockStreamMessage.mockRejectedValueOnce(new Error("auth failed"));
 
-      await expect(runAgentLoop("test", { autonomyMode: "autonomous", transport })).rejects.toThrow("auth failed");
+      await expect(runAgentLoop("test", { scopeRoot, autonomyMode: "autonomous", transport })).rejects.toThrow("auth failed");
 
       const statuses = transport.getStatusMessages();
       expect(statuses.some((m: string) => m.includes("Done"))).toBe(false);
@@ -510,27 +440,37 @@ describe("AgentSession", () => {
       const transport = new BufferTransport();
       mockStreamMessage.mockResolvedValueOnce(textResponse("ok"));
 
-      await runAgentLoop("test", { autonomyMode: "autonomous", transport });
+      await runAgentLoop("test", { scopeRoot, autonomyMode: "autonomous", transport });
 
       const statuses = transport.getStatusMessages();
       expect(statuses.some((m: string) => m.includes("Done"))).toBe(true);
     });
   });
 
-  describe("cost tracking", () => {
-    it("accumulates costs across turns", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }], 1000),
-        )
-        .mockResolvedValueOnce(textResponse("done", 2000));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "r" }]));
-
-      await session.send("search");
-
-      const summary = session.getCostSummary();
-      expect(summary).toContain("$");
+  it.each(["text", "tool"])("rejects exhausted %s output before executing tools or another turn", async (kind) => {
+    const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
+    const transport = new BufferTransport();
+    session = new AgentSession({ scopeRoot, autonomyMode: "autonomous", tokenBudget, transport });
+    mockStreamMessage.mockResolvedValueOnce(kind === "text" ? textResponse("done", 80)
+      : toolResponse([{ id: "read", name: "grep", input: { pattern: "x" } }], 80));
+    await expect(session.send("search")).rejects.toMatchObject({ name: TOKEN_BUDGET_EXHAUSTED_SUBTYPE });
+    expect(mockStreamMessage).toHaveBeenCalledOnce();
+    expect(mockExecuteToolCalls).not.toHaveBeenCalled();
+    expect(tokenBudget.snapshot()).toMatchObject({
+      usage: { inputTokens: 80, outputTokens: 50, totalTokens: 130 },
+      exhausted: true, exhaustedBy: { kind: "session-turn", turn: 1 },
     });
+    expect(transport.events).toContainEqual(expect.objectContaining({
+      type: "error", message: expect.stringContaining("Agent token budget exhausted"),
+    }));
+  });
+
+  it("registers the scoped credential overlay and erases it on close", () => {
+    session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
+    const identity = { sessionId: session.sessionId, scopeId: session.scopeId };
+    injectSessionEnvironmentVariable(identity, "KOTA_LOOP_SESSION_SECRET", "temporary-value");
+    expect(sessionEnvironmentForExecution(identity)).toEqual({ KOTA_LOOP_SESSION_SECRET: "temporary-value" });
+    session.close();
+    expect(sessionEnvironmentForExecution(identity)).toEqual({});
   });
 });

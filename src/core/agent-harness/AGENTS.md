@@ -1,14 +1,11 @@
 # Agent Harness Protocol
 
-Core owns the harness protocol, registry, and conversation continuity.
-Adapters live in modules.
+Core owns protocol, registry and continuity; modules own adapters.
 
 ## Protocol
 
-- Reject unsupported options at the adapter boundary; never silently coerce them.
-- `AgentHarnessRunOptions.systemPrompt` is portable text composed by
-  `buildKotaSystemPrompt` in `src/core/loop/`. Only adapters wrap it in
-  provider-native envelopes.
+- `AgentHarnessRunOptions.systemPrompt` carries portable `buildKotaSystemPrompt`
+  text; adapters own provider envelopes.
 - Neutral options carry tool risk, live scope policy, commit/daemon guards, and
   injection defense (`scopePolicy`, `getScopePolicySnapshot`, `canUseTool`, MCP
   and tool lists). KOTA-routable loops must honor them; other adapters declare
@@ -65,6 +62,11 @@ Reject incompatible requests before hooks or launch. Readiness probes stay
 host-local; definition validation stays host-independent. Unattended preclaim
 requires proof of renewable access.
 
+Shared runner tests own hook dispatch, admission, cancellation and usage delivery.
+Adapter tests exercise provider translation and only the streaming, tool-control
+and continuity capabilities they declare. Durable neutral-message rejection belongs
+to the message codec; typed callers need no duplicate field catalogs.
+
 Runtime protects native machine-authority paths and aliases before sandbox
 selection; overlapping grants cannot widen them. Hosted loops refresh policy
 per call; native loops abort on stricter revisions. Login locators carry no tokens.
@@ -76,13 +78,12 @@ launch. Missing declarations cannot establish compatibility.
 
 ## Registration and adapter contracts
 
-Modules contribute adapters through `KotaModule.agentHarnesses`; registration
-returns an exact disposer. Imports never register adapters. Resolution rejects
-unknown names without a fallback. Steps inherit the configured harness unless
-explicitly pinned; repair judges use the parent step's resolved harness.
+`KotaModule.agentHarnesses` registration returns exact disposers; imports never
+register. Resolution rejects unknown names. Steps inherit configuration unless
+pinned; repair judges inherit their parent harness.
 
-Modules register neutral hooks through `ctx.registerHarnessHook`; dispatch
-rejects undeclared kinds. Cross-adapter decoration uses these hooks.
+`ctx.registerHarnessHook` owns cross-adapter decoration; dispatch rejects
+undeclared kinds.
 `message-codec.ts` decodes durable/foreign messages. SDK formats and MCP hosting
 stay in adapters. Translate permissions and MCP transports or reject them;
 tool schemas admit JSON-compatible open JSON Schema envelopes.
@@ -117,7 +118,6 @@ Adapters own native transcripts or opaque SDK message formats. Core owns neutral
 reconstruction, identity lineage, and one successor attempt after proven session
 loss. Authentication, quota, and transport failures preserve the identity. A reset
 or unsupported capability records its reason; retirement retains original state.
-Recoverable work never expires automatically. Every invocation rebuilds current
-instructions, credentials and permissions. Recovery never replays pending effects
-or restores a process instruction pointer. Conversation storage is excluded from
-agent access, workspace diffs and runtime staging.
+Recoverable work never expires. Invocations rebuild instructions, credentials and
+permissions. Recovery never replays effects or restores instruction pointers.
+Conversation storage excludes agent access, workspace diffs and runtime staging.
