@@ -65,7 +65,8 @@ function validateValue(schema: JsonSchemaObject, value: JsonSchemaValue, path: s
   const types = readSchemaTypes(schema);
   if (types.length > 0) {
     const actual = typeOf(value);
-    if (!types.includes(actual)) {
+    const matchesInteger = types.includes("integer") && typeof value === "number" && Number.isInteger(value);
+    if (!types.includes(actual) && !matchesInteger) {
       const label = formatPathWithDescription(path, schema);
       return `${label}: expected ${types.join(" | ")}, got ${actual}`;
     }

@@ -7,7 +7,7 @@ const outputSchema = {
 	type: "object" as const,
 	properties: {
 		ok: { type: "boolean" },
-		count: { type: "number" },
+		count: { type: "integer" },
 	},
 	required: ["ok", "count"],
 	additionalProperties: false,
@@ -210,6 +210,46 @@ describe("executeToolCalls output_schema enforcement", () => {
       undefined,
       expect.objectContaining({ declarationEffectFingerprint: expect.any(String) }),
 		);
+		expect(runner).not.toHaveBeenCalled();
+	});
+
+	it("admits integer inputs and nullable integers while rejecting fractions and strings before execution", async () => {
+		const runner = vi.fn(async () => ({ content: "executed" }));
+		registerTool({
+			name: "integer_input",
+			description: "Validate numeric input",
+			input_schema: {
+				type: "object",
+				properties: {
+					repeatCount: { type: "integer" },
+					optionalCount: { type: ["integer", "null"] },
+					allocation: { type: "number" },
+				},
+				required: ["repeatCount", "optionalCount", "allocation"],
+			},
+		}, runner);
+		const invoke = (input: { repeatCount: number | string; optionalCount: number | null; allocation: number }) => executeToolCalls(
+			[{ type: "tool_use", id: "integer-input", name: "integer_input", input }],
+			{ resultLimit: 50000, verbose: false, autonomyMode: "autonomous" },
+		);
+		for (const input of [
+			{ repeatCount: 3, optionalCount: null, allocation: 1.5 },
+			{ repeatCount: 0, optionalCount: -2, allocation: 2 },
+		]) {
+			const result = await invoke(input);
+			expect(result[0]).toMatchObject({ content: "executed" });
+			expect(result[0].is_error).toBeUndefined();
+		}
+		expect(runner).toHaveBeenCalledTimes(2);
+		runner.mockClear();
+		for (const input of [
+			{ repeatCount: 1.5, optionalCount: null, allocation: 1 },
+			{ repeatCount: "3", optionalCount: null, allocation: 1 },
+			{ repeatCount: 3, optionalCount: 0.5, allocation: 1 },
+		]) {
+			const result = await invoke(input);
+			expect(result[0]).toMatchObject({ is_error: true, content: expect.stringContaining("expected integer") });
+		}
 		expect(runner).not.toHaveBeenCalled();
 	});
 

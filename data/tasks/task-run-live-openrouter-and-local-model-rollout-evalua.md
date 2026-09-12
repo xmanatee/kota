@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode, task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
@@ -448,3 +448,76 @@ Repair evidence is retained in the same run's `agent/`: `repair-matrix-tests.txt
 `repair-validate-tasks.txt`, and the updated `rollout-decision.md`. Review copies
 under `.kota/runs/2026-09-12T14-17-38-986Z-builder-7pjlah/evidence/` preserve these
 original observations; copying them does not establish a new execution cohort.
+
+
+## Result — 2026-09-12 integer admission repair and host-grant preflight
+
+Run `2026-09-12T19-11-36-284Z-builder-rbfe3x` reached both native inspection
+surfaces. Matrix inspection failed before its runner: the shared JSON Schema
+validator rejected the CLI's default integer repeatCount of 1 as a JavaScript
+number (`tool-967b093ac16c03867cbd460aab88f0a8`). Repaired the shared validator
+to recognize integer-valued numbers, including nullable integer unions, while
+retaining rejection of fractional and string inputs. Ordinary number schemas
+still accept both integer and fractional values. Domain positive-count and
+host-repeat-limit checks remain with the existing contained request/profile owners.
+
+The independent `eval contained` inspection reached the trusted host and returned
+`Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment`
+(`tool-ce35559916026d378811f2561ce7e2f3`). The completed setup dependency provides
+the deployment recipe and installation owner; it does not establish activation.
+No profile was returned, and no model, image, fixture or verifier was launched.
+The integer repair is source work for runtime publication; this invocation does
+not claim the parent host has loaded it. No daemon lifecycle operation ran.
+
+The cohort artifact records the exact native Codex/GPT-5.5 baseline, the full
+shipped OpenRouter candidate set and local Qwen2.5-Coder 3B raw/scaffold routes,
+three planned equal repeats, and hashes of the recipe's scenario/fixture source
+files. These are current source observations, not an installed host grant or an
+executed cohort. The setup dependency's September 12 local inference and model
+digest remain historical readiness evidence; no reinstall or empty-inventory
+claim is made. No host credential absence or provider unavailability is inferred.
+
+All requested live quality, cost, latency, usage, activity, retrieval, trajectory
+and verifier measurements remain unavailable. Support tiers are unassigned;
+no supported, experimental, scaffold-only or rejected verdict follows from this
+skip. No preset or recommendation changes. Whether KOTA can replace Codex/Claude
+for any selected task class remains unestablished. Comparable equal repeats,
+90% of native baseline pass^k, no P0 parity failures, and live positive inference
+plus denied unintended credential/network access remain required.
+
+Verification: the pre-fix regression reproduced integer rejection at both tool
+input and structured-output boundaries (two failures). After repair, the tool
+schema, contained matrix and contained probe suites passed 22 tests. A second
+selection passed 22 schema and workflow-payload tests; five schema tests overlap,
+so these are 39 distinct deterministic cases, not quality samples. They prove
+admission/rejection, existing grant limits, paired execution/report assembly with
+a controlled process port, and payload compatibility. `pnpm check:fast` passed.
+The final task validator is retained separately. No live OCI, authentication,
+network confinement, preset parity or model-quality check is claimed.
+
+Evidence under this run's runtime `agent/`: `contained-inspect.txt`,
+`contained-profiles-inspect.txt`, `integer-regression-before.txt`,
+`integer-regression-after.txt`, `schema-owner-tests.txt`, `check-fast.txt`,
+`rollout-cohort.json`, `rollout-decision.md`, and `validate-tasks.txt`.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: Trusted-host activation of the reviewed scope-bound rollout profile, observable through the existing native contained inspection; equivalent attributable host readiness clears this prerequisite without manual captures.
+```
+
+The path is an evidence-discovery hint under the existing task vocabulary, not a
+required capture destination or a request for benchmark results. A fresh native
+inspection returning the authorized profile is sufficient to resume execution.
+
+The trusted host must activate a reviewed scope-authorized `rollout` profile
+through the completed deployment recipe and existing service owner. The current
+host explicitly reports its profile environment unset. This is host configuration,
+not a request for another credential, local-model installation, manual result
+capture, or another implementation task. Builders cannot install host grants or
+control their parent daemon. After activation, use the existing native inspection
+and run actions with three repeats, establish actual image/auth/proxy readiness
+and positive/negative containment, then collect and judge the full matrix.
+Runtime publication carries the integer repair independently of this prerequisite.
