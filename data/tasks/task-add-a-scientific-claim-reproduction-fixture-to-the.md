@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-enable-runtime-mediated-contained-evaluation]
 ---
@@ -235,3 +235,46 @@ operator capture.
 ## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 with current container/egress options. Retain claim-result.json, claim-holdout-result.json, predicate details and objective metric, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
+
+
+## Current execution-authority check — September 12
+
+Resumed run `2026-09-12T14-17-47-419Z-builder-vujk5d` called
+`pnpm kota eval contained '{"operation":"inspect"}'` through the supported
+native request/reply service. The host returned `is_error: true` for tool use
+`tool-147a7848522ac04db1cbe1441602657c`: `Set KOTA_EVAL_CONTAINED_PROFILES in
+the trusted host environment`, explicitly stating that worker requests cannot
+configure host access. The CLI exited 1. This is fresh host-side evidence of
+missing execution grants, not an inference from Docker, credential or sandbox
+access denials. The mediation dependency is complete; its active host currently
+supplies no profile. Credential and image availability remain unmeasured.
+
+The prior continuation's outstanding live requirement is preserved. Its p1
+recovery task remains open and is untouched. This inspection identifies a
+specific external prerequisite beyond the earlier priority-only yield reason.
+The existing fixture/scorer is unchanged. `pnpm kota eval list` succeeds and
+lists this fixture; two focused scientific-claim owner files pass all seven
+checks, including rejection of known-data hardcoding, prewritten artifacts with
+a wrong analyzer, host-file reads, and oversized output. These deterministic
+checks do not constitute a live nested-agent pass. The required live claim and
+holdout artifacts, objective metric and builder provenance are still outstanding.
+Command logs and the host-error observation are retained in this run's agent
+directory as `eval-list.log`, `scorer-checks.log`, and `contained-inspect.json`.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs
+description: The trusted host must supply KOTA_EVAL_CONTAINED_PROFILES granting scope /Users/xmanatee/Desktop/mono/apps/kota a model-evaluation profile for builder-scientific-claim-reproduction, at least one repeat, an explicit preset, bounded resources, an identified current-source image and image-local KOTA executable, and restricted provider-egress with adapter-owned authentication.
+```
+
+The existing metadata kind tracks externally controlled execution availability;
+the path is only an evidence discovery hint. No human-run evaluation, readiness
+artifact, specific capture path, new permission decision or completed benchmark
+is required to resume. Host setup can be automated by its authorized owner. The
+worker cannot install this trusted-host grant or build host images through the
+available profile-less tool. Once inspection exposes the scoped grant, resume
+setup and one live run through `eval contained`, inspect claim/holdout predicates,
+objective metrics and live provenance, and retain the runner's returned artifacts.
+Do not change the parent daemon, expose credentials or loosen verifier isolation.
