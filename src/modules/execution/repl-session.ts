@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { protectedConversationRoots } from "#core/tools/protected-scope-paths.js";
 import {
   registerSessionEnvironmentResource,
   sessionEnvironmentVersionForExecution,
@@ -52,6 +53,7 @@ export class REPLSession {
   private language: Language;
   private alive = false;
   private cwd: string | null = null;
+  private sandboxIdentity: string | null = null;
   private environmentVersion: number | null = null;
   private detachEnvironmentCleanup: (() => void) | null = null;
 
@@ -72,6 +74,7 @@ export class REPLSession {
       : buildMachineAuthoritySandboxLaunch(cmd, args, {
           cwd,
           authorityConfigPath: context.authorityConfigPath,
+          readProtectedRoots: protectedConversationRoots(context),
         });
     if (!launch.ok) return launch.error;
 
@@ -82,6 +85,7 @@ export class REPLSession {
     });
 
     this.cwd = cwd;
+    this.sandboxIdentity = this.executionSandboxIdentity(context);
     this.environmentVersion = sessionEnvironmentVersionForExecution(context);
     this.detachEnvironmentCleanup = registerSessionEnvironmentResource(
       context,
@@ -103,6 +107,10 @@ export class REPLSession {
     return undefined;
   }
 
+  private executionSandboxIdentity(context?: ToolRunnerContext): string {
+    return JSON.stringify([context?.authorityConfigPath, protectedConversationRoots(context)]);
+  }
+
   async execute(
     code: string,
     timeoutMs: number,
@@ -112,7 +120,8 @@ export class REPLSession {
     const environmentVersion = sessionEnvironmentVersionForExecution(context);
     if (
       this.alive &&
-      (this.cwd !== cwd || this.environmentVersion !== environmentVersion)
+      (this.cwd !== cwd || this.environmentVersion !== environmentVersion ||
+        this.sandboxIdentity !== this.executionSandboxIdentity(context))
     ) {
       this.kill();
     }
@@ -235,6 +244,7 @@ export class REPLSession {
     this.alive = false;
     this.proc = null;
     this.cwd = null;
+    this.sandboxIdentity = null;
     this.environmentVersion = null;
   }
 

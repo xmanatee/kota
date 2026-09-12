@@ -1,9 +1,11 @@
 import { EventEmitter } from "node:events";
-import { homedir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/index.js";
+import { runAgentHarness } from "#core/agent-harness/runner.js";
 import {
   type ProcessIdentity,
   ProcessSupervisor,
@@ -223,7 +225,6 @@ describe("codexAgentHarness", () => {
         "codex",
         "exec",
         "--json",
-        "--ephemeral",
         "--strict-config",
         "--disable",
         "plugins",
@@ -231,8 +232,6 @@ describe("codexAgentHarness", () => {
         "hooks",
         "--model",
         "gpt-5.6-sol",
-        "--cd",
-        "/repo",
       ]),
       expect.objectContaining({ cwd: "/repo", detached: true }),
     );
@@ -711,4 +710,47 @@ describe("codexAgentHarness", () => {
     ).rejects.toThrow(/cannot enforce KOTA maxTurns/);
     expect(spawnMock).not.toHaveBeenCalled();
   });
+});
+
+it("checkpoints a native thread before completion and resumes only the specified owned rollout", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kota-codex-resume-port-"));
+  try {
+    const id = "00000000-0000-0000-0000-000000000001";
+    const onSessionId = vi.fn();
+    const initial = mockCodexProcess({ autoClose: false });
+    const execution = codexAgentHarness.run({ prompt: "start", model: "gpt-test", effort: "high", onSessionId });
+    initial.child.stdout.write(`${JSON.stringify({ type: "thread.started", thread_id: id })}\n`);
+    await vi.waitFor(() => expect(onSessionId).toHaveBeenCalledWith(id));
+    initial.child.stdout.end(); initial.child.stderr.end(); initial.child.exitCode = 1;
+    initial.child.emit("close", 1, null);
+    await execution;
+    mkdirSync(join(root, "sessions"));
+    writeFileSync(join(root, "sessions", `rollout-${id}.jsonl`), `${JSON.stringify({ type: "session_meta", payload: { id } })}\n`);
+    mockCodexProcess({ stdoutLines: [JSON.stringify({ type: "thread.started", thread_id: id }), JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } })] });
+    await codexAgentHarness.run({ prompt: "continue", model: "gpt-test", effort: "high", resumeSessionId: id, sessionStorageDir: root, persistSession: true });
+    const launchArgs = sandboxLaunchMock.mock.calls.at(-1)![1];
+    expect(launchArgs.slice(0, 3)).toEqual(["exec", "resume", id]);
+    expect(launchArgs).not.toContain("--last");
+    expect(launchArgs).not.toContain("--ephemeral");
+    await expect(codexAgentHarness.run({ prompt: "continue", model: "gpt-test", effort: "high", resumeSessionId: "00000000-0000-0000-0000-000000000002", sessionStorageDir: root })).rejects.toThrow("rollout is missing");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+it("releases native ownership after prelaunch validation and permits a corrected retry", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kota-codex-prelaunch-"));
+  try {
+    const options = { prompt: "work", scopeRoot: root, cwd: root, continuityKey: "prelaunch", effort: "high" as const };
+    const failed = runAgentHarness(codexAgentHarness, options);
+    await expect(failed).rejects.toThrow("requires an explicit model");
+    await expect(failed.settled).resolves.toBeUndefined();
+    expect(spawnMock).not.toHaveBeenCalled();
+    mockCodexProcess({ stdoutLines: [
+      JSON.stringify({ type: "thread.started", thread_id: "00000000-0000-0000-0000-000000000001" }),
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }),
+    ] });
+    const retry = runAgentHarness(codexAgentHarness, { ...options, model: "gpt-test" });
+    await expect(retry).resolves.toMatchObject({ isError: false });
+    await expect(retry.settled).resolves.toBeUndefined();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

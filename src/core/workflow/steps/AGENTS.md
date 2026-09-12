@@ -25,25 +25,11 @@ New step types add a new strategy file here and a dispatch case in `step-executo
 
 ## Per-Phase Files Inside `step-executor-agent.ts`
 
-The agent step internals split by phase, not by step kind. The orchestrator
-(`step-executor-agent.ts`) owns run-attempt orchestration and the whole-step
-writeScope contract; everything else is a phase file:
-
-- `step-executor-agent-prompt.ts` — trigger, exposed output, ask-owner, and JSON prompt blocks.
-- `step-executor-agent-capability.ts` — pre-launch harness capability artifact.
-- `step-executor-agent-attempt.ts` — harness dispatch, idle-timeout handling,
-  JSON-output feedback, and runtime failure classification.
-- `step-executor-agent-telemetry.ts` — tool telemetry and its run artifact.
-- `step-executor-agent-trajectory-diagnostics.ts` — advisory process-quality
-  artifact derived from KOTA-native message frames.
-- `step-executor-agent-tool-scope.ts` — autonomy-mode → tool decisions;
-  `step-executor-agent-run-contract.ts` — shared launch contract resolution.
-- `step-executor-agent-json.ts` — fenced extraction, JSON/schema errors, and validation.
-
-New internals land in phase files. The orchestrator keeps harness dispatch,
-classified retries, and write-scope enforcement; phase-only helpers stay local.
-Native attempt cancellation and restrictive-policy invalidation use the shared
-agent-harness lifecycle described in `src/core/agent-harness/AGENTS.md`.
+The agent orchestrator owns attempt orchestration, classified retries, and the
+whole-step writeScope contract. New internals land in co-located phase files;
+phase-only helpers stay local. Native cancellation and restrictive-policy
+invalidation use the shared agent-harness lifecycle described in
+`src/core/agent-harness/AGENTS.md`.
 
 ## Per-Run Emitted-Events Log
 
@@ -74,6 +60,14 @@ run disposition and cleanup.
 This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
 and let the runtime reject out-of-scope writes uniformly.
+
+## Session ownership
+
+Agent-step repair retains the original runtime-owned continuity key when routed
+through `ctx.runAgentHarness`; nested judges receive a separate scoped identity.
+Foreach supplies a stable item index for agent and nested code-step conversations,
+including equal-valued items. Retries reuse that item owner; step-only session
+result projections cannot choose a foreach conversation.
 
 ## Per-Step Harness-Specific Options
 

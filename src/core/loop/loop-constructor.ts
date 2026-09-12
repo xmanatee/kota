@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { requireAgentConversation } from "#core/agent-harness/session-continuity.js";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
 import { buildUserProfile, getGlobalConfigPath } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -49,6 +50,10 @@ export function initAgentSession(
   sessionFactory: (opts: CreateSessionOptions) => ModuleSession,
 ): void {
   const scopeRoot = options.scopeRuntime?.scope.scopeRoot ?? options.scopeRoot ?? process.cwd();
+  if (options.requireExistingConversation) {
+    if (options.continuityKey === undefined) throw new Error("Conversation recovery requires a continuityKey.");
+    requireAgentConversation(scopeRoot, options.continuityKey);
+  }
   state.scopeRoot = scopeRoot;
   state.authorityConfigPath = options.scopeRuntime?.authorityConfigPath ?? getGlobalConfigPath();
   state.scopeId = options.scopeRuntime?.scope.scopeId
@@ -125,13 +130,22 @@ export function initAgentSession(
     ? thinkingBudget + state.maxTokens
     : state.maxTokens;
 
-  state.client = options.client ?? createModelClient({
+  const resolvedClient = options.client ? { client: options.client, providerName: "injected" } : createModelClient({
     model: state.model,
     provider: options.config?.modelProvider?.type,
     baseUrl: options.config?.modelProvider?.baseUrl,
     apiKey: options.config?.modelProvider?.apiKey,
     scopeRoot,
-  }).client;
+  });
+  state.client = resolvedClient.client;
+  state.continuity = {
+    key: options.continuityKey
+      ?? (options.resumeConversation !== undefined ? `history:${options.resumeConversation}`
+        : options.sessionPath !== undefined ? `session-path:${resolve(options.sessionPath)}`
+        : state.sessionId),
+    providerName: resolvedClient.providerName,
+    modelProvider: { provider: options.config?.modelProvider?.type, baseUrl: options.config?.modelProvider?.baseUrl },
+  };
   state.costTracker = new CostTracker(state.moduleLoader.getProviderRegistry());
 
   if (options.scopeRuntime) {

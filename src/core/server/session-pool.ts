@@ -70,15 +70,15 @@ export class SessionPool {
   }
 
   /** Create a new session. Evicts oldest idle session if at capacity. */
-  create(agentFactory: (transport: Transport) => AgentSession): ManagedSession {
+  create(agentFactory: (transport: Transport, id: string) => AgentSession, id: string = randomUUID()): ManagedSession {
+    if (this.sessions.has(id)) throw new Error("Session already exists");
     if (this.sessions.size >= this.maxSessions) {
       const evicted = this.evictOldest();
       if (!evicted) throw new Error("Too many active sessions");
     }
 
-    const id = randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = agentFactory(proxy);
+    const agent = agentFactory(proxy, id);
     const now = Date.now();
     const session: ManagedSession = {
       id,

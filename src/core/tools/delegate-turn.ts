@@ -42,6 +42,7 @@ import type { ToolCallExecutionOptions } from "./tool-runner.js";
 
 export type TurnLoopOptions = {
   client: ModelClient;
+  checkpoint?: () => void;
   messages: KotaMessage[];
   systemBlocks: KotaTextBlock[];
   tools: KotaTool[];
@@ -189,6 +190,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       role: "assistant",
       content: response.content,
     });
+    opts.checkpoint?.();
 
     const turnExhaustion = tokenBudget?.checkAfterDebit(source);
     if (turnExhaustion) {
@@ -259,6 +261,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         ...(r.is_error !== undefined ? { is_error: r.is_error } : {}),
       })),
     });
+    opts.checkpoint?.();
   }
 
   return { naturalEnd, completionReason, lastText, totalTurns };

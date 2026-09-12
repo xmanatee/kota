@@ -10,7 +10,7 @@ completion loop that uses the core ModelClient registry.
 - The thin harness runs no tool loop, so there is no `KotaTool` translation
   seam in this module (see `src/core/agent-harness/AGENTS.md`).
 - Guardrail options (canUseTool, mcpServers, allowedTools, disallowedTools),
-  session resume (`resumeSessionId`), per-step `harnessOverrides`,
+  per-step `harnessOverrides`,
   per-run subprocess env, `onMessage` subscriptions, and
   `autonomyMode === "supervised"` are rejected at the boundary. The harness
   has no tool surface to guard, no message stream to emit, and no
@@ -23,3 +23,6 @@ completion loop that uses the core ModelClient registry.
   owner-questions surface cannot be hosted; `runAgentHarness` throws if a
   caller sets `askOwner` against this adapter) and
   `emitsAgentMessageStream = false`.
+
+Conversation history uses core reconstruction across invocations, including
+interrupted calls. Provider response ids are not exposed as resumable sessions.

@@ -223,7 +223,6 @@ export async function runHandoffAgent(
               ? { maxTurns: budget.maxTurns }
               : {}),
             autonomyMode: effectiveAutonomyMode,
-            persistSession: mode === "transfer",
             ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
             ...routeKotaToolControlOptions(harness, {
               allowedTools: toolScope.allowedTools,
@@ -245,7 +244,7 @@ export async function runHandoffAgent(
               ? { idempotencyStore: runtime.idempotencyStore }
               : {}),
             sessionContext: {
-              sessionId: `handoff:${trace.causationId}`,
+              sessionId: `handoff:${context?.sessionId ?? trace.parentRunId ?? "standalone"}:${agent.name}:${trace.causationId}`,
               scopeId: scope.scopeId,
             },
             ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),

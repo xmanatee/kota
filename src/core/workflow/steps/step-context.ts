@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath, type KotaConfig } from "#core/config/config.js";
@@ -213,8 +214,15 @@ export function createStepContext(
     const getScopePolicySnapshot = authority === undefined
       ? undefined
       : () => authority.getSnapshot(context.scopeId);
+    const nestedIdentity = options.continuityKey ?? createHash("sha256")
+      .update(JSON.stringify([harness.name, options.model, options.systemPrompt, options.prompt])).digest("hex");
     const resolvedOptions = {
       ...options,
+      // Agent-step options already carry their runtime-owned identity. Repair
+      // continues that owner; only nested calls need a new scoped namespace.
+      continuityKey: options.continuityKey !== undefined && options.workflowContext?.runId === metadata.id
+        ? options.continuityKey
+        : `workflow:${metadata.id}:nested:${deps.currentStepId ?? "unknown"}:${nestedIdentity}`,
       scopeRoot: context.scopeRoot,
       resolveRuntimeScope: deps.resolveRuntimeScope,
       authorityConfigPath: context.authorityConfigPath,

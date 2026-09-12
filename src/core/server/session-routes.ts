@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ConversationNotFoundError } from "#core/agent-harness/session-continuity.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import { NullTransport, type Transport } from "#core/loop/transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -10,6 +11,13 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
+
+export type HttpSessionBinding = {
+  continuityKey: string;
+  requireExistingConversation: boolean;
+};
+
+export type HttpAgentFactory = (transport: Transport, autonomyMode: AutonomyMode, binding: HttpSessionBinding) => AgentSession;
 
 function resolveAutonomyMode(
   body: Record<string, unknown>,
@@ -56,7 +64,7 @@ export async function handleChat(
   req: IncomingMessage,
   res: ServerResponse,
   pool: SessionPool,
-  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
+  makeAgent: HttpAgentFactory,
   resolveDefaultAutonomyMode: () => AutonomyMode,
   onSessionCreate?: (id: string) => void,
 ): Promise<void> {
@@ -80,21 +88,21 @@ export async function handleChat(
     return;
   }
 
-  let session: ManagedSession;
-  const sessionId = body.session_id as string | undefined;
-  if (sessionId) {
-    const existing = pool.get(sessionId);
-    if (!existing) {
-      jsonResponse(res, 404, { error: "Session not found" });
-      return;
-    }
-    session = existing;
-  } else {
+  const sessionId = body.session_id;
+  if (sessionId !== undefined && (typeof sessionId !== "string" || !sessionId.trim())) {
+    jsonResponse(res, 400, { error: "session_id must be a non-empty string" });
+    return;
+  }
+  let session = sessionId === undefined ? undefined : pool.get(sessionId);
+  if (!session) {
     try {
-      session = pool.create((t) => makeAgent(t, modeResult.mode));
+      session = pool.create((t, id) => makeAgent(t, modeResult.mode, {
+        continuityKey: `http:${id}`,
+        requireExistingConversation: sessionId !== undefined,
+      }), sessionId);
       onSessionCreate?.(session.id);
     } catch (err) {
-      jsonResponse(res, 503, { error: (err as Error).message });
+      jsonResponse(res, err instanceof ConversationNotFoundError ? 404 : 503, { error: (err as Error).message });
       return;
     }
   }
@@ -116,7 +124,7 @@ export async function handleCreateSession(
   req: IncomingMessage,
   res: ServerResponse,
   pool: SessionPool,
-  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
+  makeAgent: HttpAgentFactory,
   resolveDefaultAutonomyMode: () => AutonomyMode,
   onSessionCreate?: (id: string) => void,
 ): Promise<string | null> {
@@ -135,7 +143,7 @@ export async function handleCreateSession(
   }
 
   try {
-    const session = pool.create((t) => makeAgent(t, modeResult.mode));
+    const session = pool.create((t, id) => makeAgent(t, modeResult.mode, { continuityKey: `http:${id}`, requireExistingConversation: false }));
     onSessionCreate?.(session.id);
     jsonResponse(res, 201, { session_id: session.id, autonomy_mode: modeResult.mode });
     return session.id;

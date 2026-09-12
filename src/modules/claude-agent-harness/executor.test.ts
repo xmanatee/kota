@@ -124,7 +124,7 @@ describe("agent-sdk executor", () => {
         cwd: "/tmp/project",
         maxTurns: 12,
         systemPrompt: "portable system text",
-        permissionMode: "bypassPermissions",
+        permissionMode: "default",
         allowDangerouslySkipPermissions: true,
         allowedTools: ["Read", "Edit"],
         disallowedTools: ["Bash"],
@@ -137,7 +137,8 @@ describe("agent-sdk executor", () => {
         effort: "xhigh",
         thinking: undefined,
         spawnClaudeCodeProcess: expect.any(Function),
-        canUseTool: undefined,
+        canUseTool: expect.any(Function),
+        hooks: { PreToolUse: [expect.objectContaining({ hooks: [expect.any(Function)] })] },
         sandbox: {
           enabled: true,
           failIfUnavailable: true,

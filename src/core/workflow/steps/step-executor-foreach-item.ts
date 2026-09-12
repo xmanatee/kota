@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
@@ -50,6 +51,17 @@ export async function executeForeachInnerStep(
   let toolOrdinal = 0;
   const innerContext: WorkflowStepContext = {
     ...context,
+    runAgentHarness: (harness, options, execution) => {
+      if (options.continuityKey !== undefined && options.workflowContext?.runId === deps.run.metadata.id) {
+        return context.runAgentHarness(harness, options, execution);
+      }
+      const identity = options.continuityKey ?? createHash("sha256")
+        .update(JSON.stringify([harness.name, options.model, options.systemPrompt, options.prompt])).digest("hex");
+      return context.runAgentHarness(harness, {
+        ...options,
+        continuityKey: `foreach:${innerStep.id}:${itemIndex}:${identity}`,
+      }, execution);
+    },
     runTool: (name, input, toolContext) =>
       context.runTool(name, input, {
         ...toolContext,
@@ -102,7 +114,13 @@ export async function executeForeachInnerStep(
     deps.trigger,
     innerContext,
     deps.runAbortController,
-    deps.agentConfig,
+    {
+      ...deps.agentConfig,
+      foreachItemIndex: itemIndex,
+      // Step-only result projections cannot identify an iteration. The shared
+      // continuity owner restores its checkpoint; local retries retain theirs.
+      resumeSessionIds: undefined,
+    },
     deps.acc,
     { bus: deps.bus, pbus: deps.pbus, log: deps.log },
     stepStartedAt,

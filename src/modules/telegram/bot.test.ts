@@ -120,6 +120,7 @@ vi.mock("#core/loop/loop.js", async () => {
     }
     send = agentSendMock;
     close = vi.fn();
+    dispose = vi.fn(async () => {});
     getCostSummary = vi.fn().mockReturnValue("$0.00");
     get isClosed(): boolean {
       return false;
@@ -479,9 +480,9 @@ describe("TelegramBot", () => {
       makeTestHarness(name),
     );
     mockedRunAgentHarness.mockReset();
-    mockedRunAgentHarness.mockImplementation(async (_harness, _options, writer) => {
+    mockedRunAgentHarness.mockImplementation((_harness, _options, writer) => {
       writer?.write(harnessResult.streamedText);
-      return harnessResult;
+      return Object.assign(Promise.resolve(harnessResult), { settled: Promise.resolve() });
     });
   });
 

@@ -10,16 +10,6 @@ export const VERCEL_UNSUPPORTED_OPTIONS = [
     reason: "The vercel harness hosts KOTA tools directly, not MCP servers.",
   },
   {
-    runOption: "persistSession",
-    option: "persistSession",
-    reason: "The vercel harness does not persist native sessions.",
-  },
-  {
-    runOption: "resumeSessionId",
-    option: "resumeSessionId",
-    reason: "The vercel harness does not resume native sessions.",
-  },
-  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The vercel harness does not accept per-step harnessOptions.",
@@ -46,18 +36,6 @@ export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void 
     throw new Error(
       'The "vercel" agent harness does not host MCP servers. Drop mcpServers ' +
         "or run the claude-agent-sdk harness which proxies them through the SDK.",
-    );
-  }
-  if (options.persistSession === true) {
-    throw new Error(
-      'The "vercel" agent harness does not persist sessions. ' +
-        "Drop persistSession or run claude-agent-sdk for native session resumption.",
-    );
-  }
-  if (options.resumeSessionId !== undefined) {
-    throw new Error(
-      'The "vercel" agent harness does not resume native sessions. ' +
-        "Drop resumeSessionId or run claude-agent-sdk.",
     );
   }
   if (options.harnessOverrides !== undefined) {

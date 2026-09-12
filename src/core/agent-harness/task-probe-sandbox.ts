@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
+import { existingProtectedScopePaths, protectedConversationRoots } from "#core/tools/protected-scope-paths.js";
 import {
   findExternalHardLinkWriteProtections,
   type WorkspaceWriteProtection,
@@ -178,6 +178,7 @@ export function resolveTaskProbeSandbox(
               coreDumpBoundary,
               workspaceWriteProtections,
               readProtectedPaths,
+              protectedConversationRoots({ scopeRoot: workspaceDir, cwd: workspaceDir }),
             );
           capabilityExecutable = toolchain.toolchain.nodeExecutable;
           pnpmExecutable = toolchain.toolchain.pnpmExecutable;

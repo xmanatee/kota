@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { redactSensitiveText } from "#core/evidence/policy.js";
+import { PROTECTED_CONVERSATION_DIRECTORY } from "#core/tools/protected-scope-paths.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
 import {
@@ -589,7 +590,7 @@ export class RunLifecycle {
       if (workspaceFingerprint(workspaceDir) === fingerprint) {
         return this.attention("integration-no-progress", [fingerprint]);
       }
-      git(workspaceDir, ["add", "-A"]);
+      git(workspaceDir, ["add", "-A", "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`]);
       const continued = runGit(workspaceDir, ["rebase", "--continue"]);
       if (!continued.ok && conflictPaths(workspaceDir).length === 0) {
         throw new Error(continued.output);
@@ -605,7 +606,7 @@ export class RunLifecycle {
   }
 
   private commitChanges(workspaceDir: string, message: string): string {
-    git(workspaceDir, ["add", "-A"]);
+    git(workspaceDir, ["add", "-A", "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`]);
     if (runGit(workspaceDir, ["diff", "--cached", "--quiet"]).ok) {
       return git(workspaceDir, ["rev-parse", "HEAD"]);
     }

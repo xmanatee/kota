@@ -34,6 +34,14 @@ afterEach(() => {
 });
 
 describe("SemanticHistoryStore adapter mapping", () => {
+  it("preserves conversation ownership through history saves", async () => {
+    const store = createStore();
+    const id = store.create("model", "/repo", "user", "channel:work");
+    store.save(id, [{ role: "user", content: "Continue this work" }], 0, 1);
+    await store.flush();
+    expect(store.load(id)?.continuityKey).toBe("channel:work");
+  });
+
   it("indexes conversation message text, not only record metadata", async () => {
     const store = createStore();
     const expected = saveConversation(store, "monitor spend and cost anomaly", "/repo");

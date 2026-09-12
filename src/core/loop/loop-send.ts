@@ -11,6 +11,7 @@ import { getToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { CONTEXT_WINDOW } from "./context.js";
 import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";
+import { startLoopConversation } from "./loop-continuity.js";
 import { type AgentLoopState, saveToHistoryImpl } from "./loop-init.js";
 import {
   debitSessionTokenBudget,
@@ -44,6 +45,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
   const abortController = new AbortController();
   state.activeAbortControllers.add(abortController);
   const { signal } = abortController;
+  let conversation: Awaited<ReturnType<typeof startLoopConversation>>;
   try {
     if (!state.initialized) await state.initPromise;
     throwIfAborted(signal);
@@ -64,7 +66,10 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     let augmentedPrompt = prompt;
     if (analysis) augmentedPrompt += formatContextHint(analysis);
     augmentedPrompt += formatTaskHint(taskRoute);
-    state.context.addUserMessage(augmentedPrompt);
+    conversation = await startLoopConversation(state, augmentedPrompt, abortController);
+    throwIfAborted(signal);
+    if (!conversation) state.context.addUserMessage(augmentedPrompt);
+    conversation?.checkpoint();
     for (const g of detectToolGroups(prompt)) enableGroup(g);
     if (taskRoute) {
       for (const g of taskRoute.groups) enableGroup(g);
@@ -151,6 +156,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         state.stateMachine.transition("thinking", { turn: i + 1 });
       }
 
+      conversation?.checkpoint();
       const { response, streamedText } = await streamMessage({
         client: state.client,
         model: state.model,
@@ -196,6 +202,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       }
 
       state.context.addAssistantMessage(response);
+      conversation?.checkpoint();
 
       const toolBlocks = response.content.filter(
         (b): b is KotaToolUseBlock => b.type === "tool_use",
@@ -222,6 +229,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         toolExecutionOptions(state, signal, mcpPromptToolDeclarationFingerprints));
       throwIfAborted(signal);
       state.context.addToolResults(validResults);
+      conversation?.checkpoint();
 
       if (state.sessionPath) state.context.save(state.sessionPath);
       saveToHistoryImpl(state);
@@ -244,6 +252,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
     return lastResult;
   } finally {
+    conversation?.release();
     state.activeAbortControllers.delete(abortController);
   }
 }

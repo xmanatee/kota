@@ -40,6 +40,8 @@ export function createDaemonAgentSessionFactories(
       transport,
       config: config.config,
       resumeConversation: options.resumeConversation,
+      continuityKey: options.continuityKey,
+      requireExistingConversation: options.requireExistingConversation,
       label: options.label,
       noHistory: options.noHistory,
       historySource: options.historySource,

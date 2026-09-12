@@ -19,6 +19,8 @@ export type ConversationRecord = {
 /** Full persisted conversation state: summary plus messages and compaction metadata. */
 export type ConversationData = {
 	record: ConversationRecord;
+	/** Durable conversation owner; legacy history without one seeds a new lineage. */
+	continuityKey?: string;
 	messages: ConversationMessage[];
 	compactionCount: number;
 	lastInputTokens: number;
@@ -31,7 +33,7 @@ export type HistorySemanticOptions = {
 
 export interface HistoryProvider {
 	readonly semanticSearchCapability?: HistorySemanticSearchCapability;
-	create(model: string, cwd: string, source?: "user" | "action"): string;
+	create(model: string, cwd: string, source?: "user" | "action", continuityKey?: string): string;
 	save(
 		id: string,
 		messages: ConversationMessage[],

@@ -118,9 +118,14 @@ export function buildAgentHarnessRunOptions(input: {
     harnessSupportsRunOption(resolvedHarness, "persistSession") &&
     harnessSupportsRunOption(resolvedHarness, "resumeSessionId");
 
+  const iteration = agentConfig.foreachItemIndex === undefined
+    ? ""
+    : `:item:${agentConfig.foreachItemIndex}`;
+
   return {
     options: {
       ...contract.options,
+      continuityKey: `workflow:${metadata.id}:agent:${step.id}${iteration}`,
       ...(persistContinuationSession ? { persistSession: true } : {}),
       ...(resumeSessionId !== undefined &&
           harnessSupportsRunOption(resolvedHarness, "resumeSessionId")

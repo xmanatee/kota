@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from "node:path";
 import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { protectedConversationRoots } from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStderr } from "#modules/rendering/transport.js";
@@ -98,6 +99,7 @@ export async function runShell(
     : buildMachineAuthoritySandboxLaunch("sh", ["-c", command], {
         cwd,
         authorityConfigPath: context.authorityConfigPath,
+          readProtectedRoots: protectedConversationRoots(context, cwd),
       });
   if (!launch.ok) {
     return { content: `Error: ${launch.error}`, is_error: true };

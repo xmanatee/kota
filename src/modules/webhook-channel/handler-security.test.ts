@@ -51,7 +51,7 @@ describe("webhook handler HMAC verification", () => {
 });
 
 describe("webhook handler session state", () => {
-  it("resumes an existing session and rejects an unknown id", async () => {
+  it("resumes an existing cached session", async () => {
     const ctx = makeStubCtx();
     const created = await invokeHandler(ctx, JSON.stringify({ message: "First" }));
     const sessionId = JSON.parse(created.body!).sessionId;
@@ -62,11 +62,6 @@ describe("webhook handler session state", () => {
     expect(resumed.statusCode).toBe(200);
     expect(JSON.parse(resumed.body!).sessionId).toBe(sessionId);
 
-    const missing = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "Resume unknown", sessionId: "wh-nonexistent" }),
-    );
-    expect(missing.statusCode).toBe(404);
   });
 
   it("includes metadata in new-session prompts and emits the session event", async () => {

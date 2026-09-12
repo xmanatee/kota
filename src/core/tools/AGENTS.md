@@ -18,7 +18,9 @@ module lifecycle. General-purpose capabilities belong in modules.
   `guardrails.ts` and `guardrails-classify.ts` assess execution risk.
 - `audit-store` owns audit records and approval-review redaction.
   `protected-scope-paths` owns the credential boundary shared by filesystem
-  tools and native CLI sandboxes.
+  tools and native CLI sandboxes. Conversation stores in the canonical scope
+  and workspace remain protected through resolved aliases, independently of
+  the execution directory.
 - `session-environment` owns live session/scope credential overlays. Registration
   owns teardown; stale approvals cannot recreate an ended session's overlay.
 - Filesystem mutation targets come from the registered tool's pure
@@ -71,7 +73,7 @@ Workflow steps translate mode into neutral harness options (`permissionMode`,
 `allowedTools`, `disallowedTools`). Passive mode uses `permissionMode: "default"`
 and a read-only tool set because subprocess harnesses cannot see this pipeline.
 Autonomous mode leaves the neutral permission mode unset; each adapter owns its
-mapping, including Claude's default `bypassPermissions`. Explicit per-harness
+mapping, including Claude's guarded `default` mode. Explicit per-harness
 options follow the contract in `src/core/agent-harness/AGENTS.md`.
 
 Only the operator control API changes mode. Session user messages and untrusted

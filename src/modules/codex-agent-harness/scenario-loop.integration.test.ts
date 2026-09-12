@@ -109,8 +109,6 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
       "authority-sandbox",
       expect.arrayContaining([
         "codex",
-        "--cd",
-        workingDir,
         "--model",
         "gpt-5.6-sol",
       ]),

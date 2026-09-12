@@ -69,16 +69,6 @@ const CODEX_UNSUPPORTED_OPTIONS = [
       "owner-approval steps around the native step.",
   },
   {
-    runOption: "persistSession",
-    option: "persistSession",
-    reason: "KOTA-managed session persistence is not exposed by this adapter.",
-  },
-  {
-    runOption: "resumeSessionId",
-    option: "resumeSessionId",
-    reason: "KOTA-managed session resume is not exposed by this adapter.",
-  },
-  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The codex adapter does not accept per-step harnessOptions.",
@@ -172,18 +162,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "around the native Codex step.",
     );
   }
-  if (options.persistSession === true) {
-    throw new Error(
-      'The "codex" agent harness does not expose KOTA-managed session persistence. ' +
-        "Drop persistSession.",
-    );
-  }
-  if (options.resumeSessionId !== undefined) {
-    throw new Error(
-      'The "codex" agent harness does not expose KOTA-managed session resume. ' +
-        "Drop resumeSessionId.",
-    );
-  }
   if (options.harnessOverrides !== undefined) {
     throw new Error(
       'The "codex" agent harness does not accept per-step harnessOptions. ' +
@@ -242,34 +220,42 @@ export const codexAgentHarness: AgentHarness = {
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
-    rejectUnsupportedOptions(options);
-    if (!options.model) {
-      throw new Error(
-        'The "codex" agent harness requires an explicit model on the step or config.',
-      );
-    }
-    const scope = projectNativeCliScope({
-      cwd: options.cwd ?? process.cwd(),
-      autonomyMode: options.autonomyMode,
-      scopePolicy: options.scopePolicy,
-      agentWriteScope: options.agentWriteScope,
-      agentOutputDir: options.agentOutputDir,
-    });
-    const execution = collectTextFromCodexCli({
-      prompt: buildCodexPrompt(options),
-      cwd: options.cwd ?? process.cwd(),
-      model: options.model,
-      effort: options.effort,
-      writableRoots: scope.writableRoots,
-      authorityConfigPath: options.authorityConfigPath,
-      readOnlyHostRoots: options.readOnlyHostRoots ?? [],
-      env: options.env,
-      abortController: options.abortController,
-      writer,
-      onMessage: options.onMessage,
-      onUsage: options.onUsage,
-      onProcessSpawn: options.onProcessSpawn,
-    });
+    // Register settlement even when validation rejects before any process exists.
+    const execution = (async () => {
+      rejectUnsupportedOptions(options);
+      if (!options.model) {
+        throw new Error(
+          'The "codex" agent harness requires an explicit model on the step or config.',
+        );
+      }
+      const scope = projectNativeCliScope({
+        cwd: options.cwd ?? process.cwd(),
+        autonomyMode: options.autonomyMode,
+        scopePolicy: options.scopePolicy,
+        agentWriteScope: options.agentWriteScope,
+        agentOutputDir: options.agentOutputDir,
+      });
+      return collectTextFromCodexCli({
+        prompt: buildCodexPrompt(options),
+        scopeRoot: options.scopeRoot,
+        sessionStorageDir: options.sessionStorageDir,
+        persistSession: options.persistSession,
+        resumeSessionId: options.resumeSessionId,
+        onSessionId: options.onSessionId,
+        cwd: options.cwd ?? process.cwd(),
+        model: options.model,
+        effort: options.effort,
+        writableRoots: scope.writableRoots,
+        authorityConfigPath: options.authorityConfigPath,
+        readOnlyHostRoots: options.readOnlyHostRoots ?? [],
+        env: options.env,
+        abortController: options.abortController,
+        writer,
+        onMessage: options.onMessage,
+        onUsage: options.onUsage,
+        onProcessSpawn: options.onProcessSpawn,
+      });
+    })();
     options.abortQuarantine?.register(async () => {
       await execution.then(
         () => undefined,

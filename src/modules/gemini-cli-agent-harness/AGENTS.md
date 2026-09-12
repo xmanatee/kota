@@ -91,3 +91,9 @@ through readiness; direct callers that pass them fail before Gemini CLI starts.
 Assume the operator-installed `gemini` binary is from the stable Gemini CLI
 channel unless the operator explicitly installs preview or nightly. Readiness
 reports the exact local path and `gemini --version` output.
+
+Persistence/resume remains an explicit capability exception while authenticated
+execution is unavailable: an invocation home cannot safely become durable state
+inside the same native tool process tree. The Gemini SDK adapter supplies durable
+reconstruction without this native credential boundary. Credential-free native
+diagnostics retain ordinary run evidence, not a claimed recoverable conversation.

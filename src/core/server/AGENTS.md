@@ -6,6 +6,9 @@ contract every CLI subcommand uses for daemon-or-local access.
 ## HTTP server scope
 
 - Transport, session, and event-stream infrastructure live here.
+- Public HTTP session ids bind to the shared conversation owner before returning
+  creation. Cache eviction or host replacement recovers that same scoped owner;
+  an unknown resume id never creates a new conversation.
 - Both HTTP hosts wrap their production dispatcher in the shared route error
   boundary. Direct routes, contributions, and auth-failure handlers return or
   await request work so synchronous throws and rejections reach that boundary.

@@ -54,6 +54,7 @@ const EXECUTE_HARNESS_TOOLS = [
 
 export type DelegateHarnessConfig = {
   cwd?: string;
+  continuityKey?: string;
   scopeRoot?: string;
   scopeContext?: string;
   instructionContext?: string;
@@ -160,6 +161,7 @@ export async function runDelegateHarness(
       harness,
       {
         prompt: task,
+        continuityKey: config.continuityKey,
         model: config.model,
         ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
         modelOutputTokenLimits: config.modelOutputTokenLimits,

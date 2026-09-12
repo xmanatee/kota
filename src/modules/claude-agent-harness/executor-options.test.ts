@@ -18,13 +18,13 @@ import {
 } from "./executor-test-support.js";
 
 describe("agent-sdk executor options and lifecycle", () => {
-  it("buildQueryOptions defaults to bypassPermissions", () => {
+  it("keeps SDK permission callbacks enabled for protected session storage", () => {
     mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 
     expect(buildQueryOptions({ cwd: "/tmp/project", effort: "xhigh" })).toMatchObject({
       cwd: "/tmp/project",
       maxTurns: undefined,
-      permissionMode: "bypassPermissions",
+      permissionMode: "default",
       allowDangerouslySkipPermissions: true,
       pathToClaudeCodeExecutable: undefined,
     });
@@ -103,7 +103,7 @@ describe("agent-sdk executor options and lifecycle", () => {
     const options = buildQueryOptions({
       cwd: "/tmp/project",
       effort: "xhigh",
-      permissionMode: "bypassPermissions",
+      permissionMode: "default",
       canUseTool,
     });
 
@@ -120,7 +120,7 @@ describe("agent-sdk executor options and lifecycle", () => {
     const options = buildQueryOptions({
       cwd: "/tmp/project",
       effort: "xhigh",
-      permissionMode: "bypassPermissions",
+      permissionMode: "default",
       canUseTool,
     });
 
@@ -268,4 +268,39 @@ describe("agent-sdk executor options and lifecycle", () => {
     expect(spawned.kill).toHaveBeenCalledWith("SIGKILL");
     vi.useRealTimers();
   });
+});
+
+it("protects all scope conversations, retired generations, and native transcripts through hooks and shell policy", async () => {
+  const store = "/canonical/.kota/openai-tools-agent-harness/sessions";
+  const current = `${store}/owners/current/provider-1`;
+  const options = buildQueryOptions({
+    cwd: "/workspace", scopeRoot: "/canonical", effort: "high",
+    sessionStorageDir: current, env: { CLAUDE_CONFIG_DIR: "/native-claude" },
+  });
+  const hook = options.hooks!.PreToolUse![0].hooks[0];
+  const input = { hook_event_name: "PreToolUse" as const, session_id: "session", transcript_path: "native", cwd: "/workspace", tool_name: "Read", tool_use_id: "read", tool_input: { file_path: "" } };
+  const targets = [
+    `${current}/claude/transcript.json`,
+    `${store}/owners/sibling/provider-0/claude/transcript.json`,
+    `${store}/owners/current/provider-0/claude/transcript.json`,
+    `${store}/ots_other-conversation.json`,
+    "/workspace/.kota/openai-tools-agent-harness/sessions/ots_workspace.json",
+    "/native-claude/projects/native/transcript.jsonl",
+  ];
+  for (const path of targets) {
+    const toolInput = { file_path: path };
+    expect(await hook({ ...input, tool_input: toolInput }, "read", { signal: new AbortController().signal })).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+    expect(await options.canUseTool!("Read", toolInput, { signal: new AbortController().signal, toolUseID: "read" })).toMatchObject({ behavior: "deny" });
+    for (const denied of [options.sandbox!.filesystem!.denyRead!, options.sandbox!.filesystem!.denyWrite!]) {
+      expect(denied.some((root) => path === root || path.startsWith(`${root}/`))).toBe(true);
+    }
+  }
+  for (const tool_name of ["Grep", "Glob"]) {
+    expect(await hook({ ...input, tool_name, tool_input: { path: "/canonical" } }, "search", { signal: new AbortController().signal })).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny" },
+    });
+  }
+  expect(await hook({ ...input, tool_input: { file_path: "/workspace/source.ts" } }, "read", { signal: new AbortController().signal })).toEqual({});
 });

@@ -6,7 +6,9 @@ POST a JSON payload to create or resume agent sessions.
 - Implements the `ChannelDef` protocol from `src/core/channels/channel.ts`.
 - Registers its HTTP route via module route contribution.
 - Supports optional HMAC-SHA256 signature verification.
-- Supports source-based routing to different agents with per-source session continuity.
+- Supports source-based routing to different agents with durable source/agent
+  continuity through module-created sessions. Direct requests recover their own
+  persisted owner after cache replacement; unknown ids remain not found.
 - Reports live webhook session ids to daemon scope-drain inspection and clears
   them when the daemon default scope changes.
 - Separate from the outbound `webhook` notification module.

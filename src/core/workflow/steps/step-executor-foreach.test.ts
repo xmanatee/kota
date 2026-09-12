@@ -2,12 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import {
   AGENT_OK_RESULT,
   createRunExecutorTestFixture,
   makeAgentStep,
   makeDefinition,
+  makeRunContext,
   type RunExecutorTestFixture,
   registerWorkflowScenarioDriver,
 } from "../run-executor-test-fixture.js";
@@ -171,20 +173,23 @@ describe("foreach execution", () => {
     expect(output.results.map((item) => item.index)).toEqual([0, 1, 2, 3]);
   });
 
-  it("keeps repair-loop agent attempts inside the foreach concurrency cap", async () => {
+  it.each([1, 2])("isolates preserved item sessions through repair with concurrency %i", async (maxConcurrency) => {
     const harness = `foreach-repair-${Date.now()}`;
     let active = 0;
     let maxActive = 0;
     let calls = 0;
+    const sessions = new Map<string, number>();
     registerWorkflowScenarioDriver(
       harness,
-      async (_options: AgentHarnessRunOptions) => {
+      async (options: AgentHarnessRunOptions) => {
         calls += 1;
+        const sessionId = options.resumeSessionId ?? `item-session-${calls}`;
         active += 1;
         maxActive = Math.max(maxActive, active);
         try {
           await delay(10);
-          return AGENT_OK_RESULT;
+          sessions.set(sessionId, (sessions.get(sessionId) ?? 0) + 1);
+          return { ...AGENT_OK_RESULT, sessionId };
         } finally {
           active -= 1;
         }
@@ -198,7 +203,7 @@ describe("foreach execution", () => {
           {
             id: "iterate",
             type: "foreach",
-            maxConcurrency: 1,
+            maxConcurrency,
             items: [0, 1],
             as: "item",
             steps: [
@@ -228,8 +233,43 @@ describe("foreach execution", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(calls).toBe(4);
-    expect(maxActive).toBe(1);
+    expect(maxActive).toBe(maxConcurrency);
+    expect([...sessions.values()]).toEqual([2, 2]);
     expect([...checks.values()]).toEqual([2, 2]);
+  });
+
+  it.each(["agent", "code"] as const)("restores distinct %s item sessions after run replacement even for equal inputs", async (type) => {
+    const harness = `foreach-replacement-${type}`;
+    const resumes: Array<string | undefined> = [];
+    registerWorkflowScenarioDriver(harness, async (options) => {
+      resumes.push(options.resumeSessionId);
+      const call = resumes.length;
+      const sessionId = options.resumeSessionId ?? `preserved-item-${call}`;
+      options.onSessionId?.(sessionId);
+      await delay(10);
+      if (call <= 2) throw new Error("interrupted before result");
+      return { ...AGENT_OK_RESULT, sessionId };
+    });
+    const definition = makeDefinition({
+      moduleRoot: fixture.workspaceRoot,
+      steps: [{
+        id: "iterate", type: "foreach", maxConcurrency: 2,
+        items: ["same input", "same input"], as: "item",
+        steps: [type === "agent"
+          ? makeAgentStep(fixture.workspaceRoot, harness)
+          : { id: "review", type: "code", run: (ctx) => ctx.runAgentHarness(
+            resolveAgentHarness(harness),
+            { prompt: "review item", continuityKey: "reviewer", effort: "high" },
+          ) }],
+      }],
+    });
+    const first = await fixture.execute(definition).promise;
+    expect(first.metadata.status).toBe("failed");
+    const second = await fixture.execute(definition, {
+      runContext: makeRunContext(fixture.workspaceRoot, 2),
+    }).promise;
+    expect(second.metadata.status).toBe("success");
+    expect(resumes).toEqual([undefined, undefined, "preserved-item-1", "preserved-item-2"]);
   });
 
   it("retries only failed items and merges their outputs with prior successes", async () => {

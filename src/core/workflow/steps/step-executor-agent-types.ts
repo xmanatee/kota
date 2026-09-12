@@ -77,6 +77,8 @@ export type AgentStepConfig = {
   resolveRuntimeScope?: AgentHarnessRunOptions["resolveRuntimeScope"];
   scopePolicySnapshot?: ScopePolicySnapshot;
   scopePolicy?: ResolvedScopePolicy;
+  /** Stable iteration identity supplied by the foreach executor. */
+  foreachItemIndex?: number;
   /** Native provider sessions retained by step id across durable run attempts. */
   resumeSessionIds?: Readonly<Record<string, string>>;
   /** Runtime-owned gate; standalone executor fixtures intentionally omit it. */

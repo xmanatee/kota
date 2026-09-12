@@ -37,7 +37,7 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
-2. Spawn an ephemeral, strict-config `codex exec --json` process with user
+2. Spawn a strict-config `codex exec --json` process with user
    plugins and hooks disabled and the selected model. Codex owns the single
    tool sandbox through an invocation-generated permission profile: model
    tools stay offline, writes follow the projected scope, project and provider
@@ -52,7 +52,8 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 Cancellation terminates the CLI process group so spawned tools cannot outlive
 the CLI, and the run-local quarantine barrier stays pending until the group
-leader has closed.
+leader has closed. The barrier also covers prelaunch validation so rejected
+options release ownership without claiming that a process launched.
 
 `passive` is rejected because the adapter cannot classify and deny every
 non-safe native shell/tool invocation before it runs. `supervised` is rejected
@@ -89,3 +90,15 @@ preserving lexical and resolved identities over overlapping grants.
 Trusted host isolation may replace `HOME`; the adapter projects only the
 resolved `CODEX_HOME` locator so local login remains available without
 restoring the operator home environment.
+
+## Session storage
+
+Core binds one native thread to each logical conversation. `thread.started`
+checkpoints identity immediately; continuation uses `exec resume <uuid>` and
+never `--last`. Each invocation receives fresh authentication and permissions in
+its disposable `CODEX_HOME`. Only native rollout directories point into the
+protected, scope-owned conversation store, so home or worktree cleanup cannot
+erase them. Explicitly declined preservation uses `--ephemeral`. Missing or
+corrupt owned rollout metadata produces an evidenced successor through core;
+provider/authentication failures keep the original identity. Histories produced
+by older ephemeral launches cannot be reconstructed.

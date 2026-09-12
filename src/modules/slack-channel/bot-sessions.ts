@@ -5,7 +5,7 @@ import { ProxyTransport } from "#core/loop/transport.js";
 import type { SlackBotOptions } from "./bot-options.js";
 
 export function createSlackChannelSession(
-  options: SlackBotOptions,
+  options: Pick<SlackBotOptions, "autonomyMode" | "model" | "verbose" | "config" | "moduleLoader" | "workspaceId">,
   userId: string,
   runtime: ScopeRuntime,
 ): ChannelSession {
@@ -19,6 +19,7 @@ export function createSlackChannelSession(
   };
   const loopOptions: LoopOptions = {
     autonomyMode: options.autonomyMode,
+    continuityKey: `slack:${JSON.stringify([options.workspaceId, userId, runtime.scope.scopeId])}`,
     model: options.model ?? options.config?.model,
     verbose: options.verbose ?? options.config?.verbose,
     transport: proxy,

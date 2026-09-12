@@ -60,6 +60,12 @@ notification forwarding.
   for the conversation and erase its credential overlay on clear, scope
   switch, or bot shutdown. They carry the host's live runtime resolver on
   every turn so provider withdrawal cannot reopen canonical storage directly.
+- Harness and direct ModelClient continuity bind the public bot identity, chat, and scope. Credential
+  rotation and bot restart preserve it; `/clear` retires disk state even before
+  a replacement process has opened its first in-memory session. Reset awaits
+  adapter settlement before retirement; concurrent clears share that transition,
+  and incoming messages receive a wait response until the closed cached agent
+  has been removed.
 - Interactive sessions report scope ids for drain inspection and resolve the
   live daemon default instead of retaining the startup runtime.
 - Inbound voice/audio messages route through the `transcription` module

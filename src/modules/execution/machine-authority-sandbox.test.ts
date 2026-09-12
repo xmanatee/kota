@@ -117,7 +117,6 @@ describe("machine authority execution sandbox", () => {
       "/project/.env",
       "/project/.gemini",
       "/private/tmp/kota-native-cli",
-      "/private/tmp/kota-native-cli/protected-read-root-mask",
       "/usr",
       "/opt/codex",
     ]);
@@ -133,8 +132,6 @@ describe("machine authority execution sandbox", () => {
       writableRoots: ["/project", "/private/tmp/kota-native-cli"],
       readProtectedPaths: ["/project/.env"],
       readProtectedRoots: ["/project/.gemini"],
-      readProtectedRootMask:
-        "/private/tmp/kota-native-cli/protected-read-root-mask",
       writeProtectedPaths: ["/project/.git"],
       networkAccess: { kind: "offline" },
       platform: "linux",
@@ -176,8 +173,9 @@ describe("machine authority execution sandbox", () => {
       "--ro-bind",
       "/dev/null",
       "/project/.env",
-      "--ro-bind",
-      "/private/tmp/kota-native-cli/protected-read-root-mask",
+      "--tmpfs",
+      "/project/.gemini",
+      "--remount-ro",
       "/project/.gemini",
     ]));
     expect(launch.args).not.toContain("/operator/.kota");

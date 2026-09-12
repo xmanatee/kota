@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { createConversationSessionRuntime } from "#core/agent-harness/conversation-runtime.js";
+import { SessionRecoveryError } from "#core/agent-harness/session-continuity.js";
 /**
  * `gemini` agent harness: a multi-turn tool-calling loop driven by the
  * Google Gen AI SDK (`models.generateContentStream` plus Gemini function
@@ -122,7 +125,23 @@ async function runGeminiLoop(
   const toolList = buildGeminiToolList(kotaTools);
   const thinkingConfig = mapEffortToThinkingConfig(options.effort);
 
-  const conversation: Content[] = [makeUserPromptContent(options.prompt)];
+  const session = createConversationSessionRuntime({
+    harness: GEMINI_AGENT_HARNESS_NAME, options,
+    scopeRoot: options.scopeRoot ?? options.cwd ?? process.cwd(),
+    resolved: { model: options.model, providerName: "google-genai" },
+    // The SDK owns its output limit; zero denotes no KOTA override.
+    outputTokenLimit: { maxTokens: 0 },
+  });
+  const conversation: Content[] = session.adapterState === undefined
+    ? [] : decodeGeminiConversation(session.adapterState);
+  session.validateTools(kotaTools, undefined);
+  const pending = extractFunctionCallsFromContent(conversation.at(-1));
+  if (pending.length > 0) conversation.push({ role: "user", parts: pending.map((call) => ({
+    functionResponse: { id: call.id, name: call.name, response: { error: "Interrupted before a durable result. The effect may have happened; inspect saved work before acting. Do not replay this call." } },
+  })) });
+  conversation.push(makeUserPromptContent(options.prompt));
+  const checkpoint = () => session.checkpointAdapter(z.json().parse(JSON.parse(JSON.stringify(conversation))));
+  checkpoint();
   const streamedChunks: string[] = [];
   const usage = new AgentUsageAccumulator();
   let lastResponseId: string | undefined;
@@ -141,7 +160,7 @@ async function runGeminiLoop(
       return geminiTokenBudgetErrorResult({
         message: exhaustion.message,
         streamedChunks,
-        lastResponseId,
+        sessionId: session.sessionId ?? lastResponseId,
         turnCount,
         usage: turnCount === 0
           ? unpricedAgentUsage(0, 0)
@@ -211,6 +230,7 @@ async function runGeminiLoop(
     };
     if (!assistantContent.role) assistantContent.role = "model";
     conversation.push(assistantContent);
+    checkpoint();
 
     const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
     if (turnExhaustion) {
@@ -220,7 +240,7 @@ async function runGeminiLoop(
             ? `${turnExhaustion.message} Function calls were not executed because the harness cannot continue to consume their results.`
             : turnExhaustion.message,
         streamedChunks,
-        lastResponseId,
+        sessionId: session.sessionId ?? lastResponseId,
         turnCount,
         usage: usage.snapshot(),
       });
@@ -233,7 +253,7 @@ async function runGeminiLoop(
       return {
         text: finalText,
         streamedText: streamedChunks.join(""),
-        ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
+        ...((session.sessionId ?? lastResponseId) === undefined ? {} : { sessionId: session.sessionId ?? lastResponseId }),
         turns: turnCount,
         usage: usage.snapshot(),
         isError: false,
@@ -254,13 +274,14 @@ async function runGeminiLoop(
     }
 
     conversation.push({ role: "user", parts: responseParts });
+    checkpoint();
 
     if (interruptDenial) {
       const message = `canUseTool interrupted the loop: ${interruptDenial.message}`;
       return {
         text: message,
         streamedText: streamedChunks.join(""),
-        ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
+        ...((session.sessionId ?? lastResponseId) === undefined ? {} : { sessionId: session.sessionId ?? lastResponseId }),
         turns: turnCount,
         usage: usage.snapshot(),
         isError: true,
@@ -272,10 +293,27 @@ async function runGeminiLoop(
   return {
     text: finalText || `gemini harness reached maxTurns=${maxTurns} without ending.`,
     streamedText: streamedChunks.join(""),
-    ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
+    ...((session.sessionId ?? lastResponseId) === undefined ? {} : { sessionId: session.sessionId ?? lastResponseId }),
     turns: turnCount,
     usage: usage.snapshot(),
     isError: true,
     subtype: "max_turns_reached",
   };
+}
+
+// Retain provider parts (including thought signatures) losslessly. Only this
+// adapter interprets their wire format; core stores JSON without translating it.
+function decodeGeminiConversation(value: unknown): Content[] {
+  const decoded = z.array(z.object({
+    role: z.enum(["user", "model"]),
+    parts: z.array(z.looseObject({
+      text: z.string().optional(), thought: z.boolean().optional(), thoughtSignature: z.string().optional(),
+      functionCall: z.object({ id: z.string().optional(), name: z.string(), args: z.record(z.string(), z.json()).optional() }).optional(),
+      functionResponse: z.object({ id: z.string().optional(), name: z.string(), response: z.record(z.string(), z.json()) }).optional(),
+    })),
+  })).safeParse(value);
+  if (!decoded.success) {
+    throw new SessionRecoveryError("The saved Gemini conversation is corrupt or incompatible; the original state was retained.");
+  }
+  return decoded.data;
 }

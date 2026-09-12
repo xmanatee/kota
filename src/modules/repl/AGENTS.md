@@ -7,9 +7,12 @@ harness-backed providers enters here.
 
 - `@path` user-prompt expansion runs at this boundary via
   `expandUserPromptReferences`. Adapters receive already-expanded text.
-- A local transcript is kept across turns and composed into the next
-  prompt so stateless adapters (thin) still see prior context without a
-  protocol extension.
+- Conversations use shared harness preservation across turns. The local
+  transcript seeds imported history and supports adapters that explicitly
+  cannot resume. `/reset` retires the owned identity while retaining evidence.
+  History imports retain their bound owner; the shared runner seeds context
+  under that owner's lock only when no lineage exists. Resets and newer
+  checkpoints remain authoritative over the imported transcript.
 - Adapters that declare `supportsMultiTurn: false` are rejected loudly at
   entry rather than silently downgraded to single-turn.
 - Assistant streaming output goes through the harness writer (stdout by

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
+import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import type { WorkspaceWriteProtection } from "./task-probe-hard-links.js";
 
 const MAX_PROBE_PROCESSES = 256;
@@ -121,6 +122,7 @@ export function buildLinuxTaskProbeSandbox(
   coreDumpBoundary: Extract<LinuxCoreDumpBoundary, { status: "available" }>,
   workspaceWriteProtections: readonly WorkspaceWriteProtection[] = [],
   readProtectedPaths: readonly string[] = [],
+  readProtectedRoots: readonly string[] = [],
 ): AvailableTaskProbeSandbox {
   const systemRuntimePaths = LINUX_SYSTEM_RUNTIME_PATHS.filter((path) =>
     existsSync(path),
@@ -170,6 +172,9 @@ export function buildLinuxTaskProbeSandbox(
       "/dev/null",
       path,
     ]),
+    ...[...new Set(readProtectedRoots.map((path) => resolvePathThroughExistingAncestor(path) ?? path))]
+      .filter((path) => pathIsCoveredBy(path, [workspaceDir, ...systemRuntimePaths, ...explicitRuntimePaths]))
+      .flatMap((path) => ["--tmpfs", path, "--remount-ro", path]),
     ...(existsSync(join(workspaceDir, ".git"))
       ? [
           "--ro-bind",

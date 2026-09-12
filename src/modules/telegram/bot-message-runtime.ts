@@ -95,11 +95,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
         this.sendText(chatId, resolved.message);
         return;
       }
-      const session = this.sessions.get(resolved.target.sessionKey);
-      if (session) {
-        await session.agent.close();
-        this.sessions.delete(resolved.target.sessionKey);
-      }
+      await this.clearConversation(resolved.target);
       this.sendText(chatId, "Conversation cleared.");
       return;
     }

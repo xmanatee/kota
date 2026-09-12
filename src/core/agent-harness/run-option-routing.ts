@@ -44,7 +44,7 @@ function requestedUnsupportedOptions(
 }
 
 export function harnessSupportsRunOption(
-  harness: AgentHarness,
+  harness: Pick<AgentHarness, "unsupportedRunOptions">,
   option: AgentHarnessUnsupportedRunOption,
 ): boolean {
   return !(harness.unsupportedRunOptions ?? []).some(

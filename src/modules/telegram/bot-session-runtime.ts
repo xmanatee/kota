@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { resetAgentConversation } from "#core/agent-harness/session-continuity.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
@@ -22,10 +24,38 @@ export class TelegramSessionRuntime {
   protected readonly options: TelegramBotOptions;
   protected readonly sessions = new Map<string, TelegramSession>();
   protected readonly busyChats = new Set<string>();
+  private readonly clearingConversations = new Map<string, Promise<void>>();
 
   constructor(options: TelegramBotOptions) {
     this.token = options.token;
     this.options = options;
+  }
+
+  private conversationKey(target: TelegramScopeTarget): string {
+    // Telegram's public bot id is stable when the credential suffix rotates.
+    const separator = this.token.indexOf(":");
+    const botId = separator < 0 ? this.token : this.token.slice(0, separator);
+    return `telegram:${createHash("sha256").update(botId).digest("hex")}:${target.sessionKey}`;
+  }
+
+  protected async clearConversation(target: TelegramScopeTarget): Promise<void> {
+    const pending = this.clearingConversations.get(target.sessionKey);
+    if (pending !== undefined) return pending;
+    const session = this.sessions.get(target.sessionKey);
+    const clearing = (async () => {
+      try {
+        if (session?.agent.reset) await session.agent.reset();
+        else await session?.agent.close();
+        // A reset before the first post-restart message must also retire disk state.
+        if (!session?.agent.reset) resetAgentConversation(target.scopeRoot, this.conversationKey(target), "Operator cleared the Telegram conversation.");
+      } finally {
+        // Failed retirement must not leave a closed agent cached for future sends.
+        if (this.sessions.get(target.sessionKey) === session) this.sessions.delete(target.sessionKey);
+      }
+    })();
+    this.clearingConversations.set(target.sessionKey, clearing);
+    try { await clearing; }
+    finally { this.clearingConversations.delete(target.sessionKey); }
   }
 
   protected async processMessage(
@@ -33,6 +63,10 @@ export class TelegramSessionRuntime {
     text: string,
     firstName?: string,
   ): Promise<void> {
+    if (this.clearingConversations.has(target.sessionKey)) {
+      this.sendText(target.chatId, "Conversation is being cleared. Please wait.");
+      return;
+    }
     if (this.busyChats.has(target.sessionKey)) {
       this.sendText(target.chatId, "Still working on your previous message. Please wait.");
       return;
@@ -114,6 +148,7 @@ export class TelegramSessionRuntime {
     if (backend.kind === "harness") {
       return new TelegramHarnessSessionAgent({
         harness: resolveAgentHarness(backend.harnessName),
+        continuityKey: this.conversationKey(target),
         model: backend.model,
         ...(backend.modelProvider !== undefined
           ? { modelProvider: backend.modelProvider }
@@ -127,12 +162,14 @@ export class TelegramSessionRuntime {
           ?.getProviderRegistry().get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId)
           ?? { ok: false, scopeId },
         config,
+        scopeRuntime: target.scopeRuntime,
         autonomyMode: this.options.autonomyMode,
         verbose: this.options.verbose ?? config.verbose,
         proxy,
       });
     }
     const loopOptions: LoopOptions = {
+      continuityKey: this.conversationKey(target),
       autonomyMode: this.options.autonomyMode,
       model: backend.modelSpec,
       verbose: this.options.verbose ?? config.verbose,
@@ -143,7 +180,12 @@ export class TelegramSessionRuntime {
       scopeRuntime: target.scopeRuntime,
       moduleLoader: this.options.moduleLoader,
     };
-    return new AgentSession(loopOptions);
+    const agent = new AgentSession(loopOptions);
+    return {
+      send: (text) => agent.send(text),
+      close: () => agent.dispose(),
+      getCostSummary: () => agent.getCostSummary(),
+    };
   }
 
   protected async resolveScopeTarget(chatId: number): Promise<TelegramScopeTargetResolution> {

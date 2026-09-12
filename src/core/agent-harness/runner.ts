@@ -27,6 +27,7 @@ import {
   type AgentHarnessSessionContext,
   declaredAgentHarnessSessionContext,
 } from "./session-context.js";
+import { prepareSessionContinuity, runWithSessionRecovery } from "./session-continuity.js";
 import {
   type AgentTokenBudgetExhaustion,
   type AgentTokenBudgetSource,
@@ -55,7 +56,7 @@ function createInvocationSessionContext(
     (scopeRoot === undefined ? undefined : deriveDirectoryScopeId(scopeRoot));
   if (scopeId === undefined) return undefined;
   return {
-    sessionId: `harness:${randomUUID()}`,
+    sessionId: `harness:${options.continuityKey ?? randomUUID()}`,
     scopeId,
   };
 }
@@ -174,15 +175,35 @@ function recordInvocationTokenUsage(
   return tokenBudget.checkAfterDebit(source) ?? undefined;
 }
 
-export async function runAgentHarness(
+/** Settled waits for ownership release, rejecting if native stop remains unresolved. */
+export function runAgentHarness(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
   writer?: AgentHarnessWriter,
+  /** Import legacy context only under the owner lock, before any lineage exists. */
+  seedConversation?: (prompt: string) => string,
+): Promise<AgentHarnessResult> & { settled: Promise<void> } {
+  let draining = Promise.resolve();
+  const result = executeAgentHarness(harness, options, writer, (pending) => { draining = pending; }, seedConversation);
+  const settled = result.then(() => draining, () => draining);
+  // Most callers only observe the result; teardown owners also inspect settled.
+  void settled.catch(() => {});
+  return Object.assign(result, { settled });
+}
+
+async function executeAgentHarness(
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+  writer: AgentHarnessWriter | undefined,
+  retainUntil: (pending: Promise<void>) => void,
+  seedConversation?: (prompt: string) => string,
 ): Promise<AgentHarnessResult> {
+  options.abortController?.signal.throwIfAborted();
   assertAdapterHonorsRegisteredHooks(harness);
   assertAdapterCanHostRequestedCapabilities(harness, options);
   const requireNativeQuarantine =
-    harness.toolControl === "native" && options.abortController !== undefined;
+    harness.toolControl === "native" &&
+    (options.abortController !== undefined || harness.nativeAbortQuarantine === "confirmed-stop");
   if (
     requireNativeQuarantine &&
     harness.nativeAbortQuarantine !== "confirmed-stop"
@@ -193,11 +214,17 @@ export async function runAgentHarness(
     );
   }
 
+  // Reject identity mismatches before persistence or session-environment registration.
+  declaredAgentHarnessSessionContext(options);
+  const sessionIdObserver = options.onSessionId;
+  const continuity = prepareSessionContinuity(harness, { ...options, onSessionId: undefined }, seedConversation);
+  options = { ...continuity.options, onSessionId: sessionIdObserver };
   const usageObserver = options.onUsage;
   let reportedUsage: AgentUsage | undefined;
   let nativeResult: AgentHarnessResult | undefined;
   let invocationStarted = false;
   let usageFinalized = false;
+  let executionPending: Promise<AgentHarnessResult> | undefined;
   const usageOptions: AgentHarnessRunOptions = usageObserver === undefined
     ? options
     : {
@@ -215,6 +242,7 @@ export async function runAgentHarness(
     sessionOptions,
     writer,
     requireNativeQuarantine,
+    continuity.options.onSessionId,
   );
   const effectiveOptions = cancellation.options;
   const tokenBudget = options.tokenBudget;
@@ -240,14 +268,23 @@ export async function runAgentHarness(
       cancellation.assertActive();
 
       invocationStarted = true;
-      const nativeRun = harness.run(effectiveOptions, cancellation.writer);
-      try {
-        cancellation.assertNativeQuarantineRegistered();
-      } catch (error) {
-        void nativeRun.catch(() => {});
-        throw error;
-      }
+      const nativeRun = runWithSessionRecovery(
+        continuity,
+        effectiveOptions,
+        (runOptions) => {
+          if (requireNativeQuarantine) continuity.beginNativeExecution();
+          const execution = harness.run(runOptions, cancellation.writer);
+          try { cancellation.assertNativeQuarantineRegistered(); }
+          catch (error) { void execution.catch(() => {}); throw error; }
+          return execution;
+        },
+        async () => {
+          await cancellation.retireSettledNativeAttempt();
+          if (requireNativeQuarantine) continuity.confirmNativeStop();
+        },
+      );
       nativeResult = await nativeRun;
+      if (nativeResult.sessionId !== undefined && effectiveOptions.persistSession === true) effectiveOptions.onSessionId?.(nativeResult.sessionId);
       cancellation.closeOutput();
       cancellation.assertActive();
       const usage = nativeResult.usage;
@@ -271,16 +308,49 @@ export async function runAgentHarness(
       return result;
     };
 
-    return await cancellation.race(execution);
+    return await cancellation.race(() => {
+      executionPending = execution();
+      return executionPending;
+    });
   } finally {
     cancellation.dispose();
-    if (invocationStarted && !usageFinalized) {
-      const usage = reportedUsage ??
-        (options.abortController?.signal.aborted ? undefined : nativeResult?.usage) ??
-        UNKNOWN_AGENT_USAGE;
-      recordInvocationTokenUsage(harness, sessionOptions, usage, initialDebitCount);
-      usageObserver?.(usage);
+    try {
+      // Hosted cancellation can finish before transcript writes. Native adapters
+      // instead establish safety through the confirmed-stop barrier.
+      if (!requireNativeQuarantine && executionPending !== undefined) {
+        retainUntil(executionPending.then(continuity.release, continuity.release));
+      } else {
+        const releaseNative = async () => {
+          try {
+            await cancellation.waitForNativeQuarantine();
+            if (requireNativeQuarantine) continuity.confirmNativeStop();
+          } catch (error) {
+            const failure = error instanceof Error ? error : new Error(String(error));
+            // Persist exclusion before closing OS locks. Local process exit does
+            // not establish that a remote provider stopped mutating its session.
+            continuity.quarantine(failure);
+            if (executionPending === undefined) continuity.release();
+            else void executionPending.then(continuity.release, continuity.release);
+            throw failure;
+          }
+          continuity.release();
+        };
+        const releasePending = releaseNative();
+        retainUntil(releasePending);
+        await releasePending;
+      }
+    } finally {
+      try {
+        if (invocationStarted && !usageFinalized) {
+          const usage = reportedUsage ??
+            (options.abortController?.signal.aborted ? undefined : nativeResult?.usage) ??
+            UNKNOWN_AGENT_USAGE;
+          recordInvocationTokenUsage(harness, sessionOptions, usage, initialDebitCount);
+          usageObserver?.(usage);
+        }
+      } finally {
+        if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
+      }
     }
-    if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
   }
 }

@@ -59,7 +59,7 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
   style internal wiring rather than re-adding an in-process field to the
   neutral shape.
 - The adapter maps KOTA's neutral `autonomyMode` to the SDK's native
-  permission knob: `autonomous` → `bypassPermissions`, `passive` →
+  permission knob: `autonomous` → guarded `default`, `passive` →
   `default`, `supervised` → throws (the SDK has no operator-approval-queue
   routing). Callers that omit `autonomyMode` get the `autonomous` default.
   Per-step overrides live on the workflow step's
@@ -80,3 +80,12 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
   `#modules/claude-agent-harness/executor.js` directly — the harness-neutral
   seam (`#core/agent-harness/runner.js`) stays visible in test code, so
   non-claude adapters are not silently routed through a claude-shaped mock.
+
+Native conversations mirror through the SDK SessionStore port with eager flush
+into core-assigned protected storage. Identity is captured from SDK initialization
+and successful mirror writes, before a final result. Resume uses the exact native
+id with a fresh query contract; older native histories may be imported through
+the SDK reader. A pre-tool hook protects transcript paths even for auto-approved
+built-ins, and the shell sandbox denies native transcripts and the complete
+canonical and workspace conversation stores, including sibling owners and retired
+generations. Mirror failure fails visibly and retains the provider-native transcript.

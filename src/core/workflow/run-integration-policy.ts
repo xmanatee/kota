@@ -383,6 +383,7 @@ export async function continueRunIntegration(
       harness,
       {
         ...contract.options,
+        continuityKey: `workflow:${context.run.id}:integration:${issue.kind}`,
         scopeRoot: context.scope.root,
         cwd: context.sandbox.workspaceDir,
         agentWriteScope: continuation.agentWriteScope,

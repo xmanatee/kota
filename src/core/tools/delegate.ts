@@ -1,8 +1,9 @@
+import { createConversationSessionRuntime } from "#core/agent-harness/conversation-runtime.js";
 import type {
-  KotaMessage,
   KotaTextBlock,
   KotaTool,
 } from "#core/agent-harness/message-protocol.js";
+import { prepareSessionContinuity, runWithSessionRecovery } from "#core/agent-harness/session-continuity.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -14,6 +15,7 @@ import {
 } from "#core/agents/delegate-prompts.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { routeModel } from "#core/model/model-router.js";
+import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import {
   type DelegateBudgetFailure,
   type DelegateBudgetLease,
@@ -181,6 +183,9 @@ async function runDelegateWithBudget(
     });
     return runDelegateHarness(task, mode, {
       cwd,
+      ...(context?.sessionId !== undefined && context.toolUseId !== undefined
+        ? { continuityKey: `delegate:${context.sessionId}:${context.toolUseId}:${mode}` }
+        : {}),
       scopeRoot: context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? cwd,
       scopeContext: delegateConfig.scopeContext,
       instructionContext: delegateConfig.instructionContext,
@@ -244,7 +249,6 @@ async function runDelegateWithBudget(
   }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
-  const messages: KotaMessage[] = [{ role: "user", content: task }];
   const systemBlocks: KotaTextBlock[] = [
     { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
   ];
@@ -259,14 +263,36 @@ async function runDelegateWithBudget(
     });
   }
 
-  const loopResult = await runDelegateTurns({
-    client, messages, systemBlocks, tools, runners, runnerContext: context, mcpMgr,
-    isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
-    maxTurns, mode, transport, costTracker,
-    tokenBudget,
-    toolExecutionOptions,
-    modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
+  const scopeRoot = context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? cwd ?? process.cwd();
+  const continuity = prepareSessionContinuity({ name: "delegate-model-client" }, {
+    prompt: task, model: selectedModel, effort: "xhigh", scopeRoot, cwd,
+    modelProvider: delegateConfig.modelProvider,
+    ...(context?.sessionId !== undefined && context.toolUseId !== undefined
+      ? { continuityKey: `delegate:${context.sessionId}:${context.toolUseId}:${mode}` }
+      : {}),
   });
+  const loopResult = await (async () => {
+    try {
+      return await runWithSessionRecovery(continuity, continuity.options, async (options) => {
+        const session = createConversationSessionRuntime({
+          harness: "delegate-model-client", options, scopeRoot,
+          resolved: { model: selectedModel, providerName: delegateConfig.modelProvider?.provider ?? "model-client" },
+          outputTokenLimit: resolveModelOutputTokenLimit(selectedModel, delegateConfig.modelOutputTokenLimits),
+        });
+        session.validateTools(tools, toolExecutionOptions?.mcpPromptToolDeclarationFingerprints);
+        return runDelegateTurns({
+          client, messages: session.messages, checkpoint: () => {
+            toolExecutionOptions?.signal?.throwIfAborted();
+            session.checkpoint();
+          },
+          systemBlocks, tools, runners, runnerContext: context, mcpMgr,
+          isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
+          maxTurns, mode, transport, costTracker, tokenBudget, toolExecutionOptions,
+          modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
+        });
+      });
+    } finally { continuity.release(); }
+  })();
 
   if (loopResult.earlyError) return loopResult.earlyError;
 

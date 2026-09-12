@@ -1,10 +1,15 @@
 import "./adapter-test-support.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/index.js";
+import { runAgentHarness } from "#core/agent-harness/runner.js";
 import { antigravityCliAgentHarness } from "./adapter.js";
 import {
   adapterTestMocks,
   mockAgyProcess,
+  mockManualAgyProcess,
   successfulAgyOutput,
   successfulStructuredAgyOutput,
 } from "./adapter-test-support.js";
@@ -246,4 +251,25 @@ describe("antigravityCliAgentHarness execution", () => {
       expect.any(Function),
     );
   });
+});
+
+it("checkpoints AGY identity before terminal output and reattaches with current instructions", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kota-agy-continuity-"));
+  try {
+    const child = mockManualAgyProcess();
+    const onSessionId = vi.fn();
+    const options = { prompt: "begin", scopeRoot: root, cwd: root, continuityKey: "workflow:build", model: "gemini-3.7-flash", effort: "high" as const, onSessionId };
+    const first = runAgentHarness(antigravityCliAgentHarness, options);
+    child.stdout.write(`${JSON.stringify({ event: "init", conversation_id: "conversation-1" })}\n`);
+    await vi.waitFor(() => expect(onSessionId).toHaveBeenCalledWith("conversation-1"));
+    child.stdout.end(successfulAgyOutput("saved work"));
+    child.stderr.end();
+    child.emit("close", 0, null);
+    await first;
+    mockAgyProcess({ stdout: successfulAgyOutput("continued") });
+    await runAgentHarness(antigravityCliAgentHarness, { ...options, prompt: "continue", systemPrompt: "Current scope policy" });
+    const args = spawnMock.mock.calls.at(-1)![1] as string[];
+    expect(args).toEqual(expect.arrayContaining(["--conversation", "conversation-1"]));
+    expect(args[args.indexOf("--print") + 1]).toContain("Current scope policy");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

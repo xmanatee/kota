@@ -9,6 +9,7 @@ import { DEFAULT_MAX_TURNS } from "./constants.js";
 import { selectToolDefinitions, type ValidatedToolUseBlock } from "./tool-loop.js";
 
 export type OpenaiToolsLoopMode = {
+  harnessName: string;
   systemPrompt: (base: string | undefined) => string | undefined;
   defaultMaxTurns: number;
   selectTools: (
@@ -27,6 +28,7 @@ export type OpenaiToolsLoopMode = {
 };
 
 export const defaultLoopMode: OpenaiToolsLoopMode = {
+  harnessName: "openai-tools",
   systemPrompt: (base) => base,
   defaultMaxTurns: DEFAULT_MAX_TURNS,
   selectTools: selectToolDefinitions,

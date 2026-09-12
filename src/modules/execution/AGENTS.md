@@ -19,7 +19,9 @@ processes, code REPL, computer use, and screenshot tools.
   `src/core/agent-harness/machine-authority-sandbox.ts`. Text parsing cannot
   establish where opaque code writes; keep direct runner calls available for
   host-owned tests and operations, but every harness/loop execution context
-  supplies the protected path.
+  supplies the protected path. Canonical and workspace conversation stores carry
+  directory read/write denials through resolved aliases; REPL reuse must retain
+  the same sandbox identity.
 - Scope policy treats recognized outbound commands and code as compound local
   plus network effects. Keep the execution tool resolvers and Claude Bash on
   the shared opaque-execution classifier; never replace the local write check

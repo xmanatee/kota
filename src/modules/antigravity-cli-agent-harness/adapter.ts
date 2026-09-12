@@ -78,11 +78,6 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
       "The AGY terminal UI cannot route approvals through KOTA's queue.",
   },
   {
-    runOption: "persistSession",
-    option: "persistSession",
-    reason: "KOTA-managed session persistence is not exposed by this adapter.",
-  },
-  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason:
@@ -167,12 +162,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "KOTA's operator approval queue. Use autonomous or passive mode.",
     );
   }
-  if (options.persistSession === true) {
-    throw new Error(
-      'The "antigravity-cli" agent harness does not expose KOTA-managed session persistence. ' +
-        "Drop persistSession.",
-    );
-  }
   if (options.harnessOverrides !== undefined) {
     throw new Error(
       'The "antigravity-cli" agent harness does not accept per-step harnessOptions. ' +
@@ -227,49 +216,64 @@ export const antigravityCliAgentHarness: AgentHarness = {
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
-    rejectUnsupportedOptions(options);
-    if (!options.model) {
-      throw new Error(
-        'The "antigravity-cli" agent harness requires an explicit model on the step or config.',
-      );
-    }
-    if (options.abortController?.signal.aborted) {
-      return abortedAntigravityCliResult();
-    }
-    const cwd = options.cwd ?? process.cwd();
-    const scopeRoot = options.scopeRoot ?? cwd;
-    const scope = projectNativeCliScope({
-      cwd,
-      autonomyMode: options.autonomyMode,
-      scopePolicy: options.scopePolicy,
-      agentWriteScope: options.agentWriteScope,
-      agentOutputDir: options.agentOutputDir,
-    });
-    const runtimeWritableRoots = [
-      options.agentOutputDir,
-      options.env?.KOTA_RUN_TEMP_DIR,
-      options.env?.KOTA_RUN_ARTIFACT_DIR,
-    ].filter((path): path is string => path !== undefined);
-    const execution = collectTextFromAntigravityCli({
-      prompt: buildAntigravityPrompt(options),
-      cwd,
-      runtimeStateRoot: join(scopeRoot, ".kota"),
-      model: options.model,
-      effort: options.effort,
-      resumeSessionId: options.resumeSessionId,
-      outputSchema: options.outputSchema,
-      readOnly: scope.executionMode === "plan",
-      writableRoots: scope.writableRoots,
-      runtimeWritableRoots,
-      authorityConfigPath: options.authorityConfigPath,
-      env: options.env,
-      abortController: options.abortController,
-      writer,
-      onMessage: options.onMessage,
-      onProcessSpawn: options.onProcessSpawn,
-    });
+    let remoteExecution: "settled" | "unconfirmed" = "settled";
+    const execution = (async () => {
+      rejectUnsupportedOptions(options);
+      if (!options.model) {
+        throw new Error(
+          'The "antigravity-cli" agent harness requires an explicit model on the step or config.',
+        );
+      }
+      if (options.abortController?.signal.aborted) {
+        return abortedAntigravityCliResult();
+      }
+      const cwd = options.cwd ?? process.cwd();
+      const scopeRoot = options.scopeRoot ?? cwd;
+      const scope = projectNativeCliScope({
+        cwd,
+        autonomyMode: options.autonomyMode,
+        scopePolicy: options.scopePolicy,
+        agentWriteScope: options.agentWriteScope,
+        agentOutputDir: options.agentOutputDir,
+      });
+      const runtimeWritableRoots = [
+        options.agentOutputDir,
+        options.env?.KOTA_RUN_TEMP_DIR,
+        options.env?.KOTA_RUN_ARTIFACT_DIR,
+      ].filter((path): path is string => path !== undefined);
+      return collectTextFromAntigravityCli({
+        prompt: buildAntigravityPrompt(options),
+        cwd,
+        scopeRoot,
+        runtimeStateRoot: join(scopeRoot, ".kota"),
+        model: options.model,
+        effort: options.effort,
+        resumeSessionId: options.resumeSessionId,
+        outputSchema: options.outputSchema,
+        readOnly: scope.executionMode === "plan",
+        writableRoots: scope.writableRoots,
+        runtimeWritableRoots,
+        authorityConfigPath: options.authorityConfigPath,
+        env: options.env,
+        abortController: options.abortController,
+        writer,
+        onMessage: async (message) => {
+          if (message.sessionId !== undefined) options.onSessionId?.(message.sessionId);
+          await options.onMessage?.(message);
+        },
+        onProcessSpawn: options.onProcessSpawn,
+        onRemoteExecutionState: (state) => { remoteExecution = state; },
+      });
+    })();
     options.abortQuarantine?.register(async () => {
-      const result = await execution;
+      let result: AgentHarnessResult;
+      try { result = await execution; }
+      catch (error) {
+        // Validation, sandbox setup and failed spawn cannot leave remote work.
+        // Once launched, only a terminal provider result establishes settlement.
+        if (remoteExecution === "unconfirmed") throw error;
+        return;
+      }
       if (result.subtype === ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE) {
         throw new Error(result.text);
       }

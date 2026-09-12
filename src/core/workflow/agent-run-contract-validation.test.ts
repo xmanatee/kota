@@ -207,7 +207,7 @@ describe("resolved workflow agent run-contract validation", () => {
     expect(run.mock.calls[0]?.[0]).toMatchObject({
       model: "operator-model",
       autonomyMode: "autonomous",
-      persistSession: false,
+      persistSession: true,
       enableFileCheckpointing: false,
     });
   });

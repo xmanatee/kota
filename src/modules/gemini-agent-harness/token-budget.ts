@@ -31,15 +31,15 @@ export function geminiTokenBudgetSource(
 export function geminiTokenBudgetErrorResult(input: {
   message: string;
   streamedChunks: readonly string[];
-  lastResponseId: string | undefined;
+  sessionId: string | undefined;
   turnCount: number;
   usage: AgentUsage;
 }): AgentHarnessResult {
   return {
     text: input.message,
     streamedText: input.streamedChunks.join(""),
-    ...(input.lastResponseId !== undefined
-      ? { sessionId: input.lastResponseId }
+    ...(input.sessionId !== undefined
+      ? { sessionId: input.sessionId }
       : {}),
     turns: input.turnCount,
     usage: input.usage,

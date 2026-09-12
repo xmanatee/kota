@@ -449,7 +449,7 @@ describe("AgentSession", () => {
       // but at call 2 time, the first 3 were present (user, assistant, user)
       expect(secondConfig.messages).toHaveLength(4);
       expect(secondConfig.messages[0]).toEqual({ role: "user", content: "My name is Bob" });
-      expect(secondConfig.messages[2]).toEqual({ role: "user", content: "What is my name?" });
+      expect(secondConfig.messages[2]).toEqual({ role: "user", content: expect.stringContaining("What is my name?") });
     });
   });
 

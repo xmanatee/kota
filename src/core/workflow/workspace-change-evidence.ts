@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { PROTECTED_CONVERSATION_DIRECTORY } from "#core/tools/protected-scope-paths.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 const ERROR_DETAIL_MAX_BYTES = 4 * 1024;
@@ -109,7 +110,7 @@ function resolveOptions(
     throw new RangeError("unifiedLines must be a non-negative safe integer");
   }
   return {
-    pathspecs: options.pathspecs ?? ["."],
+    pathspecs: [...(options.pathspecs ?? ["."]), `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`],
     unifiedLines,
     limits: {
       changedPathsBytes: validatePositiveByteLimit(

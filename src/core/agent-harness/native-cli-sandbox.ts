@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
+import { existingProtectedScopePaths, protectedConversationRoots } from "#core/tools/protected-scope-paths.js";
 import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import { startNativeRunAuthorization } from "#core/workflow/native-run-authorization.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
@@ -29,6 +29,7 @@ export type NativeCliSandboxProcess = {
 export type NativeCliMachineAuthorityOwner = "kota" | "native-cli";
 type NativeCliSandboxOptions = {
   cwd: string;
+  scopeRoot?: string;
   runtimeStateRoot?: string;
   machineAuthorityOwner: NativeCliMachineAuthorityOwner;
   authorityConfigPath?: string;
@@ -154,10 +155,6 @@ export async function withNativeCliSandbox<T>(
   let runAuthorization: ReturnType<typeof startNativeRunAuthorization>;
   try {
     const toolRuntimeRoot = join(temporaryDirectory, "tool-runtime");
-    const readProtectedRootMask = join(
-      temporaryDirectory,
-      "protected-read-root-mask",
-    );
     const protectedRuntimeRoot = join(
       temporaryDirectory,
       "protected-runtime",
@@ -165,7 +162,6 @@ export async function withNativeCliSandbox<T>(
     const home = join(toolRuntimeRoot, "home");
     for (const directory of [
       home,
-      readProtectedRootMask,
       protectedRuntimeRoot,
       join(home, ".config"),
       join(home, ".cache"),
@@ -249,13 +245,15 @@ export async function withNativeCliSandbox<T>(
         ? []
         : existingProtectedScopePaths(process.cwd())),
     ])];
-    const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
+    const readProtectedRoots = [...new Set([
+      ...protectedConversationRoots(options),
+      ...(options.readProtectedRoots ?? []),
+    ])];
     const writeProtectedPaths = [...new Set([
       ...configDirectories,
       join(options.cwd, ".git"),
       ...(runAuthorization?.writeProtectedRoots ?? []),
       ...nativeCliGitMetadataRoots(options.cwd),
-      readProtectedRootMask,
       protectedRuntimeRoot,
     ])];
     const [runtimeStateRoot] = absoluteRoots(
@@ -295,7 +293,6 @@ export async function withNativeCliSandbox<T>(
           readProtectedPaths,
           readSnapshotRoots: databaseReadProtectedPaths.map(dirname),
           readProtectedRoots,
-          readProtectedRootMask,
           writeProtectedPaths,
           writeBoundaries: runtimeWriteBoundary === undefined ? [] : [runtimeWriteBoundary],
           networkAccess: egressProxy?.address.kind === "tcp"

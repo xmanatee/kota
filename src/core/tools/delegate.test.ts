@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
@@ -186,4 +189,25 @@ describe("runDelegate model output-token limits", () => {
       workflowContext: workflowMetadata,
     });
   });
+});
+
+it("preserves direct ModelClient delegates under their parent tool-call identity", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kota-delegate-continuity-"));
+  const requests: MessageStreamParams[] = [];
+  const stream = (params: MessageStreamParams) => {
+    requests.push(structuredClone(params));
+    return new TestStream(modelResponse([{ type: "text", text: "Selected blue." }]));
+  };
+  setDelegateConfig({ model: "openai/gpt-5.6-luna", cwd: root, client: modelClient(stream) });
+  const context = { cwd: root, scopeRoot: root, sessionId: "parent", toolUseId: "child-call" };
+  try {
+    await runDelegate({ task: "Choose a color", mode: "explore" }, context);
+    await runDelegate({ task: "Continue", mode: "explore" }, context);
+    await runDelegate({ task: "Independent work", mode: "explore" }, { ...context, toolUseId: "another-child" });
+    expect(JSON.stringify(requests[1].messages)).toContain("Selected blue.");
+    expect(JSON.stringify(requests[2].messages)).not.toContain("Selected blue.");
+  } finally {
+    setDelegateConfig({ model: "gpt-5.6-sol" });
+    rmSync(root, { recursive: true, force: true });
+  }
 });

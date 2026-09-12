@@ -7,6 +7,7 @@
  * rendering provider seam exposed by `RenderingProvider.createReplChrome()`,
  * so this module depends on `rendering` but does not import it directly.
  */
+import { randomUUID } from "node:crypto";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import {
   type AgentHarness,
@@ -15,6 +16,8 @@ import {
   type AgentHarnessWriter,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import { harnessSupportsRunOption } from "#core/agent-harness/run-option-routing.js";
+import { findAgentConversationOwner, resetAgentConversation } from "#core/agent-harness/session-continuity.js";
 import {
   type AgentHarnessTranscriptTurn,
   composeAgentHarnessTranscriptPrompt,
@@ -58,7 +61,7 @@ export type HarnessReplOptions = {
    * operator sees.
    */
   output?: ReplOutputStream;
-  /** Initial transcript to carry into the first harness turn. */
+  /** Legacy transcript to seed only when the shared owner has no lineage. */
   initialTranscript?: ReplTurn[];
   /** Called after prompt-reference expansion, before the harness turn runs. */
   onUserInput?: (input: string) => void | Promise<void>;
@@ -72,10 +75,7 @@ export type HarnessReplOptions = {
 export type ReplTurn = AgentHarnessTranscriptTurn;
 
 /**
- * Compose the transcript into a single prompt string. Adapters that do not
- * own native conversation state (thin) still see the full history; adapters
- * that do (claude-agent-sdk via its native tool loop) still receive the full
- * context since the REPL drives them fresh each turn.
+ * Seed an imported transcript or supply context to a non-resumable adapter.
  */
 export function composeTranscriptPrompt(
   transcript: ReplTurn[],
@@ -182,8 +182,16 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     isClosed = true;
   });
 
+  const scopeRoot = options.run.scopeRoot ?? options.cwd;
+  const resumedOwner = options.run.resumeSessionId === undefined ? undefined
+    : findAgentConversationOwner(scopeRoot, options.harness.name, options.run.resumeSessionId);
+  const continuityKey = options.run.continuityKey ?? resumedOwner ?? options.run.sessionContext?.sessionId ?? `repl:${randomUUID()}`;
+  const canResume = options.run.persistSession !== false && harnessSupportsRunOption(options.harness, "resumeSessionId");
+  let initialTurn = true;
+  let initialTranscript = options.initialTranscript ?? [];
+  let explicitResume = options.run.resumeSessionId;
   const state: ReplState = {
-    transcript: [...(options.initialTranscript ?? [])],
+    transcript: [],
     turnsOut: 0,
   };
 
@@ -192,6 +200,12 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     if (!input) return "continue";
     if (input === "exit" || input === "quit") return "exit";
 
+    if (input === "/reset" || input === "/clear") {
+      resetAgentConversation(scopeRoot, continuityKey, "Operator cleared the interactive conversation.");
+      explicitResume = undefined;
+      initialTranscript = [];
+      initialTurn = true;
+    }
     if (
       handleReplCommand(input, chrome, state, options.harness, options.model, options.cwd)
     ) {
@@ -199,7 +213,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     }
 
     const expanded = expandUserPromptReferences(input, options.cwd).text;
-    const composed = composeTranscriptPrompt(state.transcript, expanded);
+    const composed = !canResume ? composeTranscriptPrompt(state.transcript, expanded) : expanded;
 
     try {
       await options.onUserInput?.(expanded);
@@ -207,13 +221,21 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
         options.harness,
         {
           ...options.run,
+          continuityKey,
+          resumeSessionId: explicitResume,
           prompt: composed,
           model: options.model,
           scopeRoot: options.run.scopeRoot ?? options.cwd,
           cwd: options.cwd,
         },
         writer,
+        initialTurn ? (prompt) => {
+          state.transcript.unshift(...initialTranscript);
+          return composeTranscriptPrompt(state.transcript, prompt);
+        } : undefined,
       );
+      initialTurn = false;
+      explicitResume = undefined;
       state.lastResult = result;
       state.turnsOut += 1;
       const turn = {

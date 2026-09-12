@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import type {
   AgentHarnessRunOptions,
   KotaMessage,
@@ -11,20 +12,19 @@ import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { ResolvedProvider } from "#core/model/model-client.js";
 import type { ResolvedModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { agentConversationRoot, SessionRecoveryError } from "./session-continuity.js";
 
 const SESSION_SCHEMA_VERSION = 1;
 const SESSION_ID_PREFIX = "ots_";
 const SESSION_ID_PATTERN = /^ots_[0-9a-f-]{36}$/;
-const MAX_SESSION_MESSAGES = 80;
-const MAX_SESSION_JSON_BYTES = 2 * 1024 * 1024;
 
-export type OpenaiToolsSessionToolDeclaration = {
+export type ConversationSessionToolDeclaration = {
   name: string;
   source: "local" | "mcp";
   fingerprint: string;
 };
 
-export type OpenaiToolsSessionContext = {
+export type ConversationSessionContext = {
   model: string;
   providerName: string;
   cwd: string;
@@ -38,25 +38,28 @@ export type OpenaiToolsSessionContext = {
   };
 };
 
-export type OpenaiToolsSessionRecord = {
+export type ConversationSessionRecord = {
   schemaVersion: typeof SESSION_SCHEMA_VERSION;
   id: string;
-  harness: "openai-tools";
+  harness: string;
   createdAt: string;
   updatedAt: string;
-  context: OpenaiToolsSessionContext;
-  toolDeclarations: OpenaiToolsSessionToolDeclaration[];
+  context: ConversationSessionContext;
+  toolDeclarations: ConversationSessionToolDeclaration[];
   messages: KotaMessage[];
   lastProviderMessageId?: string;
+  adapterState?: KotaJsonValue;
 };
 
-export type PersistOpenaiToolsSessionInput = {
+export type PersistConversationSessionInput = {
   scopeRoot: string;
-  existing?: OpenaiToolsSessionRecord;
-  context: OpenaiToolsSessionContext;
-  toolDeclarations: OpenaiToolsSessionToolDeclaration[];
+  harness?: string;
+  existing?: ConversationSessionRecord;
+  context: ConversationSessionContext;
+  toolDeclarations: ConversationSessionToolDeclaration[];
   messages: KotaMessage[];
   lastProviderMessageId?: string;
+  adapterState?: KotaJsonValue;
 };
 
 function sha256(value: string): string {
@@ -84,36 +87,32 @@ function cloneMessages(messages: readonly KotaMessage[]): KotaMessage[] {
   return JSON.parse(JSON.stringify(messages)) as KotaMessage[];
 }
 
-function sessionRoot(scopeRoot: string): string {
-  return join(scopeRoot, ".kota", "openai-tools-agent-harness", "sessions");
-}
-
 function assertSessionId(id: string): void {
   if (!SESSION_ID_PATTERN.test(id)) {
-    throw new Error(`Invalid openai-tools session id "${id}".`);
+    throw new Error(`Invalid conversation session id "${id}".`);
   }
 }
 
 function sessionPath(scopeRoot: string, id: string): string {
   assertSessionId(id);
-  return join(sessionRoot(scopeRoot), `${id}.json`);
+  return join(agentConversationRoot(scopeRoot), `${id}.json`);
 }
 
-export function createOpenaiToolsSessionId(): string {
+export function createConversationSessionId(): string {
   return `${SESSION_ID_PREFIX}${randomUUID()}`;
 }
 
-export function buildOpenaiToolsSessionContext(input: {
+export function buildConversationSessionContext(input: {
   options: AgentHarnessRunOptions;
   scopeRoot: string;
-  resolved: ResolvedProvider;
-  outputTokenLimit: ResolvedModelOutputTokenLimit;
-}): OpenaiToolsSessionContext {
+  resolved: Pick<ResolvedProvider, "model" | "providerName">;
+  outputTokenLimit: Pick<ResolvedModelOutputTokenLimit, "maxTokens">;
+}): ConversationSessionContext {
   const executionScope = input.options.sessionContext ?? input.options.workflowContext;
   return {
     model: input.resolved.model,
     providerName: input.resolved.providerName,
-    cwd: input.scopeRoot,
+    cwd: input.options.cwd ?? input.scopeRoot,
     outputMaxTokens: input.outputTokenLimit.maxTokens,
     providerSelection: {
       ...(input.options.modelProvider?.provider !== undefined
@@ -131,15 +130,21 @@ export function buildOpenaiToolsSessionContext(input: {
   };
 }
 
-export function loadOpenaiToolsSession(
+export function loadConversationSession(
   scopeRoot: string,
   id: string,
-): OpenaiToolsSessionRecord {
+): ConversationSessionRecord {
   const path = sessionPath(scopeRoot, id);
   if (!existsSync(path)) {
-    throw new Error(`OpenAI tools session "${id}" was not found in ${sessionRoot(scopeRoot)}.`);
+    throw new SessionRecoveryError(`Agent conversation "${id}" was not found in ${agentConversationRoot(scopeRoot)}.`);
   }
-  const record = decodeOpenaiToolsSessionRecord(JSON.parse(readFileSync(path, "utf8")) as unknown, id);
+  const source = readFileSync(path, "utf8");
+  let record: ConversationSessionRecord;
+  try {
+    record = decodeConversationSessionRecord(JSON.parse(source) as unknown, id);
+  } catch {
+    throw new SessionRecoveryError("The saved conversation is corrupt or uses an unsupported format; the original record was retained.");
+  }
   return {
     ...record,
     messages: cloneMessages(record.messages),
@@ -147,43 +152,29 @@ export function loadOpenaiToolsSession(
   };
 }
 
-function boundedMessages(messages: readonly KotaMessage[]): KotaMessage[] {
-  let bounded = cloneMessages(messages).slice(-MAX_SESSION_MESSAGES);
-  while (
-    bounded.length > 1 &&
-    Buffer.byteLength(JSON.stringify(bounded), "utf8") > MAX_SESSION_JSON_BYTES
-  ) {
-    bounded = bounded.slice(1);
-  }
-  if (Buffer.byteLength(JSON.stringify(bounded), "utf8") > MAX_SESSION_JSON_BYTES) {
-    throw new Error(
-      `OpenAI tools session transcript exceeds ${MAX_SESSION_JSON_BYTES} bytes and cannot be persisted safely.`,
-    );
-  }
-  return bounded;
-}
-
-export function persistOpenaiToolsSession(
-  input: PersistOpenaiToolsSessionInput,
-): OpenaiToolsSessionRecord {
+export function persistConversationSession(
+  input: PersistConversationSessionInput,
+): ConversationSessionRecord {
   const now = new Date().toISOString();
-  const id = input.existing?.id ?? createOpenaiToolsSessionId();
-  const record: OpenaiToolsSessionRecord = {
+  const id = input.existing?.id ?? createConversationSessionId();
+  const record: ConversationSessionRecord = {
     schemaVersion: SESSION_SCHEMA_VERSION,
     id,
-    harness: "openai-tools",
+    harness: input.harness ?? input.existing?.harness ?? "openai-tools",
     createdAt: input.existing?.createdAt ?? now,
     updatedAt: now,
     context: input.context,
     toolDeclarations: [...input.toolDeclarations].sort((left, right) =>
       left.name.localeCompare(right.name)
     ),
-    messages: boundedMessages(input.messages),
+    messages: cloneMessages(input.messages),
+    ...(input.adapterState === undefined ? {} : { adapterState: input.adapterState }),
     ...(input.lastProviderMessageId !== undefined
       ? { lastProviderMessageId: input.lastProviderMessageId }
       : {}),
   };
-  writeJsonFileAtomic(sessionPath(input.scopeRoot, id), record);
+  mkdirSync(agentConversationRoot(input.scopeRoot), { recursive: true, mode: 0o700 });
+  writeJsonFileAtomic(sessionPath(input.scopeRoot, id), record, undefined, { mode: 0o600 });
   return {
     ...record,
     messages: cloneMessages(record.messages),
@@ -191,23 +182,23 @@ export function persistOpenaiToolsSession(
   };
 }
 
-function decodeOpenaiToolsSessionRecord(value: unknown, expectedId: string): OpenaiToolsSessionRecord {
+function decodeConversationSessionRecord(value: unknown, expectedId: string): ConversationSessionRecord {
   const record = requireRecord(value);
-  if (record.schemaVersion !== SESSION_SCHEMA_VERSION || record.harness !== "openai-tools") {
-    throw new Error(`OpenAI tools session "${expectedId}" has an unsupported record format.`);
+  if (record.schemaVersion !== SESSION_SCHEMA_VERSION || typeof record.harness !== "string") {
+    throw new Error(`Agent conversation "${expectedId}" has an unsupported record format.`);
   }
   if (record.id !== expectedId) {
-    throw new Error(`OpenAI tools session "${expectedId}" record id mismatch.`);
+    throw new Error(`Agent conversation "${expectedId}" record id mismatch.`);
   }
   requireString(record.createdAt, "createdAt");
   requireString(record.updatedAt, "updatedAt");
   const context = decodeSessionContext(record.context);
-  if (!Array.isArray(record.toolDeclarations)) throw new Error("OpenAI tools session tool declarations are invalid.");
-  const toolDeclarations = record.toolDeclarations.map<OpenaiToolsSessionToolDeclaration>((declaration) => {
+  if (!Array.isArray(record.toolDeclarations)) throw new Error("Agent conversation tool declarations are invalid.");
+  const toolDeclarations = record.toolDeclarations.map<ConversationSessionToolDeclaration>((declaration) => {
     const item = requireRecord(declaration);
     requireString(item.name, "toolDeclarations.name");
     if (item.source !== "local" && item.source !== "mcp") {
-      throw new Error("OpenAI tools session tool declaration source is invalid.");
+      throw new Error("Agent conversation tool declaration source is invalid.");
     }
     const source = item.source === "local" ? "local" : "mcp";
     requireString(item.fingerprint, "toolDeclarations.fingerprint");
@@ -219,25 +210,26 @@ function decodeOpenaiToolsSessionRecord(value: unknown, expectedId: string): Ope
   return {
     schemaVersion: SESSION_SCHEMA_VERSION,
     id: expectedId,
-    harness: "openai-tools",
+    harness: record.harness,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     context,
     toolDeclarations,
     messages: decodeKotaMessages(record.messages, "messages"),
+    ...(record.adapterState === undefined ? {} : { adapterState: z.json().parse(record.adapterState) }),
     ...(record.lastProviderMessageId !== undefined
       ? { lastProviderMessageId: record.lastProviderMessageId }
       : {}),
   };
 }
 
-function decodeSessionContext(value: unknown): OpenaiToolsSessionContext {
+function decodeSessionContext(value: unknown): ConversationSessionContext {
   const context = requireRecord(value);
   requireString(context.model, "context.model");
   requireString(context.providerName, "context.providerName");
   requireString(context.cwd, "context.cwd");
   if (typeof context.outputMaxTokens !== "number" || !Number.isFinite(context.outputMaxTokens)) {
-    throw new Error("OpenAI tools session context.outputMaxTokens is invalid.");
+    throw new Error("Agent conversation context.outputMaxTokens is invalid.");
   }
   const selection = requireRecord(context.providerSelection);
   if (selection.provider !== undefined) requireString(selection.provider, "context.providerSelection.provider");
@@ -259,19 +251,19 @@ function decodeSessionContext(value: unknown): OpenaiToolsSessionContext {
 
 function requireRecord(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("OpenAI tools session record is invalid.");
+    throw new Error("Agent conversation record is invalid.");
   }
   return value as Record<string, unknown>;
 }
 
 function requireString(value: unknown, field: string): asserts value is string {
-  if (typeof value !== "string") throw new Error(`OpenAI tools session ${field} is invalid.`);
+  if (typeof value !== "string") throw new Error(`Agent conversation ${field} is invalid.`);
 }
 
-export function snapshotOpenaiToolsSessionToolDeclarations(
+export function snapshotConversationSessionToolDeclarations(
   tools: readonly KotaTool[],
   mcpFingerprints: ReadonlyMap<string, string> | undefined,
-): OpenaiToolsSessionToolDeclaration[] {
+): ConversationSessionToolDeclaration[] {
   return [...tools]
     .map((tool) => {
       const mcpFingerprint = mcpFingerprints?.get(tool.name);
@@ -299,66 +291,66 @@ export function snapshotOpenaiToolsSessionToolDeclarations(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export function validateOpenaiToolsSessionContext(
-  record: OpenaiToolsSessionRecord,
-  current: OpenaiToolsSessionContext,
+export function validateConversationSessionContext(
+  record: ConversationSessionRecord,
+  current: ConversationSessionContext,
 ): void {
   const previous = record.context;
   if (previous.model !== current.model) {
-    throw new Error(
-      `OpenAI tools session "${record.id}" was created for model "${previous.model}", not "${current.model}".`,
+    throw new SessionRecoveryError(
+      `Agent conversation "${record.id}" was created for model "${previous.model}", not "${current.model}".`,
     );
   }
   if (previous.providerName !== current.providerName) {
-    throw new Error(
-      `OpenAI tools session "${record.id}" was created for provider "${previous.providerName}", not "${current.providerName}".`,
+    throw new SessionRecoveryError(
+      `Agent conversation "${record.id}" was created for provider "${previous.providerName}", not "${current.providerName}".`,
     );
   }
   if (previous.outputMaxTokens !== current.outputMaxTokens) {
-    throw new Error(
-      `OpenAI tools session "${record.id}" output-token capability changed from ${previous.outputMaxTokens} to ${current.outputMaxTokens}.`,
+    throw new SessionRecoveryError(
+      `Agent conversation "${record.id}" output-token capability changed from ${previous.outputMaxTokens} to ${current.outputMaxTokens}.`,
     );
   }
   if (
     previous.providerSelection.provider !== current.providerSelection.provider ||
     previous.providerSelection.baseUrl !== current.providerSelection.baseUrl
   ) {
-    throw new Error(
-      `OpenAI tools session "${record.id}" provider selection changed and cannot be resumed safely.`,
+    throw new SessionRecoveryError(
+      `Agent conversation "${record.id}" provider selection changed and cannot be resumed safely.`,
     );
   }
   if (previous.cwd !== current.cwd) {
-    throw new Error(
-      `OpenAI tools session "${record.id}" was created in "${previous.cwd}", not "${current.cwd}".`,
+    throw new SessionRecoveryError(
+      `Agent conversation "${record.id}" was created in "${previous.cwd}", not "${current.cwd}".`,
     );
   }
   if (previous.scope.scopeId !== current.scope.scopeId) {
     if (previous.scope.scopeId !== undefined && current.scope.scopeId === undefined) {
       throw new Error(
-        `OpenAI tools session "${record.id}" requires scope "${previous.scope.scopeId}", but the current run has no scope.`,
+        `Agent conversation "${record.id}" requires scope "${previous.scope.scopeId}", but the current run has no scope.`,
       );
     }
     throw new Error(
-      `OpenAI tools session "${record.id}" scope changed and cannot be resumed safely.`,
+      `Agent conversation "${record.id}" scope changed and cannot be resumed safely.`,
     );
   }
 }
 
-export function validateOpenaiToolsSessionTools(
-  record: OpenaiToolsSessionRecord,
-  current: readonly OpenaiToolsSessionToolDeclaration[],
+export function validateConversationSessionTools(
+  record: ConversationSessionRecord,
+  current: readonly ConversationSessionToolDeclaration[],
 ): void {
   const currentByName = new Map(current.map((entry) => [entry.name, entry]));
   for (const previous of record.toolDeclarations) {
     const next = currentByName.get(previous.name);
     if (next === undefined) {
-      throw new Error(
-        `OpenAI tools session "${record.id}" references unavailable tool "${previous.name}".`,
+      throw new SessionRecoveryError(
+        `Agent conversation "${record.id}" references unavailable tool "${previous.name}".`,
       );
     }
     if (next.source !== previous.source || next.fingerprint !== previous.fingerprint) {
-      throw new Error(
-        `OpenAI tools session "${record.id}" tool declaration for "${previous.name}" changed and cannot be resumed safely.`,
+      throw new SessionRecoveryError(
+        `Agent conversation "${record.id}" tool declaration for "${previous.name}" changed and cannot be resumed safely.`,
       );
     }
   }

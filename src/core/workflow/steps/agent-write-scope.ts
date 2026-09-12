@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
+import { PROTECTED_CONVERSATION_DIRECTORY } from "#core/tools/protected-scope-paths.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { readWorkspaceChanges } from "#core/workflow/workspace-change-evidence.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
@@ -98,7 +99,9 @@ export function listWorkflowMutatedPaths(scopeRoot: string): string[] {
     "-z",
   ]);
   const paths = new Set<string>();
-  for (const path of [...tracked, ...untracked]) paths.add(path);
+  for (const path of [...tracked, ...untracked]) {
+    if (!path.startsWith(`${PROTECTED_CONVERSATION_DIRECTORY}/`)) paths.add(path);
+  }
   return [...paths].sort();
 }
 

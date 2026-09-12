@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { prepareSessionContinuity } from "#core/agent-harness/session-continuity.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -23,6 +24,7 @@ import { DaemonLink } from "./daemon-link.js";
 import type { DaemonTransport } from "./daemon-transport.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
+import type { HttpSessionBinding } from "./session-routes.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
@@ -116,16 +118,17 @@ export function startServer(options: ServerOptions): Server {
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
   cleanupTimer.unref();
 
-  function makeAgent(transport: Transport, autonomyMode: AutonomyMode): AgentSession {
-    const loopOpts: LoopOptions = {
+  function makeAgent(transport: Transport, autonomyMode: AutonomyMode, binding: HttpSessionBinding): AgentSession {
+    const loopOpts: LoopOptions & HttpSessionBinding = {
       autonomyMode,
       model: options.model ?? config.model,
       verbose: options.verbose ?? config.verbose,
       transport,
       config,
       moduleLoader: options.moduleLoader,
+      ...binding,
     };
-    return new AgentSession(loopOpts);
+    return createHttpAgentSession(loopOpts);
   }
 
   options.moduleLoader?.setSessionFactory((sessionOptions) =>
@@ -136,6 +139,8 @@ export function startServer(options: ServerOptions): Server {
       transport: sessionOptions.transport ?? new NullTransport(),
       config,
       label: sessionOptions.label,
+      continuityKey: sessionOptions.continuityKey,
+      requireExistingConversation: sessionOptions.requireExistingConversation,
       noHistory: sessionOptions.noHistory,
       historySource: sessionOptions.historySource,
       moduleLoader: options.moduleLoader,
@@ -177,4 +182,20 @@ export function startServer(options: ServerOptions): Server {
   });
 
   return server;
+}
+
+/** Persist the public HTTP owner even when creation precedes the first message. */
+export function createHttpAgentSession(options: LoopOptions & HttpSessionBinding): AgentSession {
+  const agent = new AgentSession(options);
+  try {
+    const continuity = prepareSessionContinuity({ name: "agent-session" }, {
+      continuityKey: options.continuityKey, scopeRoot: agent.scopeRoot, cwd: agent.scopeRoot,
+      model: agent.model, prompt: "", effort: "high",
+    });
+    continuity.release();
+    return agent;
+  } catch (error) {
+    agent.close();
+    throw error;
+  }
 }

@@ -27,6 +27,7 @@ import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";
+import type { LoopContinuity } from "./loop-continuity.js";
 import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
 import { runSend } from "./loop-send.js";
 import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
@@ -44,6 +45,10 @@ export type LoopOptions = {
   maxTokens?: number;
   verbose?: boolean;
   sessionPath?: string;
+  /** Durable logical owner. Omitted uses the resume source or a unique new session. */
+  continuityKey?: string;
+  /** Reject unknown continuity owners instead of creating new work on a resume request. */
+  requireExistingConversation?: boolean;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   transport?: Transport;
@@ -104,6 +109,8 @@ export class AgentSession implements AgentLoopState {
   effectiveMaxTokens!: number;
   verbose!: boolean;
   sessionPath: string | undefined;
+  continuity?: LoopContinuity;
+  private readonly activeSends = new Set<Promise<string>>();
   thinkingConfig: KotaThinkingConfig | undefined;
   mcpManager: McpManager | null = null;
   mcpInputResolver: McpInputResolver | undefined;
@@ -156,6 +163,9 @@ export class AgentSession implements AgentLoopState {
         ? { ...options.config, guardrails: this.guardrailsConfig }
         : { guardrails: this.guardrailsConfig };
       const session = new AgentSession({
+        requireExistingConversation: opts.requireExistingConversation,
+        continuityKey: opts.continuityKey === undefined ? undefined
+          : `child:${JSON.stringify([this.continuity?.key ?? this.sessionId, opts.continuityKey])}`,
         autonomyMode: opts.autonomyMode ?? this.autonomyMode,
         model: opts.model || this.model,
         config,
@@ -179,7 +189,10 @@ export class AgentSession implements AgentLoopState {
 
   /** Send a prompt and run the agent loop until the agent stops. */
   async send(prompt: string): Promise<string> {
-    return runSend(this, prompt);
+    const pending = runSend(this, prompt);
+    this.activeSends.add(pending);
+    try { return await pending; }
+    finally { this.activeSends.delete(pending); }
   }
 
   /** Save current state to conversation history. Creates the entry lazily on first call with messages. */
@@ -251,7 +264,11 @@ export class AgentSession implements AgentLoopState {
   dispose(errored = false): Promise<void> {
     if (!this.closePromise) {
       process.removeListener("SIGINT", this.sigintHandler);
-      this.closePromise = runClose(this, errored);
+      this.closePromise = (async () => {
+        const closing = runClose(this, errored);
+        await Promise.allSettled([...this.activeSends]);
+        await closing;
+      })();
     }
     return this.closePromise;
   }

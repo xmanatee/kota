@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { globSync } from "glob";
 import type {
   AgentEffort,
   AgentHarnessResult,
@@ -17,6 +20,7 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
+import { SessionRecoveryError } from "#core/agent-harness/session-continuity.js";
 import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
@@ -102,8 +106,13 @@ function withSession(
 }
 
 type CollectTextFromCodexCliArgs = {
+  sessionStorageDir?: string;
+  persistSession?: boolean;
+  resumeSessionId?: string;
+  onSessionId?: (id: string) => void;
   prompt: string;
   cwd: string;
+  scopeRoot?: string;
   model: string;
   effort: AgentEffort;
   writableRoots: readonly string[];
@@ -207,6 +216,7 @@ async function runCodexCliProcess(
         if (!event) continue;
         if (event.type === "thread.started" && typeof event.thread_id === "string") {
           sessionId = event.thread_id;
+          args.onSessionId?.(sessionId);
           await emitCodexMessage(args.onMessage, {
             type: "status",
             category: "codex.thread.started",
@@ -380,10 +390,23 @@ async function runCodexCliProcess(
 export async function collectTextFromCodexCli(
   args: CollectTextFromCodexCliArgs,
 ): Promise<AgentHarnessResult> {
+  if (args.resumeSessionId !== undefined) {
+    if (!/^[0-9a-f-]{36}$/i.test(args.resumeSessionId)) throw new Error("Codex resume requires an explicit thread UUID.");
+    if (args.sessionStorageDir === undefined) throw new SessionRecoveryError("No owned Codex conversation storage is available. Previously ephemeral histories cannot be reconstructed.");
+    const files = globSync(["sessions/**/rollout-*.jsonl", "archived_sessions/**/rollout-*.jsonl"], { cwd: args.sessionStorageDir });
+    const rollout = files.find((file) => file.endsWith(`-${args.resumeSessionId}.jsonl`));
+    if (rollout === undefined) throw new SessionRecoveryError("The owned Codex rollout is missing; saved workspace and run evidence remain available.");
+    const source = readFileSync(join(args.sessionStorageDir, rollout), "utf8");
+    try {
+      const first: unknown = JSON.parse(source.split("\n")[0] ?? "");
+      if (typeof first !== "object" || first === null || !("type" in first) || first.type !== "session_meta" || !("payload" in first) || typeof first.payload !== "object" || first.payload === null || !("id" in first.payload) || first.payload.id !== args.resumeSessionId) throw new Error("Missing or mismatched rollout metadata");
+    } catch { throw new SessionRecoveryError("The owned Codex rollout metadata is corrupt; the original file was retained."); }
+  }
   const cliArgs = [
     "exec",
+    ...(args.resumeSessionId === undefined ? [] : ["resume", args.resumeSessionId]),
     "--json",
-    "--ephemeral",
+    ...(args.persistSession === false ? ["--ephemeral"] : []),
     "--strict-config",
     "--disable",
     "plugins",
@@ -391,11 +414,7 @@ export async function collectTextFromCodexCli(
     "hooks",
     "--model",
     args.model,
-    "--cd",
-    args.cwd,
     "--skip-git-repo-check",
-    "--color",
-    "never",
     "-c",
     `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
     "-",
@@ -405,13 +424,14 @@ export async function collectTextFromCodexCli(
     cliArgs,
     {
       cwd: args.cwd,
+      scopeRoot: args.scopeRoot,
       machineAuthorityOwner: "native-cli",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
       readOnlyHostRoots: args.readOnlyHostRoots,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
-      prepareEnvironment: prepareCodexRuntimeEnvironment,
+      prepareEnvironment: (context, env) => prepareCodexRuntimeEnvironment(context, env, args.persistSession === false ? undefined : args.sessionStorageDir),
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),
   );

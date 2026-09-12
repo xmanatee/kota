@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ConversationNotFoundError } from "#core/agent-harness/session-continuity.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
@@ -48,6 +49,7 @@ function parsePayload(raw: unknown): WebhookPayload | null {
   if (typeof raw !== "object" || raw === null) return null;
   const obj = raw as Record<string, unknown>;
   if (typeof obj.message !== "string" || !obj.message) return null;
+  if (obj.sessionId !== undefined && (typeof obj.sessionId !== "string" || !obj.sessionId.trim())) return null;
   return {
     message: obj.message,
     agent: typeof obj.agent === "string" ? obj.agent : undefined,
@@ -158,6 +160,7 @@ async function handleSourceRequest(
     const id = generateWebhookSessionId();
     const moduleSession = createSession({
       label: `webhook:${sourceId}:${sourceConfig.agent}`,
+      continuityKey: `source:${JSON.stringify([sourceId, sourceConfig.agent])}`,
       autonomyMode,
       ctx,
     });
@@ -217,19 +220,23 @@ async function handleDirectRequest(
   const existingId = payload.sessionId;
   let session = existingId ? directSessions.get(existingId) : undefined;
 
-  if (existingId && !session) {
-    jsonResponse(res, 404, { error: `Session "${existingId}" not found` });
-    return;
-  }
-
   if (!session) {
-    const id = generateWebhookSessionId();
+    const id = existingId ?? generateWebhookSessionId();
     const agentName = payload.agent ?? config.defaultAgent;
-    const moduleSession = createSession({
-      label: `webhook:${id}${agentName ? `:${agentName}` : ""}`,
-      autonomyMode,
-      ctx,
-    });
+    let moduleSession: ReturnType<WebhookSessionFactory>;
+    try {
+      moduleSession = createSession({
+        label: `webhook:${id}${agentName ? `:${agentName}` : ""}`,
+        continuityKey: `direct:${id}`,
+        requireExistingConversation: existingId !== undefined,
+        autonomyMode,
+        ctx,
+      });
+    } catch (err) {
+      if (!(err instanceof ConversationNotFoundError)) throw err;
+      jsonResponse(res, 404, { error: `Session "${existingId}" not found` });
+      return;
+    }
     session = {
       id,
       createdAt: new Date().toISOString(),

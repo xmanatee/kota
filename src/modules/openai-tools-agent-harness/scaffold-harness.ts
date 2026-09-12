@@ -43,6 +43,7 @@ function successfulVerifier(block: ValidatedToolUseBlock, isError: boolean): boo
 function createScaffoldLoopMode(): OpenaiToolsLoopMode {
   let verificationRequired = false;
   return {
+    harnessName: "openai-tools-scaffold",
     systemPrompt: buildScaffoldSystemPrompt,
     defaultMaxTurns: DEFAULT_SCAFFOLD_MAX_TURNS,
     selectTools: (allowed, disallowed, includeAskOwner) =>

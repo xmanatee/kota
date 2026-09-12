@@ -158,6 +158,7 @@ async function invokeJudge<T>(
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   const harness = resolveAgentHarness(config.harness);
   const runContract = resolveAgentJudgeRunContract(config);
+  const continuityKey = `judge:${createHash("sha256").update(JSON.stringify([config.label, config.systemPrompt, userMessage])).digest("hex")}`;
   let lastError: Error | undefined;
   let needsFormatReminder = false;
   let emptyOutputFailures = 0;
@@ -183,6 +184,7 @@ async function invokeJudge<T>(
         harness,
         {
           ...resolved.options,
+          continuityKey,
           cwd,
           systemPrompt: config.systemPrompt,
         },

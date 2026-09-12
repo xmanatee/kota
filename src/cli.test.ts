@@ -7,6 +7,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -16,6 +18,9 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { agentConversationRoot, prepareSessionContinuity, resetAgentConversation } from "#core/agent-harness/session-continuity.js";
+import { ConversationHistory } from "#modules/history/history.js";
+import { getScopeHistoryDir } from "#modules/history/history-utils.js";
 import { formatAuthError, parseIntOption, shouldLaunchDefaultOperatorConsole } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -60,11 +65,11 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
 /** Run CLI with full control: custom env, stdin, cwd. */
 function runFull(
   args: string[],
-  opts?: { env?: Record<string, string>; input?: string; cwd?: string },
+  opts?: { env?: Record<string, string>; input?: string; cwd?: string; preload?: string },
 ): { stdout: string; stderr: string; exitCode: number } {
   const result = spawnSync(
     process.execPath,
-    ["--import", TSX_IMPORT, CLI, ...args],
+    ["--import", TSX_IMPORT, ...(opts?.preload ? ["--import", opts.preload] : []), CLI, ...args],
     {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
@@ -287,6 +292,29 @@ describe("preset resolution", () => {
 });
 
 describe("harness REPL", () => {
+  it.each(["run --continue", "history resume"])("%s rejects the original conversation's active owner", (command) => {
+    const scopeRoot = realpathSync(mkdtempForCli("kota-cli-history-owner"));
+    onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+    seedScopeConfig(scopeRoot, { defaultPreset: "claude", defaultAgentHarness: "thin" });
+    const continuityKey = "interactive:original";
+    const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
+    const id = history.create("test-model", scopeRoot, "user", continuityKey);
+    history.save(id, [{ role: "user", content: "saved context" }], 0, 0);
+    const active = prepareSessionContinuity({ name: "thin" }, {
+      prompt: "in flight", effort: "high", model: "test-model", scopeRoot, continuityKey,
+    });
+    try {
+      const { stderr, exitCode } = runFull(
+        command === "history resume"
+          ? ["history", "resume", id, "--model", "test-model"]
+          : ["run", "--harness", "thin", "--model", "test-model", "--continue", id, "-i"],
+        { cwd: scopeRoot, input: "continue please\nexit\n", env: { HOME: scopeRoot, KOTA_SCOPE_ROOT: scopeRoot, KOTA_PRESET: "claude", ANTHROPIC_API_KEY: "" } },
+      );
+      expect(exitCode, stderr).toBe(0);
+      expect(stderr).toContain("active owner");
+    } finally { active.release(); }
+  });
+
   it("starts interactive harness mode without relying on runtime rendering providers", () => {
     const scopeRoot = realpathSync(mkdtempForCli("kota-test-repl"));
     seedScopeConfig(scopeRoot, { defaultPreset: "claude" });
@@ -383,6 +411,56 @@ describe("history clear confirmation", () => {
 });
 
 describe("history resume validation", () => {
+  // Real CLI processes and stores; only the provider HTTP port is controlled.
+  // Detects command wiring that forks an owner or reimports history after reset.
+  it("history resume recovers newer checkpoints and honors the bound owner's reset", () => {
+    const scopeRoot = realpathSync(mkdtempForCli("kota-cli-history-recovery"));
+    onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+    const model = "anthropic/claude-haiku-4-5-20251001";
+    seedScopeConfig(scopeRoot, { defaultPreset: "claude", defaultAgentHarness: "thin", model });
+    const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
+    const continuityKey = "interactive:cli-recovery";
+    const id = history.create(model, scopeRoot, "user", continuityKey);
+    history.save(id, [{ role: "user", content: "legacy blue" }], 0, 0);
+    const requests = join(scopeRoot, "requests.jsonl");
+    const preload = join(scopeRoot, "provider-port.mjs");
+    writeFileSync(preload, `
+      import { appendFileSync } from "node:fs";
+      globalThis.fetch = async (_url, init) => {
+        const request = JSON.parse(init.body);
+        appendFileSync(${JSON.stringify(requests)}, JSON.stringify(request) + "\\n");
+        if (JSON.stringify(request.messages.at(-1)).includes("checkpoint newer than history")) {
+          return new Response(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "controlled authentication failure" } }), { status: 401, headers: { "content-type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ id: "response", type: "message", role: "assistant", model: request.model, content: [{ type: "text", text: "remembered" }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }), { headers: { "content-type": "application/json" } });
+      };
+    `);
+    const options = { cwd: scopeRoot, preload, env: { HOME: scopeRoot, KOTA_SCOPE_ROOT: scopeRoot, KOTA_PRESET: "claude", ANTHROPIC_API_KEY: "controlled-test-key" } };
+    const resume = (input: string) => {
+      const result = runFull(["history", "resume", id], { ...options, input: `${input}\nexit\n` });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout, result.stderr).toContain("remembered");
+    };
+    resume("continue legacy");
+    const staleHistory = history.load(id);
+    if (!staleHistory) throw new Error("Expected the resumed history record");
+    const interrupted = runFull(["run", "--harness", "thin", "--model", model, "--continue", id, "checkpoint newer than history"], options);
+    expect(interrupted.exitCode).toBe(1);
+    expect(interrupted.stderr).toContain("Anthropic API authentication failed");
+    // Represent a history projection that trails the durable harness checkpoint.
+    history.save(id, staleHistory.messages, 0, 0);
+    expect(JSON.stringify(history.load(id)?.messages)).not.toContain("checkpoint newer than history");
+    resume("recover now");
+    resetAgentConversation(scopeRoot, continuityKey, "Operator reset outside the CLI");
+    resume("fresh topic");
+    const captured = readFileSync(requests, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    expect(captured).toHaveLength(4);
+    expect(JSON.stringify(captured[0].messages)).toContain("legacy blue");
+    expect(JSON.stringify(captured[2].messages)).toContain("checkpoint newer than history");
+    expect(JSON.stringify(captured[2].messages.at(-1))).not.toContain("legacy blue");
+    expect(captured[3].messages).toEqual([{ role: "user", content: "fresh topic" }]);
+  });
+
   it("exits with error for non-existent conversation ID", () => {
     // Pin `KOTA_SCOPE_ROOT` to a fresh temp dir so the contract selector
     // finds no `<scopeRoot>/.kota/daemon-control.json` and resolves a
@@ -569,4 +647,32 @@ describe("one-shot harness output", () => {
       expect(result.stdout.trim()).toBe("Visible response");
     }
   });
+});
+
+it("recovers a fenced native conversation through the operator CLI without discarding its identity", () => {
+  const scopeRoot = mkdtempForCli("kota-cli-native-recovery");
+  onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+  const harness = { name: "native-cli-recovery-port" };
+  const options = { prompt: "work", scopeRoot, continuityKey: "operator-recovery", effort: "high" as const };
+  const prior = prepareSessionContinuity(harness, options);
+  prior.beginNativeExecution();
+  prior.options.onSessionId!("native-operator-conversation");
+  prior.release();
+  const lockRoot = join(agentConversationRoot(scopeRoot), "locks");
+  const fence = readdirSync(lockRoot).find((name) => name.endsWith(".unresolved-stop.json"))!;
+  const executionId = JSON.parse(readFileSync(join(lockRoot, fence), "utf8")).executionId;
+  const evidence = join(scopeRoot, "stop-evidence.txt");
+  writeFileSync(evidence, "Controlled CLI probe: no native process or provider work was launched; the prior host released its owner.");
+  const args = ["history", "recover-native", "--scope-root", scopeRoot, "--execution-id", executionId, "--evidence", evidence];
+  const rejected = runFull(args);
+  expect(rejected.exitCode).toBe(1);
+  expect(rejected.stderr).toContain("explicit confirmation");
+  expect(() => prepareSessionContinuity(harness, options)).toThrow("unresolved native stop");
+  const recovered = runFull([...args, "--confirm-stopped"]);
+  expect(recovered.stderr, recovered.stdout).toBe("");
+  expect(recovered.exitCode).toBe(0);
+  expect(recovered.stdout).toContain("conversation can resume");
+  const continuation = prepareSessionContinuity(harness, options);
+  try { expect(continuation.options.resumeSessionId).toBe("native-operator-conversation"); }
+  finally { continuation.release(); }
 });

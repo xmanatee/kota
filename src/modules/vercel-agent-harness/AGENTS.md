@@ -39,3 +39,9 @@ KOTA effort to OpenAI's `low`, `medium`, and `high`.
 
 A tool input that is not a JSON object after SDK schema validation throws
 before reaching the tool runner. Coercion belongs at the wire boundary only.
+
+## Conversation continuity
+
+AI SDK response messages and pending-effect state persist as adapter-owned JSON in
+the shared core conversation store. Current tools and system instructions are
+rebuilt on resume; interrupted effects remain uncertain and are not replayed.

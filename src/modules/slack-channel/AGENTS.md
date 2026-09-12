@@ -9,7 +9,8 @@ This directory owns the bidirectional Slack bot channel for KOTA.
   Inbound-signal actor trust is separate downstream metadata, not admission.
 - One `AgentSession` per Slack user in the current default scope — free-form
   DMs resolve the live daemon default, and default changes close sessions from
-  the previous scope.
+  the previous scope. Durable ownership includes Slack workspace, user and scope,
+  so replacement recovers context without mixing workspaces or users.
 - Prefix-configured automation messages emit `inbound.signal.received` with
   scope scope, Slack source metadata, and sender trust. The shared
   inbound-signals dispatcher decides source eligibility and workflow routing;

@@ -160,6 +160,10 @@ export type ModuleSession = {
 
 /** Options for ctx.createSession(). */
 export type CreateSessionOptions = {
+  /** Stable module-local work identity for replacement recovery; omitted means new work. */
+  continuityKey?: string;
+  /** Reject unknown continuity owners instead of creating new work on a resume request. */
+  requireExistingConversation?: boolean;
   model?: string;
   label?: string;
   /** If true, conversation won't be saved to history. Default: true for module sessions. */

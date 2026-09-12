@@ -4,6 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { PROTECTED_CONVERSATION_DIRECTORY } from "#core/tools/protected-scope-paths.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { buildNativeCliEnvironment } from "./native-cli-environment.js";
 import {
@@ -51,6 +52,61 @@ async function runNativeProcess(
 }
 
 describe("native CLI live sandbox", () => {
+  it("exports canonical and resolved conversation directory denials to native tool policy", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-conversation-")));
+    roots.push(root);
+    const cwd = join(root, "writer");
+    const scopeRoot = join(root, "scope");
+    const store = join(scopeRoot, PROTECTED_CONVERSATION_DIRECTORY);
+    const relocated = join(root, "private-store");
+    mkdirSync(cwd);
+    mkdirSync(join(scopeRoot, ".kota", "openai-tools-agent-harness"), { recursive: true });
+    mkdirSync(relocated);
+    symlinkSync(relocated, store);
+    await withNativeCliSandbox("/bin/sh", [], {
+      cwd, scopeRoot, machineAuthorityOwner: "native-cli", writableRoots: [cwd],
+      env: buildNativeCliEnvironment(),
+      prepareEnvironment(context, env) {
+        expect(context.readProtectedRoots).toEqual(expect.arrayContaining([
+          store, relocated, join(cwd, PROTECTED_CONVERSATION_DIRECTORY),
+        ]));
+        expect(context.readProtectedPaths).not.toContain(store);
+        return env;
+      },
+    }, async () => undefined);
+  });
+
+  it.runIf(process.platform === "darwin" || process.platform === "linux")(
+    "hides transcripts while permitting ordinary execution in the native sandbox",
+    async ({ skip }) => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-native-transcript-access-")));
+      roots.push(root);
+      const store = join(root, PROTECTED_CONVERSATION_DIRECTORY);
+      mkdirSync(store, { recursive: true });
+      const transcript = join(store, "retired.json");
+      writeFileSync(transcript, "private fixture");
+      const result = await withNativeCliSandbox(process.execPath, ["-e", `
+        const fs = require("node:fs");
+        let blocked = 0;
+        try { fs.readFileSync(${JSON.stringify(transcript)}); } catch { blocked++; }
+        try { fs.writeFileSync(${JSON.stringify(transcript)}, "changed"); } catch { blocked++; }
+        fs.writeFileSync(${JSON.stringify(join(root, "ordinary.txt"))}, "allowed");
+        console.log("blocked=" + blocked);
+      `], {
+        cwd: root, scopeRoot: root, machineAuthorityOwner: "kota", writableRoots: [root],
+        env: buildNativeCliEnvironment(),
+      }, (sandboxed) => runNativeProcess(root, sandboxed));
+      if (isNativeCliSandboxBootstrapError(result.stderr)) {
+        skip("nested sandbox-exec is denied by the execution environment");
+        return;
+      }
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain("blocked=2");
+      expect(readFileSync(transcript, "utf8")).toBe("private fixture");
+      expect(readFileSync(join(root, "ordinary.txt"), "utf8")).toBe("allowed");
+    },
+  );
+
   it.each(["canonical", "custom-linked"])(
     "protects host database locators for a non-writer with %s state storage",
     async (storage) => {

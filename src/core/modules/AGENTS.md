@@ -109,6 +109,10 @@ process singletons or let nested hosts clean up CLI state.
   the loader/host. Hosts own authorization; the server-layer invocation boundary
   contains failures from normal handlers and protocol-shaped auth denials.
 
+Module sessions preserve by default. Supply `continuityKey` to recover the same
+work; context namespaces it by module and child factories bind parent ownership.
+Omission creates independently preserved work. Labels do not identify work.
+
 ## Lifecycle Modes
 
 `ModuleLoader` declares `{ mode: "commands" | "runtime" }` at construction:

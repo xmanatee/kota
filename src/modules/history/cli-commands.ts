@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Command } from "commander";
+import { recoverNativeConversationStop } from "#core/agent-harness/conversation-lock.js";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { agentConversationRoot } from "#core/agent-harness/session-continuity.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -62,6 +66,22 @@ function modelForHarness(modelSpec: string, harnessName: string): string {
 /** Register the `history` subcommand and its children onto `program`. */
 export function registerHistoryCommands(program: Command) {
   const historyCmd = program.command("history").description("Manage conversation history");
+
+  historyCmd
+    .command("recover-native")
+    .description("Recover a fenced native conversation on this host after independently verifying stop")
+    .requiredOption("--scope-root <path>", "Canonical local scope containing the conversation")
+    .requiredOption("--execution-id <id>", "Exact execution id reported by the unresolved-stop error")
+    .requiredOption("--evidence <file>", "Text evidence identifying the execution and how local and provider stop were verified")
+    .option("--confirm-stopped", "Attest that all local and provider work for this execution has stopped")
+    .action((opts: { scopeRoot: string; executionId: string; evidence: string; confirmStopped?: boolean }) => {
+      const recovered = recoverNativeConversationStop(agentConversationRoot(resolve(opts.scopeRoot)), {
+        executionId: opts.executionId,
+        confirmedStopped: opts.confirmStopped === true,
+        evidence: readFileSync(resolve(opts.evidence), "utf8"),
+      });
+      print(line(plain(`Native stop confirmation recorded; conversation can resume. Evidence: ${recovered.evidencePath}`)));
+    });
 
   historyCmd
     .command("list")
@@ -201,6 +221,7 @@ export function registerHistoryCommands(program: Command) {
           model,
           cwd: resume.scopeRoot,
           run: {
+            continuityKey: resumeStore.continuityKey,
             verbose: opts.verbose || config.verbose || false,
             effort: preset.defaultEffort,
             systemPrompt: buildKotaSystemPrompt(

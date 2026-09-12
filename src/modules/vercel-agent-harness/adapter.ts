@@ -1,4 +1,6 @@
 import type { ModelMessage } from "ai";
+import { z } from "zod";
+import { createConversationSessionRuntime } from "#core/agent-harness/conversation-runtime.js";
 import {
   type AgentHarness,
   type AgentHarnessResult,
@@ -8,6 +10,7 @@ import {
   UNKNOWN_AGENT_USAGE,
   unpricedAgentUsage,
 } from "#core/agent-harness/index.js";
+import { SessionRecoveryError } from "#core/agent-harness/session-continuity.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
   rejectUnsupportedOptions,
@@ -90,6 +93,28 @@ async function runVercelLoop(
     options.askOwner !== undefined,
   );
 
+  const session = createConversationSessionRuntime({
+    harness: VERCEL_AGENT_HARNESS_NAME, options,
+    scopeRoot: options.scopeRoot ?? options.cwd ?? process.cwd(),
+    resolved: { model: options.model, providerName: provider },
+    outputTokenLimit: { maxTokens: 0 },
+  });
+  const decoded = session.adapterState === undefined ? undefined : z.object({
+    messages: z.array(ai.modelMessageSchema), pendingEffects: z.boolean(),
+  }).safeParse(session.adapterState);
+  if (decoded !== undefined && !decoded.success) {
+    throw new SessionRecoveryError("The saved AI SDK conversation is corrupt or incompatible; the original state was retained.");
+  }
+  const saved = decoded?.data;
+  session.validateTools(kotaTools, undefined);
+  let messages: ModelMessage[] = saved?.messages ?? [];
+  if (saved?.pendingEffects) messages.push({ role: "user", content: "Execution stopped during a tool step whose results were not durably recorded. Some effects may have happened. Inspect saved work and reconcile external effects before acting; do not repeat the prior instruction blindly." });
+  messages.push(...buildMessages(options.prompt));
+  const checkpoint = (current: ModelMessage[], pendingEffects: boolean) => {
+    session.checkpointAdapter(z.json().parse(JSON.parse(JSON.stringify({ messages: current, pendingEffects }))));
+  };
+  checkpoint(messages, false);
+  const initialMessages = [...messages];
   const internalAbort = new AbortController();
   if (options.abortController) {
     if (options.abortController.signal.aborted) {
@@ -119,7 +144,12 @@ async function runVercelLoop(
   try {
     result = ai.streamText({
       model: resolvedModel,
-      messages: buildMessages(options.prompt),
+      messages,
+      experimental_onToolCallStart: () => checkpoint(messages, true),
+      onStepFinish: (step) => {
+        messages = [...initialMessages, ...step.response.messages];
+        checkpoint(messages, false);
+      },
       ...(options.systemPrompt !== undefined ? { system: options.systemPrompt } : {}),
       ...(Object.keys(tools).length > 0 ? { tools } : {}),
       stopWhen: ai.stepCountIs(maxTurns),
@@ -158,8 +188,8 @@ async function runVercelLoop(
   const turns = steps.length;
   const inputTokens = finiteNonNegativeInteger(totalUsage.inputTokens);
   const outputTokens = finiteNonNegativeInteger(totalUsage.outputTokens);
-  const lastSessionId =
-    steps.length > 0 ? steps[steps.length - 1]?.response.id : undefined;
+  const lastSessionId = session.sessionId ?? (
+    steps.length > 0 ? steps[steps.length - 1]?.response.id : undefined);
 
   if (turns >= maxTurns && finishReason === "tool-calls") {
     return {

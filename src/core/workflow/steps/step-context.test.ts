@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type AgentHarness, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { EventJournal } from "#core/events/event-journal.js";
@@ -20,6 +21,7 @@ import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runn
 import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
+import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
 
 function tempScope(): string {
   const dir = join(
@@ -346,4 +348,38 @@ describe("createStepContext", () => {
       rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
+});
+
+it("restores nested judge identity after context replacement while separating runs and roles", async () => {
+  const root = tempScope();
+  const received: Array<string | undefined> = [];
+  const harness: AgentHarness = {
+    name: "judge-session-port", description: "Controlled provider identity port",
+    supportedHookKinds: [], supportsMultiTurn: true, toolControl: "kota",
+    emitsAgentMessageStream: false, askOwnerToolName: null,
+    async run(options) {
+      received.push(options.resumeSessionId);
+      const sessionId = options.resumeSessionId ?? `provider-${received.length}`;
+      options.onSessionId?.(sessionId);
+      if (received.length === 1) throw new Error("provider interrupted before result");
+      return { text: "reviewed", streamedText: "", turns: 1, usage: UNKNOWN_AGENT_USAGE, isError: false, sessionId };
+    },
+  };
+  const context = (id = "run-1", step = "critic") => {
+    const bus = new EventBus();
+    return createStepContext({ ...makeMetadata(), id, runDir: `.kota/runs/${id}` }, trigger, undefined, {}, {}, [], {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      workspaceRoot: root, scopeRoot: root, bus, pbus: new ScopedEventBus(bus, "scope-a"),
+      store: new WorkflowRunStore(root), currentStepId: step,
+      runAgentHarness: createWorkflowAgentHarnessRunner(),
+    });
+  };
+  try {
+    const options = { cwd: root, prompt: "review this work", effort: "high" as const };
+    await expect(context().runAgentHarness(harness, options)).rejects.toThrow("provider interrupted");
+    await context().runAgentHarness(harness, options);
+    await context("other-run").runAgentHarness(harness, options);
+    await context("run-1", "independent-critic").runAgentHarness(harness, options);
+    expect(received).toEqual([undefined, "provider-1", undefined, undefined]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

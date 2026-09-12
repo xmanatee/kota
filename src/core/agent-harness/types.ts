@@ -60,6 +60,7 @@ export type AgentHarnessAbortQuarantine = {
    * Register the run-local stop barrier before a native harness can perform
    * an action. The handler must stop the native execution and resolve only
    * after it can no longer mutate the workspace or external systems.
+   * Core also invokes it on ordinary settlement, even without cancellation.
    */
   register(handler: (reason: Error) => void | Promise<void>): void;
 };
@@ -170,7 +171,14 @@ export type AgentHarnessRunOptions = {
    * `WorkflowAgentStep.autonomyMode`.
    */
   autonomyMode?: AutonomyMode;
+  /** Preserve by default; false explicitly declines conversation continuity. */
   persistSession?: boolean;
+  /** Stable work identity supplied by its owner, separate from workflow tracing. */
+  continuityKey?: string;
+  /** Runtime-owned protected storage, outside the disposable execution home. */
+  sessionStorageDir?: string;
+  /** Adapter checkpoint: a genuinely resumable identity, persisted before continuing execution. */
+  onSessionId?: (sessionId: string) => void;
   resumeSessionId?: string;
   /**
    * Session/scope identity routed only to KOTA-owned tool execution. The

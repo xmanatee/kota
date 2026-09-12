@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { buildShellMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { protectedConversationRoots } from "#core/tools/protected-scope-paths.js";
 import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
@@ -130,7 +131,7 @@ export async function startProcess(command: string, context?: ToolRunnerContext)
 
   const id = generateId();
   const cwd = context?.cwd ?? process.cwd();
-  const launch = buildShellMachineAuthoritySandboxLaunch(command, cwd, context?.authorityConfigPath);
+  const launch = buildShellMachineAuthoritySandboxLaunch(command, cwd, context?.authorityConfigPath, protectedConversationRoots(context));
   if (!launch.ok) {
     return { content: `Error: ${launch.error}`, is_error: true };
   }

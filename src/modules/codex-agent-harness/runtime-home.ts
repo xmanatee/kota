@@ -3,6 +3,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -27,10 +28,18 @@ export function resolveCodexHome(env: NodeJS.ProcessEnv): string {
 export function prepareCodexRuntimeEnvironment(
   context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
+  sessionStorageDir?: string,
 ): NodeJS.ProcessEnv {
   const sourceAuthPath = join(resolveCodexHome(env), "auth.json");
   const runtimeHome = join(context.invocationRoot, "codex-home");
   mkdirSync(runtimeHome, { mode: 0o700 });
+  if (sessionStorageDir !== undefined) {
+    for (const name of ["sessions", "archived_sessions"]) {
+      const directory = join(sessionStorageDir, name);
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      symlinkSync(directory, join(runtimeHome, name), "dir");
+    }
+  }
   if (existsSync(sourceAuthPath)) {
     const destination = join(runtimeHome, "auth.json");
     copyFileSync(sourceAuthPath, destination);
@@ -38,7 +47,7 @@ export function prepareCodexRuntimeEnvironment(
   }
   writeFileSync(
     join(runtimeHome, "config.toml"),
-    codexPermissionProfile(context, runtimeHome, sourceAuthPath),
+    codexPermissionProfile(context, runtimeHome, sourceAuthPath, sessionStorageDir),
     { mode: 0o600 },
   );
   return { ...env, CODEX_HOME: runtimeHome };
@@ -48,11 +57,14 @@ function codexPermissionProfile(
   context: NativeCliRuntimeContext,
   runtimeHome: string,
   sourceAuthPath: string,
+  sessionStorageDir?: string,
 ): string {
   const readProtectedPaths = [
     ...context.readProtectedPaths,
+    ...context.readProtectedRoots,
     ...resolvePathIdentities(runtimeHome, process.cwd()),
     ...resolvePathIdentities(sourceAuthPath, process.cwd()),
+    ...(sessionStorageDir === undefined ? [] : resolvePathIdentities(sessionStorageDir, process.cwd())),
   ];
   const access = new Map<string, "deny" | "read" | "write">();
   for (const path of context.readableRoots) access.set(path, "read");

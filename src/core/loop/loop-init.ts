@@ -23,6 +23,7 @@ import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrail
 import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
+import type { LoopContinuity } from "./loop-continuity.js";
 import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionStateMachine } from "./session-state.js";
 import type { ProxyTransport, Transport } from "./transport.js";
@@ -70,6 +71,7 @@ export interface AgentLoopState {
 	approvalQueue: ApprovalQueue;
   idempotencyStore: IdempotencyStore;
   sessionPath: string | undefined;
+  continuity?: LoopContinuity;
   historyEnabled: boolean;
   historySource: "user" | "action";
   historyProvider?: HistoryProvider;
@@ -224,6 +226,12 @@ function restoreConversationIfRequested(state: AgentLoopState): void {
     ?? getHistoryProvider(state.moduleLoader.getProviderRegistry());
   const data = history.load(targetId);
   if (data) {
+    if (state.continuity && data.continuityKey !== undefined) {
+      if (state.continuity.key !== `history:${targetId}` && state.continuity.key !== data.continuityKey) {
+        throw new Error("History resume belongs to a different conversation owner.");
+      }
+      state.continuity.key = data.continuityKey;
+    }
     state.conversationId = targetId;
     state.context.restoreFrom(data.messages, data.compactionCount, data.lastInputTokens);
     state.transport.emit({
@@ -258,7 +266,7 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
     return;
   }
   if (!state.conversationId) {
-    state.conversationId = history.create(state.model, state.scopeRoot, state.historySource);
+    state.conversationId = history.create(state.model, state.scopeRoot, state.historySource, state.continuity?.key);
   }
   history.save(state.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
 }

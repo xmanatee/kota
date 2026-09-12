@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import { isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
+import { resetAgentConversation } from "#core/agent-harness/session-continuity.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
@@ -352,6 +353,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
 
   const resetSession = async () => {
     await session.dispose();
+    if (session.continuity) resetAgentConversation(session.scopeRoot, session.continuity.key, "Operator cleared the interactive conversation.");
     session = new AgentSession(options);
   };
 

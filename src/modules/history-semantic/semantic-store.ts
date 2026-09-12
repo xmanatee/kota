@@ -108,8 +108,8 @@ export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSea
 		});
 	}
 
-	create(model: string, cwd: string, source?: "user" | "action"): string {
-		return this.base.create(model, cwd, source);
+	create(model: string, cwd: string, source?: "user" | "action", continuityKey?: string): string {
+		return this.base.create(model, cwd, source, continuityKey);
 	}
 
 	save(

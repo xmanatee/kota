@@ -389,6 +389,7 @@ describe("continuation checkpoints", () => {
         });
         options.abortQuarantine?.register(() => stopped);
         try {
+          options.onSessionId?.("active-session");
           await options.onMessage?.({
             type: "text",
             text: "Working on the current task",

@@ -22,6 +22,9 @@ describe("contained workspace OS sandbox specifications", () => {
     const workspace = makeWorkspace();
     const hardLinkPath = join(workspace, "host-hard-link.txt");
     const protectedPath = join(workspace, ".env");
+    const protectedRoot = join(workspace, "conversations");
+    mkdirSync(protectedRoot);
+    writeFileSync(join(protectedRoot, "retired.json"), "private transcript");
     writeFileSync(hardLinkPath, "host alias");
     writeFileSync(protectedPath, "SECRET=host-only");
     const nodeExecutable = "/opt/kota-node/bin/node";
@@ -39,6 +42,7 @@ describe("contained workspace OS sandbox specifications", () => {
       },
       [{ path: hardLinkPath, kind: "file" }],
       [protectedPath],
+      [protectedRoot],
     );
     const args = sandbox.prefixArgs;
 
@@ -78,6 +82,8 @@ describe("contained workspace OS sandbox specifications", () => {
       protectedPath,
     ]));
 
+    expect(args.join("\n")).toContain(["--tmpfs", protectedRoot, "--remount-ro", protectedRoot].join("\n"));
+    expect(args.join("\n")).not.toContain(["--ro-bind", "/dev/null", protectedRoot].join("\n"));
     expect(args).not.toContain("--bind");
     const workspaceOverlay = args.indexOf("--overlay-src");
     expect(args.slice(workspaceOverlay, workspaceOverlay + 4)).toEqual([

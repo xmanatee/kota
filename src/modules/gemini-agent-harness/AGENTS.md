@@ -38,3 +38,10 @@ update inputs, deny with a tool response, or interrupt the run.
 
 Missing function names and non-object function arguments throw before reaching
 tool runners. Coercion belongs at the wire boundary only.
+
+## Conversation continuity
+
+Gemini content parts, function results, and thought signatures persist as adapter-owned JSON in
+the shared core conversation store. Current tools and system instructions are
+rebuilt on resume; interrupted effects remain uncertain and are not replayed.
+Budget errors return the owned conversation id, as do successful turns.

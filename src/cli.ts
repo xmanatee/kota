@@ -325,7 +325,7 @@ program
           harness,
           model,
           cwd: runScopeRoot,
-          run: runOverrides,
+          run: { ...runOverrides, ...(resumeStore ? { continuityKey: resumeStore.continuityKey } : {}) },
           chrome: createRenderingProvider().createReplChrome(),
           ...(resumeStore
             ? {

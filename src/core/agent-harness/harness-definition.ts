@@ -76,8 +76,9 @@ export type AgentHarness = {
   /**
    * Declares that a native tool-loop adapter can stop its run and confirm
    * termination after cancellation. Native runs with an AbortController are
-   * rejected before launch unless this is declared, and the adapter must then
-   * register a run-local barrier through `abortQuarantine`.
+   * rejected before launch unless this is declared. Declaring adapters register
+   * a run-local barrier through `abortQuarantine` on every invocation; core
+   * checks it before releasing ownership on cancellation or ordinary settlement.
    *
    * KOTA-controlled adapters omit this because hosted tool calls reauthorize
    * through KOTA and observe the run's AbortSignal directly.

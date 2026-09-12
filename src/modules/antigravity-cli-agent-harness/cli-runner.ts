@@ -77,6 +77,7 @@ function terminalToolFailure(
 type CollectTextFromAntigravityCliArgs = {
   prompt: string;
   cwd: string;
+  scopeRoot?: string;
   runtimeStateRoot: string;
   model: string;
   effort: AgentEffort;
@@ -91,6 +92,7 @@ type CollectTextFromAntigravityCliArgs = {
   writer?: AgentHarnessWriter;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   onProcessSpawn?: AgentHarnessRunOptions["onProcessSpawn"];
+  onRemoteExecutionState?: (state: "unconfirmed" | "settled") => void;
 };
 
 async function runAntigravityCliProcess(
@@ -103,6 +105,7 @@ async function runAntigravityCliProcess(
     ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  args.onRemoteExecutionState?.("unconfirmed");
   try {
     ProcessSupervisor.notifySpawnedProcessGroup(child.pid, args.onProcessSpawn);
   } catch (error) {
@@ -155,22 +158,36 @@ async function runAntigravityCliProcess(
   removeAbortListener?.();
   const [output] = await Promise.all([outputPromise, stderrDone]);
 
+  // Node reports no PID when spawn never created a process. A later process
+  // error with a PID is not evidence that remote execution stopped.
+  if (spawnError !== undefined && child.pid === undefined) {
+    args.onRemoteExecutionState?.("settled");
+    return {
+      text: spawnError, streamedText: "", turns: 0,
+      usage: unpricedAgentUsage(0, 0), isError: true,
+      subtype: "antigravity_cli_error",
+    };
+  }
+  if (output.hasTerminalResult) args.onRemoteExecutionState?.("settled");
+
+  if (!output.hasTerminalResult) {
+    const attempt = output.sessionId === undefined
+      ? "the remote attempt"
+      : `remote attempt ${output.sessionId}`;
+    const detail = spawnError ?? parseError ?? output.cliError ?? formatStderr(stderr);
+    return {
+      text: `Antigravity CLI stopped locally before ${attempt} reported a terminal result.` +
+        (detail ? ` ${detail}` : ""),
+      streamedText: output.streamedText,
+      ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
+      turns: output.turns,
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
+      isError: true,
+      subtype: ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE,
+    };
+  }
+
   if (args.abortController?.signal.aborted) {
-    if (!output.hasTerminalResult) {
-      const attempt = output.sessionId === undefined
-        ? "the remote attempt"
-        : `remote attempt ${output.sessionId}`;
-      return {
-        text:
-          `Antigravity CLI stopped locally before ${attempt} reported a terminal result.`,
-        streamedText: output.streamedText,
-        ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
-        turns: output.turns,
-        usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
-        isError: true,
-        subtype: ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE,
-      };
-    }
     return {
       text: "Antigravity CLI run aborted.",
       streamedText: output.streamedText,
@@ -182,18 +199,14 @@ async function runAntigravityCliProcess(
     };
   }
 
-  if (spawnError !== undefined || parseError !== undefined) {
-    const detail = spawnError ?? parseError ??
-      "Antigravity CLI output could not be parsed as structured JSON";
+  if (spawnError !== undefined) {
     return {
-      text: detail,
+      text: spawnError,
       streamedText: output.streamedText,
       turns: output.turns,
       usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
-      subtype: spawnError === undefined
-        ? "antigravity_cli_parse_error"
-        : "antigravity_cli_error",
+      subtype: "antigravity_cli_error",
     };
   }
 
@@ -212,18 +225,6 @@ async function runAntigravityCliProcess(
       subtype: isNativeCliSandboxBootstrapError(detail)
         ? "native_cli_sandbox_error"
         : "antigravity_cli_error",
-    };
-  }
-
-  if (!output.hasTerminalResult) {
-    return {
-      text: "Antigravity CLI exited without a terminal result event.",
-      streamedText: output.streamedText,
-      ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
-      turns: output.turns,
-      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
-      isError: true,
-      subtype: "antigravity_cli_incomplete_output",
     };
   }
 
@@ -288,6 +289,7 @@ export async function collectTextFromAntigravityCli(
     cliArgs,
     {
       cwd: args.cwd,
+      scopeRoot: args.scopeRoot,
       runtimeStateRoot: args.runtimeStateRoot,
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,

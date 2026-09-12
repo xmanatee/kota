@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runAgentHarness } from "#core/agent-harness/runner.js";
 
 const messagesCreateMock = vi.fn();
 const createModelClientMock = vi.fn();
@@ -53,7 +57,6 @@ describe("thinAgentHarness", () => {
     expect(result).toMatchObject({
       text: "hello from thin",
       streamedText: "hello from thin",
-      sessionId: "msg_thin_1",
       turns: 1,
       isError: false,
       usage: {
@@ -84,6 +87,25 @@ describe("thinAgentHarness", () => {
       max_tokens: 7777,
       messages: [{ role: "user", content: "say hi" }],
     });
+  });
+
+  it("reconstructs previous text for the non-streaming ModelClient with current instructions", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-thin-resume-"));
+    try {
+      messagesCreateMock.mockResolvedValue({
+        id: "provider-response", content: [{ type: "text", text: "The design is blue." }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      });
+      const options = { scopeRoot: root, cwd: root, continuityKey: "interactive:thin", prompt: "choose a design", model: "claude-haiku-4-5-20251001", effort: "high" as const };
+      const first = await runAgentHarness(thinAgentHarness, options);
+      const second = await runAgentHarness(thinAgentHarness, { ...options, prompt: "continue", systemPrompt: "current instructions" });
+      expect(second.sessionId).toBe(first.sessionId);
+      expect(second.sessionId).not.toBe("provider-response");
+      expect(messagesCreateMock.mock.calls[1][0]).toMatchObject({
+        system: "current instructions",
+        messages: expect.arrayContaining([{ role: "assistant", content: [{ type: "text", text: "The design is blue." }] }]),
+      });
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it("fails before request dispatch for an unknown model without an explicit limit", async () => {

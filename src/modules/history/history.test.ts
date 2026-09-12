@@ -18,6 +18,14 @@ afterEach(() => {
 });
 
 describe("ConversationHistory", () => {
+  it.each([42, "", null])("rejects malformed persisted conversation ownership (%s)", (continuityKey) => {
+    const id = history.create("model", "/scope");
+    const data = history.load(id);
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify({ ...data, continuityKey }));
+    expect(() => history.load(id)).toThrow("invalid conversation owner");
+    expect(() => history.save(id, [], 0, 0)).toThrow("invalid conversation owner");
+  });
+
   it("persists resume state and preserves its original title across compaction", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01"));

@@ -30,6 +30,7 @@ export type HarnessConversationResumeOptions = {
 };
 
 export type HarnessResumeConversationStore = {
+  continuityKey: string;
   transcript: ReplTurn[];
   appendUserInput(input: string): void;
   appendAssistantResult(result: AgentHarnessResult): void;
@@ -53,6 +54,7 @@ export function openHarnessResumeConversation(
   }
 
   return {
+    continuityKey: data.continuityKey ?? `history:${conversationId}`,
     transcript: transcriptFromKotaMessages(messages),
     appendUserInput(input: string): void {
       messages.push({ role: "user", content: input });
@@ -83,12 +85,15 @@ export async function runAgentHarnessWithConversationResume(
     options.conversation.scopeRoot ?? process.cwd(),
     options.conversation.resumeConversation,
   );
-  const composedPrompt = composeTranscriptPrompt(store.transcript, options.prompt);
+  if (options.run.continuityKey !== undefined && options.run.continuityKey !== store.continuityKey) {
+    throw new Error("History resume belongs to a different conversation owner.");
+  }
   store.appendUserInput(options.prompt);
   const result = await runAgentHarness(
     options.harness,
-    { ...options.run, prompt: composedPrompt },
+    { ...options.run, scopeRoot: options.conversation.scopeRoot ?? process.cwd(), continuityKey: store.continuityKey, prompt: options.prompt },
     options.writer,
+    (prompt) => composeTranscriptPrompt(store.transcript, prompt),
   );
   store.appendAssistantResult(result);
   return result;

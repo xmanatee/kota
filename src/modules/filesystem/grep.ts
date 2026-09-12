@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
+import { statSync } from "node:fs";
+import { globSync } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   isProtectedScopePath,
   protectedScopeGlobIgnores,
-  protectedScopeGrepExcludes,
   protectedScopePathError,
 } from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -143,9 +144,11 @@ export async function runGrep(
   const countOnly = Boolean(input.count_only);
 
   let command: string;
-  const args: string[] = [];
+  const args: string[] = ["-H"];
   if (hasRg) {
     command = "rg";
+    args.push("--no-config", "--max-depth", "0");
+    if (fileGlob) args.push("--glob", fileGlob);
     if (filesOnly) {
       args.push("--files-with-matches");
     } else if (countOnly) {
@@ -154,36 +157,57 @@ export async function runGrep(
       args.push("-n", "--no-heading", "-m", String(maxResults));
       if (contextLines > 0) args.push("-C", String(contextLines));
     }
-    if (fileGlob) args.push("--glob", fileGlob);
-    for (const ignore of protectedScopeGlobIgnores(context)) {
-      args.push("--iglob", `!${ignore}`);
-    }
-    args.push("--", pattern, searchPath);
   } else {
     command = "grep";
+    args.push("-d", "skip");
     if (filesOnly) {
-      args.push("-rl");
+      args.push("-l");
     } else if (countOnly) {
-      args.push("-rc");
+      args.push("-c");
     } else {
-      args.push("-rn", "-m", String(maxResults));
+      args.push("-n", "-m", String(maxResults));
       if (contextLines > 0) args.push("-C", String(contextLines));
     }
     if (fileGlob) args.push(`--include=${fileGlob}`);
     else if (!filesOnly && !countOnly) args.push("--include=*");
-    for (const exclude of protectedScopeGrepExcludes(context)) {
-      args.push(`--exclude=${exclude}`);
-    }
-    args.push("--", pattern, searchPath);
   }
 
   try {
-    const output = execFileSync(command, args, {
-      encoding: "utf-8",
-      maxBuffer: 1024 * 1024,
-      timeout: 30_000,
-      stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
+    // Enumerate names first: recursive content search cannot enforce resolved
+    // store identities (including symlinks outside the scope) with glob flags.
+    let files: string[];
+    if (!statSync(searchPath).isDirectory()) {
+      files = [searchPath];
+    } else if (hasRg) {
+      const listArgs = ["--no-config", "--files", "--null"];
+      if (fileGlob) listArgs.push("--glob", fileGlob);
+      for (const ignore of protectedScopeGlobIgnores(context)) {
+        listArgs.push("--iglob", `!${ignore}`);
+      }
+      files = executeSearch(command, [...listArgs, "--", searchPath]).split("\0").filter(Boolean);
+    } else {
+      files = globSync("**/*", {
+        cwd: searchPath, absolute: true, dot: true, nodir: true, follow: false,
+        ignore: {
+          ignored: (entry) => isProtectedScopePath(entry.fullpath(), context),
+          childrenIgnored: (entry) => isProtectedScopePath(entry.fullpath(), context),
+        },
+      });
+    }
+
+    const chunks: string[] = [];
+    let outputBytes = 0;
+    for (let offset = 0; offset < files.length; offset += 64) {
+      const batch = files.slice(offset, offset + 64).filter((file) =>
+        !isProtectedScopePath(file, context) && statSync(file).isFile(),
+      );
+      if (batch.length === 0) continue;
+      const chunk = executeSearch(command, [...args, "--", pattern, ...batch]);
+      outputBytes += Buffer.byteLength(chunk);
+      if (outputBytes > 1024 * 1024) throw new Error("Search output exceeds 1 MiB");
+      if (chunk) chunks.push(chunk.trimEnd());
+    }
+    const output = chunks.join("\n").trim();
 
     if (!output) return { content: "No matches found." };
 
@@ -192,9 +216,20 @@ export async function runGrep(
     }
     return { content: output };
   } catch (err: unknown) {
-    const e = err as { status?: number; stdout?: string };
-    // grep/rg return exit code 1 for "no matches"
-    if (e.status === 1) return { content: "No matches found." };
     return { content: `Search error: ${(err as Error).message}`, is_error: true };
+  }
+}
+
+function executeSearch(command: string, args: string[]): string {
+  try {
+    return execFileSync(command, args, {
+      encoding: "utf-8",
+      maxBuffer: 1024 * 1024,
+      timeout: 30_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 1) return "";
+    throw err;
   }
 }

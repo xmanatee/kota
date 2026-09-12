@@ -196,7 +196,7 @@ describe("runAgentHarness cancellation", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
-  it("activates native quarantine when a caller supplies a child AbortController", async () => {
+  it("confirms native stop on ordinary completion with a child AbortController", async () => {
     const abortController = new AbortController();
     const register = vi.fn();
     const { harness } = harnessStub("delegate-child", []);
@@ -225,7 +225,7 @@ describe("runAgentHarness cancellation", () => {
         abortController,
       }),
     ).resolves.toMatchObject({ text: "ok" });
-    expect(register).not.toHaveBeenCalled();
+    expect(register).toHaveBeenCalledOnce();
   });
 
   it.each([

@@ -10,6 +10,8 @@ export type WebhookSession = {
 
 export type WebhookSessionFactory = (options: {
   label: string;
+  continuityKey: string;
+  requireExistingConversation?: boolean;
   autonomyMode: AutonomyMode;
   ctx: Pick<ModuleContext, "config" | "createSession">;
 }) => Pick<WebhookSession, "send" | "close">;
@@ -24,15 +26,21 @@ export function generateWebhookSessionId(): string {
 
 export function createAgentSession({
   label,
+  continuityKey,
+  requireExistingConversation,
   autonomyMode,
   ctx,
 }: {
   label: string;
+  continuityKey: string;
+  requireExistingConversation?: boolean;
   autonomyMode: AutonomyMode;
   ctx: Pick<ModuleContext, "config" | "createSession">;
 }): Pick<WebhookSession, "send" | "close"> {
   const agent = ctx.createSession({
     autonomyMode,
+    continuityKey,
+    requireExistingConversation,
     model: ctx.config.model,
     label,
     noHistory: false,

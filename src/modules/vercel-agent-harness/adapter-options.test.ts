@@ -51,17 +51,6 @@ describe("vercelAgentHarness — unsupported options rejection", () => {
     ).rejects.toThrow(/KotaAgentMessage/);
   });
 
-  it("rejects persistSession", async () => {
-    await expect(
-      vercelAgentHarness.run({
-        prompt: "x",
-        model: "openai/gpt-4o-mini",
-        effort: "xhigh",
-        persistSession: true,
-      }),
-    ).rejects.toThrow(/persist sessions/);
-  });
-
   it("rejects file checkpointing", async () => {
     await expect(
       vercelAgentHarness.run({

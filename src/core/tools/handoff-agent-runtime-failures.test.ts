@@ -64,7 +64,7 @@ describe("handoff_agent runtime failure handling", () => {
         return {
           text: 'review complete\n```json\n{"verdict":"pass","notes":"linked"}\n```',
           streamedText: "review complete",
-          sessionId: "child-session-1",
+          sessionId: options.resumeSessionId ?? "child-session-1",
           turns: 2,
           usage: UNKNOWN_AGENT_USAGE,
           isError: false,
@@ -105,7 +105,7 @@ describe("handoff_agent runtime failure handling", () => {
     });
     expect(result.structuredContent).toMatchObject({
       resumedSessionId: "child-session-existing",
-      childSessionId: "child-session-1",
+      childSessionId: "child-session-existing",
     });
   });
 

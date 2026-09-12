@@ -293,7 +293,12 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       if (!sessionFactory) {
         throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
       }
-      return sessionFactory(opts ?? {});
+      return sessionFactory({
+        ...opts,
+        ...(opts?.continuityKey === undefined ? {} : {
+          continuityKey: `module:${JSON.stringify([moduleName, opts.continuityKey])}`,
+        }),
+      });
     },
     registerProvider: <T>(token: ProviderToken<T>, provider: T): void => {
       assertRegistrationOpen();

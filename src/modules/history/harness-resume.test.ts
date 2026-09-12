@@ -7,6 +7,7 @@ import {
 	UNKNOWN_AGENT_USAGE,
 	unpricedAgentUsage,
 } from "#core/agent-harness/index.js";
+import { prepareSessionContinuity, resetAgentConversation } from "#core/agent-harness/session-continuity.js";
 import {
 	runAgentHarnessWithConversationResume,
 	transcriptFromKotaMessages,
@@ -104,6 +105,38 @@ describe("harness conversation resume", () => {
 			{ role: "assistant", content: "continued answer" },
 		]);
 		expect(updated?.lastInputTokens).toBe(123);
+	});
+
+	it("history resume shares the original harness owner's lock and native identity", async () => {
+		const run = vi.fn<AgentHarness["run"]>(async () => ({
+			text: "continued", streamedText: "continued", turns: 1,
+			usage: UNKNOWN_AGENT_USAGE, isError: false,
+		}));
+		const harness = makeHarness(run);
+		const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
+		const id = history.create("model", scopeRoot, "user", "interactive:original");
+		history.save(id, transcriptFixtureMessages(), 0, 0);
+		const active = prepareSessionContinuity(harness, {
+			prompt: "original", effort: "high", model: "model", scopeRoot,
+			continuityKey: "interactive:original",
+		});
+		active.options.onSessionId?.("native-original");
+		const resume = () => runAgentHarnessWithConversationResume({
+			harness, prompt: "continue", run: { effort: "high", model: "model" },
+			conversation: { autonomyMode: "passive", scopeRoot, resumeConversation: id },
+		});
+		try {
+			await expect(resume()).rejects.toThrow("active owner");
+			expect(run).not.toHaveBeenCalled();
+		} finally { active.release(); }
+		await resume();
+		expect(run.mock.calls[0]?.[0].resumeSessionId).toBe("native-original");
+		expect(run.mock.calls[0]?.[0].prompt).not.toContain("original question");
+		expect(history.load(id)?.continuityKey).toBe("interactive:original");
+		resetAgentConversation(scopeRoot, "interactive:original", "Operator reset");
+		await resume();
+		expect(run.mock.calls[1]?.[0].resumeSessionId).toBeUndefined();
+		expect(run.mock.calls[1]?.[0].prompt).toBe("continue");
 	});
 
 	it("converts stored KOTA messages into harness REPL turns", () => {

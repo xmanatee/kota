@@ -44,6 +44,8 @@ export type SDKQueryOptions = {
   permissionMode?: ClaudeAgentSdkPermissionMode;
   cwd?: string;
   persistSession?: boolean;
+  sessionStore?: ClaudeAgentSdkOptions["sessionStore"];
+  sessionStoreFlush?: ClaudeAgentSdkOptions["sessionStoreFlush"];
   resume?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   includePartialMessages?: boolean;
@@ -57,6 +59,7 @@ export type SDKQueryOptions = {
   thinking?: SDKThinkingConfig;
   spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
   canUseTool?: CanUseTool;
+  hooks?: ClaudeAgentSdkOptions["hooks"];
   sandbox?: NonNullable<ClaudeAgentSdkOptions["sandbox"]>;
 };
 

@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
-import { resolvePathIdentities } from "#core/util/real-path.js";
+import { resolvePathIdentities, resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import {
   type MachineAuthorityNetworkAccess,
   type MachineAuthorityWriteBoundary,
@@ -27,7 +27,6 @@ export type MachineAuthoritySandboxOptions = {
   /** Linux directory projections keep host entries created after launch invisible. */
   readSnapshotRoots?: readonly string[];
   readProtectedRoots?: readonly string[];
-  readProtectedRootMask?: string;
   writeProtectedPaths?: readonly string[];
   writeBoundaries?: readonly MachineAuthorityWriteBoundary[];
   networkAccess?: MachineAuthorityNetworkAccess;
@@ -40,16 +39,18 @@ const MACOS_SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
 
 function linuxReadProtectionMounts(
   paths: readonly string[],
+  roots: readonly string[],
   snapshotRoots: readonly string[],
   visibleRoots: readonly string[],
   mounts: readonly string[],
   pathExists: (path: string) => boolean,
 ): string[] {
   const protectedPaths = paths.filter((path) => pathIsWithinRoots(path, visibleRoots));
-  const requestedParents = [...new Set([
-    ...snapshotRoots.filter((path) => pathIsWithinRoots(path, visibleRoots)),
-    ...protectedPaths.filter((path) => !pathExists(path)).map(dirname),
-  ])];
+  // Mount the physical target once. A lexical symlink may point outside the
+  // namespace, where it is already inaccessible and cannot be a mountpoint.
+  const physicalRoots = [...new Set(roots.map((path) => resolvePathThroughExistingAncestor(path) ?? path))];
+  const protectedRoots = physicalRoots.filter((path) => pathIsWithinRoots(path, visibleRoots) &&
+    !physicalRoots.some((other) => other !== path && pathIsWithinRoots(path, [other])));
   const requestedBindings = mounts.flatMap((arg, index) =>
     arg === "--bind" || arg === "--ro-bind"
       ? [{ kind: arg, source: mounts[index + 1]!, target: mounts[index + 2]! }]
@@ -62,15 +63,27 @@ function linuxReadProtectionMounts(
       pathIsWithinRoots(mount.target, [later.target])
     )
   );
+  const existingParent = (path: string): string => {
+    let parent = dirname(path);
+    while (!pathExists(parent) && dirname(parent) !== parent) parent = dirname(parent);
+    return parent;
+  };
+  const isWritable = (path: string): boolean => bindings.filter((mount) =>
+    pathIsWithinRoots(path, [mount.target])
+  ).at(-1)?.kind === "--bind";
+  const requestedParents = [...new Set([
+    ...snapshotRoots.filter((path) => pathIsWithinRoots(path, visibleRoots)),
+    ...protectedPaths.filter((path) => !pathExists(path)).map(dirname),
+    ...protectedRoots.filter((path) => !pathExists(path) && !isWritable(existingParent(path))).map(dirname),
+  ])];
   const mountpointParents = requestedParents.flatMap((parent) => {
     if (pathExists(parent)) return [];
-    let ancestor = dirname(parent);
-    while (!pathExists(ancestor) && dirname(ancestor) !== ancestor) ancestor = dirname(ancestor);
-    const covering = bindings.filter((mount) => pathIsWithinRoots(parent, [mount.target])).at(-1);
-    // Bubblewrap cannot create an absent mountpoint inside a read-only bind.
-    // Project its existing ancestor first, so mountpoint creation stays private
-    // while existing repository entries and narrower write grants remain bound.
-    return covering?.kind === "--ro-bind" ? [ancestor] : [];
+    const ancestor = existingParent(parent);
+    // Bubblewrap can create empty directory mountpoints in an authorized
+    // writable bind. Projecting that ancestor would instead prevent creates,
+    // deletes and atomic replacements in the workspace. Read-only ancestors
+    // still need a private projection so missing mountpoints can be installed.
+    return isWritable(ancestor) ? [] : [ancestor];
   });
   const parents = [...new Set([...requestedParents, ...mountpointParents])].sort(
     (left, right) => left.length - right.length,
@@ -82,7 +95,7 @@ function linuxReadProtectionMounts(
     const entries = pathExists(parent) ? readdirSync(parent, { withFileTypes: true }) : [];
     const projectedEntries = entries.flatMap((entry) => {
       const path = join(parent, entry.name);
-      if (protectedPaths.includes(path) || !pathIsWithinRoots(path, visibleRoots)) return [];
+      if (protectedPaths.includes(path) || pathIsWithinRoots(path, protectedRoots) || !pathIsWithinRoots(path, visibleRoots)) return [];
       if (entry.isSymbolicLink()) return ["--symlink", readlinkSync(path), path];
       const covering = bindings.filter((mount) => pathIsWithinRoots(path, [mount.target])).at(-1);
       return [covering?.kind ?? "--ro-bind", path, path];
@@ -90,7 +103,7 @@ function linuxReadProtectionMounts(
     // Reapply effective narrower mounts hidden by the projection.
     const descendants = bindings.filter((mount) =>
       mount.target !== parent && pathIsWithinRoots(mount.target, [parent]) &&
-      !pathIsWithinRoots(mount.target, protectedPaths)
+      !pathIsWithinRoots(mount.target, [...protectedPaths, ...protectedRoots])
     ).flatMap((mount) => [mount.kind, mount.source, mount.target]);
     return [
       "--tmpfs", parent,
@@ -104,6 +117,7 @@ function linuxReadProtectionMounts(
     ...projections,
     ...protectedPaths.filter((path) => !parents.includes(dirname(path)))
       .flatMap((path) => ["--ro-bind", "/dev/null", path]),
+    ...protectedRoots.flatMap((path) => ["--tmpfs", path, "--remount-ro", path]),
     ...[...parents].reverse().flatMap((parent) => ["--remount-ro", parent]),
   ];
 }
@@ -145,7 +159,7 @@ export function buildMachineAuthoritySandboxLaunch(
     options.cwd,
   );
   const writeProtectedPaths = resolveUniquePathIdentities(
-    options.writeProtectedPaths ?? [],
+    [...(options.writeProtectedPaths ?? []), ...readProtectedRoots],
     options.cwd,
   );
   let writeBoundaries: MachineAuthorityWriteBoundary[];
@@ -255,35 +269,12 @@ export function buildMachineAuthoritySandboxLaunch(
       : readableMounts;
     const hiddenReadMounts = linuxReadProtectionMounts(
       [...readProtectedPaths, ...tokenPaths],
+      readProtectedRoots,
       resolveUniquePathIdentities(options.readSnapshotRoots ?? [], options.cwd),
       visibleRoots,
       [...initialMounts, ...writableMounts, ...protectedMounts, ...boundaryMounts],
       pathExists,
     );
-    const existingProtectedRoots = readProtectedRoots.filter(
-      (path) => pathExists(path) && pathIsWithinRoots(path, visibleRoots),
-    );
-    const readProtectedRootMask = options.readProtectedRootMask === undefined
-      ? undefined
-      : resolve(options.readProtectedRootMask);
-    if (
-      existingProtectedRoots.length > 0 &&
-      (
-        readProtectedRootMask === undefined ||
-        !pathExists(readProtectedRootMask)
-      )
-    ) {
-      return {
-        ok: false,
-        error:
-          "machine authority sandbox protected read roots require an existing empty-directory mask",
-      };
-    }
-    const hiddenReadRootMounts = existingProtectedRoots.flatMap((path) => [
-      "--ro-bind",
-      readProtectedRootMask!,
-      path,
-    ]);
     return {
       ok: true,
       command: bubblewrap,
@@ -307,7 +298,6 @@ export function buildMachineAuthoritySandboxLaunch(
         ...protectedMounts,
         ...boundaryMounts,
         ...hiddenReadMounts,
-        ...hiddenReadRootMounts,
         "--chdir",
         resolve(options.cwd),
         "--",
@@ -327,6 +317,7 @@ export function buildShellMachineAuthoritySandboxLaunch(
   command: string,
   cwd: string,
   authorityConfigPath: string | undefined,
+  readProtectedRoots: readonly string[] = [],
 ): MachineAuthoritySandboxLaunch {
   if (authorityConfigPath === undefined) {
     return { ok: true, command: "sh", args: ["-c", command] };
@@ -334,5 +325,6 @@ export function buildShellMachineAuthoritySandboxLaunch(
   return buildMachineAuthoritySandboxLaunch("sh", ["-c", command], {
     cwd,
     authorityConfigPath,
+    readProtectedRoots,
   });
 }

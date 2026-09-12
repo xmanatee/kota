@@ -15,6 +15,8 @@ export type AgentHarnessCancellationBoundary = {
   assertActive: () => void;
   assertNativeQuarantineRegistered: () => void;
   closeOutput: () => void;
+  retireSettledNativeAttempt: () => Promise<void>;
+  waitForNativeQuarantine: () => Promise<void>;
   race: <T>(operation: () => Promise<T>) => Promise<T>;
   dispose: () => void;
 };
@@ -27,7 +29,7 @@ function abortError(signal: AbortSignal, harnessName: string): Error {
 
 function quarantineFailure(harnessName: string, error: Error): Error {
   return new Error(
-    `Agent harness "${harnessName}" failed to quarantine its cancelled native execution: ${error.message}`,
+    `Agent harness "${harnessName}" failed to quarantine its native execution: ${error.message}`,
     { cause: error },
   );
 }
@@ -37,6 +39,7 @@ export function createAgentHarnessCancellationBoundary(
   options: AgentHarnessRunOptions,
   writer: AgentHarnessWriter | undefined,
   requireNativeQuarantine: boolean,
+  checkpointSessionId?: (id: string) => void,
 ): AgentHarnessCancellationBoundary {
   const signal = options.abortController?.signal;
   const assertActive = (): void => {
@@ -75,6 +78,7 @@ export function createAgentHarnessCancellationBoundary(
   });
   let quarantineHandler: ((reason: Error) => void | Promise<void>) | undefined;
   let quarantine: Promise<void> | undefined;
+  let registrationFailure: Error | undefined;
   const startQuarantine = (reason: Error): void => {
     if (quarantine !== undefined || quarantineHandler === undefined) return;
     try {
@@ -82,8 +86,12 @@ export function createAgentHarnessCancellationBoundary(
     } catch (error) {
       quarantine = Promise.reject(error);
     }
+    // An execution result can win the race before quarantine rejects. The
+    // runner still awaits this barrier before releasing conversation ownership.
+    void quarantine.catch(() => {});
   };
   const waitForQuarantine = async (): Promise<void> => {
+    if (registrationFailure !== undefined) throw registrationFailure;
     if (quarantine === undefined) return;
     try {
       await quarantine;
@@ -122,6 +130,11 @@ export function createAgentHarnessCancellationBoundary(
 
   const effectiveOptions = {
     ...options,
+    onSessionId: (id: string) => {
+      // Durable identity follows adapter ownership, independently of caller output.
+      checkpointSessionId?.(id);
+      if (acceptingOutput && !signal?.aborted) options.onSessionId?.(id);
+    },
     ...(guardedMessage !== undefined ? { onMessage: guardedMessage } : {}),
     ...(requireNativeQuarantine ? { abortQuarantine } : {}),
   };
@@ -135,10 +148,23 @@ export function createAgentHarnessCancellationBoundary(
       const error = new Error(
         `Agent harness "${harnessName}" launched a native execution without registering its abort quarantine barrier.`,
       );
+      registrationFailure = error;
       options.abortController?.abort(error);
       throw error;
     },
     closeOutput,
+    waitForNativeQuarantine: async () => {
+      // Process settlement alone may leave provider-owned work running remotely.
+      startQuarantine(new Error("Confirming settled native execution stopped"));
+      await waitForQuarantine();
+    },
+    retireSettledNativeAttempt: async () => {
+      startQuarantine(new Error("Retiring settled session recovery attempt"));
+      await waitForQuarantine();
+      assertActive();
+      quarantineHandler = undefined;
+      quarantine = undefined;
+    },
     race: async <T>(operation: () => Promise<T>): Promise<T> => {
       assertActive();
       const operationOutcome: Promise<OperationOutcome<T>> = operation().then(

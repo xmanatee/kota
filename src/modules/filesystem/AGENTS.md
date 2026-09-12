@@ -14,9 +14,10 @@ This directory contains the filesystem capability pack — a repo module that ow
 - Mutation tools reject the machine-authority directory supplied by the runtime;
   trust and policy changes must use the authenticated scope-authority service so
   they retain operator verification and audit provenance.
-- Read/list/search surfaces must not expose protected scope runtime credentials, including the daemon ownership lock; use `#core/tools/protected-scope-paths.js` for every filesystem and sandbox surface.
 - Exact edits treat replacement text literally, including dollar signs. Regex
   substitution belongs to explicit regex mode in find-and-replace.
 - Verify tool outcomes with scoped files and persisted contents. Kernel watcher
   lifecycle and credential-path resolution are verified beside their core owners;
   this module verifies tool routing and enforcement at each filesystem entrypoint.
+- Read/list/search surfaces must not expose scope credentials, including the daemon ownership lock, or private conversation stores; use `#core/tools/protected-scope-paths.js` with the runtime's canonical scope and execution-directory context, including resolved aliases.
+- Recursive content searches enumerate filenames and check resolved protection before invoking a nonrecursive content search. Filename exclusion flags alone cannot protect relocated stores or aliases.

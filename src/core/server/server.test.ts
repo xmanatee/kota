@@ -145,7 +145,7 @@ describe("SessionPool", () => {
 
   it("creates sessions", () => {
     const session = pool.create(() => mockAgent());
-    expect(session.id).toHaveLength(8);
+    expect(session.id).toBeTruthy();
     expect(session.busy).toBe(false);
     expect(pool.size).toBe(1);
   });

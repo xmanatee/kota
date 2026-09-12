@@ -5,9 +5,8 @@
  * continuing the module-first architecture plan. Registers a dedicated HTTP route
  * for Vercel AI SDK formatted requests at POST /api/chat/vercel.
  *
- * Each request is stateless — a fresh AgentSession is created per request,
- * which aligns with the Vercel AI SDK's `useChat` pattern where the client
- * sends the full messages array on every request.
+ * Request-local sessions recover the client-supplied useChat id. Requests
+ * without an id create independently preserved work.
  */
 
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
@@ -50,6 +49,12 @@ const vercelAdapterModule: KotaModule = {
           return;
         }
 
+        if (body.id !== undefined && (typeof body.id !== "string" || !body.id.trim())) {
+          jsonResponse(res, 400, { error: "id must be a non-empty conversation id" });
+          return;
+        }
+        const continuityKey = typeof body.id === "string" ? body.id : undefined;
+
         const messages = body.messages;
         if (!Array.isArray(messages)) {
           jsonResponse(res, 400, {
@@ -86,6 +91,7 @@ const vercelAdapterModule: KotaModule = {
 
         const stream = new DataStreamTransport(res);
         const agent = ctx.createSession({
+          continuityKey,
           autonomyMode,
           model: (body.model as string) || ctx.config.model,
           transport: stream,

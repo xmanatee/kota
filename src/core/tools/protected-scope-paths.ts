@@ -7,6 +7,7 @@ import {
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   resolvePathFrom,
+  resolvePathIdentities,
   resolvePathThroughExistingAncestor,
 } from "#core/util/real-path.js";
 
@@ -16,6 +17,8 @@ export const PROTECTED_SCOPE_RUNTIME_FILES = [
   ".kota/daemon-instance.lock",
   ".kota/secrets.json",
 ] as const;
+
+export const PROTECTED_CONVERSATION_DIRECTORY = ".kota/openai-tools-agent-harness/sessions";
 
 export const PROTECTED_SCOPE_ENV_GLOBS = [
   ".env",
@@ -27,12 +30,7 @@ export const PROTECTED_SCOPE_ENV_GLOBS = [
 const PROTECTED_SCOPE_GLOB_IGNORES = [
   ...PROTECTED_SCOPE_RUNTIME_FILES.map((path) => `**/${path}`),
   ...PROTECTED_SCOPE_ENV_GLOBS,
-] as const;
-
-const PROTECTED_SCOPE_GREP_EXCLUDES = [
-  ...PROTECTED_SCOPE_RUNTIME_FILES.map((path) => basename(path)),
-  ".env",
-  ".env.*",
+  `**/${PROTECTED_CONVERSATION_DIRECTORY}/**`,
 ] as const;
 
 function protectedOperatorTokenFileNames(
@@ -54,15 +52,6 @@ export function protectedScopeGlobIgnores(
   ];
 }
 
-export function protectedScopeGrepExcludes(
-  context?: Pick<ToolRunnerContext, "authorityConfigPath">,
-): string[] {
-  return [
-    ...PROTECTED_SCOPE_GREP_EXCLUDES,
-    ...protectedOperatorTokenFileNames(context).map((fileName) => escapeGlob(fileName)),
-  ];
-}
-
 export function existingProtectedScopePaths(
   allowedRoot: string,
 ): string[] {
@@ -79,6 +68,17 @@ export function existingProtectedScopePaths(
     },
   );
   return [...new Set(scopePaths.map((path) => resolve(path)))];
+}
+
+/** Directory denials include absent stores and their resolved canonical aliases. */
+export function protectedConversationRoots(
+  context: Pick<ToolRunnerContext, "cwd" | "scopeRoot"> = {},
+  executionCwd = context.cwd ?? process.cwd(),
+): string[] {
+  const roots = new Set([executionCwd, context.cwd ?? process.cwd(), context.scopeRoot ?? process.cwd(), process.cwd()]);
+  return [...new Set([...roots].flatMap((root) =>
+    resolvePathIdentities(PROTECTED_CONVERSATION_DIRECTORY, root),
+  ))];
 }
 
 function normalizeRelativeScopePath(relativePath: string): string {
@@ -98,7 +98,8 @@ function isProtectedRuntimeFile(normalizedRelativePath: string): boolean {
 
 export function isProtectedRelativeScopePath(relativePath: string): boolean {
   const normalizedRelativePath = normalizeRelativeScopePath(relativePath);
-  return isProtectedRuntimeFile(normalizedRelativePath) || isProtectedEnvFile(normalizedRelativePath);
+  return isProtectedRuntimeFile(normalizedRelativePath) || isProtectedEnvFile(normalizedRelativePath) ||
+    (`/${normalizedRelativePath}/`).includes(`/${PROTECTED_CONVERSATION_DIRECTORY}/`);
 }
 
 function isProtectedResolvedPathUnderBase(
@@ -106,7 +107,7 @@ function isProtectedResolvedPathUnderBase(
   baseDirectory: string,
 ): boolean {
   const relativePath = relative(baseDirectory, resolvedPath);
-  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+  if (relativePath === "" || (relativePath === ".." || relativePath.startsWith(`..${sep}`)) || isAbsolute(relativePath)) {
     return false;
   }
 
@@ -127,25 +128,28 @@ function isProtectedPathUnderBase(
   const candidateRoots = resolvedScopeRoot === null
     ? [scopeRoot]
     : [scopeRoot, resolvedScopeRoot];
+  // The store itself may resolve outside the scope through a symlink. Protect
+  // that identity even when the requested path has no reserved path segments.
+  const conversationRoots = resolvePathIdentities(PROTECTED_CONVERSATION_DIRECTORY, scopeRoot);
 
   return candidatePaths.some((path) =>
-    candidateRoots.some((root) => isProtectedResolvedPathUnderBase(path, root)),
+    candidateRoots.some((root) => isProtectedResolvedPathUnderBase(path, root)) ||
+    conversationRoots.some((root) => isPathWithin(root, path)),
   );
 }
 
 export function isProtectedScopePath(
   filePath: string,
-  context?: Pick<ToolRunnerContext, "authorityConfigPath" | "cwd">,
+  context?: Pick<ToolRunnerContext, "authorityConfigPath" | "cwd" | "scopeRoot">,
 ): boolean {
   const baseDirectory = context?.cwd ?? process.cwd();
   if (isScopeAuthorityOperatorTokenPath(filePath, {
     baseDirectory,
     authorityConfigPath: context?.authorityConfigPath,
   })) return true;
-  if (isProtectedPathUnderBase(filePath, baseDirectory)) return true;
-  const daemonScopeRoot = process.cwd();
-  return resolve(baseDirectory) !== resolve(daemonScopeRoot)
-    && isProtectedPathUnderBase(filePath, daemonScopeRoot);
+  const requestedPath = resolvePathFrom(baseDirectory, filePath);
+  const roots = new Set([baseDirectory, context?.scopeRoot ?? baseDirectory, process.cwd()]);
+  return [...roots].some((root) => isProtectedPathUnderBase(requestedPath, root));
 }
 
 export function protectedScopePathError(filePath: string): string {
@@ -154,7 +158,7 @@ export function protectedScopePathError(filePath: string): string {
 
 function isPathWithin(root: string, target: string): boolean {
   const child = relative(root, target);
-  return child === "" || (!child.startsWith("..") && !isAbsolute(child));
+  return child === "" || (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
 }
 
 export function isMachineAuthorityMutationPath(

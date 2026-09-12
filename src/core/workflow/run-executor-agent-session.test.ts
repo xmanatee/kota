@@ -99,6 +99,31 @@ describe("agent session supervision", () => {
     expect(resumeSessionIds).toEqual([undefined, "provider-session-1"]);
   });
 
+  it("continues the initial preserved agent session during post-check repair", async () => {
+    const harness = "workflow-repair-session";
+    const resumes: Array<string | undefined> = [];
+    registerWorkflowScenarioDriver(harness, async (options) => {
+      resumes.push(options.resumeSessionId);
+      return { ...AGENT_OK_RESULT, sessionId: "repair-session" };
+    });
+    let checks = 0;
+    const result = await fixture.execute(makeDefinition({
+      moduleRoot: fixture.workspaceRoot,
+      steps: [makeAgentStep(fixture.workspaceRoot, harness, {
+        repairLoop: {
+          maxRepairAttempts: 1,
+          checks: [{ id: "acceptance", type: "code", run: () => {
+            if (checks++ === 0) throw new Error("needs repair");
+            return "ok";
+          } }],
+        },
+      })],
+    })).promise;
+    expect(result.metadata.status).toBe("success");
+    expect(resumes).toEqual([undefined, "repair-session"]);
+    expect(checks).toBe(2);
+  });
+
   it("governs an unbounded agent step only by trusted idle progress", async () => {
     const harness = "workflow-idle-governed";
     registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {

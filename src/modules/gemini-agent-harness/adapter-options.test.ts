@@ -53,17 +53,6 @@ describe("geminiAgentHarness — unsupported options rejection", () => {
     ).rejects.toThrow(/KotaAgentMessage/);
   });
 
-  it("rejects persistSession", async () => {
-    await expect(
-      geminiAgentHarness.run({
-        prompt: "x",
-        model: "gemini-2.5-flash",
-        effort: "xhigh",
-        persistSession: true,
-      }),
-    ).rejects.toThrow(/persist sessions/);
-  });
-
   it("rejects file checkpointing", async () => {
     await expect(
       geminiAgentHarness.run({

@@ -4,14 +4,20 @@ import {
   type AgentHarness,
   type AgentHarnessResult,
   type AgentHarnessSessionContext,
+  createNativeAgentInvalidationLifecycle,
+  routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import { harnessSupportsRunOption } from "#core/agent-harness/run-option-routing.js";
+import { resetAgentConversation } from "#core/agent-harness/session-continuity.js";
 import {
   type AgentHarnessTranscriptTurn,
   composeAgentHarnessTranscriptPrompt,
 } from "#core/agent-harness/transcript.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { CostTracker } from "#core/loop/cost.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
@@ -32,7 +38,9 @@ export type TelegramHarnessSessionAgentOptions = {
   cwd: string;
   scopeId: string;
   resolveRuntimeScope: DaemonRuntimeScopeProvider["resolve"];
+  continuityKey?: string;
   config: KotaConfig;
+  scopeRuntime?: Pick<ScopeRuntime, "scopePolicyAuthority" | "authorityConfigPath" | "approvalQueue" | "idempotencyStore">;
   autonomyMode: AutonomyMode;
   verbose?: boolean;
   proxy: ProxyTransport;
@@ -45,19 +53,32 @@ export class TelegramHarnessSessionAgent {
   private readonly sessionContext: AgentHarnessSessionContext;
   private abortController: AbortController | null = null;
   private closed = false;
+  private execution: ReturnType<typeof runAgentHarness> | undefined;
+  private closing: Promise<void> | undefined;
 
   constructor(private readonly options: TelegramHarnessSessionAgentOptions) {
     this.sessionContext = {
-      sessionId: `telegram:${randomUUID()}`,
+      sessionId: options.continuityKey ?? `telegram:${randomUUID()}`,
       scopeId: options.scopeId,
     };
     registerSessionEnvironment(this.sessionContext);
   }
 
   async send(text: string): Promise<void> {
-    const abortController = new AbortController();
+    if (this.closed) throw new Error("The Telegram conversation is closed.");
+    const authority = this.options.scopeRuntime?.scopePolicyAuthority;
+    const getScopePolicySnapshot = authority === undefined ? undefined : () => authority.getSnapshot(this.options.scopeId);
+    const snapshot = getScopePolicySnapshot?.();
+    const invalidation = createNativeAgentInvalidationLifecycle({
+      executionLabel: "Telegram agent",
+      ...(this.options.harness.toolControl === "native" ? {
+        scopeId: this.options.scopeId, authority, initialSnapshot: snapshot,
+      } : {}),
+    });
+    const abortController = invalidation.abortController;
     this.abortController = abortController;
-    const prompt = composeAgentHarnessTranscriptPrompt(this.transcript, text);
+    const prompt = harnessSupportsRunOption(this.options.harness, "resumeSessionId")
+      ? text : composeAgentHarnessTranscriptPrompt(this.transcript, text);
     let streamedText = "";
     const writer = {
       write: (chunk: string): boolean => {
@@ -68,7 +89,7 @@ export class TelegramHarnessSessionAgent {
     };
 
     try {
-      const result = await runAgentHarness(
+      this.execution = runAgentHarness(
         this.options.harness,
         {
           prompt,
@@ -77,7 +98,16 @@ export class TelegramHarnessSessionAgent {
           resolveRuntimeScope: this.options.resolveRuntimeScope,
           cwd: this.options.cwd,
           effort: this.options.effort,
-          autonomyMode: this.options.autonomyMode,
+          autonomyMode: snapshot === undefined ? this.options.autonomyMode : capScopeAutonomyMode(this.options.autonomyMode, snapshot.policy),
+          ...routeKotaToolControlOptions(this.options.harness, {
+            scopePolicy: snapshot?.policy, scopePolicyAuthority: authority, getScopePolicySnapshot,
+          }),
+          authorityConfigPath: this.options.scopeRuntime?.authorityConfigPath,
+          ...(this.options.harness.toolControl === "kota" ? {
+            approvalQueue: this.options.scopeRuntime?.approvalQueue,
+            idempotencyStore: this.options.scopeRuntime?.idempotencyStore,
+            guardrailsConfig: this.options.config.guardrails,
+          } : {}),
           verbose: this.options.verbose ?? this.options.config.verbose,
           systemPrompt: buildKotaSystemPrompt(
             this.options.config,
@@ -94,6 +124,7 @@ export class TelegramHarnessSessionAgent {
         },
         writer,
       );
+      const result = await this.execution;
       if (!streamedText && result.text) {
         this.options.proxy.emit({ type: "text", content: result.text });
       }
@@ -103,18 +134,29 @@ export class TelegramHarnessSessionAgent {
         assistant: result.text || streamedText,
       });
     } finally {
+      invalidation.dispose();
       if (this.abortController === abortController) {
         this.abortController = null;
       }
     }
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return;
+  close(): Promise<void> {
+    if (this.closing !== undefined) return this.closing;
     this.closed = true;
     this.abortController?.abort(new Error("Telegram harness session closed."));
     this.abortController = null;
-    await unregisterSessionEnvironment(this.sessionContext);
+    this.closing = (async () => {
+      await this.execution?.catch(() => {});
+      await unregisterSessionEnvironment(this.sessionContext);
+      await this.execution?.settled;
+    })();
+    return this.closing;
+  }
+
+  async reset(): Promise<void> {
+    await this.close();
+    resetAgentConversation(this.options.scopeRoot, this.sessionContext.sessionId, "Operator cleared the Telegram conversation.");
   }
 
   getCostSummary(): string {

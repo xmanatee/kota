@@ -40,10 +40,10 @@ The adapter additionally rejects a bare `claude_code` preset `systemPrompt`
 without an `append` body because that shape is Claude-specific. Portable
 `append` text is accepted for operator CLI paths.
 
-Persisted native-loop sessions are versioned module-owned records. Resume
+Persisted native-loop sessions use the shared core conversation store. Resume
 decodes metadata, tool declarations, and every neutral transcript message
 before model dispatch; malformed or unsupported records fail explicitly.
-Writes atomically replace the session file. A persistence-requested run creates
+Writes atomically replace the session file. A preservation-enabled run creates
 its KOTA-owned session id before the first model turn and checkpoints only
 complete transcript boundaries, so workflow continuation never treats a
 provider message id as a resumable session.

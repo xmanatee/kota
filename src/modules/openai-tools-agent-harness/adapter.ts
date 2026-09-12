@@ -1,3 +1,4 @@
+import { createConversationSessionRuntime } from "#core/agent-harness/conversation-runtime.js";
 import type {
   AgentHarness,
   AgentHarnessResult,
@@ -43,7 +44,6 @@ import {
   rejectUnsupportedOptions,
   resolveOpenaiToolsOptions,
 } from "./options.js";
-import { createOpenaiToolsSessionRuntime } from "./session-runtime.js";
 import {
   openaiToolsTokenBudgetErrorResult,
   openaiToolsTokenBudgetSource,
@@ -114,7 +114,8 @@ export async function runOpenaiToolsLoop(
     options.modelOutputTokenLimits,
   );
   const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
-  const sessionRuntime = createOpenaiToolsSessionRuntime({
+  const sessionRuntime = createConversationSessionRuntime({
+    harness: mode.harnessName,
     options,
     scopeRoot: scopeRoot,
     resolved,
@@ -304,6 +305,7 @@ export async function runOpenaiToolsLoop(
       }
 
       let toolResults: Awaited<ReturnType<typeof executeOpenaiToolCalls>>;
+      sessionRuntime.checkpoint(lastSessionId);
       try {
         toolResults = await mode.executeTools(toolBlocks, options, {
           mcpManager,

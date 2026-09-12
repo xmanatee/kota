@@ -244,7 +244,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
-      ).rejects.toThrow(/Invalid KOTA message/);
+      ).rejects.toThrow(/saved conversation is corrupt/);
       expect(messagesStreamMock).not.toHaveBeenCalled();
     } finally {
       rmSync(scopeRoot, { recursive: true, force: true });

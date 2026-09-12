@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { EventBus } from "#core/events/event-bus.js";
-import type { AgentSession } from "#core/loop/loop.js";
-import type { Transport } from "#core/loop/transport.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import { normalizeScopeSelectorQueryUrl } from "#core/server/scope-selector.js";
@@ -10,6 +8,7 @@ import type { DaemonControlClient } from "./daemon-client.js";
 import { withRouteErrorBoundary } from "./route-invocation.js";
 import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
 import {
+  type HttpAgentFactory,
   handleChat,
   handleCreateSession,
   handleDeleteSession,
@@ -22,7 +21,7 @@ export type ServerContext = {
   pool: SessionPool;
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
-  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
+  makeAgent: HttpAgentFactory;
   /**
    * Lazy resolver for the autonomy mode applied when a request does not
    * specify one. Invoked per-request so that an unconfigured posture only

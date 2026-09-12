@@ -1,10 +1,10 @@
+import { createConversationSessionRuntime } from "#core/agent-harness/conversation-runtime.js";
 import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
-  KotaMessage,
   KotaModelResponse,
 } from "#core/agent-harness/index.js";
 import { unpricedAgentUsage } from "#core/agent-harness/index.js";
@@ -50,11 +50,6 @@ const THIN_UNSUPPORTED_OPTIONS = [
     reason: "The thin harness does not accept per-step harnessOptions.",
   },
   {
-    runOption: "resumeSessionId",
-    option: "resumeSessionId",
-    reason: "The thin harness does not resume native sessions.",
-  },
-  {
     runOption: "onMessage",
     option: "onMessage",
     reason: "The thin harness emits text only, not KotaAgentMessage frames.",
@@ -92,12 +87,6 @@ function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "thin" agent harness does not accept per-step harnessOptions. ' +
         "Drop harnessOptions[\"thin\"] or run an adapter that validates them.",
-    );
-  }
-  if (options.resumeSessionId !== undefined) {
-    throw new Error(
-      'The "thin" agent harness does not resume native sessions. ' +
-        "Drop resumeSessionId or run claude-agent-sdk.",
     );
   }
   if (options.env !== undefined && Object.keys(options.env).length > 0) {
@@ -163,15 +152,15 @@ export const thinAgentHarness: AgentHarness = {
       resolved.model,
       options.modelOutputTokenLimits,
     );
-    const messages: KotaMessage[] = [
-      { role: "user", content: options.prompt },
-    ];
+    const session = createConversationSessionRuntime({ harness: "thin", options, scopeRoot: options.cwd ?? process.cwd(), resolved, outputTokenLimit });
+    session.validateTools([], undefined);
+    const messages = session.messages;
     const signal = options.abortController?.signal;
     const response = await resolved.client.messages.create({
       model: resolved.model,
       max_tokens: outputTokenLimit.maxTokens,
       ...(system !== undefined ? { system } : {}),
-      messages,
+      messages: [...messages],
       ...(signal ? { signal } : {}),
     });
 
@@ -179,13 +168,13 @@ export const thinAgentHarness: AgentHarness = {
     if (writer) writer.write(text);
 
     const usage = response.usage;
-    return {
+    messages.push({ role: "assistant", content: response.content });
+    return session.finalize({
       text,
       streamedText: text,
-      sessionId: response.id,
       turns: 1,
       usage: unpricedAgentUsage(usage?.input_tokens, usage?.output_tokens),
       isError: false,
-    };
+    }, response.id);
   },
 };

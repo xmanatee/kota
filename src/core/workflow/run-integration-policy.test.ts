@@ -156,7 +156,6 @@ describe("shared integration continuation policy", () => {
     else await repair;
 
     expect(captured().onMessage).toBeUndefined();
-    expect(captured().persistSession).toBe(false);
     const completed = metadata();
     const step = completed.steps[0]!;
     expect(step).toMatchObject({

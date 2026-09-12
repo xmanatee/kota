@@ -105,3 +105,12 @@ it.each(["ripgrep", "grep"])("hides daemon lock credentials from direct and recu
     expect((await runGrep({ path, pattern: "repository-visible" }, { cwd: root })).content).toContain("public.txt");
   }
 });
+
+it("aggregates matching files across search batches", async () => {
+  for (let index = 0; index < 70; index++) {
+    writeFileSync(join(root, `entry-${index}.txt`), "batch match\nbatch match\n");
+  }
+  const result = await runGrep({ pattern: "batch match", path: root, count_only: true });
+  expect(result.is_error).not.toBe(true);
+  expect(result.content).toContain("Total: 140 matches in 70 files");
+});

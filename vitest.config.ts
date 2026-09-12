@@ -56,6 +56,9 @@ export default defineConfig({
     conditions: ["source"],
   },
   test: {
+    // Exercise the real AI SDK under the repository source condition; its
+    // eventsource-parser dependency exports TypeScript in that condition.
+    server: { deps: { inline: [/\/(ai|@ai-sdk|eventsource-parser)\//] } },
     include: [],
     // Candidate fixture projects belong to live eval execution, not Vitest.
     exclude: TEST_EXCLUDES,

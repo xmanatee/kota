@@ -34,7 +34,7 @@ export class ConversationHistory {
   }
 
   /** Create a new conversation and return its ID. */
-  create(model: string, cwd: string, source?: "user" | "action"): string {
+  create(model: string, cwd: string, source?: "user" | "action", continuityKey?: string): string {
     const id = generateId();
     const now = new Date().toISOString();
     const record: ConversationRecord = {
@@ -50,6 +50,7 @@ export class ConversationHistory {
 
     const data: ConversationData = {
       record,
+      ...(continuityKey === undefined ? {} : { continuityKey }),
       messages: [],
       compactionCount: 0,
       lastInputTokens: 0,
@@ -87,6 +88,7 @@ export class ConversationHistory {
 
     const data: ConversationData = {
       record: entry,
+      continuityKey: this.load(id)?.continuityKey,
       messages,
       compactionCount,
       lastInputTokens,
@@ -99,11 +101,16 @@ export class ConversationHistory {
   load(id: string): ConversationData | null {
     const path = join(this.dir, `${id}.json`);
     if (!existsSync(path)) return null;
+    let data: ConversationData;
     try {
-      return JSON.parse(readFileSync(path, "utf-8"));
+      data = JSON.parse(readFileSync(path, "utf-8"));
     } catch {
       return null;
     }
+    if (data.continuityKey !== undefined && (typeof data.continuityKey !== "string" || !data.continuityKey.trim())) {
+      throw new Error("History contains an invalid conversation owner; its evidence was retained.");
+    }
+    return data;
   }
 
   /** List conversations, optionally filtered by search term and source. */

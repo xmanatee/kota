@@ -73,12 +73,12 @@ const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
   {
     runOption: "persistSession",
     option: "persistSession",
-    reason: "KOTA-managed session persistence is not exposed by this adapter.",
+    reason: "Authenticated Gemini CLI execution is disabled until provider-only authentication and protected transcript storage can be brokered outside its native tool process tree. Invocation-local state cannot safely be reused as a provider home.",
   },
   {
     runOption: "resumeSessionId",
     option: "resumeSessionId",
-    reason: "KOTA-managed session resume is not exposed by this adapter.",
+    reason: "No protected authenticated Gemini CLI conversation can currently be created; use the Gemini SDK harness for durable reconstruction until the native provider broker exists.",
   },
   {
     runOption: "harnessOverrides",
@@ -243,6 +243,7 @@ export const geminiCliAgentHarness: AgentHarness = {
     const execution = collectTextFromGeminiCli({
       prompt: buildGeminiCliPrompt(options),
       cwd,
+      scopeRoot,
       runtimeStateRoot: join(scopeRoot, ".kota"),
       model: options.model,
       approvalMode: geminiApprovalMode(scope.executionMode),

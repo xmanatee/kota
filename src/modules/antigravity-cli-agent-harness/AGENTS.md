@@ -31,16 +31,20 @@ Interactive clients remain multi-turn through KOTA's transcript composition.
 The adapter starts one isolated AGY process per turn and resumes a durable AGY
 conversation by its native conversation id when core supplies one. Each
 invocation still receives a fresh isolated home; provider conversation state
-never becomes local runtime authority. Repair iterations retain KOTA's durable
-artifacts and current worktree as the recovery handoff.
+never becomes local runtime authority. Core checkpoints the remote conversation id as soon as AGY reports it; repairs
+and retries use that exact id. Remote retention remains provider-owned; errors
+retain the checkpoint and run evidence rather than silently starting over.
 
 The CLI's own print timeout is only a final process cap. KOTA cancellation and
 workflow idle supervision remain the normal lifecycle controls. Cancellation
 sends a graceful signal to the isolated process group, then keeps the native
 abort quarantine closed until AGY emits a terminal result for the remote
 attempt and the local process settles. A local exit without that remote
-terminal frame is an unconfirmed-stop failure, never permission to launch a
-repair attempt.
+terminal frame is an unconfirmed-stop failure regardless of exit code or caller
+cancellation. Core durably excludes its owner and native identity from reuse.
+Validation, sandbox preparation and proven failed spawn leave no remote attempt;
+the stop barrier settles those failures so environment repair can resume the
+retained conversation. Errors after launch require remote terminal confirmation.
 
 Workflow `outputSchema` values pass through AGY's native `--json-schema`
 surface; core still validates the normalized structured result. A terminal AGY

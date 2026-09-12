@@ -61,6 +61,7 @@ export type TelegramScopeTargetResolution =
 export type TelegramSessionAgent = {
   send(text: string): Promise<string | void>;
   close(): void | Promise<void>;
+  reset?(): void | Promise<void>;
   getCostSummary(): string;
 };
 
