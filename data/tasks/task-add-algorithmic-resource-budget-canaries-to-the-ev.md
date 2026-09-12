@@ -1,7 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p2
-depends_on: [task-enable-runtime-mediated-contained-evaluation]
+depends_on: [task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
 # Add algorithmic resource-budget canaries to the eval harness
 
@@ -249,17 +249,14 @@ resource exhaustion.
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 with current container/egress options. Retain resource-budget-result.json, generated cases, shortcut rejection and budget metrics, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
 
-## Blocked on
+## Host setup dependency
 
-```
-kind: operator-capture
-path: .kota/runs/
-description: The trusted host must supply scope-authorized KOTA_EVAL_CONTAINED_PROFILES for builder-algorithmic-resource-budget-canary; an attributable available grant permits resuming setup and the live evaluation.
-```
-
-This existing metadata kind tracks externally controlled execution availability.
-The path is an evidence-discovery hint, not a required capture location or file
-existence gate. Host setup can be automated by its authorized lifecycle owner.
+The 17:25 UTC attempt found the same missing grant as the scientific-claim and
+model comparisons. This task remains open behind the shared
+`task-complete-contained-evaluation-host-setup` dependency. Do not spend another
+builder rediscovering the absent profile or ask for a human-captured artifact.
+The implemented fixture and its calibration remain available; the actual live
+result is still outstanding and belongs here after host activation.
 
 The trusted host must grant a contained-evaluation profile for this scope and
 `builder-algorithmic-resource-budget-canary`. In repair attempt 1 of builder
