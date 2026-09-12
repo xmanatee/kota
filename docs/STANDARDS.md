@@ -110,7 +110,7 @@ per-change paperwork, source keywords, artifact shapes or test quotas.
 The configured portfolios in `vitest.config.ts` have explicit, non-overlapping
 membership. `pnpm check:fast` is the deterministic static gate. Select affected
 owner, protocol, resilience, integration or CLI tests for behavioral feedback.
-`pnpm test:eval` runs live evaluations; `pnpm test:preset-parity` runs live CLI smoke. `pnpm check` adds the production
+`pnpm test:eval` runs live evaluations; `pnpm test:preset-parity` runs the live composed daemon parity journey. `pnpm check` adds the production
 build and all deterministic partitions for broad/high-risk or release confidence;
 ordinary tests and checks exclude live model evaluation.
 

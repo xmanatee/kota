@@ -130,3 +130,29 @@ Host grant configuration is exposed through the existing module Setup capability
 The service installer persists operator-reviewed profiles across restarts. The
 deployment recipe generates profiles and proxy rules from existing owner catalogs;
 configuration readiness never stands in for image/auth/network or live proof.
+
+## Preset Parity
+
+`pnpm build && pnpm test:preset-parity` runs the disposable daemon journey through
+single/tool workflow agent turns, capture/recall/answer, a balanced workflow,
+and the shipped builder
+AgentDef on a read-only task. It does not exercise builder publication or replace
+shared runtime recovery tests. The observer is installed only in that disposable
+scope and records actual harness and model-client entry calls, including failures.
+Single/tool probes explicitly select the balanced tier and require completed
+harness turns attributed to their workflow run. Daemon session chat uses
+ModelClient and cannot supply harness permission observations. The model sweep
+has independent owner tests.
+
+Per-preset transcripts, calls, workflow selections and cleanup evidence live under
+`.kota/runs/<run-id>/preset-parity/` (or the supplied run artifact directory).
+Missing authentication is an explicit unexecuted row. Other readiness errors and
+provider failures fail the gate. Native adapters' declared rejection of
+`canUseTool` is reported alongside their file-read outcome; it is never recorded
+as a successful KOTA permission callback.
+
+The disposable scope explicitly configures the API provider for capture/answer.
+Codex agent turns use native login, while its capture/answer calls additionally
+require `OPENAI_API_KEY`. Gemini's capture/answer calls use Google's compatible
+endpoint with an existing Gemini/Google API-key reference. Keys are not copied
+into fixture configuration or artifacts.

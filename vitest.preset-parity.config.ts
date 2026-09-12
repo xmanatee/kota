@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     ...base.test,
     projects: undefined,
+    silent: false,
     include: ["src/preset-parity.live.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
   },

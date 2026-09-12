@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Add cross-preset runtime parity gate
@@ -211,3 +211,88 @@ Build and validate the composed mechanism now; use authorized execution for the
 all-ready/missing-auth evidence when available. Keep actual external prerequisites
 explicit without blocking independent implementation or silently reducing the
 six-surface acceptance to a smoke test.
+
+## Implementation and validation (2026-09-12)
+
+Replaced the single-turn smoke with a disposable built-daemon scenario covering
+single/tool workflow agent turns, capture/recall/answer, a balanced workflow, and the shipped
+builder AgentDef on a read-only fixture task. The last probe tests fleet agent
+resolution through ordinary workflow admission; it does not exercise builder
+publication. Adapter/model-client observations include failed calls, resolved
+workflow steps, and run-start preset attribution. The standalone sweep rejects
+foreign models, wrong tiers, missing model selection, and sticky-preset drift.
+Only established missing/stale auth can skip; probe/runtime failures remain
+failures. Codex's declared native-tool rejection of `canUseTool` is reported
+explicitly alongside its file-read outcome, not counted as a fired callback.
+
+Evidence for run `2026-09-12T10-21-57-838Z-builder-bzsmbp` is under its runtime
+`agent/` directory:
+
+- `parity-sweep-final.log`: eight owner cases pass, including negative fallback
+  and run-start checks.
+- `parity-integration-final.log`: all three production workflow compilation
+  cases pass; the real built CLI reaches startup but its listener fails with
+  `listen EPERM: operation not permitted 127.0.0.1`.
+- `parity-check-fast-final.log`: static gate passes (types, lint, task validation,
+  generated bindings). Subsequent observation/error-reporting edits were checked
+  with typechecking and scoped Biome.
+- `parity-live-preflight.log` and `preset-parity/{claude,gemini}/`: actual live
+  target selection reports both missing API-auth rows to stdout and artifacts.
+  Neither row ran inference. Codex was excluded from this restricted-auth probe;
+  this is not evidence that host Codex login is unavailable.
+- `pnpm build` failed while deleting existing output directories under this
+  sandbox. The equivalent TypeScript emission and runtime asset-copy commands
+  then succeeded. This does not claim the clean-build command passed.
+
+These checks support retaining the gate implementation, but cannot establish
+that the HTTP journey or live provider interactions pass.
+
+The retained critic's provider-configuration defect is repaired: disposable
+scopes now configure the actual ModelClient provider for capture/answer, including
+Gemini's compatible endpoint and an environment-variable reference. Native Codex
+login and the separate OpenAI API prerequisite are reported distinctly.
+`parity-provider-repair.log` records six passing cases: three production workflow
+compilations and three real config-loader/client-factory regressions. The latter
+reproduce rejection without provider configuration and establish construction
+with the fixture's configuration, using synthetic credentials without inference.
+`parity-provider-check-resumed.log` records a passing complete static gate after
+replacing a vanished prior-session temporary directory with the run directory.
+The earlier failed static invocation remains in `parity-provider-check.log`.
+These results resolve the configuration regression checks; they do not establish
+live six-surface acceptance or a new critic approval. The diff and critic evidence
+remain intact for runtime-owned preservation of this same run lineage.
+
+The chat/harness composition defect from the subsequent critic is repaired.
+Single-turn and file-read stimuli now trigger ordinary daemon workflow agent
+steps at the explicit balanced tier. Assertions use completed harness calls tied
+to each run, including turns and file-read permission callbacks; native rejection
+annotations now describe the adapter that actually executed. Session chat's
+ModelClient path is no longer used to claim harness coverage. The balanced model
+sweep covers these surfaces too. The executor regression controls only the
+external harness invocation and verifies the real agent-step/observer boundary;
+it does not establish live SDK callback behavior or HTTP acceptance.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Task-attributable availability of authorized disposable-daemon execution with loopback binding and the presets' provider authentication.
+
+The evidence-review kind records execution availability; its path is a discovery
+hint. Reopen as soon as a permitted invocation is established. Running and
+assessing the live journeys remains this task's work.
+
+An authorized execution context able to bind the disposable daemon's loopback
+listener and access each preset's actual provider/auth contract is required for
+the remaining live acceptance. The current execution profile denies the listener
+and protects native login state. Claude/Gemini API variables were absent in the
+scoped probe. No callable scoped host-execution/export tool was available in this
+agent session; no parent daemon, protected credentials, or other writer was touched.
+
+Resume with the built-daemon integration case and the full live target in such a
+context, inspect all six surfaces and adapter-call sweeps, and capture both the
+all-ready run and one-missing-auth run with the other presets completing. Repair
+any observed composition defects before marking done. Equivalent attributable
+execution evidence is acceptable; no manual operator run or fixed artifact path
+is required. Live acceptance remains unmet, not silently waived by passing static
+checks or explicit skips.
