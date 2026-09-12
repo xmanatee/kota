@@ -504,7 +504,7 @@ describe("native CLI live sandbox", () => {
       async (sandboxedProcess) => sandboxedProcess,
     );
 
-    expect(process.command).toBe("/bin/sh");
+    expect(process.command).toBe(realpathSync("/bin/sh"));
     expect(process.args).toEqual(["-c", "true"]);
     expect(process.env.HOME).toContain("kota-native-cli-");
   });

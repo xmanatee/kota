@@ -1,6 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p2
+depends_on: [task-run-contained-linux-runtime-probes]
 ---
 # Security review: Browser profile persistence checks filesystem authority separately from the write. When persistProfile is enabled, a concurrent writer able to replace the profile file or an ancestor directory can redirect the path after validation but before Playwright writes it. This can write authenticated browser state outside the agent's declared write roots with the host process's permissions. The canonical-path recheck does not make the subsequent pathname-based write atomic.
 
@@ -18,62 +19,21 @@ setup is exhausted; never restore the defeated writer merely to claim persistenc
 
 This contract supersedes historical blocking and operational-capture requirements.
 
-## Blocked on
+## Implementation Prerequisite
 
-kind: operator-capture
-path: .kota/runs/browser-profile-persistence-capability
-description: Task-attributable availability of an authorized contained execution surface for implementing and testing the credential writer; equivalent scoped capability exports are accepted.
+The host has now demonstrated working Linux Bubblewrap confinement with synthetic
+data; the exported native-launcher result is under
+`.kota/runs/monitor-2026-09-12T11-03-45Z/native-sandbox-linux-corrected.json`.
+The remaining obstacle is making existing deterministic probes callable from a
+native worker. That is the internal implementation dependency above, not an
+owner-capture requirement. It reuses the contained-evaluation task's native tool
+mediation and the existing task-probe/container owners.
 
-An authorized execution surface for this run that can resolve the production
-contained-workspace boundary and execute a synthetic credential-writer prototype
-and relocation adversary inside it. The runtime/operator can supply a scoped
-Linux execution with the existing Bubblewrap/PID-namespace boundary, or an
-equivalent mediated contained execution with attributable results. Neither the
-coding worker nor candidate code should receive host shell authority, the Docker
-socket, or credentials. No particular capture directory or new task completion
-is required. Once this execution authority is available, resume implementation
-and the positive/adversarial write proof in this task.
-The path above is only an evidence-discovery hint under the existing task schema;
-runtime-provided capability evidence at another path is equally acceptable.
-
-This is an incomplete disposition, not acceptance of the containment mitigation.
-The writer, successful private publication, and rejection under root/staging
-relocation with unchanged outside sentinels are all still outstanding. Do not
-restore pathname-based writes or the previously defeated directory-handle writer.
-
-### Current execution assessment (2026-09-12)
-
-Builder run `2026-09-12T06-41-35-238Z-builder-t91kw7`, post-check repair 1,
-performed fresh setup checks rather than relying on historical denials:
-
-- The production `resolveContainedWorkspaceSandbox(process.cwd(), 5000)` returned
-  `status: unavailable` on Darwin because its process-lifetime boundary requires
-  a Linux PID namespace. No candidate process was launched by that resolver.
-- A minimal stock `sandbox-exec` invocation of `/usr/bin/true` exited 71 with
-  `sandbox_apply: Operation not permitted`.
-- Read-only `docker info` failed to connect to `/var/run/docker.sock` with
-  permission denied. This establishes this worker's access limit, not absence
-  of host Docker or credentials; no container or candidate was launched.
-- Inspection of `native-run-authorization.ts` found only the boolean active-writer
-  authorization protocol. It does not accept execution requests. The eval module
-  exposes fixture execution through its client/HTTP routes, but this invocation
-  exposes no mediated eval/probe tool. The supplied issue export has no new
-  writer-evidence entries establishing the missing execution surface.
-
-The narrower existing anchored-filesystem helper explicitly permits its pinned
-directory to follow relocation, so it cannot implement this task's authority
-contract. A pathname recheck, mock sandbox, or locally enabled unsafe fallback
-would not supply the missing proof. The callable-evaluation task may eventually
-provide a route, but its completion alone would not prove browser persistence.
-
-The available pnpm toolchain successfully ran
-`pnpm test:owner src/modules/browser/lifecycle-profile.test.ts`: 1 suite, all
-11 tests passed. These exercise explicit-save/close rejection before collecting
-state, unchanged profile contents, cleanup, existing-profile loading, scope
-isolation, write-root rejection and target redirection. They establish retained
-containment only. No production source changed in this repair; the earlier
-preserve-yield assessment is superseded by this explicit blocked disposition.
-
+Once that dependency integrates, implement the missing credential writer and test
+successful private persistence plus relocation/symlink rejection. The prior
+fail-closed mitigation is not feature completion. Do not weaken it, restore the
+defeated writer, or demand an additional operator-readiness artifact before work
+can resume. The host monitor handles deployment follow-up after publication.
 
 
 ## Problem
