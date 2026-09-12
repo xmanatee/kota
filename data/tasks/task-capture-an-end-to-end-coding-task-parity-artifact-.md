@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Validate end-to-end coding-task parity across registered agent harnesses
@@ -221,32 +221,26 @@ The real CLI list, matrix rejection and Gemini failure artifacts establish the
 available operator journey and its present limit. These are not live coding
 successes. No all-adapter or native-versus-KOTA parity claim is made.
 
-## Blocked on
+## Remaining Implementation
 
-kind: operator-capture
-path: .kota/runs
-description: Attributable task-linked evidence of a callable trusted parity invocation with owned session state and provider access, or current paired supported-route results.
+The earlier protected-session-lock failure is an internal execution-boundary
+gap, not an owner prerequisite. Shared native tool mediation and contained
+evaluation integrated in `6604e48d8`; module admission was corrected in
+`504e59f4f`. The current contained-evaluation tool exposes fixture and AGY runs,
+not the harness-parity scenario runner. Its existence alone does not complete
+this task or prove a usable configured provider route.
 
-This evidence-review kind records an execution-access prerequisite, not a
-manual capture requirement. The path is a discovery hint; equivalent scoped
-runtime exports are accepted. Reopen when a permitted invocation is available,
-without waiting for the coding measurement itself to be completed.
+Reuse that native invocation, host authorization, process ownership and artifact
+return mechanism for the existing parity runner. Keep parity semantics in its
+owning module; do not create another command bridge or expose host credentials,
+conversation stores or Docker access to candidate agents. Prepare the smallest
+current-source image/profile/egress setup needed for one supported coding route;
+missing setup is implementation work, not an operator-capture block. The host
+monitor can activate trusted configuration after its scoped validation.
 
-A trusted runtime invocation of the existing harness-parity surface, or
-attributable current exported supported-route results, is required to complete
-the live coding outcome. The invocation must own its conversation state and
-provider access while keeping candidate execution isolated. This worker cannot
-acquire the protected conversation lock, has no exposed host-evaluation action,
-and its configured network proxy is unreachable. This is a limit of this
-invocation's callable execution boundary, not a claim of absent host credentials.
-The existing runtime-mediated contained-evaluation task owns related mediation;
-its writer and task contract were not changed. No new execution bridge is added
-here, and manual human capture is not required.
-
-Resume this same task when a scoped runtime action is callable or current paired
-results are exported. Execute supported routes, compare the same scenario/model,
-retain prompt/trace/diff/verifier outcomes and account for the unavailable rows
-under the September 12 waiver. Unavailable individual adapters do not gate
-supported-route work; the currently unfulfilled requirement is any current
-successful supported coding run. The scope-routing fix is independently
-validated and safe to retain; it does not complete live parity acceptance.
+Execute supported routes against the same scenario/model, retain actual
+prompt/trace/diff/verifier outcomes and account for unavailable adapters under
+the September 12 waiver. Publish safe routing/setup improvements with honest
+partial results while the remaining code stays open. Only verified unavailable
+credentials or entitlement outside our authority justify an external block.
+Do not repeat the denied worker launch or claim unexecuted parity succeeded.
