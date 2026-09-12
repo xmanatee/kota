@@ -50,7 +50,11 @@ their CLI, HTTP, and cadence surfaces.
 - Objective metrics are deterministic evidence, not a second runner. Metric
   errors fail passing runs; failed runs retain diagnostic metrics.
 - Scorer self-tests belong to owner verification, never live predicates,
-  pre-run expectations, or candidate task completion requirements.
+  pre-run expectations, or candidate task completion requirements. Exercise
+  shared predicates and runner outcomes with representative inputs; shipped
+  fixtures own benchmark difficulty and calibration. Retain fixture-specific
+  checks for distinct scorer errors or shortcuts, without duplicating solved
+  projects to reprove the shared runner.
 - Verifier calibration runs before the workflow and fails as fixture error.
   Accepted alternatives exist only for deterministic, genuinely broad answer
   spaces.

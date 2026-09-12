@@ -18,7 +18,9 @@ judged against real runs rather than aspiration.
 - The runner reuses `runAgentHarness` — the same entry point the main `kota
   run` path calls. No parallel benchmarking framework lives here.
 - Every harness runs against a fresh `tmpdir` copy of the scenario's
-  `initial/` tree. The scenario source is never mutated.
+  `initial/` tree. The scenario source is never mutated. With no explicit scope,
+  harness session state belongs under the stage artifact directory so runtime
+  bookkeeping does not become candidate changes.
 - Paired artifacts land under a single operator-chosen output directory with
   one subdirectory per harness, plus a top-level `parity.json` summarizing
   the comparison.
@@ -76,7 +78,10 @@ Before adding a scenario, name the distinct failure it catches and check
 whether an existing scenario can carry that example. Merge or remove scenarios
 whose outcomes overlap; scenario identity and fixture count are not contracts.
 The current catalog is discoverable from `scenario.json` files and should not
-be copied into this instruction file.
+be copied into this instruction file. Decode the shipped portfolio once for
+readiness and exercise runner behavior with representative scenarios. Keep
+custom verifier checks for evidence, scope and invalid-result rejection;
+manually solving every shipped project does not establish live harness parity.
 
 ## Capability Gap Handling
 

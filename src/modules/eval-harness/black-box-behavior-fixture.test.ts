@@ -9,41 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadFixture } from "./fixture.js";
-import type {
-  ExecutionProfilePreflightResult,
-  ResourceProfile,
-} from "./fixture-run.js";
-import { OFFLINE_CONTAINER_NETWORK_POLICY } from "./provider-egress.js";
-import {
-  cleanupFixtureWorkingDir,
-  runFixture,
-  type WorkflowExecutionOutcome,
-  type WorkflowExecutor,
-} from "./runner.js";
 import { copyFixtureInitialState } from "./runner-materialize.js";
 
 const FIXTURE_ID = "builder-black-box-behavior-reconstruction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
-
-const TEST_PROFILE: ResourceProfile = {
-  cpuAllocationCores: 2,
-  cpuKillThresholdCores: 2,
-  memoryAllocationMB: 4000,
-  memoryKillThresholdMB: 4000,
-  hostClass: "test",
-};
-
-const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
-  status: "verified",
-  backendKind: "container",
-  requestedProfile: TEST_PROFILE,
-  observedOrEnforcedProfile: TEST_PROFILE,
-  verification: "enforced",
-  networkPolicy: OFFLINE_CONTAINER_NETWORK_POLICY,
-  gateEligible: true,
-  eligibilityReason: "verified-profile",
-  diagnostics: [],
-};
 
 function embeddedOracleCandidate(base64: string): string {
   return `#!/usr/bin/env node
@@ -108,33 +77,6 @@ console.log(\`\${normalized} \${family}-\${code}\`);
 }
 
 describe("builder black-box behavior reconstruction fixture", () => {
-  it("scores candidate behavior through the fixture runner", async () => {
-    const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
-
-    const executor: WorkflowExecutor = {
-      preflight: () => TEST_EXECUTION_PROFILE,
-      execute: async (): Promise<WorkflowExecutionOutcome> => {
-        return { kind: "completed", durationMs: 5, runArtifactPath: null };
-      },
-    };
-    const runArtifactBaseDir = mkdtempSync(
-      join(tmpdir(), "kota-black-box-live-fixture-"),
-    );
-    const report = await runFixture({
-      fixture,
-      executor,
-      executionProfile: TEST_EXECUTION_PROFILE,
-      runArtifactBaseDir,
-      runIndex: 0,
-      repeatCount: 1,
-    });
-    try {
-    } finally {
-      cleanupFixtureWorkingDir(report.workingDir);
-      rmSync(runArtifactBaseDir, { recursive: true, force: true });
-    }
-  }, 120_000);
-
   it("rejects a behaviorally correct candidate that embeds the oracle artifact", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     const workingDir = mkdtempSync(join(tmpdir(), "kota-black-box-shortcut-"));

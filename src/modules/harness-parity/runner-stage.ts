@@ -62,7 +62,9 @@ export async function runScenarioStageOnHarness(args: {
       modelOutputTokenLimits: callOptions.modelOutputTokenLimits,
       harnessOverrides: callOptions.harnessOverrides,
       cwd: args.workingDir,
-      ...(callOptions.scopeRoot !== undefined ? { scopeRoot: callOptions.scopeRoot } : {}),
+      // Session storage belongs with run evidence, outside the candidate diff.
+      // Explicit scopes still own provider configuration and continuity.
+      scopeRoot: callOptions.scopeRoot ?? artifactDir,
       effort: args.effort,
       ...(callOptions.systemPrompt !== undefined
         ? { systemPrompt: callOptions.systemPrompt }

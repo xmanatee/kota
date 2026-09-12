@@ -4,10 +4,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -37,70 +35,6 @@ function writeScenario(
     writeFileSync(fullPath, contents);
   }
   return dir;
-}
-
-function writeLedgerKitV2(workDir: string): void {
-  writeFileSync(
-    join(workDir, "packages/ledger-kit/index.js"),
-    "function formatMoney(amount) {\n" +
-      '  return `${amount.currency} ${(amount.minorUnits / 100).toFixed(2)}`;\n' +
-      "}\n\n" +
-      "function summarize(lines) {\n" +
-      '  return lines.map((line) => `${line.label}: ${formatMoney(line.amount)}`).join("\\n");\n' +
-      "}\n\n" +
-      "module.exports = { formatMoney, summarize };\n",
-  );
-  writeFileSync(
-    join(workDir, "src/report.js"),
-    'const { formatMoney, summarize } = require("../packages/ledger-kit");\n\n' +
-      "function renderQuarterReport(entries) {\n" +
-      "  const lines = entries.map((entry) => ({\n" +
-      "    label: entry.account,\n" +
-      "    amount: { minorUnits: entry.minorUnits, currency: entry.currency },\n" +
-      "  }));\n" +
-      "  const total = entries.reduce((sum, entry) => sum + entry.minorUnits, 0);\n" +
-      '  const currency = entries[0]?.currency ?? "USD";\n' +
-      "  return `${summarize(lines)}\\nTotal: ${formatMoney({ minorUnits: total, currency })}`;\n" +
-      "}\n\n" +
-      "module.exports = { renderQuarterReport };\n",
-  );
-}
-
-function writeLedgerKitV3(workDir: string): void {
-  writeFileSync(
-    join(workDir, "packages/ledger-kit/index.js"),
-    "function formatMoney(amount) {\n" +
-      "  const value = `${amount.currency} ${(Math.abs(amount.minorUnits) / 100).toFixed(2)}`;\n" +
-      "  return amount.minorUnits < 0 ? `(${value})` : value;\n" +
-      "}\n\n" +
-      "function renderLedger(lines) {\n" +
-      "  return lines\n" +
-      "    .map((line) => {\n" +
-      '      const label = line.note ? `${line.label} (${line.note})` : line.label;\n' +
-      '      return `${label}: ${formatMoney(line.amount)}`;\n' +
-      "    })\n" +
-      '    .join("\\n");\n' +
-      "}\n\n" +
-      "module.exports = { formatMoney, renderLedger };\n",
-  );
-  writeFileSync(
-    join(workDir, "src/report.js"),
-    'const { formatMoney, renderLedger } = require("../packages/ledger-kit");\n\n' +
-      "function renderQuarterReport(entries) {\n" +
-      "  const lines = entries.map((entry) => {\n" +
-      "    const line = {\n" +
-      "      label: entry.account,\n" +
-      "      amount: { minorUnits: entry.minorUnits, currency: entry.currency },\n" +
-      "    };\n" +
-      "    if (entry.note !== undefined) line.note = entry.note;\n" +
-      "    return line;\n" +
-      "  });\n" +
-      "  const total = entries.reduce((sum, entry) => sum + entry.minorUnits, 0);\n" +
-      '  const currency = entries[0]?.currency ?? "USD";\n' +
-      "  return `${renderLedger(lines)}\\nTotal: ${formatMoney({ minorUnits: total, currency })}`;\n" +
-      "}\n\n" +
-      "module.exports = { renderQuarterReport };\n",
-  );
 }
 
 function runLoadedVerification(
@@ -674,60 +608,11 @@ describe("scenario loader", () => {
   });
 });
 
-describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, investigation answer, repository exploration, and builder scoped-fix probes", () => {
-    const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
-    const ids = all.map((s) => s.spec.id);
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        "builder-scoped-fix",
-        "codebase-investigation-answer",
-        "fix-arithmetic-bug",
-        "extract-shared-helper",
-        "revise-from-test-output",
-        "discover-failing-source",
-        "rename-across-files",
-        "frontend-preview",
-        "package-upgrade-chain",
-        "rank-relevant-regions",
-      ]),
-    );
-    // Guard against regressions that accidentally drop coverage back to a
-    // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(10);
-  });
-
-  it("codebase-investigation-answer loads with an answer-only prompt and context targets", () => {
-    const loaded = loadScenario(
-      SHIPPED_SCENARIOS_ROOT,
-      "codebase-investigation-answer",
-    );
-    expect(loaded.spec.id).toBe("codebase-investigation-answer");
-    expect(loaded.spec.stages[0].prompt).toMatch(/answer\.json/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/runtime-evidence\.txt/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/node verify-answer\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/checkout\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/catalog\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/regions\.js/);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toMatch(/verify-answer\.js/);
-    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
-      "answer.json",
-      "runtime-evidence.txt",
-    ]);
-    expect(loaded.spec.stages[0].contextRetrieval?.targets).toEqual([
-      {
-        id: "checkout-flow",
-        kind: "path-group",
-        paths: ["src/checkout.js", "src/catalog.js", "src/regions.js"],
-      },
-      {
-        id: "runtime-reproduction",
-        kind: "path",
-        path: "reproduce.js",
-      },
-    ]);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+describe("shipped scenario readiness and custom verifiers", () => {
+  it("loads the shipped portfolio through the production decoder", () => {
+    // The decoder checks each manifest and initial tree. Scenario identity,
+    // prompt wording and solved project copies are not engine contracts.
+    expect(loadAllScenarios(SHIPPED_SCENARIOS_ROOT).length).toBeGreaterThan(0);
   });
 
   it("codebase-investigation-answer verifier requires cited runtime-backed answers and rejects source edits", () => {
@@ -788,31 +673,6 @@ describe("shipped scenarios", () => {
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
-  });
-
-  it("rank-relevant-regions loads with a budgeted exploration prompt and context targets", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rank-relevant-regions");
-    expect(loaded.spec.id).toBe("rank-relevant-regions");
-    expect(loaded.spec.stages[0].prompt).toMatch(/exploration\.json/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/rank/i);
-    expect(loaded.spec.stages[0].prompt).toMatch(/24 lines/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/node verify-exploration\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/review\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/pricing\.js/);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toMatch(/verify-exploration\.js/);
-    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
-      "exploration.json",
-      "exploration-check.json",
-    ]);
-    expect(loaded.spec.stages[0].contextRetrieval?.targets).toEqual([
-      {
-        id: "review-threshold-evidence",
-        kind: "path-group",
-        paths: ["src/review.js", "src/pricing.js", "test.js"],
-      },
-    ]);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
 
   it("rank-relevant-regions verifier enforces coverage, budget, valid ranges, ranking, and no source edits", () => {
@@ -930,78 +790,6 @@ describe("shipped scenarios", () => {
     );
   });
 
-  it("package-upgrade-chain loads as a staged release-note scenario", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "package-upgrade-chain");
-    expect(loaded.spec.stageMode).toBe("staged");
-    expect(loaded.spec.stages.map((stage) => stage.id)).toEqual([
-      "ledger-kit-v2",
-      "ledger-kit-v3",
-    ]);
-    expect(loaded.spec.stages[0]?.prompt).toMatch(/Release notes/);
-    expect(loaded.spec.stages[0]?.prompt).toMatch(/v2\.0/);
-    expect(loaded.spec.stages[1]?.prompt).toMatch(/v3\.0/);
-    expect(loaded.spec.stages[0]?.verification.command).toBe("node test-v2.js");
-    expect(loaded.spec.stages[1]?.verification.command).toBe("node test-v3.js");
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
-  });
-
-  it("package-upgrade-chain fails initially, passes v2 after the first upgrade, and passes v3 after preserving v2 behavior", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "package-upgrade-chain");
-    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-package-upgrade-"));
-    try {
-      cpSync(loaded.initialStateDir, workDir, { recursive: true });
-      expect(existsSync(join(workDir, "packages/ledger-kit/index.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/report.js"))).toBe(true);
-
-      const beforeFix = spawnSync(loaded.spec.stages[0]!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(beforeFix.status).not.toBe(0);
-
-      writeLedgerKitV2(workDir);
-      const afterV2 = spawnSync(loaded.spec.stages[0]!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(afterV2.status).toBe(0);
-      expect(afterV2.stdout).toContain("ok");
-
-      const beforeV3 = spawnSync(loaded.spec.stages[1]!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages[1]!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(beforeV3.status).not.toBe(0);
-
-      writeLedgerKitV3(workDir);
-      const afterV3 = spawnSync(loaded.spec.stages[1]!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages[1]!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(afterV3.status).toBe(0);
-      expect(afterV3.stdout).toContain("ok");
-
-      const v2StillPasses = spawnSync(loaded.spec.stages[0]!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages[0]!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(v2StillPasses.status).toBe(0);
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  });
-
   it("frontend-preview starts a local preview server, fails before the CSS fix, and writes preview artifacts after the fix", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "frontend-preview");
     expect(loaded.spec.id).toBe("frontend-preview");
@@ -1064,231 +852,6 @@ describe("shipped scenarios", () => {
     }
   });
 
-  it("extract-shared-helper loads with prompt and verification resolved", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "extract-shared-helper");
-    expect(loaded.spec.id).toBe("extract-shared-helper");
-    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.stages[0].prompt).toMatch(/src\/sanitize\.js/);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
-    expect(loaded.spec.stages.at(-1)!.verification.timeoutMs).toBeGreaterThan(0);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
-  });
-
-  it("extract-shared-helper materializes into a fresh tmpdir and is solvable by hand", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "extract-shared-helper");
-    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-shipped-"));
-    try {
-      cpSync(loaded.initialStateDir, workDir, { recursive: true });
-      expect(existsSync(join(workDir, "test.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/greet.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/farewell.js"))).toBe(true);
-
-      // Verification fails before the fix — sanitize.js does not exist and
-      // farewell() throws. The capability-gap path relies on that.
-      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(beforeFix.status).not.toBe(0);
-
-      // Apply the expected fix by hand and re-run: verification must pass.
-      writeFileSync(
-        join(workDir, "src/sanitize.js"),
-        'function sanitize(raw) {\n' +
-          '  return String(raw).trim().replace(/[^a-zA-Z0-9 ]/g, "");\n' +
-          '}\n\nmodule.exports = { sanitize };\n',
-      );
-      writeFileSync(
-        join(workDir, "src/greet.js"),
-        'const { sanitize } = require("./sanitize.js");\n\n' +
-          'function greet(raw) {\n' +
-          '  return `Hello, ${sanitize(raw)}!`;\n' +
-          '}\n\nmodule.exports = { greet };\n',
-      );
-      writeFileSync(
-        join(workDir, "src/farewell.js"),
-        'const { sanitize } = require("./sanitize.js");\n\n' +
-          'function farewell(raw) {\n' +
-          '  return `Goodbye, ${sanitize(raw)}!`;\n' +
-          '}\n\nmodule.exports = { farewell };\n',
-      );
-      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(afterFix.status).toBe(0);
-      expect(afterFix.stdout).toContain("ok");
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  });
-
-  it("discover-failing-source loads with a symptom-only prompt that does not name the buggy file", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "discover-failing-source");
-    expect(loaded.spec.id).toBe("discover-failing-source");
-    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
-    // The prompt names only the verification command and the project as a
-    // whole — no `src/...` file path leaks the location of the bug. The
-    // agent must search the project on its own.
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/normalize\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/slugify\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/tokenize\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/assemble\.js/);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
-  });
-
-  it("discover-failing-source ships realistic distractors, fails verification before any edit, and is solvable by editing exactly one source file", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "discover-failing-source");
-    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-discover-"));
-    try {
-      cpSync(loaded.initialStateDir, workDir, { recursive: true });
-      // The discovery dimension requires at least three real source files
-      // alongside test.js — one buggy, the others realistic distractors.
-      // test.js itself imports only the entry module, so a harness that
-      // stops at test.js's named imports cannot find the bug.
-      expect(existsSync(join(workDir, "test.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/slugify.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/tokenize.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/normalize.js"))).toBe(true);
-      expect(existsSync(join(workDir, "src/assemble.js"))).toBe(true);
-
-      // Verification fails before the fix — exit non-zero is the only signal
-      // an operator gives, mirroring symptom-level prompting.
-      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(beforeFix.status).not.toBe(0);
-
-      // Editing only the buggy file makes verification pass; the distractor
-      // helpers are correct as shipped and need no change.
-      writeFileSync(
-        join(workDir, "src/normalize.js"),
-        'function normalize(token) {\n  return token.toLowerCase();\n}\n\nmodule.exports = { normalize };\n',
-      );
-      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(afterFix.status).toBe(0);
-      expect(afterFix.stdout).toContain("ok");
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rename-across-files loads with a prompt that names the rename target and the verification command but does not enumerate caller files", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rename-across-files");
-    expect(loaded.spec.id).toBe("rename-across-files");
-    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
-    // The prompt names the rename target verbatim and the verification
-    // command, so the agent has the contract.
-    expect(loaded.spec.stages[0].prompt).toMatch(/format/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/renderLine/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/node test\.js/);
-    // The prompt does not enumerate the caller files. The agent must search
-    // the project to find every call site.
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/greeting\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/warning\.js/);
-    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/notice\.js/);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
-  });
-
-  it("rename-across-files isolates cross-file rename discipline: a partial rename leaves verification failing, and only a complete rename passes", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rename-across-files");
-
-    // The fixture ships the renamed source plus three or more caller files
-    // and a test.js that exercises every caller path. test.js itself does
-    // not import the renamed function — every reference goes through one
-    // of the caller files via src/index.js.
-    const initialChildren = readdirSync(join(loaded.initialStateDir, "src"))
-      .filter((name) => name.endsWith(".js"))
-      .sort();
-    expect(initialChildren).toEqual(
-      ["format.js", "greeting.js", "index.js", "notice.js", "warning.js"].sort(),
-    );
-    const testSource = readFileSync(join(loaded.initialStateDir, "test.js"), "utf-8");
-    expect(testSource).not.toMatch(/require\(["'][^"']*format\.js["']\)/);
-
-    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-rename-"));
-    try {
-      cpSync(loaded.initialStateDir, workDir, { recursive: true });
-
-      // Apply a partial rename: the definition file is renamed and one
-      // caller (greeting.js) is updated, but warning.js and notice.js
-      // still destructure `format`. Verification must fail because the
-      // unchanged callers reference an undefined symbol that crashes
-      // when test.js exercises their code path.
-      writeFileSync(
-        join(workDir, "src/format.js"),
-        "function renderLine(label, body) {\n" +
-          "  return `[${label}] ${body}`;\n" +
-          "}\n\n" +
-          "module.exports = { renderLine };\n",
-      );
-      writeFileSync(
-        join(workDir, "src/greeting.js"),
-        'const { renderLine } = require("./format.js");\n\n' +
-          "function greeting(name) {\n" +
-          "  return renderLine(\"greet\", `hello ${name}`);\n" +
-          "}\n\n" +
-          "module.exports = { greeting };\n",
-      );
-      const partial = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(partial.status).not.toBe(0);
-      expect(`${partial.stdout ?? ""}\n${partial.stderr ?? ""}`).toMatch(
-        /format is not a function/,
-      );
-
-      // Now finish the rename in the remaining callers. Verification must
-      // pass — every caller now refers to renderLine consistently.
-      writeFileSync(
-        join(workDir, "src/warning.js"),
-        'const { renderLine } = require("./format.js");\n\n' +
-          "function warning(message) {\n" +
-          '  return renderLine("warn", message);\n' +
-          "}\n\n" +
-          "module.exports = { warning };\n",
-      );
-      writeFileSync(
-        join(workDir, "src/notice.js"),
-        'const { renderLine } = require("./format.js");\n\n' +
-          "function notice(message) {\n" +
-          '  return renderLine("notice", message);\n' +
-          "}\n\n" +
-          "module.exports = { notice };\n",
-      );
-      const complete = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
-        shell: true,
-        cwd: workDir,
-        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
-        encoding: "utf-8",
-      });
-      expect(complete.status).toBe(0);
-      expect(complete.stdout).toContain("ok");
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  });
-
   it("revise-from-test-output loads, fails verification before any edit, and surfaces the expected value in the failure output", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "revise-from-test-output");
     expect(loaded.spec.id).toBe("revise-from-test-output");
@@ -1339,20 +902,6 @@ describe("shipped scenarios", () => {
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
-  });
-
-  it("builder-scoped-fix loads with a prompt declaring the task, scope constraints, and commit-message artifact requirement", () => {
-    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "builder-scoped-fix");
-    expect(loaded.spec.id).toBe("builder-scoped-fix");
-    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node verify.js");
-    expect(loaded.spec.stages[0].prompt).toMatch(/src\/calc\.js/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/multiply/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/divide/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/commit-message\.txt/);
-    expect(loaded.spec.stages[0].prompt).toMatch(/Do NOT modify `test\.js`, `src\/format\.js`, or `src\/constants\.js`/);
-    expect(existsSync(loaded.initialStateDir)).toBe(true);
-    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
 
   it("builder-scoped-fix verifier enforces functional correctness, scope boundaries, commit artifact, and rejects invalid fixes", () => {

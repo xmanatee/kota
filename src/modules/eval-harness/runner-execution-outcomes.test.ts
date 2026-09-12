@@ -34,7 +34,7 @@ describe("runFixture execution outcomes", () => {
     cleanup();
   });
 
-  it("initializes git for plain fixtures so git-change predicates can score", async () => {
+  it.each([false, true])("scores real git changes after materialization (outside scope: %s)", async (outsideScope) => {
     const fixtureDir = join(fixturesRoot, "git-mini");
     mkdirSync(join(fixtureDir, "initial"), { recursive: true });
     writeFileSync(
@@ -67,6 +67,7 @@ describe("runFixture execution outcomes", () => {
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         writeFileSync(join(workingDir, "output.txt"), "done");
+        if (outsideScope) writeFileSync(join(workingDir, "neighbor.txt"), "unauthorized");
         return { kind: "completed", durationMs: 5, runArtifactPath: null };
       },
     };
@@ -78,8 +79,13 @@ describe("runFixture execution outcomes", () => {
       runIndex: 0,
       repeatCount: 1,
     });
-    expect(report.run.outcome).toBe("pass");
-    expect(report.predicateResults.every((r) => r.passed)).toBe(true);
+    expect(report.run.outcome).toBe(outsideScope ? "fail" : "pass");
+    expect(report.predicateResults.find((r) => r.predicate.kind === "git-changes-within"))
+      .toMatchObject({ passed: !outsideScope });
+    if (outsideScope) {
+      expect(report.predicateResults.find((r) => r.predicate.kind === "git-changes-within")?.detail)
+        .toContain("neighbor.txt");
+    }
     cleanupFixtureWorkingDir(report.workingDir);
   });
 
