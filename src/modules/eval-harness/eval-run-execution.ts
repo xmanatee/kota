@@ -128,6 +128,7 @@ export type EvalRunExecution = {
   requestedProfile: ResourceProfile;
   isolationBackend: SubprocessIsolationBackend;
   executorEnv: Record<string, string>;
+  containerAuth?: SubprocessExecutorOptions["containerAuth"];
 };
 
 export type PreparedEvalRunExecution = {
@@ -180,6 +181,7 @@ export function instantiateEvalRunExecution(
     requestedProfile: prepared.requestedProfile,
     isolationBackend: prepared.isolationBackend,
     executorEnv: prepared.executorEnv,
+    containerAuth: prepared.executorOptions.containerAuth,
   };
 }
 

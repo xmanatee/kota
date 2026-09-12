@@ -13,6 +13,7 @@
  * There is no parallel metrics store.
  */
 
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -28,6 +29,7 @@ import type {
   EvalRunResult,
 } from "./client.js";
 import { containedEvaluationTool } from "./contained-evaluation.js";
+import { containedSetupReadiness, containedSetupRequirements } from "./contained-setup.js";
 import { evalHarnessControlRoutes } from "./eval-control-routes.js";
 import {
   listEvalFixtures,
@@ -75,6 +77,10 @@ const evalHarnessModule: KotaModule = {
   },
   events: [evalHarnessSetCompleted],
   tools: [containedEvaluationTool],
+  setupRequirements: containedSetupRequirements,
+  onLoad(ctx) {
+    ctx.registerProvider(CAPABILITY_READINESS_PROVIDER_TYPE, containedSetupReadiness(ctx.cwd));
+  },
   commands: (ctx) => [buildEvalCommand(ctx)],
   routes: (ctx) => evalHarnessRoutes(ctx),
   controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),

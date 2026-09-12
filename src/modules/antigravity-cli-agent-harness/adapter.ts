@@ -26,6 +26,7 @@ import {
 import { resolveAntigravityCliModelEffortReadiness } from "./model-readiness.js";
 import {
   ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV,
+  resolveAntigravityCliContainerAuth,
   resolveAntigravityCliKeychainPath,
 } from "./runtime-home.js";
 
@@ -212,6 +213,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
   unsupportedRunOptions: ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS,
   readiness: antigravityCliReadiness,
   resolveIsolatedHostAuthEnv: resolveAntigravityCliIsolatedHostAuthEnv,
+  resolveIsolatedContainerAuth: resolveAntigravityCliContainerAuth,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

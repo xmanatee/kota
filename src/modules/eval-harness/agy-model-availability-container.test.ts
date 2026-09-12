@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
@@ -7,9 +7,7 @@ import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harne
 
 registerAgentHarness(antigravityCliAgentHarness);
 
-import { runAgyModelsCommand } from "./agy-model-availability.js";
 import {
-  AGY_OPTIONS,
   cleanupAgyModelEvaluationTestEnvironment,
   configureFakeCandidateContainer,
   tempDir,
@@ -19,33 +17,13 @@ import { createEvalRunExecution } from "./eval-run-execution.js";
 afterEach(cleanupAgyModelEvaluationTestEnvironment);
 
 describe("AGY model availability container", () => {
-  it("probes models through the production candidate container execution", async () => {
+  it("rejects unsupported subscription auth before container model discovery, including when API keys exist", () => {
     const runtimeDir = tempDir("kota-agy-production-runtime-");
     const containerLog = join(runtimeDir, "availability-container.jsonl");
     const options = configureFakeCandidateContainer(runtimeDir, containerLog);
-    const execution = createEvalRunExecution(process.cwd(), options, {
-      ...process.env,
-      [PRESET_ENV_VAR]: "antigravity-cli",
-    });
-
-    expect(await runAgyModelsCommand(execution)).toMatchObject({
-      status: 0,
-      stdout: expect.stringContaining(`${AGY_OPTIONS.candidates[0]}-high`),
-    });
-    expect(execution.isolationBackend).toEqual(options.isolationBackend);
-    expect(
-      execution.executor.predicateContext?.executableVerifierSandbox,
-    ).toMatchObject({
-      kind: "oci-container",
-      command: options.isolationBackend.executable,
-      image: "kota-eval:latest",
-    });
-    const invocation = JSON.parse(
-      readFileSync(containerLog, "utf8").trim(),
-    ) as { command: string; commandArgs: string[] };
-    expect(invocation).toMatchObject({
-      command: "agy",
-      commandArgs: ["models"],
-    });
+    expect(() => createEvalRunExecution(process.cwd(), options, {
+      [PRESET_ENV_VAR]: "antigravity-cli", GEMINI_API_KEY: "synthetic-key",
+    })).toThrow(/subscription container authentication is unsupported/);
+    expect(existsSync(containerLog)).toBe(false);
   });
 });

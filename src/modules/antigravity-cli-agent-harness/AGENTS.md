@@ -65,8 +65,10 @@ home; never expose the whole Keychains directory or inspect the token. AGY owns
 credential lookup and refresh. Its nested terminal sandbox prevents
 auto-approved terminal tools from querying the host credential service, while
 KOTA's outer sandbox remains authoritative for filesystem and egress access.
-Provider-egress eval containers explicitly project only this adapter's declared
-Google auth variables while the eval-owned upstream proxy marker is active.
+Contained subscription evaluation is explicitly unsupported until a vendor-supported
+isolated Linux keyring/remote OAuth contract is implemented. The adapter rejects
+auth resolution before discovery and execution; Google API environment keys do
+not imply subscription login or select AGY's paid `modelProvider: gemini` route.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
 still goes only through KOTA's host-owned allowlisted proxy. In provider-egress

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildLaunchdPlist,
   buildSystemdUnit,
@@ -255,5 +255,31 @@ describe("install/uninstall lifecycle", () => {
     const uninstallErr = removeServiceFile(servicePath);
     expect(uninstallErr).toBeNull();
     expect(existsSync(servicePath)).toBe(false);
+  });
+});
+
+// The unit is the restart-persistent input consumed by the OS service manager.
+describe("contained host grant persistence", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("round-trips reviewed JSON alongside PATH and NODE_OPTIONS without inheriting secrets", () => {
+    const grants = { bounded: { scopeRoots: ["/scope<&>"], image: "test:100%", note: 'quote" and slash\\' } };
+    vi.stubEnv("KOTA_EVAL_CONTAINED_PROFILES", JSON.stringify(grants, null, 2));
+    vi.stubEnv("UNRELATED_SECRET", "must-not-be-installed");
+    const content = buildSystemdUnit("/scope", { nodeOptions: "--conditions=source", path: "/tools:/usr/bin", containedProfiles: process.env.KOTA_EVAL_CONTAINED_PROFILES });
+    const assignment = content.split("\n").find((line) => line.startsWith('Environment="KOTA_EVAL_CONTAINED_PROFILES='))!;
+    const decoded = JSON.parse(assignment.slice('Environment='.length)).replaceAll("%%", "%");
+    expect(JSON.parse(decoded.slice("KOTA_EVAL_CONTAINED_PROFILES=".length))).toEqual(grants);
+    expect(content).toContain('Environment="PATH=/tools:/usr/bin"');
+    expect(content).toContain('Environment="NODE_OPTIONS=--conditions=source"');
+    expect(content).not.toContain("must-not-be-installed");
+    const plist = buildLaunchdPlist("/scope");
+    const encoded = plist.match(/<key>KOTA_EVAL_CONTAINED_PROFILES<\/key>\s*<string>(.*?)<\/string>/s)![1]!;
+    const raw = encoded.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&apos;", "'").replaceAll("&amp;", "&");
+    expect(JSON.parse(raw)).toEqual(grants);
+    expect(plist).not.toContain("must-not-be-installed");
+  });
+  it.each(["", "[]", "null", "not-json"])("rejects invalid host grants before writing a unit: %s", (containedProfiles) => {
+    expect(() => buildSystemdUnit("/scope", { ...emptyEnvironment, containedProfiles })).toThrow();
+    expect(() => buildLaunchdPlist("/scope", { ...emptyEnvironment, containedProfiles })).toThrow();
   });
 });

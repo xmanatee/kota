@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
@@ -18,11 +18,20 @@ vi.mock("#core/execution/process-supervisor.js", () => ({
     run() { return launch(this.options); }
   },
 }));
-registerAgentHarness(antigravityCliAgentHarness);
+// A representative adapter-declared login exercises the transport even while
+// the production AGY subscription adapter explicitly rejects file transfer.
+function registerFileLogin(sourceFile: string) {
+  registerAgentHarness({ ...antigravityCliAgentHarness, resolveIsolatedContainerAuth: () => ({
+    sourceFile, containerDirectory: "/run/availability-login", fileName: "auth.json", locatorEnvKey: "TEST_LOGIN_HOME",
+  }) });
+}
 afterEach(() => { launch.mockReset(); cleanupAgyModelEvaluationTestEnvironment(); });
 
 it("propagates availability cancellation and supervision and removes its temporary environment", async () => {
   const runtimeDir = tempDir("agy-availability-cancellation-");
+  const sourceFile = join(runtimeDir, "login.json");
+  writeFileSync(sourceFile, "synthetic-login");
+  registerFileLogin(sourceFile);
   const options = configureFakeCandidateContainer(runtimeDir, join(runtimeDir, "container-log"));
   const controller = new AbortController();
   const onSpawn = vi.fn();
@@ -43,15 +52,25 @@ it("propagates availability cancellation and supervision and removes its tempora
   const request = launch.mock.calls[0]![0];
   const envFile = request.args[request.args.indexOf("--env-file") + 1]!;
   expect(existsSync(envFile)).toBe(true);
+  expect(readFileSync(envFile, "utf8")).toContain("TEST_LOGIN_HOME=/run/availability-login");
+  const authMount = request.args.find((arg) => arg.includes("target=/run/availability-login"))!;
+  const snapshot = authMount.match(/source=([^,]+)/)![1]!;
+  expect(readFileSync(join(snapshot, "auth.json"), "utf8")).toBe("synthetic-login");
+  expect(authMount).toContain("readonly");
   expect(onSpawn).toHaveBeenCalledWith(expect.objectContaining({ pid: 123 }));
   controller.abort(new Error("host deadline"));
   await observed;
   expect(existsSync(envFile)).toBe(false);
+  expect(existsSync(snapshot)).toBe(false);
+  expect(readFileSync(sourceFile, "utf8")).toBe("synthetic-login");
   expect(existsSync(request.cwd)).toBe(false);
 });
 
 it("returns the asynchronous container catalog through the existing availability surface", async () => {
   const runtimeDir = tempDir("agy-availability-result-");
+  const sourceFile = join(runtimeDir, "login.json");
+  writeFileSync(sourceFile, "synthetic-login");
+  registerFileLogin(sourceFile);
   const options = configureFakeCandidateContainer(runtimeDir, join(runtimeDir, "container-log"));
   launch.mockResolvedValue({ status: "completed", exitCode: 0, signal: null,
     identity: { pid: 123, processGroupId: 123, osStartToken: "fixture", observedCommandHash: "availability" },

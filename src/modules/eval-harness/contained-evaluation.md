@@ -16,6 +16,11 @@ Only explicitly opted-in module tools are callable. An older host reports that
 its runtime must be updated; publication and a new host invocation provide the
 capability without a worker restarting its parent.
 
+The [deployment recipe](../../../deploy/contained-evaluation/README.md) builds
+matching images and prepares validated grants and catalog-derived proxy rules.
+The normal service installer retains the reviewed grants across restarts;
+module Setup reports missing or invalid scope grants.
+
 The operator supplies `KOTA_EVAL_CONTAINED_PROFILES` as a JSON map in the trusted
 host environment. A profile authorizes canonical scope roots, the existing
 preset, fixture ids or AGY candidate ids, repeats, deadline, CPU and memory, and

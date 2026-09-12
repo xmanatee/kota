@@ -1,6 +1,7 @@
 import {
   existsSync,
   readFileSync,
+  statSync,
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -31,12 +32,16 @@ describe("createSubprocessExecutor container execution", () => {
     cleanupSubprocessTestDirs(dirs);
   });
 
-  it("launches copied source offline without host grants and registers removal before launch", () => {
+  it.each(["stdin-source", "bind"] as const)("launches %s with nested sandbox support and registers removal before launch", (transport) => {
     const backend = containerBackend("docker", "/opt/kota/bin/kota.mjs");
     const resources: OwnedProcessIdentity[] = [];
     const profile = containerProfile();
+    const copiedSource = transport === "stdin-source";
+    const workingDir = copiedSource ? "/opt/kota/probe-workspace" : dirs.workingDir;
+    const owner = copiedSource ? { uid: 1000, gid: 1000 } : statSync(workingDir);
     const args = withOwnedProcessResources((resource) => resources.push(resource), () => containerRunArgs({
-      backend, transport: "stdin-source", workingDir: "/opt/kota/probe-workspace", command: "node", commandArgs: ["entry.js", "pnpm", "test"],
+      backend, workingDir, command: "node", commandArgs: ["entry.js", "pnpm", "test"],
+      ...(copiedSource ? { transport: "stdin-source" as const } : { envFilePath: "/runtime/env" }),
       executionProfile: {
         status: "verified", backendKind: "container", requestedProfile: profile, observedOrEnforcedProfile: profile,
         verification: "enforced", gateEligible: true, eligibilityReason: "verified-profile", diagnostics: [],
@@ -45,19 +50,30 @@ describe("createSubprocessExecutor container execution", () => {
     }));
     const value = (key: string) => args[args.indexOf(key) + 1];
     expect(value("--network")).toBe("none");
-    expect(value("--user")).toBe("1000:1000");
+    expect(value("--user")).toBe(`${owner.uid}:${owner.gid}`);
+    expect(args.filter((_arg, index) => args[index - 1] === "--security-opt")).toEqual(["no-new-privileges", "seccomp=unconfined"]);
+    expect(args).not.toContain("--cap-add");
     expect(value("--cap-drop")).toBe("ALL");
     expect(value("--memory")).toBe("2048m");
     expect(value("--cpus")).toBe("2");
     expect(args).toContain("--read-only");
-    expect(args).toContain("--interactive");
+    if (copiedSource) expect(args).toContain("--interactive");
+    else {
+      expect(args).not.toContain("--interactive");
+      expect(value("--mount")).toBe(`type=bind,source=${workingDir},target=${workingDir}`);
+      expect(value("--env-file")).toBe("/runtime/env");
+    }
     const workspaceMount = args.find((arg) => arg.startsWith("/opt/kota/probe-workspace:"));
     const workspaceOptions = workspaceMount?.split(":")[1]?.split(",");
-    expect(workspaceOptions).toEqual(expect.arrayContaining(["exec", "nosuid", "nodev"]));
-    expect(workspaceOptions).not.toContain("noexec");
-    for (const grant of ["--mount", "--volume", "--env", "--env-file", "--privileged", "--device", "--pid"])
+    if (copiedSource) {
+      expect(workspaceOptions).toEqual(expect.arrayContaining(["exec", "nosuid", "nodev"]));
+      expect(workspaceOptions).not.toContain("noexec");
+      expect(args).not.toContain("--mount");
+      expect(args).not.toContain("--env-file");
+    }
+    for (const grant of ["--volume", "--env", "--privileged", "--device", "--pid"])
       expect(args).not.toContain(grant);
-    expect(args.slice(args.indexOf(backend.image) + 1)).toEqual(["entry.js", "pnpm", "test"]);
+    expect(args.slice(args.indexOf(backend.image) + 1)).toEqual([...(copiedSource ? [] : ["node"]), "entry.js", "pnpm", "test"]);
     expect(resources).toMatchObject([{ kind: "resource", cleanup: { command: "docker", args: ["rm", "--force", value("--name")] } }]);
   });
 

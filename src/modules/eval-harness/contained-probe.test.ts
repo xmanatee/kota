@@ -6,6 +6,7 @@ import { Readable } from "node:stream";
 import { afterEach, expect, it } from "vitest";
 import { containedEvaluationProfiles, parseContainedEvaluationRequest } from "./contained-evaluation.js";
 import { collectProbeSource, receiveProbeSource } from "./contained-probe.js";
+import { containedSetupReadiness } from "./contained-setup.js";
 
 const roots: string[] = [];
 const root = () => { const path = mkdtempSync(join(tmpdir(), "contained-source-")); roots.push(path); return path; };
@@ -84,4 +85,20 @@ it("authorizes offline host probes while denying source, command, model and scop
   expect(parseContainedEvaluationRequest(request)).toEqual(request);
   for (const override of [{ command: "sh" }, { sourceRoot: "/host" }, { sourcePaths: ["outside"] }, { image: "other" }, { timeoutMs: 99999 }])
     expect(() => parseContainedEvaluationRequest({ ...request, ...override })).toThrow();
+});
+
+it("projects missing, wrong-scope and configured grants through module setup without granting execution", async () => {
+  const scope = root();
+  const env: NodeJS.ProcessEnv = {};
+  const source = containedSetupReadiness(scope, env);
+  expect(await source.probe()).toMatchObject([{ status: "unavailable", reason: "host_grants_missing_or_invalid" }]);
+  env.KOTA_EVAL_CONTAINED_PROFILES = "{broken";
+  expect(await source.probe()).toMatchObject([{ status: "unavailable" }]);
+  const profile = { scopeRoots: [root()], timeoutMs: 1000, cpuCores: 1, memoryMB: 512,
+    isolationBackend: { kind: "container", executable: "docker", image: "test:image", kotaBinaryPath: "/opt/kota/bin/kota.mjs", networkPolicy: { kind: "offline" } } };
+  env.KOTA_EVAL_CONTAINED_PROFILES = JSON.stringify({ bounded: profile });
+  expect(await source.probe()).toMatchObject([{ status: "unavailable", reason: "no_scope_grant" }]);
+  profile.scopeRoots = [scope];
+  env.KOTA_EVAL_CONTAINED_PROFILES = JSON.stringify({ bounded: profile });
+  expect(await source.probe()).toMatchObject([{ status: "ready", reason: "scope_grants_configured" }]);
 });

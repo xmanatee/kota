@@ -51,13 +51,14 @@ function plistString(value: string): string {
 }
 
 function systemdEnvironment(name: string, value: string): string {
-  const escaped = `${name}=${value}`.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+  const escaped = `${name}=${value}`.replaceAll("%", "%%").replaceAll("\\", "\\\\").replaceAll("\"", "\\\"").replaceAll("\n", "\\n").replaceAll("\r", "\\r");
   return `Environment="${escaped}"`;
 }
 
 type ServiceUnitEnvironment = {
   nodeOptions: string | undefined;
   path: string | undefined;
+  containedProfiles?: string;
 };
 
 function nonEmptyEnvironmentValue(value: string | undefined): string | undefined {
@@ -69,7 +70,19 @@ function currentServiceUnitEnvironment(): ServiceUnitEnvironment {
   return {
     nodeOptions: process.env.NODE_OPTIONS,
     path: process.env.PATH,
+    containedProfiles: process.env.KOTA_EVAL_CONTAINED_PROFILES,
   };
+}
+
+// Retain the existing host-authored JSON format. Never inherit arbitrary
+// environment values (especially credentials) into the installed service.
+function serviceContainedProfiles(environment: ServiceUnitEnvironment): string | undefined {
+  if (environment.containedProfiles === undefined) return undefined;
+  const profiles: unknown = JSON.parse(environment.containedProfiles);
+  if (!profiles || typeof profiles !== "object" || Array.isArray(profiles)) {
+    throw new Error("KOTA_EVAL_CONTAINED_PROFILES must be a JSON object; validate profiles through the eval setup recipe before installation.");
+  }
+  return JSON.stringify(profiles);
 }
 
 function serviceNodeOptions(environment: ServiceUnitEnvironment): string | undefined {
@@ -88,6 +101,7 @@ export function buildLaunchdPlist(
   const logDir = getLaunchdLogDirectory();
   const nodeOptions = serviceNodeOptions(environment);
   const path = servicePath(environment);
+  const profiles = serviceContainedProfiles(environment);
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
@@ -120,6 +134,10 @@ export function buildLaunchdPlist(
           `    <string>${plistString(nodeOptions)}</string>`,
         ]
       : []),
+    ...(profiles === undefined ? [] : [
+      `    <key>KOTA_EVAL_CONTAINED_PROFILES</key>`,
+      `    <string>${plistString(profiles)}</string>`,
+    ]),
     `  </dict>`,
     `  <key>WorkingDirectory</key>`,
     `  <string>${plistString(scopeRoot)}</string>`,
@@ -142,6 +160,7 @@ export function buildSystemdUnit(
   const execArgs = [...process.execArgv, kotaBin, "daemon"].join(" ");
   const nodeOptions = serviceNodeOptions(environment);
   const path = servicePath(environment);
+  const profiles = serviceContainedProfiles(environment);
   return [
     `[Unit]`,
     `Description=KOTA Daemon`,
@@ -155,6 +174,7 @@ export function buildSystemdUnit(
     systemdEnvironment("KOTA_DAEMON_LOG_FORMAT", "json"),
     ...(path ? [systemdEnvironment("PATH", path)] : []),
     ...(nodeOptions ? [systemdEnvironment("NODE_OPTIONS", nodeOptions)] : []),
+    ...(profiles === undefined ? [] : [systemdEnvironment("KOTA_EVAL_CONTAINED_PROFILES", profiles)]),
     `Restart=on-failure`,
     `StandardOutput=journal`,
     `StandardError=journal`,

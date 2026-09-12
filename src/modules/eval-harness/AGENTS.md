@@ -82,7 +82,10 @@ Contained native login locators come only from the registered adapter, never
 request bodies. The subprocess owner snapshots the declared login file outside
 the candidate tree, mounts it read-only, and removes the snapshot after execution.
 Local model endpoint selection belongs to model-clients; eval supplies the matching
-internal proxy policy. Images must support the native adapter's nested sandbox
+internal proxy policy. The shared candidate/probe launcher enables unprivileged namespaces with outer
+capabilities dropped, no privilege escalation and a read-only image. Bound
+candidates use their workspace UID/GID so private runtime/auth files remain
+accessible without DAC capabilities. Images must support the native adapter's nested sandbox
 and Node's environment-proxy transport. Positive inference and denied unintended
 network/credential access require live verification before rollout claims.
 
@@ -122,3 +125,8 @@ launcher. The task-probe owner retains result semantics; shared runtime cleanup
 owns container removal on cancellation and recovery. Candidate code never runs
 on the module host or receives host mounts. Source hashes identify the measured
 cohort; browser persistence and other consumers retain their own acceptance.
+
+Host grant configuration is exposed through the existing module Setup capability.
+The service installer persists operator-reviewed profiles across restarts. The
+deployment recipe generates profiles and proxy rules from existing owner catalogs;
+configuration readiness never stands in for image/auth/network or live proof.

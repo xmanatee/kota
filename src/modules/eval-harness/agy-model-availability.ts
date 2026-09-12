@@ -14,6 +14,7 @@ import {
   AGY_MODEL_EVALUATION_NATIVE_EFFORT,
   type AgyModelAvailabilityEvidence,
 } from "./agy-model-evaluation-types.js";
+import { snapshotContainerAuth } from "./container-auth.js";
 import type { EvalRunExecution } from "./eval-run-execution.js";
 import { forceRemoveContainerReference } from "./isolated-container-process.js";
 import type { WorkflowExecutionRequest } from "./runner.js";
@@ -100,16 +101,26 @@ export async function runAgyModelsCommand(
     kotaBinaryPath: backend.kotaBinaryPath,
     isolationBackend: backend,
     extraEnv: execution.executorEnv,
+    containerAuth: execution.containerAuth,
   };
-  const containerEnv = containerExecutionEnv(
-    executorOptions,
-    request,
-    containerKotaDistDir(backend),
-    executionProfile.networkPolicy,
-  );
-  const envFile = writeContainerEnvFile(containerEnv);
+  let login: ReturnType<typeof snapshotContainerAuth> | undefined;
+  let envFile: ReturnType<typeof writeContainerEnvFile> | undefined;
   const containerName = `kota-agy-availability-${randomUUID()}`;
   const cliEnv = dockerCliEnv(executionProfile.networkPolicy);
+  try {
+    login = execution.containerAuth === undefined ? undefined : snapshotContainerAuth(execution.containerAuth, workingDir);
+    const containerEnv = containerExecutionEnv(
+      executorOptions,
+      request,
+      containerKotaDistDir(backend),
+      executionProfile.networkPolicy,
+    );
+    envFile = writeContainerEnvFile({ ...containerEnv, ...login?.env });
+  } catch (error) {
+    login?.cleanup();
+    rmSync(workingDir, { recursive: true, force: true });
+    throw error;
+  }
   const cleanupContainer = async () => {
     const cleanup = await forceRemoveContainerReference(backend.executable, containerName, cliEnv);
     if (cleanup.error || (cleanup.status !== 0 && !cleanup.stderr?.includes("No such container"))) {
@@ -121,7 +132,7 @@ export async function runAgyModelsCommand(
       command: backend.executable,
       args: containerRunArgs({
         backend, containerName, executionProfile, workingDir,
-        envFilePath: envFile.path, command: "agy", commandArgs: ["models"],
+        envFilePath: envFile.path, authMount: login?.mount, command: "agy", commandArgs: ["models"],
       }),
       cwd: workingDir, env: cliEnv,
       captureLimitBytesPerStream: 1024 * 1024, terminationGraceMs: 1000,
@@ -141,6 +152,7 @@ export async function runAgyModelsCommand(
       await cleanupContainer();
     } finally {
       envFile.cleanup();
+      login?.cleanup();
       rmSync(workingDir, { recursive: true, force: true });
     }
   }

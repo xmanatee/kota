@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { statSync } from "node:fs";
 import { dirname, isAbsolute, join, } from "node:path";
 import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
@@ -65,15 +66,23 @@ export function containerRunArgs(params: {
   const profile = params.executionProfile.observedOrEnforcedProfile;
   const networkPolicy = params.executionProfile.networkPolicy;
   const copiedSource = params.transport === "stdin-source";
-  // Unprivileged user namespaces let the scoped checks exercise Bubblewrap.
-  // The outer OCI boundary keeps all capabilities dropped and host surfaces absent.
-  // Copied native addons and executables require an executable workspace tmpfs.
-  const mountArgs = copiedSource ? [
-    "--interactive", "--pull", "never", "--read-only", "--cap-drop", "ALL",
+  // Both native candidates and copied probes need unprivileged user namespaces
+  // for their nested Bubblewrap sandbox. Docker's default seccomp blocks those
+  // syscalls. Drop outer capabilities instead of granting SYS_ADMIN; keep the
+  // image read-only, privilege escalation disabled and PID/network isolation.
+  // Bind execution uses the workspace owner so private runtime/auth files stay
+  // accessible without DAC capabilities and results remain host-readable.
+  const owner = copiedSource ? { uid: 1000, gid: 1000 } : statSync(params.workingDir);
+  const sandboxArgs = [
+    "--pull", "never", "--read-only", "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges", "--security-opt", "seccomp=unconfined",
-    "--user", "1000:1000", "--pids-limit", "256", "--ulimit", "core=0:0",
+    "--user", `${owner.uid}:${owner.gid}`, "--pids-limit", "256", "--ulimit", "core=0:0",
     "--memory-swap", memoryArg(profile.memoryKillThresholdMB),
     "--tmpfs", "/tmp:rw,nosuid,nodev,size=256m,mode=1777",
+  ];
+  // Copied native addons and executables require an executable workspace tmpfs.
+  const mountArgs = copiedSource ? [
+    "--interactive",
     "--tmpfs", `${params.workingDir}:rw,exec,nosuid,nodev,size=${profile.memoryKillThresholdMB}m,uid=1000,gid=1000,mode=0700`,
   ] : containerMountArgs({
     workingDir: params.workingDir,
@@ -91,6 +100,7 @@ export function containerRunArgs(params: {
     memoryArg(profile.memoryAllocationMB),
     "--memory",
     memoryArg(profile.memoryKillThresholdMB),
+    ...sandboxArgs,
     ...mountArgs,
     ...(params.transport !== "stdin-source" && params.authMount !== undefined ? ["--mount", params.authMount] : []),
     "--workdir",
