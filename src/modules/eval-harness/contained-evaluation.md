@@ -48,7 +48,7 @@ command needs. For example, a host profile can authorize:
     },
     "probes": {
       "browser": {
-        "command": "pnpm run test:owner src/modules/browser",
+        "command": "pnpm run test:owner src/core/util/filesystem/private-files.test.ts src/modules/browser",
         "sourcePaths": ["src", "test", "package.json", "vitest.config.ts", "tsconfig.json"]
       }
     }
@@ -83,6 +83,12 @@ checks through this profile. Those checks still own the persistence acceptance;
 the transport does not certify a writer implementation. Package installation and
 image preparation are host setup, never worker-supplied commands. An unavailable
 image returns the existing launcher's image-inspection diagnostic.
+The private-file checks require `/usr/bin/python3`, procfs, a non-root uid without
+Linux capabilities, and writable disposable `/tmp` and `/dev/shm` mounts. Positive
+cases publish random synthetic leaves directly under `/tmp`; nested temporary
+directories exercise rejection of relocatable ancestors. The symlink sentinel
+lives outside the `/tmp` write grant. A platform-skipped case is not positive
+publication evidence.
 
 On the host, verify the actual native transport, Linux confinement, returned
 writer-source result and cancellation cleanup with the maintained integration

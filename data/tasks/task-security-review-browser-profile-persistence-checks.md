@@ -1,9 +1,75 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-run-contained-linux-runtime-probes]
 ---
 # Security review: Browser profile persistence checks filesystem authority separately from the write. When persistProfile is enabled, a concurrent writer able to replace the profile file or an ancestor directory can redirect the path after validation but before Playwright writes it. This can write authenticated browser state outside the agent's declared write roots with the host process's permissions. The canonical-path recheck does not make the subsequent pathname-based write atomic.
+
+## Repair implementation and remaining proof
+
+The repair adds the candidate `publishPrivateFile` boundary under the existing
+core filesystem owner, with a Linux Python helper and public-boundary tests.
+It walks from `/` with no-follow directory opens and accepts only layouts whose
+ancestors above the destination directory are root-owned and not writable by
+unprivileged users. The helper refuses root, setuid identities and Linux
+capabilities. This is a deliberate supported-layout restriction: ordinary nested
+workspace directories remain unavailable. Administrators, rather than concurrent
+unprivileged writers, control the immutable ancestry.
+
+Credential bytes and permissions are written only on an anonymous `O_TMPFILE`
+inode. After filling and syncing that inode, descriptor-relative link/replace
+operations publish completed bytes inside the protected directory; the helper
+never writes or chmods a named inode. Target snapshots detect changes during
+collection/staging. They are not atomic compare-and-swap: a final racing leaf
+replacement is replaced as an entry rather than followed. No claim of atomic
+conditional-update semantics is made.
+
+**Browser activation remains closed.** The candidate publisher is not called by
+browser lifecycle or any other production consumer yet. The earlier temporary
+wiring was removed because this contract requires boundary qualification before
+activation. Existing explicit-save/close rejection, no credential collection,
+profile loading and cleanup remain intact. Once the owner proof passes, connect
+`persistResource` to the publisher's `collect` callback using path-free
+`context.storageState()` and verify explicit save plus close through the real
+publisher. No additional service, host execution bridge, configuration bypass or
+privileged launcher was added.
+
+The contained-evaluation example now selects both the core private-file suite
+and the browser suite and describes their Python/procfs/non-root prerequisites.
+The existing browser CLI test had an obsolete exact argument assertion; it now
+includes the production loader's existing `scopeRoot` argument. No CLI behavior
+changed.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: Trusted-host activation of a scope-authorized offline Linux probe profile for the private-file boundary; native inspection or an equivalent attributable capability export permits resumption without manual captures.
+
+The path is an evidence-discovery hint in the existing precondition vocabulary,
+not a required filename, manual capture or request for owner permission.
+
+The existing native contained-evaluation service must expose an authorized
+offline Linux probe profile for this canonical scope. This repair invoked
+`pnpm kota eval contained '{"operation":"inspect"}'` through the maintained
+mediation and received `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host
+environment` (tool use `tool-f9983c7e04a7729e42c5c10b4563a27f`). This is an actual
+host response, not an inference from a Darwin sandbox denial. The builder cannot
+supply that host grant or control its parent daemon. No repeated unchanged
+readiness call or alternate execution bridge is needed.
+
+The exact outstanding checks are actual unprivileged Linux private creation and
+replacement (complete bytes, mode 0600, single link), changed-leaf rejection with
+an unchanged sentinel outside the write grant, and adversarial root/staging
+relocation assessment at the owning boundary. The six Linux owner cases are
+present but unexecuted here; a skipped test is not proof. Browser integration
+must remain inactive until that qualification, then receive its save/close
+composition check. No successful Linux publication, race-safety certification or
+finished security fix is claimed. Host activation is not a generic deployment
+monitoring gate: it is the unavailable execution surface for these specific
+pre-activation security checks, after candidate implementation and local
+validation have advanced.
+
 
 ## Current Contract
 
@@ -73,15 +139,28 @@ proposed writer design is correct.
 
 ## Current disposition verification
 
-No production code changed. The existing browser profile lifecycle suite passed
-all 11 tests in this workspace, exercising explicit-save/close rejection before
-state collection, unchanged profiles, resource cleanup, existing-profile loading,
-scope ownership and policy rejection. This proves retained containment only.
-The draft host grant and current-source collection use the existing production
-decoders and collector; their results are setup evidence, not Linux execution.
-This run does not claim successful persistence, race safety, host activation, or
-completion of the security fix. Run-specific setup and evidence stay under this
-run's agent directory.
+The final browser/private-file owner run passed 81 tests across 14 suites;
+six Linux-only cases were skipped on Darwin. The executed cases establish
+continued rejection before credential collection, unchanged profiles, cleanup,
+existing-profile reads, scope/write-policy rejection and the maintained browser
+consumers. They do not establish the candidate's positive Linux behavior.
+
+Production and test TypeScript checks, repository lint, task validation, generated
+client/UI binding checks and module admission passed. Python compiled the embedded
+helper successfully; an actual isolated Python invocation on Darwin returned the
+expected unsupported-runtime rejection without filesystem mutation. The final
+production TypeScript emission and runtime-asset copy passed. The `pnpm build`
+wrapper's clean step could not remove generated directories (`Operation not
+permitted`), so those two build operations were run directly without changing
+permissions or weakening isolation. No native client contract changed.
+
+Scoped Git inspection confirms the production browser lifecycle, configuration,
+setup and source-access report are unchanged; only guidance and the stale CLI
+test assertion changed in that module. The candidate publisher has no production
+caller, so the unavailable Linux proof cannot activate unreviewed credential
+writes. Historical sections below preserve the original finding and rejected
+attempts. Run-specific evidence and the proposed commit message remain under the
+`2026-09-12T20-19-32-959Z-builder-pbera3` agent directory.
 
 
 ## Problem

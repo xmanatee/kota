@@ -30,3 +30,21 @@ filename selection, content formats, and domain transitions.
   permissions, and lifecycle contracts; do not merge them by weakening those rules.
 - Safety tests belong here for shared mechanics and beside domain callers for
   distinct semantic entry points. Do not duplicate the helper in callers.
+
+## Private publication
+
+`publishPrivateFile` is the stricter credential-writing boundary. It does not
+reuse relocatable anchored mutations. The Linux helper walks from `/` without
+following symlinks and requires administrator-owned, non-writable ancestors above
+the destination directory. This prevents unprivileged writers from moving that
+directory or its root; privileged host administrators remain trusted.
+
+All byte writes and permission changes occur on an anonymous `O_TMPFILE` inode.
+Only completed bytes gain a name; publication replaces an entry relative to the
+protected directory without following leaf links. No named staging directory or
+subsequent credential write can follow a relocated inode. Changed-target snapshot
+checks catch intervening edits but are not atomic compare-and-swap: a final racing
+leaf replacement is replaced as an entry, never dereferenced. Callers requiring
+conditional updates must not treat this API as a transaction or optimistic lock.
+Unsupported platforms, identities, layouts or filesystem primitives fail closed.
+The helper receives content over stdin and returns only redacted status.
