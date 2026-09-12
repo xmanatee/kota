@@ -5,10 +5,11 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export type RepositoryAccess = "none" | "read" | "write";
@@ -383,6 +384,24 @@ export class RunSandboxManager {
     }
     if (sandbox.repository !== "none") this.verifyRepositorySandbox(sandbox);
     return sandbox;
+  }
+
+  /** Cancellation may release missing work, but must retain its remaining evidence. */
+  preserveMissingWorkspaceForCancellation(sandbox: RunSandbox): boolean {
+    this.assertOwnedPaths(sandbox);
+    if (sandbox.repository === "none" || existsSync(sandbox.workspaceDir)) return false;
+    this.requireScopeRepository();
+    if (git(this.repoRoot, ["for-each-ref", "--format=%(refname)", `refs/heads/${this.branchFor(sandbox.runId)}`]) !== "") return false;
+    if (git(this.repoRoot, ["worktree", "list", "--porcelain", "-z"])
+      .split("\0").includes(`worktree ${sandbox.workspaceDir}`)) return false;
+    if (existsSync(sandbox.rootDir)) {
+      const retained = join(this.repoRoot, ".kota", "runs", sandbox.runId, "retained-runtime");
+      assertContained(this.repoRoot, retained);
+      if (existsSync(retained)) throw new Error(`Run "${sandbox.runId}" already has retained runtime evidence`);
+      mkdirSync(dirname(retained), { recursive: true });
+      renameSync(sandbox.rootDir, retained);
+    }
+    return true;
   }
 
   cleanup(sandbox: RunSandbox): RunSandboxCleanup {

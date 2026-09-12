@@ -21,6 +21,9 @@ and publication.
   shutdown drains without taking execution capacity.
 - `RunLifecycle` owns sandbox creation/adoption, resource allocation, execution,
   writer finalization, restart reconciliation, and cleanup.
+  Automatic recovery preserves ambiguous missing sandboxes. Explicit cancellation
+  may release a missing checkout with no remaining branch or Git registration,
+  preserving residual runtime files with the run artifacts; it never completes the task.
 - `IntegrationQueue` alone publishes writers: rebase onto canonical head,
   validate, acquire the integration resource, run domain invariants against
   that exact snapshot with fresh scope-state and scope-filtered ownership

@@ -211,6 +211,7 @@ export class RunLifecycle {
     const manager = this.sandboxManager(repoRoot);
     let sandbox: RunSandbox;
     try {
+      if (manager.preserveMissingWorkspaceForCancellation(run.sandbox)) return { ready: true };
       sandbox = manager.adopt(run.sandbox);
     } catch (adoptionError) {
       try {

@@ -128,8 +128,8 @@ afterEach(() => {
 });
 
 describe("RunLifecycle", () => {
-  test.each(["settled", "dirty", "unintegrated", "missing-registered", "absent"] as const)(
-    "persists cancellation only for proven cleanup after restart: %s",
+  test.each(["settled", "dirty", "unintegrated", "missing-registered", "absent", "residual-evidence"] as const)(
+    "cancels safely after restart without discarding retained work: %s",
     async (condition) => {
       const value = fixture(`cleanup-${condition}`, "write", ["triage"]);
       const manager = new RunSandboxManager(value.root);
@@ -150,7 +150,8 @@ describe("RunLifecycle", () => {
       } else {
         git(value.root, "worktree", "remove", sandbox.workspaceDir);
         git(value.root, "branch", "-d", sandbox.branch);
-        rmSync(sandbox.rootDir, { recursive: true });
+        if (condition === "absent") rmSync(sandbox.rootDir, { recursive: true });
+        else write(sandbox.rootDir, "agent/unfinished.txt", "preserve remaining evidence\n");
       }
       value.store.suspendRun({ runId: value.run.id, epoch: value.epoch, state: "waiting",
         wait: { kind: "continuation", decision: "preserve-yield" },
@@ -160,22 +161,38 @@ describe("RunLifecycle", () => {
       value.store = RunStateDatabase.openExisting(stateDir);
       value.epoch = value.store.beginDaemonSession("2026-08-25T11:00:00.000Z").epoch;
       const runtime = lifecycle(value, async () => { throw new Error("cancellation must not execute work"); });
+      if (condition === "absent") {
+        value.store.resumeRun(value.run.id, "2026-08-25T11:00:01.000Z");
+        value.store.startRun(value.run.id, value.epoch, "2026-08-25T11:00:02.000Z");
+        const outcome = await runtime.execute(value.store.getRun(value.run.id)!, new AbortController().signal);
+        expect(outcome).toMatchObject({ kind: "suspended", state: "needs_attention",
+          wait: { reason: "sandbox-recovery-ambiguous" } });
+        expect(value.store.getRun(value.run.id)?.sandbox).toEqual(sandbox);
+        if (outcome.kind !== "suspended") throw new Error("expected preserved recovery");
+        value.store.suspendRun({ runId: value.run.id, epoch: value.epoch,
+          state: outcome.state, wait: outcome.wait, suspendedAt: "2026-08-25T11:00:03.000Z" });
+      }
       const coordinator = new RunCoordinator({
         store: value.store, daemonEpoch: value.epoch, concurrency: 1,
         execute: (run, signal) => runtime.execute(run, signal),
         prepareCancellation: (run) => runtime.prepareCancellation(run),
       });
+      const cancellable = condition === "settled" || condition === "absent" || condition === "residual-evidence";
       try {
-        expect(coordinator.cancel(value.run.id)).toMatchObject(condition === "settled"
+        expect(coordinator.cancel(value.run.id)).toMatchObject(cancellable
           ? { cancelled: true }
           : { cancelled: false, reason: "sandbox-preserved" });
         expect(readFileSync(evidence, "utf8")).toBe('{"changedPaths":[]}\n');
         const current = value.store.getRun(value.run.id)!;
-        expect(current.state).toBe(condition === "settled" ? "cancelled" : "needs_attention");
-        if (condition === "settled") {
+        expect(current.state).toBe(cancellable ? "cancelled" : "needs_attention");
+        if (cancellable) {
           expect(current.resources).toEqual([]);
           expect(current.sandbox).toBeUndefined();
-          expect(readFileSync(join(value.root, "sorted.txt"), "utf8")).toBe("preserved capture intent\n");
+          if (condition === "settled") expect(readFileSync(join(value.root, "sorted.txt"), "utf8")).toBe("preserved capture intent\n");
+          if (condition === "residual-evidence") {
+            expect(readFileSync(join(value.root, ".kota", "runs", value.run.id,
+              "retained-runtime", "agent", "unfinished.txt"), "utf8")).toBe("preserve remaining evidence\n");
+          }
           expect(existsSync(sandbox.rootDir)).toBe(false);
         } else {
           expect(current.resources).toHaveLength(1);
@@ -183,25 +200,14 @@ describe("RunLifecycle", () => {
           if (condition === "dirty") {
             expect(readFileSync(join(sandbox.workspaceDir, "retained.txt"), "utf8")).toBe("unfinished intent\n");
           }
-          if (condition === "absent") {
-            value.store.resumeRun(value.run.id, "2026-08-25T11:00:01.000Z");
-            value.store.startRun(value.run.id, value.epoch, "2026-08-25T11:00:02.000Z");
-            const outcome = await runtime.execute(value.store.getRun(value.run.id)!, new AbortController().signal);
-            expect(outcome).toMatchObject({ kind: "suspended", state: "needs_attention",
-              wait: { reason: "sandbox-recovery-ambiguous" } });
-            expect(value.store.getRun(value.run.id)?.sandbox).toEqual(sandbox);
-            if (outcome.kind !== "suspended") throw new Error("expected preserved recovery");
-            value.store.suspendRun({ runId: value.run.id, epoch: value.epoch,
-              state: outcome.state, wait: outcome.wait, suspendedAt: "2026-08-25T11:00:03.000Z" });
-          }
         }
       } finally {
         await coordinator.dispose();
       }
       value.store.close();
       value.store = RunStateDatabase.openExisting(stateDir);
-      expect(value.store.getRun(value.run.id)?.resources).toHaveLength(condition === "settled" ? 0 : 1);
-      expect(value.store.getRun(value.run.id)?.state).toBe(condition === "settled" ? "cancelled" : "needs_attention");
+      expect(value.store.getRun(value.run.id)?.resources).toHaveLength(cancellable ? 0 : 1);
+      expect(value.store.getRun(value.run.id)?.state).toBe(cancellable ? "cancelled" : "needs_attention");
     },
   );
 
