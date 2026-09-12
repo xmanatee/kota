@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	findInstructionFiles,
@@ -343,7 +343,8 @@ describe("loadInstructionContext", () => {
 // Load-bearing rules at the bottom of an oversized instruction file are
 // silently truncated from every agent's system prompt (a 2026-04-19 builder
 // failure traced a direct-commit breach to exactly this). Enforce the cap as
-// a stable repo invariant so future growth fails loudly instead.
+// a stable repo invariant through the production loader, including referenced
+// documents whose growth a scan of AGENTS.md sizes alone cannot detect.
 describe("repo instruction files stay under the injection cap", () => {
 	const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 		cwd: import.meta.dirname,
@@ -357,6 +358,8 @@ describe("repo instruction files stay under the injection cap", () => {
 	)
 		.split("\n")
 		.filter(Boolean)
+		// Frozen run inputs are historical evidence, not maintained guidance.
+		.filter((rel) => !rel.startsWith(".kota/runs/"))
 		.map((rel) => join(repoRoot, rel))
 		.filter(existsSync);
 
@@ -365,9 +368,14 @@ describe("repo instruction files stay under the injection cap", () => {
 	});
 
 	for (const path of tracked) {
-		it(`${path.slice(repoRoot.length + 1)} stays under ${MAX_FILE_LENGTH} bytes`, () => {
-			const size = statSync(path).size;
-			expect(size, `${path} is ${size} bytes; truncation hides trailing rules`).toBeLessThanOrEqual(MAX_FILE_LENGTH);
+		it(`${path.slice(repoRoot.length + 1)} delivers guidance without truncation or unresolved references`, () => {
+			const file = findInstructionFiles(dirname(path), repoRoot).find(
+				(file) => file.path === path,
+			);
+			expect(file, `${path} must reach the instruction context`).toBeDefined();
+			expect(file!.content).not.toContain("... (truncated)");
+			expect(file!.content).not.toMatch(/<!-- (?:not found|circular ref):/);
+			expect(file!.content).not.toMatch(/^@(.+\.md)\s*$/m);
 		});
 	}
 });

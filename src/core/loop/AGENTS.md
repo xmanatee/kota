@@ -13,8 +13,10 @@ execution belong to their respective core boundaries and module adapters.
   a canned model answer cannot establish that prior context reached the model.
 - Provider signatures stay out of summarizer requests and narrative output.
 - Instruction-loader fixtures use isolated temporary trees with explicit scope
-  roots. Retain the repository instruction-size guard because truncation can
-  hide operational rules; shorten or scope guidance when the guard fails.
+  roots. Retain the repository delivery guard through the production loader,
+  including referenced documents: truncation can hide operational rules.
+  Shorten or scope guidance, or expand adjacent documents in place with `@`
+  references, when the guard fails; preserve rule order and authority.
 - Owner tests observe context snapshots, model requests, persisted bytes and
   reduction outcomes. Shared observation helpers own envelope handling; callers
   do not export alternate names for those helpers.
