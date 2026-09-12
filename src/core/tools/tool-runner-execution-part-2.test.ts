@@ -93,19 +93,6 @@ describe("executeToolCalls local execution", () => {
     }
   });
 
-  it("executes multiple read-only tools in parallel", async () => {
-    mockExecuteTool.mockResolvedValue({ content: "ok" });
-    const blocks = [
-      toolBlock("grep", { pattern: "TODO" }, "t1"),
-      toolBlock("glob", { pattern: "*.ts" }, "t2"),
-    ];
-    const results = await executeToolCalls(blocks, runOptions());
-    expect(results).toHaveLength(2);
-    expect(results[0].tool_use_id).toBe("t1");
-    expect(results[1].tool_use_id).toBe("t2");
-    expect(mockExecuteTool).toHaveBeenCalledTimes(2);
-  });
-
   it("runs contiguous read-only local tools concurrently and preserves model order", async () => {
     mockGetToolEffect.mockReturnValue(readEffect);
     const { started, deferreds } = mockDeferredLocalTools();

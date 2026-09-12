@@ -1,29 +1,13 @@
-import { beforeEach, type Mock, vi } from "vitest";
-import type { AutonomyMode } from "./autonomy-mode.js";
+import { afterEach, type Mock, vi } from "vitest";
+import type { KotaTool, KotaToolUseBlock } from "#core/agent-harness/message-protocol.js";
+import { deregisterLocalToolApprovalBinding, registerLocalToolApprovalBinding } from "./local-tool-approval-binding.js";
 import type { ToolCallExecutionOptions, ToolResultEntry } from "./tool-runner.js";
 
+const declaredTools = vi.hoisted(() => new Map<string, KotaTool>());
 vi.mock("./index.js", () => ({
   executeTool: vi.fn(),
   getToolEffect: vi.fn(),
-	getAllTools: vi.fn(() => [
-		"destroy_one",
-		"file_read",
-		"glob",
-		"grep",
-		"local_read",
-		"read_after",
-		"read_before",
-		"read_fast",
-		"read_slow",
-		"send_message",
-		"shell",
-		"web_fetch",
-		"write_one",
-	].map((name) => ({
-		name,
-		description: "test",
-		input_schema: { type: "object", properties: {} },
-	}))),
+  getAllTools: () => [...declaredTools.values()],
 }));
 vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
@@ -51,7 +35,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { assess } from "./guardrails.js";
-import { executeTool, getAllTools, getToolEffect } from "./index.js";
+import { executeTool, getToolEffect } from "./index.js";
 
 export const mockExecuteTool = vi.mocked(executeTool);
 export const mockGetToolEffect = vi.mocked(getToolEffect);
@@ -101,13 +85,30 @@ export const confirmConfig = {
   },
 };
 
+// Scenarios declare only their local leaf tools. MCP declarations belong to the
+// supplied manager; both input validation and execution leasing remain real.
 export function toolBlock(
   name: string,
-  input: object = {},
+  input: KotaToolUseBlock["input"] = {},
   id = "t1",
-) {
-  return { type: "tool_use" as const, id, name, input };
+): KotaToolUseBlock {
+  if (!name.startsWith("mcp__") && !declaredTools.has(name)) {
+    const tool: KotaTool = {
+      name, description: "Controlled test operation",
+      input_schema: { type: "object", properties: {} },
+    };
+    declaredTools.set(name, tool);
+    registerLocalToolApprovalBinding(tool,
+      (params, context) => mockExecuteTool(name, params, context),
+      { effect: readEffect, resolveEffect: (params) => mockGetToolEffect(name, params) });
+  }
+  return { type: "tool_use", id, name, input };
 }
+
+afterEach(() => {
+  for (const name of declaredTools.keys()) deregisterLocalToolApprovalBinding(name);
+  declaredTools.clear();
+});
 
 export function ok(content = "done"): ToolResultEntry[] {
   return [{ tool_use_id: "t1", content }];
@@ -123,7 +124,7 @@ export function runOptions(
   return {
     resultLimit: 50000,
     verbose: false,
-    autonomyMode: "autonomous" as AutonomyMode,
+    autonomyMode: "autonomous",
     approvalQueue: getApprovalQueue(),
     ...overrides,
   };
@@ -197,12 +198,3 @@ export function mockDeferredLocalTools(): {
 
 export type { ToolResultEntry } from "./tool-runner.js";
 export { tryEmitMock };
-
-// Keep registration and leasing real; only leaf tool effects/execution are controlled.
-import { registerLocalToolApprovalBinding } from "./local-tool-approval-binding.js";
-
-beforeEach(() => {
-  for (const tool of getAllTools()) registerLocalToolApprovalBinding(tool,
-    (input, context) => mockExecuteTool(tool.name, input, context),
-    { effect: readEffect, resolveEffect: (input) => mockGetToolEffect(tool.name, input) });
-});

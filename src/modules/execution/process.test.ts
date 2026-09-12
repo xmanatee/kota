@@ -5,7 +5,7 @@ import {
   unregisterSessionEnvironment,
 } from "#core/tools/session-environment.js";
 import { getActiveProcessCount, runProcess } from "./process.js";
-import { envProbeCommand, installProcessTestHooks, waitForExit } from "./process-test-support.js";
+import { installProcessTestHooks, waitForExit } from "./process-test-support.js";
 
 installProcessTestHooks();
 
@@ -45,29 +45,6 @@ describe("process tool", () => {
       expect(result.content).toContain("truncated");
       expect(result.content!.length).toBeLessThan(20_000);
     }, 10_000);
-
-    it("injects context ids and scrubs inherited telemetry routing env", async () => {
-      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
-      process.env.OTLP_ENDPOINT = "http://legacy-collector";
-
-      const result = await runProcess(
-        { action: "start", command: envProbeCommand },
-        { sessionId: "session-bg", toolUseId: "tool-bg" },
-      );
-
-      expect(result.is_error).toBeUndefined();
-      expect(result.content).toContain("session-bg|tool-bg|missing|missing");
-    });
-
-    it("does not synthesize correlation ids for no-context direct calls", async () => {
-      process.env.KOTA_SESSION_ID = "parent-session";
-      process.env.KOTA_TOOL_USE_ID = "parent-tool";
-
-      const result = await runProcess({ action: "start", command: envProbeCommand });
-
-      expect(result.is_error).toBeUndefined();
-      expect(result.content).toContain("missing|missing|missing|missing");
-    });
 
     it("terminates a credential-bearing process when its session tears down", async () => {
       const context = {

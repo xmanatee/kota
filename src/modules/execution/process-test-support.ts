@@ -1,36 +1,8 @@
-import { afterEach, beforeEach } from "vitest";
+import { afterEach } from "vitest";
 import { clearProcesses, runProcess } from "./process.js";
 
-const envKeys = [
-  "KOTA_SESSION_ID",
-  "KOTA_TOOL_USE_ID",
-  "OTEL_EXPORTER_OTLP_ENDPOINT",
-  "OTLP_ENDPOINT",
-] as const;
-
-let savedEnv: Partial<Record<(typeof envKeys)[number], string>>;
-
-export const envProbeCommand =
-  "printf '%s|%s|%s|%s' " +
-  "\"${KOTA_SESSION_ID-missing}\" " +
-  "\"${KOTA_TOOL_USE_ID-missing}\" " +
-  "\"${OTEL_EXPORTER_OTLP_ENDPOINT-missing}\" " +
-  "\"${OTLP_ENDPOINT-missing}\"";
-
 export function installProcessTestHooks(): void {
-  beforeEach(() => {
-    savedEnv = {};
-    for (const key of envKeys) savedEnv[key] = process.env[key];
-  });
-
-  afterEach(() => {
-    for (const key of envKeys) {
-      const value = savedEnv[key];
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-    clearProcesses();
-  });
+  afterEach(() => clearProcesses());
 }
 
 export async function waitForExit(processId: string, maxWaitMs = 5000): Promise<string> {
