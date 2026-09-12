@@ -142,6 +142,7 @@ async function runCodexCliProcess(
   let outputTokens: number | undefined;
   let commandSequence = 0;
   let cliFailure: { detail: string; subtype: string } | undefined;
+  let processFailure: Error | undefined;
 
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
   const clearForceKill = (): void => {
@@ -150,7 +151,21 @@ async function runCodexCliProcess(
     forceKillTimer = undefined;
   };
   const sendSignal = (signal: NodeJS.Signals): void => {
-    signalNativeCliProcessGroup(child, signal);
+    try {
+      signalNativeCliProcessGroup(child, signal);
+    } catch (error) {
+      processFailure ??= new Error(`Codex CLI ${signal} failed: ${String(error)}`, { cause: error });
+      // Timer/abort callbacks cannot throw. Keep quarantine until actual close.
+      void emitCodexMessage(args.onMessage, withSession({
+        type: "status",
+        category: "codex.termination.failed",
+        text: processFailure.message,
+      }, sessionId)).catch((callbackError: unknown) => {
+        processFailure = new AggregateError(
+          [processFailure, callbackError], "Codex CLI termination and diagnostic delivery failed",
+        );
+      });
+    }
   };
   const terminateChild = (): void => {
     sendSignal("SIGTERM");
@@ -184,7 +199,6 @@ async function runCodexCliProcess(
     child.stderr.on("end", resolve);
   });
 
-  let stdoutFailure: Error | undefined;
   const stdoutDone = (async (): Promise<void> => {
     try {
       const lines = createInterface({ input: child.stdout });
@@ -299,7 +313,7 @@ async function runCodexCliProcess(
         }
       }
     } catch (error) {
-      stdoutFailure = error instanceof Error ? error : new Error(String(error));
+      processFailure ??= error instanceof Error ? error : new Error(String(error));
       quarantineChild();
     }
   })();
@@ -319,7 +333,7 @@ async function runCodexCliProcess(
     });
   });
   await Promise.all([stdoutDone, stderrDone]);
-  if (stdoutFailure !== undefined) throw stdoutFailure;
+  if (processFailure !== undefined) throw processFailure;
 
   if (abortController?.signal.aborted) {
     return {

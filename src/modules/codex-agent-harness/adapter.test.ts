@@ -551,9 +551,50 @@ describe("codexAgentHarness", () => {
     });
   });
 
-  it("hard-kills aborted Codex CLI runs before releasing quarantine", async () => {
+  it("contains a denied escalation signal without releasing the live child's quarantine", async () => {
+    vi.useFakeTimers();
+    const fixture = mockCodexProcess({ autoClose: false });
+    const denied = Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+    fixture.child.kill.mockImplementation((signal: string) => {
+      if (signal === "SIGKILL") throw denied;
+      return true;
+    });
+    const onMessage = vi.fn();
+    let settled = false;
+    const run = codexAgentHarness.run({
+      prompt: "x",
+      model: "gpt-5.6-sol",
+      effort: "high",
+      onMessage,
+    });
+    const outcome = run.then(
+      () => { settled = true; return null; },
+      (error: unknown) => { settled = true; return error; },
+    );
+    try {
+      fixture.child.stdout.write(`${JSON.stringify({ type: "error", message: "provider failed" })}\n`);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fixture.child.kill).toHaveBeenCalledWith("SIGTERM");
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(settled).toBe(false);
+      expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "status",
+        category: "codex.termination.failed",
+        text: expect.stringContaining("EPERM"),
+      }));
+    } finally {
+      fixture.child.stdout.end();
+      fixture.child.stderr.end();
+      fixture.child.emit("close", null, "SIGKILL");
+    }
+    await expect(outcome).resolves.toMatchObject({ message: expect.stringContaining("EPERM") });
+  });
+
+  it.each([false, true])("keeps aborted Codex runs quarantined until close (signal denied: %s)", async (denied) => {
     const process = mockCodexProcess({ autoClose: false });
     const abortController = new AbortController();
+    if (denied) process.child.kill.mockImplementation(() => { throw new Error("kill EPERM"); });
+    let settled = false;
 
     const run = codexAgentHarness.run({
       prompt: "x",
@@ -561,20 +602,21 @@ describe("codexAgentHarness", () => {
       effort: "xhigh",
       abortController,
     });
+    void run.then(() => { settled = true; }, () => { settled = true; });
 
     abortController.abort(new Error("step timeout"));
 
     expect(process.child.kill).toHaveBeenCalledWith("SIGKILL");
+    await Promise.resolve();
+    expect(settled).toBe(false);
 
     process.child.stdout.end();
     process.child.stderr.end();
     process.child.exitCode = null;
     process.child.emit("close", null, "SIGKILL");
 
-    await expect(run).resolves.toMatchObject({
-      isError: true,
-      subtype: "aborted",
-    });
+    if (denied) await expect(run).rejects.toThrow("EPERM");
+    else await expect(run).resolves.toMatchObject({ isError: true, subtype: "aborted" });
   });
 
   it("quarantines the Codex process when a streamed-message consumer rejects", async () => {
