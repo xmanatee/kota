@@ -1,8 +1,9 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createRuntimeModuleLoader } from "./core/modules/module-context.test-helpers.js";
-import { clearCustomTools } from "./core/tools/index.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { executeToolCalls } from "./core/tools/tool-runner.js";
 import filesystemModule from "./modules/filesystem/index.js";
 import renderingModule from "./modules/rendering/index.js";
@@ -13,31 +14,34 @@ import renderingModule from "./modules/rendering/index.js";
  * tool-runner pipeline (execution → retry check → truncation) correctly.
  */
 
-const TEST_DIR = join(process.cwd(), ".test-grep-pipeline");
+let testDir: string;
+
+let loader: ModuleLoader;
 
 beforeAll(async () => {
-  const loader = createRuntimeModuleLoader({});
+  loader = new ModuleLoader({}, false, { mode: "runtime" });
+  loader.setBus(new EventBus());
   await loader.loadAll([renderingModule, filesystemModule]);
-  mkdirSync(TEST_DIR, { recursive: true });
+  testDir = mkdtempSync(join(tmpdir(), "kota-grep-pipeline-"));
   // Create enough files to produce a multi-line result
   for (let i = 0; i < 15; i++) {
     writeFileSync(
-      join(TEST_DIR, `module_${i}.ts`),
+      join(testDir, `module_${i}.ts`),
       `import pandas from "pandas";\nconst val_${i} = ${i};\nexport default val_${i};`,
     );
   }
-  writeFileSync(join(TEST_DIR, "readme.md"), "# Docs\nNo matching content here.");
+  writeFileSync(join(testDir, "readme.md"), "# Docs\nNo matching content here.");
 });
 
-afterAll(() => {
-  clearCustomTools();
-  rmSync(TEST_DIR, { recursive: true, force: true });
+afterAll(async () => {
+  await loader.unloadAll();
+  rmSync(testDir, { recursive: true, force: true });
 });
 
 describe("grep modes through tool-runner pipeline", () => {
   it("files_only result survives truncation with file paths intact", async () => {
     const results = await executeToolCalls(
-      [{ type: "tool_use", id: "t1", name: "grep", input: { pattern: "pandas", path: TEST_DIR, files_only: true } }],
+      [{ type: "tool_use", id: "t1", name: "grep", input: { pattern: "pandas", path: testDir, files_only: true } }],
       { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
@@ -51,7 +55,7 @@ describe("grep modes through tool-runner pipeline", () => {
 
   it("count_only result preserves total summary after truncation", async () => {
     const results = await executeToolCalls(
-      [{ type: "tool_use", id: "t2", name: "grep", input: { pattern: "pandas", path: TEST_DIR, count_only: true } }],
+      [{ type: "tool_use", id: "t2", name: "grep", input: { pattern: "pandas", path: testDir, count_only: true } }],
       { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
@@ -64,7 +68,7 @@ describe("grep modes through tool-runner pipeline", () => {
 
   it("files_only with file_glob filters correctly through pipeline", async () => {
     const results = await executeToolCalls(
-      [{ type: "tool_use", id: "t3", name: "grep", input: { pattern: "pandas", path: TEST_DIR, files_only: true, file_glob: "*.ts" } }],
+      [{ type: "tool_use", id: "t3", name: "grep", input: { pattern: "pandas", path: testDir, files_only: true, file_glob: "*.ts" } }],
       { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
@@ -75,7 +79,7 @@ describe("grep modes through tool-runner pipeline", () => {
 
   it("grep error flows through tool-runner without retry (regex errors are not transient)", async () => {
     const results = await executeToolCalls(
-      [{ type: "tool_use", id: "t4", name: "grep", input: { pattern: "[invalid", path: TEST_DIR } }],
+      [{ type: "tool_use", id: "t4", name: "grep", input: { pattern: "[invalid", path: testDir } }],
       { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);

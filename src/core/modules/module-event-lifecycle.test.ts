@@ -1,20 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { clearCustomTools } from "#core/tools/index.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule, ModuleContext } from "./module-types.js";
-import { resetProviderRegistry } from "./provider-registry.js";
 import { loadRuntimeModules } from "./runtime-loader.js";
 
-afterEach(() => {
-  clearCustomTools();
-  resetProviderRegistry();
-  resetEventBus();
-});
-
 function runtimeLoader(bus = new EventBus()): ModuleLoader {
-  const loader = new ModuleLoader({});
+  const loader = new ModuleLoader({}, false, { mode: "runtime" });
   loader.setBus(bus);
+  onTestFinished(() => loader.unloadAll());
   return loader;
 }
 
@@ -29,6 +22,7 @@ describe("runtime module event lifecycle", () => {
 
   it("rejects direct runtime loading before onLoad instead of borrowing the process singleton", async () => {
     initEventBus();
+    onTestFinished(resetEventBus);
     const onLoad = vi.fn();
     const loader = new ModuleLoader({}, false, { mode: "runtime" });
 
@@ -53,6 +47,7 @@ describe("runtime module event lifecycle", () => {
 
   it("fails every event-proxy operation when no bus is bound", async () => {
     const loader = new ModuleLoader({}, false, { mode: "commands" });
+    onTestFinished(() => loader.unloadAll());
     let context: ModuleContext | undefined;
     await loader.load({
       name: "unbound-contribution",

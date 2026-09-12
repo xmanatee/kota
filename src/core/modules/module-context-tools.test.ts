@@ -1,23 +1,19 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { getScopeSecretStore } from "#core/config/secrets.js";
+import { afterEach, expect, it } from "vitest";
+import { getScopeSecretStore, resetSecretStores } from "#core/config/secrets.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { executeTool } from "#core/tools/index.js";
 import {
-  createRuntimeModuleLoader,
-  installRenderingCapture,
-  resetModuleContextTestState,
+  captureDiagnostics,
+  createModuleLoader,
   TEXT_LOG_CONFIG,
 } from "./module-context.test-helpers.js";
 import { resolveModuleTools, type ToolDef } from "./module-types.js";
 
-beforeEach(() => {
-  resetModuleContextTestState();
-  vi.restoreAllMocks();
-});
-afterEach(resetModuleContextTestState);
+
+afterEach(resetSecretStores);
 
 function tool(name: string, runner: ToolDef["runner"]): ToolDef {
   return {
@@ -28,7 +24,7 @@ function tool(name: string, runner: ToolDef["runner"]): ToolDef {
 }
 
 it("executes static and context-bound factory tools and withdraws only the unloaded contribution", async () => {
-  const loader = createRuntimeModuleLoader({});
+  const loader = createModuleLoader({});
   loader.setCwd("/factory-scope");
   try {
     await loader.load({ name: "static", tools: [tool("static_tool", async () => ({ content: "static" }))] });
@@ -53,7 +49,7 @@ it("executes static and context-bound factory tools and withdraws only the unloa
 
 it("resolves scope secrets from the context retained by a tool factory", async () => {
   const root = mkdtempSync(join(tmpdir(), "module-context-factory-"));
-  const loader = createRuntimeModuleLoader({});
+  const loader = createModuleLoader({});
   loader.setCwd(root);
   try {
     getScopeSecretStore(root).set("KOTA_MODULE_CONTEXT_FACTORY_TOKEN", "fixture-token", "scope");
@@ -72,8 +68,8 @@ it("resolves scope secrets from the context retained by a tool factory", async (
 
 it("attributes tool diagnostics to the module captured by its factory", async () => {
   const chunks: string[] = [];
-  installRenderingCapture(chunks);
-  const loader = createRuntimeModuleLoader(TEXT_LOG_CONFIG, true);
+  captureDiagnostics(chunks);
+  const loader = createModuleLoader(TEXT_LOG_CONFIG, true);
   try {
     await loader.load({
       name: "logging-factory",

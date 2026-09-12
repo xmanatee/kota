@@ -9,7 +9,7 @@ import {
 import { loadManifest, saveManifest } from "#core/manifest/persistence.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
-import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
+import { createModuleLoader } from "./module-context.test-helpers.js";
 import { discoverModules as discoverMachineAuthorizedModules, reimportInstalledModule } from "./module-discovery.js";
 import type { ModuleLoader } from "./module-loader.js";
 import { ModuleLogStore } from "./module-log.js";
@@ -44,7 +44,7 @@ describe("discoverModules", () => {
     clearCustomGroups();
     resetGroups();
     clearRegisteredConfigSlices();
-    loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
+    loader = createModuleLoader({}, false, { globalConfigPath });
   });
 
   afterEach(async () => {

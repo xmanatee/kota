@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearCustomTools } from "#core/tools/index.js";
 import { clearCustomGroups, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
-import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
+import { createModuleLoader } from "./module-context.test-helpers.js";
 import { discoverModules } from "./module-discovery.js";
 import type { ModuleLoader } from "./module-loader.js";
 
@@ -20,7 +20,7 @@ describe("installed module formats", () => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
-    loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
+    loader = createModuleLoader({}, false, { globalConfigPath });
   });
 
   afterEach(async () => {

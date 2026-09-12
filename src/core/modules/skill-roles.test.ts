@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
+import { createModuleLoader } from "./module-context.test-helpers.js";
 import type { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
 
@@ -24,7 +24,7 @@ describe("skill role filtering", () => {
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
-    loader = createRuntimeModuleLoader({});
+    loader = createModuleLoader({});
     loader.setCwd(tmpDir);
   });
 

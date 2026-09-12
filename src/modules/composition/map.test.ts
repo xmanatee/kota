@@ -2,9 +2,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { clearCustomTools } from "#core/tools/index.js";
 import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import filesystemModule from "#modules/filesystem/index.js";
 import renderingModule from "#modules/rendering/index.js";
@@ -20,13 +20,16 @@ function makeTempDir(suffix: string): string {
 	return dir;
 }
 
+let loader: ModuleLoader;
+
 beforeAll(async () => {
-	const loader = createRuntimeModuleLoader({});
+	loader = new ModuleLoader({}, false, { mode: "runtime" });
+  loader.setBus(new EventBus());
 	await loader.loadAll([renderingModule, filesystemModule]);
 });
 
-afterAll(() => {
-	clearCustomTools();
+afterAll(async () => {
+	await loader.unloadAll();
 });
 
 describe("map tool", () => {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "./imported-skills.js";
-import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
+import { createModuleLoader } from "./module-context.test-helpers.js";
 import type { ModuleLoader } from "./module-loader.js";
 
 function writeProjectFile(root: string, relPath: string, content: string): void {
@@ -41,7 +41,7 @@ describe("imported skill resolution", () => {
 
 	beforeEach(() => {
 		scopeRoot = mkdtempSync(join(tmpdir(), "kota-imported-skills-"));
-		loader = createRuntimeModuleLoader({});
+		loader = createModuleLoader({});
 		loader.setCwd(scopeRoot);
 	});
 

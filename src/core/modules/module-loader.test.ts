@@ -36,6 +36,10 @@ import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
+import {
+  captureDiagnostics,
+  createModuleLoader as createLoader,
+} from "./module-context.test-helpers.js";
 import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule, ModuleRuntimeContext } from "./module-types.js";
@@ -50,13 +54,6 @@ const transport: DaemonTransport = {
   fetchRaw: unexpectedTransportCall,
   events: unexpectedTransportCall,
 };
-
-function createLoader(...args: ConstructorParameters<typeof RuntimeModuleLoader>): RuntimeModuleLoader {
-  const loader = new RuntimeModuleLoader(args[0], args[1], { mode: "runtime", ...args[2] });
-  if (loader.getMode() === "runtime") loader.setBus(new EventBus());
-  onTestFinished(() => loader.unloadAll());
-  return loader;
-}
 
 function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
   return {
@@ -80,17 +77,6 @@ function makeTool(name: string) {
     },
     runner: async () => ({ content: `result from ${name}` }),
     effect: readOnlyLocalEffect(),
-  };
-}
-
-function makeToolWithoutMeta(name: string) {
-  return {
-    tool: {
-      name,
-      description: `Test tool: ${name}`,
-      input_schema: { type: "object" as const, properties: {} },
-    },
-    runner: async () => ({ content: `result from ${name}` }),
   };
 }
 
@@ -216,23 +202,13 @@ const malformedHarnessCases: [string, Record<string, unknown>, RegExp][] = [
   ],
 ];
 
-function captureDiagnostics(chunks: string[]): void {
-  const output = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    chunks.push(String(chunk));
-    return true;
-  });
-  onTestFinished(() => output.mockRestore());
-}
-
 describe("ModuleLoader", () => {
 
 
   it("rejects a tool missing effect metadata", async () => {
     const loader = createLoader({});
-    const mod: KotaModule = {
-      name: "no-effect-mod",
-      tools: [makeToolWithoutMeta("no_effect_tool") as any],
-    };
+    const { effect: _effect, ...tool } = makeTool("no_effect_tool");
+    const mod = { name: "no-effect-mod", tools: [tool] } as never;
 
     await expect(loader.load(mod)).rejects.toThrow(
       "missing required metadata: effect",
@@ -316,12 +292,7 @@ describe("ModuleLoader", () => {
     await expect(loader.load({
       name: "bad-agent-contract",
       agents: [{
-        name: "fixture-agent",
-        role: "fixture",
-        promptPath: "src/core/modules/AGENTS.md",
-        model: "fixture-model",
-        effort: "low",
-        writeScope: "deny-all",
+        ...makeAgent("fixture-agent"),
         ...overrides,
       }],
     } as never)).rejects.toThrow(message);
@@ -1266,23 +1237,44 @@ describe("ModuleLoader", () => {
       tools: [makeTool("should_not_register")],
       onLoad,
       commands: () => [new Command("my-cmd").description("test")],
+      agents: [makeAgent("command-agent")],
+      workflows: [{
+        repository: "read",
+        name: "command-job",
+        triggers: [{ intervalMs: 1000 }],
+        steps: [{ id: "noop", type: "code", run: () => {} }],
+      }],
+      channels: [{
+        name: "command-channel",
+        create: () => ({ status: "disabled", reason: "fixture" }),
+      }],
+      routes: () => [{ method: "GET", path: "/runtime", handler: () => {} }],
+      controlRoutes: () => [{
+        method: "GET",
+        path: "/control",
+        capabilityScope: "read",
+        handler: () => {},
+      }],
+      healthCheck: () => ({ status: "healthy" }),
     });
 
-    // Module is loaded (tracked)
     expect(loader.getLoadedModules()).toEqual(["cmd-only-mod"]);
-    // The loader exposes its lifecycle mode
     expect(loader.getMode()).toBe("commands");
-    // But tools are NOT registered
     expect(loader.getToolCount()).toBe(0);
     const result = await executeTool("should_not_register", {});
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Unknown tool");
-    // And onLoad was NOT called
     expect(onLoad).not.toHaveBeenCalled();
-    // Commands still work
     const cmds = loader.getCommands();
     expect(cmds).toHaveLength(1);
     expect(cmds[0].name()).toBe("my-cmd");
+    expect(loader.getAgentDef("command-agent")?.name).toBe("command-agent");
+    expect(loader.getContributedWorkflows()).toMatchObject([{ name: "command-job" }]);
+    expect(loader.getContributedChannels()).toMatchObject([{ name: "command-channel" }]);
+    expect(loader.getModuleSummaries()).toMatchObject([{ name: "cmd-only-mod" }]);
+    expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
+    expect(() => loader.getContributedControlRoutes()).toThrow(/lifecycle mode "runtime"/);
+    await expect(loader.probeHealthChecks()).rejects.toThrow(/lifecycle mode "runtime"/);
   });
 
   it("serializes lifecycle mutations and recovers after rejected work", async () => {
@@ -1523,81 +1515,6 @@ describe("ModuleLoader", () => {
     expect(collectDynamicState({ activeTools: new Set() })).toBe("");
     expect(listHarnessHooks("preRun").map((hook) => hook.name))
       .not.toContain("concurrent-owner-hook");
-  });
-
-  it('"commands" mode rejects route/control-route/health-check accessors but exposes static contributions', async () => {
-    const loader = createLoader({}, false, { mode: "commands" });
-
-    // Load a module that contributes routes, control routes, workflows, channels,
-    // agents, and a health check. Routes/control-routes/health-checks depend on
-    // onLoad-driven provider state and must throw in commands mode; the static
-    // contributions remain readable from definitions.
-    await loader.load({
-      name: "everything-mod",
-      routes: () => [{ method: "GET", path: "/x", handler: () => undefined }],
-      controlRoutes: () => [
-        {
-          method: "GET",
-          path: "/control/y",
-          capabilityScope: "read",
-          handler: async () => undefined,
-        },
-      ],
-      workflows: [
-        {
-          repository: "read",
-          name: "everything-mod/workflow",
-          triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
-          steps: [{ id: "noop", type: "code", run: () => {} }],
-        },
-      ],
-      channels: [
-        {
-          name: "everything-mod.chan",
-          description: "x",
-          create: () => null,
-        } as never,
-      ],
-      agents: [{
-        name: "everything-mod.agent",
-        role: "test",
-        promptPath: "src/core/modules/AGENTS.md",
-        model: "test-model",
-        effort: "low",
-        skills: [],
-        writeScope: "deny-all",
-      }],
-      healthCheck: () => ({ status: "healthy" }),
-    });
-
-    expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
-    expect(() => loader.getContributedControlRoutes()).toThrow(
-      /lifecycle mode "runtime"/,
-    );
-    await expect(loader.probeHealthChecks()).rejects.toThrow(
-      /lifecycle mode "runtime"/,
-    );
-
-    // Static-data accessors remain safe — they are populated from the module
-    // definition during load() regardless of mode.
-    expect(loader.getContributedWorkflows()).toHaveLength(1);
-    expect(loader.getContributedWorkflows()[0].name).toBe(
-      "everything-mod/workflow",
-    );
-    expect(loader.getContributedChannels()).toHaveLength(1);
-    expect(loader.getContributedChannels()[0].name).toBe("everything-mod.chan");
-    expect(loader.getAgentDef("everything-mod.agent")?.name).toBe(
-      "everything-mod.agent",
-    );
-    // No skill files registered in this fixture, so the prompt is empty —
-    // not a silent partial, just an empty contribution set.
-    expect(loader.getSkillsPrompt()).toBe("");
-
-    // Commands and module summaries remain readable in commands mode.
-    expect(loader.getCommands()).toEqual([]);
-    expect(loader.getModuleSummaries().map((s) => s.name)).toEqual([
-      "everything-mod",
-    ]);
   });
 
   it("withdraws only the selected module's executable contributions and disposes it once", async () => {

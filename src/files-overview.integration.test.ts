@@ -2,17 +2,19 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createRuntimeModuleLoader } from "./core/modules/module-context.test-helpers.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { executeTool, } from "./core/tools/index.js";
 import { resetGroups } from "./core/tools/tool-groups.js";
 import filesystemModule from "./modules/filesystem/index.js";
 import renderingModule from "./modules/rendering/index.js";
 
 let testDir: string;
-let loader: ReturnType<typeof createRuntimeModuleLoader>;
+let loader: ModuleLoader;
 
 beforeAll(async () => {
-  loader = createRuntimeModuleLoader({});
+  loader = new ModuleLoader({}, false, { mode: "runtime" });
+  loader.setBus(new EventBus());
   await loader.loadAll([renderingModule, filesystemModule]);
 });
 
