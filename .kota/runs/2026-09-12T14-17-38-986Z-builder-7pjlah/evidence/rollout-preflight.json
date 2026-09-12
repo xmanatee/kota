@@ -1,0 +1,357 @@
+{
+  "runId": "2026-09-12T14-17-38-986Z-builder-7pjlah",
+  "taskId": "task-run-live-openrouter-and-local-model-rollout-evalua",
+  "admittedTaskDigest": "8ef36c76150a999d8461411d5d32a707dbb532e7731a6df7cf76dc3e4161a5f2",
+  "observedAt": "2026-09-12T15:19:31.321407+00:00",
+  "completedAt": "2026-09-12T15:19:32.810939+00:00",
+  "command": [
+    "pnpm",
+    "kota",
+    "eval",
+    "contained",
+    "{\"operation\":\"inspect\"}"
+  ],
+  "exitCode": 1,
+  "runtimeReplies": [
+    {
+      "tool_use_id": "tool-1b81e3ea32fdfe1c52a120a96b2e0c80",
+      "content": "Tool error: Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment. Profiles declare scopeRoots, timeoutMs, cpuCores, memoryMB and a container isolationBackend with image. Deterministic probes declare probes with command and sourcePaths and use offline networking; model profiles declare preset, fixtureIds/candidates, maxRepeats and restricted provider-egress. See src/modules/eval-harness/contained-evaluation.md for setup; worker requests cannot configure host access.",
+      "is_error": true
+    }
+  ],
+  "disposition": "preflight-skip",
+  "reason": "Trusted host reports KOTA_EVAL_CONTAINED_PROFILES unset",
+  "liveInferenceRan": false,
+  "requestedRows": [
+    {
+      "role": "baseline",
+      "harness": "codex",
+      "model": "gpt-5.5",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/z-ai/glm-5.2",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/moonshotai/kimi-k2.7-code",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/deepseek/deepseek-v4-pro",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/qwen/qwen3.7-plus",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/minimax/minimax-m3",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "openrouter",
+      "model": "openrouter/xiaomi/mimo-v2.5",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "local",
+      "model": null,
+      "mode": "raw",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    },
+    {
+      "role": "candidate",
+      "provider": "local",
+      "model": null,
+      "mode": "scaffold",
+      "execution": "not-run",
+      "metrics": {
+        "pass@k": null,
+        "pass^k": null,
+        "cost": null,
+        "latency": null,
+        "tokenUsage": null,
+        "turnCount": null,
+        "toolCount": null,
+        "approvalCount": null,
+        "contextRetrievalDiagnostics": null,
+        "trajectoryDiagnostics": null,
+        "verifierOutput": null
+      },
+      "supportTier": null
+    }
+  ],
+  "plannedSequentialRepeats": 3,
+  "plannedRepeatsAreMeasurements": false,
+  "manifestInventory": [
+    {
+      "path": "src/modules/harness-parity/scenarios/builder-scoped-fix/scenario.json",
+      "sha256": "02bf08e38341921451aff59c125bf7b108dfa75bfbf01c7c896be2aab226641d"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/codebase-investigation-answer/scenario.json",
+      "sha256": "f97574872d84171c95a757ed209c6fc49bc58af31eeb44c6203b4197632ab6ef"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/discover-failing-source/scenario.json",
+      "sha256": "4db1b37a8f3916d57ac48fe3c1f94e19cd47d85c6c74b178cf0d62a0201ec3f5"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/extract-shared-helper/scenario.json",
+      "sha256": "0cdb3e90a29429d8ecec067cb2bc0e914116d0ececc30e092df38fa8ac4f3895"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/fix-arithmetic-bug/scenario.json",
+      "sha256": "8a3d63982080182b0e34ea636584b614b422e1b69c43dc22afc2e5c741eefe9f"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/frontend-preview/scenario.json",
+      "sha256": "621f6ad91973abe1d4cd8a71aac055b514c67454456c5925ad38f5b2246d5538"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/package-upgrade-chain/scenario.json",
+      "sha256": "3da775776b968ea46b6fe1c2b96d38087dad0216fc07f6290412d90480145bdf"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/rank-relevant-regions/scenario.json",
+      "sha256": "352ae05f2606d19e0beed50cd25d359bf6b29c93f5346a5be0192177fa0ecb3a"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/rename-across-files/scenario.json",
+      "sha256": "5f1897c89392a4677266d9a0417ecbe6f38cbb7a28b013f94b3e831ab303fef1"
+    },
+    {
+      "path": "src/modules/harness-parity/scenarios/revise-from-test-output/scenario.json",
+      "sha256": "ff68edadb67106c479596bcdc24ed0614ce107e42df6da58772b09197db9860e"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json",
+      "sha256": "843db625fe087cc090d0e9fd94b342773bd383a08adc6e2ba2a7d7fc98200ff6"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-black-box-behavior-reconstruction/fixture.json",
+      "sha256": "ac01b45a981da558df8f4e655fea4e936878f7814fdcbd917dc2eada2e7ca048"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/fixture.json",
+      "sha256": "a74158e30aa78e373ddc9299ec10d2aa2b080994dc17aadb5d667fe0018cfbcc"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-empirical-code-optimization/fixture.json",
+      "sha256": "caf90f0955d10d108d292dddb1c227b713ac1d06bc7d7edf209cb1fd21a7487e"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-eval-authoring-restraint/fixture.json",
+      "sha256": "e779577207c1ae7f36aed6435caeaf7fa0615176a8e17cda2e74fba6ec6090d8"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/fixture.json",
+      "sha256": "0816526db3ea0a5eda7ec94b6e4ffcc54dd63b08137b5d9db38a93c35a330205"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-functional-security-divergence/fixture.json",
+      "sha256": "c635fe39607d12a9f6907bea3d6c1cb07cfd551a2f6fb376ffac4c8ee1d0380f"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-multi-service-integration/fixture.json",
+      "sha256": "b683dea9d5de843193d70cecc8798d61c4fc4fce4cc768a55a37d1c2a3663003"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-noop-restraint/fixture.json",
+      "sha256": "ccba24c6e57eb38dadf3d75626c65e9620d18a143be6538e21030f9d68d8b8ab"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-persistent-rounds-canary/fixture.json",
+      "sha256": "e77b385b4aa2015a7396403aa20a6fbd81e1a8a9317081fdb9728f3d02baeefc"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-product-requirements-canary/fixture.json",
+      "sha256": "fbff1f5065e62e135ae154320530c8a2d18819f1b9f26dc8eeb594b25580856f"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-scientific-claim-reproduction/fixture.json",
+      "sha256": "eabc60ca018b269cf69e6d6d9cfa45466db7cb5ba352df9f7999a9a20f751dbf"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-scope-expansion-restraint/fixture.json",
+      "sha256": "f9123570464bd86cba1c6298da830b71d9243a50e6596a066145173727735124"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-spec-conditioned-protocol-compliance/fixture.json",
+      "sha256": "7a5281d6bce4d562413e3eea2896a7540fe42777f0a0df696bb9469ce7360aab"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/fixture.json",
+      "sha256": "d86ce656ae60b86ee560d72b1319d50b0929b8f4027b619abdd4376de25bc48b"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/fixture.json",
+      "sha256": "ba211b3b049aeba5782fd4ef08a76ec787d3c6cf71b0f7fb29779a4c7a55b942"
+    },
+    {
+      "path": "src/modules/eval-harness/fixtures/inbox-sorter-dedup-against-open-tasks/fixture.json",
+      "sha256": "34d5ea8eb9cefccbbeef32e4218146e839af0e90d2f86b9d7c3d93bcd1d7c4fc"
+    }
+  ],
+  "inventoryMeaning": "Current manifest hashes only; no executed cohort or immutable source snapshot is claimed. Select and pin the comparable live cohort when execution is available.",
+  "unknownReadiness": [
+    "OpenRouter scope credential binding and authentication",
+    "exact Codex/GPT-5.5 authentication and entitlement",
+    "image and nested sandbox compatibility",
+    "enforced positive and negative provider egress",
+    "host capacity and installed local model",
+    "full paired scenario/matrix reachability through selected host grants"
+  ],
+  "promotionGate": {
+    "baseline": "codex/gpt-5.5",
+    "minimumBaselinePassHatKRatio": 0.9,
+    "maximumP0ParityFailures": 0,
+    "equalRepeatsRequired": true
+  },
+  "replacementDecision": "unestablished"
+}

@@ -1,0 +1,34 @@
+
+> kota@0.1.0 check:fast /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> pnpm typecheck && pnpm lint && pnpm validate-tasks && pnpm check:client-bindings
+
+
+> kota@0.1.0 typecheck /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> pnpm typecheck:production && pnpm typecheck:tests
+
+
+> kota@0.1.0 typecheck:production /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> tsc --noEmit -p tsconfig.build.json
+
+
+> kota@0.1.0 typecheck:tests /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> tsc -p tsconfig.test.json
+
+
+> kota@0.1.0 lint /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> biome check src/ && biome lint clients/mobile/src/daemon/
+
+Checked 3481 files in 723ms. No fixes applied.
+Checked 8 files in 5ms. No fixes applied.
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> node --conditions=source --import tsx src/validate-queue.ts
+
+
+> kota@0.1.0 check:client-bindings /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check
+
+
+> kota@0.1.0 check:ui-bindings /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> node scripts/generate-ui-surface-bindings.mjs --check
+

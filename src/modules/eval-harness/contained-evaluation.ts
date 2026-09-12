@@ -70,6 +70,8 @@ const profileSchema = z
   .object({
     scopeRoots: z.array(z.string().min(1)).min(1),
     preset: z.string().min(1).optional(),
+    // Harness-parity owns decoding matrix selections; shared profiles own authority.
+    matrix: z.unknown().optional(),
     fixtureIds: z.array(id).default([]),
     probes: z.record(id, probeProfileSchema).default({}),
     candidates: z.array(z.string().min(1)).default([]),
@@ -118,7 +120,7 @@ export function containedEvaluationProfiles(
   );
 }
 
-function requireOrigin(context: ToolRunnerContext | undefined) {
+export function requireContainedEvaluationOrigin(context: ToolRunnerContext | undefined) {
   if (
     !context?.workflow ||
     !context.scopeRoot ||
@@ -156,7 +158,7 @@ export const containedEvaluationTool: ToolDef = {
       : { kind: "unknown" },
   runner: async (input, context) => {
     const request = parseContainedEvaluationRequest(input);
-    const origin = requireOrigin(context);
+    const origin = requireContainedEvaluationOrigin(context);
     origin.signal.throwIfAborted();
     const profiles = containedEvaluationProfiles(origin.scopeRoot);
     if (request.operation === "inspect") {

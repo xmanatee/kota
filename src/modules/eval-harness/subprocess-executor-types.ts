@@ -6,6 +6,8 @@ import type {
 } from "./provider-egress.js";
 
 export type SubprocessExecutorOptions = {
+  /** Standalone scenario sessions live in disposable runtime state, outside scoring. */
+  scopeMode?: "runtime-home";
   onProcessSpawn?: ProcessSpawnObserver;
   onExecutionFailure?: (error: Error) => void;
   /** Path to the `kota` binary (`./bin/kota.mjs` when running from the repo). */

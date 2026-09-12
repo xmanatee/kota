@@ -1,0 +1,13 @@
+
+> kota@0.1.0 test:owner /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner src/modules/harness-parity/contained-matrix.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  16:51:19
+   Duration  39.62s (transform 711ms, setup 4ms, import 895ms, tests 38.67s, environment 0ms)
+

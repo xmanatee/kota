@@ -116,3 +116,39 @@ remains there after the invocation closes. Await a call before issuing another.
 Removing its request or ending the native invocation cancels evaluation and
 waits for owned cleanup. A container server outage retains cleanup ownership;
 restart recovery removes registered resources before another attempt can run.
+
+Harness-parity contributes the model-matrix action through this same native
+invocation service:
+
+```sh
+pnpm kota harness-parity contained '{"operation":"inspect","profile":"rollout"}'
+pnpm kota harness-parity contained '{"operation":"run","profile":"rollout","repeatCount":3}'
+```
+
+Use a model profile with an explicit `preset` and add a `matrix` selection. The
+shared host-profile schema retains this field; harness-parity's
+[selection decoder](../harness-parity/contained-matrix.ts) owns its validation.
+It declares `baselines` and `candidates` as `{label, model, provider}` records,
+`harnesses` as the compatible adapter pool, and `harnessesByLabel` as the exact
+allowed adapters for every model label. For example the GPT-5.5 baseline label
+selects only `codex`, while a local label may select both `openai-tools` and
+`openai-tools-scaffold`. This prevents an API route from silently becoming the
+native baseline. Explicit `scenarios` and `evalFixtures` arrays fix the cohort;
+an empty array selects none. `evalIsolationBackends` supplies a provider-egress
+container for each execution provider, using the existing isolation schema.
+All rows share the profile's CPU, memory, deadline and repeat grant. Optional
+`effort` and `maxTurns` remain host-selected. The worker cannot override models,
+cohorts, images, network policy, credentials or artifact locations.
+
+Matrix execution reuses the existing pairing, aggregation and fixture runner.
+The trusted host resolves adapter declarations and credentials before its shared
+blocking worker runs. Scenario agents launch through the same eval container
+command/auth owner; their verifier and diff commands run in separate offline
+containers. The image must contain the matching `harness-parity contained-stage`
+entrypoint. Scenario `verification.trustedFiles` declarations protect scorer
+files through read-only overlays and reject candidate relocation. Results,
+profiles, transcripts and failure evidence return under the originating run.
+The existing native tool authorization and process/resource cleanup apply to
+`contained_model_matrix`; there is no additional service or queue to configure.
+No model is promoted by these artifacts alone, and non-gating egress stays
+non-gating. Live positive inference and negative confinement checks still apply.

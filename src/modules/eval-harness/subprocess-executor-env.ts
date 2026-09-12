@@ -1,7 +1,9 @@
 import {
   chmodSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -43,11 +45,15 @@ function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 function prepareFixtureRuntimeEnv(workingDir: string): Record<string, string> {
-  const runtimeRoot = join(
-    workingDir,
-    "node_modules",
-    ".kota-eval-runtime",
-  );
+  let runtimeRoot = workingDir;
+  // A previous contained round can replace these ancestors. Reject before any
+  // host-side directory creation/removal; a candidate symlink is never a locator.
+  for (const segment of ["node_modules", ".kota-eval-runtime"]) {
+    runtimeRoot = join(runtimeRoot, segment);
+    const entry = lstatSync(runtimeRoot, { throwIfNoEntry: false });
+    if (entry && (!entry.isDirectory() || entry.isSymbolicLink())) throw new Error("Candidate runtime path must remain a real directory");
+    if (!entry) mkdirSync(runtimeRoot, { mode: 0o700 });
+  }
   const machineHome = join(runtimeRoot, "home");
   // Reset the isolated home on every invocation so fixture output cannot
   // persist machine state across workflow rounds. Eval execution must not
@@ -113,13 +119,14 @@ export function containerExecutionEnv(
   networkPolicy: ExecutionNetworkPolicy,
 ): Record<string, string> {
   const basePath = options.extraEnv?.PATH ?? CONTAINER_DEFAULT_PATH;
+  const runtimeEnv = prepareFixtureRuntimeEnv(request.workingDir);
   const env = distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...(options.extraEnv ?? {}),
-      KOTA_SCOPE_ROOT: request.workingDir,
+      KOTA_SCOPE_ROOT: options.scopeMode === "runtime-home" ? runtimeEnv.HOME : request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: basePath,
-      ...prepareFixtureRuntimeEnv(request.workingDir),
+      ...runtimeEnv,
       ...containerNetworkEnv(networkPolicy),
     }),
   );
@@ -213,4 +220,14 @@ export function dockerCliEnv(networkPolicy: ExecutionNetworkPolicy): NodeJS.Proc
     }
   }
   return env;
+}
+
+/** Called only after the contained producer has stopped; never follow candidate locators. */
+export function cleanupScenarioRuntimeEnv(workingDir: string): void {
+  const modules = join(workingDir, "node_modules");
+  const entry = lstatSync(modules, { throwIfNoEntry: false });
+  if (!entry) return;
+  if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error("Candidate runtime path must remain a real directory");
+  rmSync(join(modules, ".kota-eval-runtime"), { recursive: true, force: true });
+  if (readdirSync(modules).length === 0) rmSync(modules, { recursive: true });
 }

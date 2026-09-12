@@ -4,6 +4,9 @@
   "prompt": "There is a small Node.js project in this directory. The module at src/add.js exports an add(a, b) function that is implemented incorrectly. Read src/add.js and test.js, fix the implementation in src/add.js, and run `node test.js` to confirm the fix. Do not change test.js.",
   "verification": {
     "command": "node test.js",
-    "timeoutMs": 15000
+    "timeoutMs": 15000,
+    "trustedFiles": [
+      "test.js"
+    ]
   }
 }

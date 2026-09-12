@@ -4,7 +4,10 @@
   "prompt": "There is a small Node.js project in this directory. Running `node test.js` fails with a non-zero exit status. Investigate the project on your own, find what needs to change, and fix it. Do not modify `test.js`. When the fix is in the right place, `node test.js` will print `ok` and exit 0.",
   "verification": {
     "command": "node test.js",
-    "timeoutMs": 30000
+    "timeoutMs": 30000,
+    "trustedFiles": [
+      "test.js"
+    ]
   },
   "contextRetrieval": {
     "targets": [

@@ -209,6 +209,7 @@ export async function runEvalFixturesForSpec(args: {
   deps: HarnessParityDeps;
   options: HarnessParityMatrixOptions;
   spec: MatrixModelSpec;
+  harness?: import("#core/agent-harness/index.js").AgentHarness;
   harnessName: string;
   openRouterPreflight: MatrixOpenRouterPreflight;
   fixtures: readonly LoadedFixture[];
@@ -253,6 +254,7 @@ export async function runEvalFixturesForSpec(args: {
   mkdirSync(runArtifactBaseDir, { recursive: true });
   const report = await runEvalSet({
     workspaceRoot: args.deps.scopeRoot,
+    env: args.deps.matrixExecution?.env,
     fixtures: args.fixtures,
     executor: args.executor,
     requestedProfile: args.requestedProfile,
@@ -261,7 +263,7 @@ export async function runEvalFixturesForSpec(args: {
       model: args.spec.model,
       maxTurns: args.options.maxTurns,
       modelOutputTokenLimits: args.deps.config.modelOutputTokenLimits,
-      harnessOptions: matrixHarnessOverrides(resolveAgentHarness(harnessName), args.spec, args.options.effort),
+      harnessOptions: matrixHarnessOverrides(args.harness ?? resolveAgentHarness(harnessName), args.spec, args.options.effort),
       ...(args.options.effort !== undefined ? { effort: args.options.effort } : {}),
     },
     runArtifactBaseDir: resolve(runArtifactBaseDir),

@@ -29,6 +29,14 @@ import {
 } from "./scenario.js";
 
 export type HarnessParityDeps = {
+  /** Trusted prepared execution supplied by runtime-mediated containment. */
+  matrixExecution?: {
+    executions: import("./model-matrix.js").MatrixExecution[];
+    openRouterPreflight: import("./model-matrix-models.js").MatrixOpenRouterPreflight;
+    signal: AbortSignal;
+    env: NodeJS.ProcessEnv;
+    scenarioExecution: (spec: import("./model-matrix-models.js").MatrixModelSpec, harness: AgentHarness, executor: WorkflowExecutor, profile: import("#modules/eval-harness/public-surface.js").ResourceProfile) => import("./runner-types.js").ScenarioExecution;
+  };
   /** KOTA scope root used for eval-harness fixture execution and source evidence. */
   scopeRoot: string;
   /** Root directory containing per-scenario subdirectories. */

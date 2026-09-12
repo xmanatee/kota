@@ -70,11 +70,14 @@ function collectTrustedScorerFiles(
 function prepareTrustedScorerMounts(params: {
   trustedVerifierRoot: string;
   workingDir: string;
+  trustedFiles?: readonly string[];
 }): { source: string; target: string }[] {
   const workingDir = realpathSync(params.workingDir);
   const trusted = collectTrustedScorerFiles(params.trustedVerifierRoot);
-  return trusted.relativePaths.map((relativePath) => {
+  return [...new Set([...trusted.relativePaths, ...(params.trustedFiles ?? [])])].map((relativePath) => {
+    if (isAbsolute(relativePath) || relativePath.split(/[\\/]/).includes("..")) throw new Error("Trusted scorer path must be relative and contained");
     const source = join(trusted.root, relativePath);
+    if (!lstatSync(source).isFile() || !pathIsInsideOrEqual(trusted.root, realpathSync(source))) throw new Error("Trusted scorer must be a contained regular file");
     const target = join(workingDir, relativePath);
     const targetEntry = lstatSync(target, { throwIfNoEntry: false });
     if (
@@ -208,6 +211,7 @@ export async function executeIsolatedVerifier(params: {
     trustedMounts = params.context.workspace.kind === "scoring"
       ? prepareTrustedScorerMounts({
           trustedVerifierRoot: params.context.workspace.trustedVerifierRoot,
+          trustedFiles: params.context.workspace.trustedFiles,
           workingDir,
         })
       : [];

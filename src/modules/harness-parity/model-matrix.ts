@@ -112,37 +112,17 @@ function resolveRepeats(
   return repeats;
 }
 
-export async function runHarnessParityModelMatrix(
-  deps: HarnessParityDeps,
-  options: HarnessParityMatrixOptions = {},
-): Promise<HarnessParityMatrixResult> {
-  const repeats = resolveRepeats(options);
-  if (typeof repeats !== "number") return repeats;
+export type MatrixExecution = { spec: import("./model-matrix-models.js").MatrixModelSpec; harness: AgentHarness; evalExecutor?: WorkflowExecutor };
 
-  const shouldLoadHarnessParityScenarios =
-    options.evalFixtures === undefined || options.scenarios !== undefined;
-  const loaded = shouldLoadHarnessParityScenarios
-    ? loadRequestedScenarios(deps, options.scenarios)
-    : { ok: true as const, scenarios: [] };
-  if (!loaded.ok) return loaded.result;
-  const evalFixtures = loadRequestedEvalFixtures(deps, options.evalFixtures);
-  if (!evalFixtures.ok) return evalFixtures.result;
-  if (loaded.scenarios.length === 0 && evalFixtures.fixtures.length === 0) {
-    return {
-      ok: false,
-      reason: "no_scenarios",
-      message: `No matrix targets to run under "${deps.scenariosRoot}" or "${deps.evalFixturesRoot}".`,
-    };
-  }
-
+export function resolveMatrixExecutions(config: HarnessParityDeps["config"], options: HarnessParityMatrixOptions): MatrixExecution[] | HarnessParityMatrixResult {
   let specs: ReturnType<typeof buildModelSpecs>;
   try {
-    specs = buildModelSpecs(deps.config, options);
+    specs = buildModelSpecs(config, options);
   } catch (error) {
     return { ok: false, reason: "invalid_harness_pair", message: (error as Error).message };
   }
   if (!Array.isArray(specs)) return specs;
-  const executions: Array<{ spec: (typeof specs)[number]; harness: AgentHarness; evalExecutor?: WorkflowExecutor }> = [];
+  const executions: MatrixExecution[] = [];
   try {
     for (const spec of specs) {
       const names = options.harnesses?.length ? options.harnesses : [spec.defaultHarness];
@@ -164,9 +144,39 @@ export async function runHarnessParityModelMatrix(
   } catch (error) {
     return { ok: false, reason: "invalid_harness_pair", message: (error as Error).message };
   }
-  const openRouterPreflight = resolveOpenRouterPreflight(deps.scopeRoot);
+  return executions;
+}
+
+export async function runHarnessParityModelMatrix(
+  deps: HarnessParityDeps,
+  options: HarnessParityMatrixOptions = {},
+): Promise<HarnessParityMatrixResult> {
+  const repeats = resolveRepeats(options);
+  if (typeof repeats !== "number") return repeats;
+
+  const shouldLoadHarnessParityScenarios = deps.matrixExecution
+    ? Boolean(options.scenarios?.length)
+    : options.evalFixtures === undefined || options.scenarios !== undefined;
+  const loaded = shouldLoadHarnessParityScenarios
+    ? loadRequestedScenarios(deps, options.scenarios)
+    : { ok: true as const, scenarios: [] };
+  if (!loaded.ok) return loaded.result;
+  const evalFixtures = loadRequestedEvalFixtures(deps, options.evalFixtures);
+  if (!evalFixtures.ok) return evalFixtures.result;
+  if (loaded.scenarios.length === 0 && evalFixtures.fixtures.length === 0) {
+    return {
+      ok: false,
+      reason: "no_scenarios",
+      message: `No matrix targets to run under "${deps.scenariosRoot}" or "${deps.evalFixturesRoot}".`,
+    };
+  }
+
+  const resolved = deps.matrixExecution?.executions ?? resolveMatrixExecutions(deps.config, options);
+  if (!Array.isArray(resolved)) return resolved;
+  const executions = resolved;
+  const openRouterPreflight = deps.matrixExecution?.openRouterPreflight ?? resolveOpenRouterPreflight(deps.scopeRoot);
   const evalResourceProfile =
-    evalFixtures.fixtures.length > 0
+    (evalFixtures.fixtures.length > 0 || deps.matrixExecution !== undefined)
       ? resolveEvalResourceProfile(options)
       : null;
   if (evalResourceProfile !== null && "ok" in evalResourceProfile) {
@@ -182,7 +192,7 @@ export async function runHarnessParityModelMatrix(
       // Resolve the whole matrix before any row can consume inference.
       for (const execution of executions) {
         if (skipReasonFor(execution.spec, openRouterPreflight) !== null) continue;
-        execution.evalExecutor = matrixEvalExecutor({ deps, ...execution, backends });
+        execution.evalExecutor ??= matrixEvalExecutor({ deps, ...execution, backends });
       }
     } catch (error) {
       return { ok: false, reason: "invalid_eval_isolation", message: (error as Error).message };
@@ -202,6 +212,7 @@ export async function runHarnessParityModelMatrix(
   const rows: HarnessParityMatrixRow[] = [];
 
   for (const { spec, harness, evalExecutor } of executions) {
+    deps.matrixExecution?.signal.throwIfAborted();
     const harnessOverrides = matrixHarnessOverrides(harness, spec, options.effort);
     const skipReason = skipReasonFor(spec, openRouterPreflight);
     if (evalFixtures.fixtures.length > 0 && evalResourceProfile !== null) {
@@ -210,6 +221,7 @@ export async function runHarnessParityModelMatrix(
           deps,
           options,
           spec,
+          harness,
           harnessName: harness.name,
           openRouterPreflight,
           fixtures: evalFixtures.fixtures,
@@ -243,10 +255,12 @@ export async function runHarnessParityModelMatrix(
           );
           continue;
         }
+        deps.matrixExecution?.signal.throwIfAborted();
         const artifacts = await runScenarioAcrossHarnesses({
           scenario,
           harnesses: [harness],
           callOptions: {
+            execution: deps.matrixExecution?.scenarioExecution(spec, harness, evalExecutor!, evalResourceProfile!),
             model: spec.model,
             scopeRoot: deps.scopeRoot,
             modelOutputTokenLimits: deps.config.modelOutputTokenLimits,

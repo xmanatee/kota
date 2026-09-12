@@ -44,6 +44,7 @@ type JsonObject = {
  * the scenario's working directory after the harness returns.
  */
 export type ScenarioVerification = {
+  trustedFiles?: readonly string[];
   command: string;
   timeoutMs: number;
 };
@@ -156,7 +157,9 @@ function parseVerification(
       `verification.timeoutMs=${timeoutMs} outside (0, ${MAX_TIMEOUT_MS}].`,
     );
   }
-  return { command: r.command, timeoutMs };
+  return { command: r.command, timeoutMs,
+    ...(r.trustedFiles !== undefined ? { trustedFiles: parsePreviewArtifacts(r.trustedFiles, scenarioDir, "verification.trustedFiles") } : {}),
+  };
 }
 
 function parseNormalizedRelativePath(

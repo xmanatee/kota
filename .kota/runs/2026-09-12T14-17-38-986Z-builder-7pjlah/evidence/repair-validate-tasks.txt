@@ -1,0 +1,4 @@
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-38-986z-builder-40c2339d799c4cb69abf00b834c7de6f9e81a38d3506058b7f9822aeee1f0526
+> node --conditions=source --import tsx src/validate-queue.ts
+

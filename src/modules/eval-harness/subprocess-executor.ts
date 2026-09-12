@@ -133,6 +133,7 @@ function buildChildSpec(params: {
   request: WorkflowExecutionRequest;
   hostKotaDistDir: string;
   hostExecArgs: string[];
+  containerCommandArgs?: string[];
   isolationBackend: SubprocessExecutorOptions["isolationBackend"];
 }): SubprocessChildSpec | null {
   const backend = params.isolationBackend ?? { kind: "host-subprocess" };
@@ -177,7 +178,7 @@ function buildChildSpec(params: {
         envFilePath: containerEnvFile.path,
         authMount: login?.mount,
         command: "node",
-        commandArgs: workflowExecArgs(backend.kotaBinaryPath, params.request),
+        commandArgs: params.containerCommandArgs ?? workflowExecArgs(backend.kotaBinaryPath, params.request),
       }),
       cwd: params.request.workingDir,
       env: containerCliEnv,
@@ -267,4 +268,35 @@ async function runChildAndReadOutcome(
   }
 
   return { kind: "completed", durationMs, runArtifactPath };
+}
+
+/** Trusted runner composition: reuse candidate credentials, OCI policy and cleanup. */
+export async function executeContainedCommand(
+  options: SubprocessExecutorOptions,
+  request: WorkflowExecutionRequest,
+  commandArgs: string[],
+) {
+  options.signal?.throwIfAborted();
+  if (options.isolationBackend?.kind !== "container") throw new Error("Contained commands require a container");
+  const child = buildChildSpec({ options, request, isolationBackend: options.isolationBackend,
+    hostKotaDistDir: "", hostExecArgs: [], containerCommandArgs: commandArgs });
+  if (!child) throw new Error("Contained command preflight rejected; refusing host execution");
+  try {
+    const deadline = AbortSignal.timeout(request.budgetMs);
+    const result = await new ProcessSupervisor({
+      command: child.command, args: child.args, cwd: child.cwd, env: child.env,
+      signal: options.signal ? AbortSignal.any([options.signal, deadline]) : deadline,
+      onSpawn: options.onProcessSpawn, captureLimitBytesPerStream: 32 * 1024 * 1024,
+      terminationGraceMs: 1000,
+    }).run();
+    options.signal?.throwIfAborted();
+    if (result.status === "spawn-failed") throw new Error(result.error.message);
+    if (result.stdout.truncated || result.stderr.truncated) throw new Error("Contained command output was truncated");
+    if (result.exitCode !== 0 || deadline.aborted) {
+      const error = new Error(`Contained command failed: ${result.stderr.text || result.exitCode}`);
+      options.onExecutionFailure?.(error);
+      throw error;
+    }
+    return result;
+  } finally { await child.cleanup?.(); }
 }

@@ -36,7 +36,7 @@ export type ExecutableVerifierContext = {
   sandbox: ExecutableVerifierSandbox;
   executionProfile: ExecutionProfilePreflightResult;
   workspace:
-    | { kind: "scoring"; trustedVerifierRoot: string }
+    | { kind: "scoring"; trustedVerifierRoot: string; trustedFiles?: readonly string[] }
     | { kind: "candidate" };
 };
 

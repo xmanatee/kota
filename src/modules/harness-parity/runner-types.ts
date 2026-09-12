@@ -11,7 +11,15 @@ import type { ContextRetrievalDiagnosticsMetadata } from "./context-retrieval-di
 import type { LoadedScenario } from "./scenario.js";
 import type { HarnessParityTrajectoryDiagnosticsMetadata } from "./trajectory-diagnostics.js";
 
+export type ScenarioExecution = {
+  profile: import("#modules/eval-harness/public-surface.js").ExecutionProfilePreflightResult;
+  run: (options: AgentHarnessRunOptions, writer: AgentHarnessWriter) => Promise<import("#core/agent-harness/index.js").AgentHarnessResult>;
+  verify: (workingDir: string, verification: import("./scenario.js").ScenarioVerification, initialDir: string) => Promise<VerificationResult>;
+  diff: (initialDir: string, workingDir: string) => Promise<{ diff: string; changedFiles: string[] }>;
+};
+
 export type HarnessParityCallOptions = {
+  execution?: ScenarioExecution;
   /** Model identifier the harness should use (resolved from the active preset by the caller). */
   model: string;
   /** Canonical scope for provider secret resolution; execution stays in the clone. */

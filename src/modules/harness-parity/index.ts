@@ -28,6 +28,7 @@ import type {
   HarnessParityRunOptions,
   HarnessParityRunResult,
 } from "./client.js";
+import { containedMatrixTool } from "./contained-matrix.js";
 import {
   type HarnessParityDeps,
   listHarnessParityScenarios,
@@ -119,6 +120,7 @@ const harnessParityModule: KotaModule = {
   description:
     "Runs coding-task scenarios across every registered agent harness and captures paired artifacts.",
   dependencies: ["rendering", "model-clients", "eval-harness"],
+  tools: [containedMatrixTool],
   commands: (ctx: ModuleContext): Command[] => [
     buildHarnessParityCommand({ ctx }),
   ],

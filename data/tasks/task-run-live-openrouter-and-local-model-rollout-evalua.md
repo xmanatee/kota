@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode, task-enable-runtime-mediated-contained-evaluation]
 ---
@@ -345,19 +345,108 @@ Evidence is in builder run `2026-09-12T06-41-11-663Z-builder-drp743`, runtime
 `repair3-owner-tests.txt`, `repair3-check-fast.txt`, `repair3-compile.txt`, and
 `repair3-validate-tasks.txt`.
 
-## Remaining setup and evaluation
+## Result — 2026-09-12 runtime-mediated profile inspection
 
-The native invocation denied host connections and exposed no contained-eval
-mediation tool. The shared implementation dependency above now owns that gap;
-it is not a request for an owner capture, new credential purchase or blanket host
-authority. This task stays open behind that code prerequisite. The routing repair
-is delivered, but no live benchmark or model promotion is claimed.
+The shared mediation dependency is archived done, and this invocation reached the
+trusted host through `pnpm kota eval contained '{"operation":"inspect"}'`.
+The host returned a tool error: `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted
+host environment`. Both inspection calls exited 1 with this same diagnostic;
+the second call's timestamped transcript and tool-use identity are retained.
+This supersedes the earlier observation that no mediation surface was available.
 
-Resume by binding the existing OpenRouter credential through its scope secret
-owner, validating a compatible image and provider proxy (including native nested
-sandboxing and environment-proxy transport), and discovering/installing the local
-model within measured capacity. Establish actual native/local inference and denied
-unintended credential/network access through those owners, then execute the full
-paired cohort with equal repeats and inspect all required metrics and verifiers.
-Resolve non-gating execution/capability evidence before any promotion. The original
-90% of exact Codex pass^k/no-P0 gate and narrower-tier requirements remain intact.
+No profile was returned, so no image, provider, fixture, or candidate execution
+was requested. This is a specific host configuration prerequisite, not evidence
+of missing credentials, unavailable Docker, an empty local inventory, or model
+incapability. The supplied issue-evidence export contains historical runs through
+the preceding routing repair, not a new live evaluation cohort.
+
+No live inference, live verifier, or quality measurement ran. The preflight artifact retains
+the exact Codex/GPT-5.5 baseline, all seven required OpenRouter candidates, and
+unresolved local raw/scaffold rows, with three planned sequential repeats. It
+inventories current scenario and fixture manifest hashes; it does not claim an
+executed or fully snapshotted cohort. All requested measurements and support tiers
+remain unavailable. No candidate is promoted or rejected and no preset is changed. The initial
+disposition changed only task data; the critic repair below implements the missing
+contained matrix route. Replacement of Codex/Claude remains unestablished.
+
+Evidence: builder run `2026-09-12T14-17-38-986Z-builder-7pjlah`, runtime `agent/`
+artifacts `contained-inspect.txt`, `rollout-preflight.json`, and
+`rollout-decision.md`. Task integrity validation is recorded in
+`validate-tasks.txt`. These establish the returned setup failure and task-data
+integrity only; they are not live model or containment proof.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: The trusted host must configure scope-authorized KOTA_EVAL_CONTAINED_PROFILES for the live rollout; a successful attributable contained inspect exposing the evaluation grants, or equivalent host capability evidence, permits resumption of setup and measurement.
+```
+
+The path is an evidence-discovery hint, not an existence check or a requirement
+for manual benchmark capture. The prerequisite is the host-owned grant.
+
+The trusted host must supply scope-authorized `KOTA_EVAL_CONTAINED_PROFILES`
+through its existing environment configuration owner. The profile contract in
+`src/modules/eval-harness/contained-evaluation.md` binds scope, preset, allowed
+fixtures/candidates, repeats, image, restricted provider egress, deadline, CPU,
+and memory. Worker requests cannot install or widen these host grants, and this
+builder must not control its parent daemon. This is not a dependency wait or a
+request for new credentials or manually captured benchmark results.
+
+The critic repair implements the general matrix action now, independently of this
+host prerequisite. After profiles are available, inspect the exact grant with
+`pnpm kota harness-parity contained '{"operation":"inspect","profile":"rollout"}'`
+and execute it through the same command's `run` operation. Finish OpenRouter
+credential binding, compatible image/proxy setup, exact native baseline
+authentication, and local model discovery/setup within measured capacity through
+already authorized scoped setup. The host image must contain the matching CLI.
+Publication and activation belong to runtime and do not defer source work here.
+
+Establish positive native/local inference and denied unintended credential/network
+access, then pin and execute the comparable cohort with equal repeats and all
+required metrics/verifiers. Preserve the exact GPT-5.5 baseline, 90% pass^k/no-P0
+promotion gate, narrower-tier requirements, and explicit non-gating evidence.
+
+## Critic repair — contained matrix composition
+
+The initial blocked disposition deferred actionable implementation. That gap is
+now repaired in harness-parity and the shared eval executor. The new native
+`contained_model_matrix` action uses the existing authorization service, scoped
+host profiles, blocking worker and process/resource cleanup. It binds exact
+model/adapter pairs (including native baseline and local raw/scaffold), scenarios,
+fixtures, repeats and resources on the host. Requests cannot widen that grant.
+The existing matrix owner still assembles paired rows, metrics and reports.
+
+Scenario agents now use the shared container launch/auth owner through an
+image-local real harness command. Candidate session state uses a disposable scope
+and is removed before scoring. Verifiers and diff commands execute in offline
+containers; shipped scenario declarations identify immutable scorer overlays.
+Missing declarations, relocated scorer files, candidate runtime-path symlinks,
+malformed stage evidence and failed container preflight reject visibly. No host
+candidate execution or alternate authority bridge was added.
+
+Nine focused tests passed: paired scenario/fixture repeats exercise production
+materialization, scoring, report and cleanup owners with a controlled subprocess
+port; other cases cover exact native/local route preparation, scope/grant
+rejection, cancellation, verifier protection, malformed evidence, runtime-path
+safety, and the real image command-to-harness handoff. This is deterministic
+composition proof, not live OCI, authentication or model-quality proof.
+`pnpm check:fast` passed. The broader owner selection passed 119 tests and failed
+six launch cases; a direct production process probe reports `/bin/ps EPERM`.
+The final full build could not remove existing `dist` directories (Operation not
+permitted); separate production compilation provides scoped source proof. These
+limitations remain explicit in the run summary and do not count as passes.
+
+A fresh authorized host inspect still returned the unset-profile diagnostic
+(tool use `tool-e193855f5a4022c6044ba42f1ab6f029`, exit 1). This confirms the
+remaining external prerequisite without inferring host credential or model
+absence. The task remains blocked solely on that host-owned configuration;
+its live acceptance remains unmet, and no rollout recommendation changes.
+
+Repair evidence is retained in the same run's `agent/`: `repair-matrix-tests.txt`,
+`repair-owner-final.txt`, `repair-process-probe.txt`, `repair-check-fast.txt`,
+`repair-build.txt`, `repair-compile.txt`, `repair-contained-inspect.txt`, `repair-contained-help.txt`,
+`repair-validate-tasks.txt`, and the updated `rollout-decision.md`. Review copies
+under `.kota/runs/2026-09-12T14-17-38-986Z-builder-7pjlah/evidence/` preserve these
+original observations; copying them does not establish a new execution cohort.

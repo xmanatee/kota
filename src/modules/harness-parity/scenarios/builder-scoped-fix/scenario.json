@@ -4,7 +4,10 @@
   "prompt": "There is a small Node.js project in this directory. The module at `src/calc.js` exports `multiply(a, b)` and `divide(a, b)`. The `multiply` function has a bug: it returns `a + b` instead of `a * b`. Fix only `src/calc.js` so the multiplication works correctly. Do NOT modify `test.js`, `src/format.js`, or `src/constants.js`. After fixing, run `node test.js` to confirm the fix passes. Then write a concise commit message describing the fix to `commit-message.txt` in the working directory root.",
   "verification": {
     "command": "node verify.js",
-    "timeoutMs": 30000
+    "timeoutMs": 30000,
+    "trustedFiles": [
+      "verify.js"
+    ]
   },
   "contextRetrieval": {
     "targets": [

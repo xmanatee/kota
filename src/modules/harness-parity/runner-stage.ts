@@ -48,6 +48,7 @@ export async function runScenarioStageOnHarness(args: {
 }): Promise<HarnessParityStageRunRecord> {
   const { scenario, stage, harness, callOptions, artifactDir, capability } = args;
   mkdirSync(artifactDir, { recursive: true });
+  if (callOptions.execution) writeFileSync(join(artifactDir, "execution-profile.json"), JSON.stringify(callOptions.execution.profile, null, 2));
   const writer = createCollectingWriter();
   const trajectoryMessages: KotaAgentMessage[] = [];
   const startedAt = new Date();
@@ -80,21 +81,21 @@ export async function runScenarioStageOnHarness(args: {
           }
         : {}),
     };
-    runResult = await runAgentHarness(
-      harness,
-      runOptions,
-      writer,
-    );
+    runResult = callOptions.execution
+      ? await callOptions.execution.run(runOptions, writer)
+      : await runAgentHarness(harness, runOptions, writer);
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err));
   }
 
   const durationMs = Date.now() - startMs;
-  const { diff, changedFiles } = computeDiff(
+  const { diff, changedFiles } = await (callOptions.execution?.diff ?? computeDiff)(
     scenario.initialStateDir,
     args.workingDir,
   );
-  const verification = runVerification(args.workingDir, stage.verification);
+  const verification = callOptions.execution
+    ? await callOptions.execution.verify(args.workingDir, stage.verification, scenario.initialStateDir)
+    : runVerification(args.workingDir, stage.verification);
   const previewArtifacts = capturePreviewArtifacts({
     workingDir: args.workingDir,
     artifactDir,

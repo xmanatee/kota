@@ -9,6 +9,8 @@
 
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { withProcessSignalAbort } from "#core/util/process-signal-abort.js";
+import { invokeNativeRunTool } from "#core/workflow/native-run-authorization.js";
 import {
   blank,
   line,
@@ -16,8 +18,10 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print, printToStderr } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { HarnessParityArtifactSummary } from "./client.js";
+import { containedMatrixRequest } from "./contained-matrix.js";
+import { registerContainedStageCommand } from "./contained-stage-command.js";
 import { registerHarnessParityMatrixCommand } from "./matrix-cli.js";
 
 export type BuildHarnessParityCommandDeps = {
@@ -137,6 +141,15 @@ export function buildHarnessParityCommand(
     );
 
   registerHarnessParityMatrixCommand(cmd, ctx);
+  registerContainedStageCommand(cmd);
+  cmd.command("contained").description("Execute a host-authorized model matrix through this native workflow's runtime")
+    .argument("<request>", 'JSON: {"operation":"run","profile":"rollout","repeatCount":3}')
+    .action(async (raw: string) => {
+      const request = containedMatrixRequest.parse(JSON.parse(raw));
+      const result = await withProcessSignalAbort((abort) => invokeNativeRunTool(ctx.cwd, "contained_model_matrix", request, abort.signal));
+      writeJson(result);
+      if (result.is_error) process.exitCode = 1;
+    });
 
   return cmd;
 }
