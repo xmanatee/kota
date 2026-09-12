@@ -4,15 +4,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
 import { OutboundHttpTransport, outboundHttp } from "#core/outbound-http/index.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { clearCustomTools, deregisterTool, registerTool } from "#core/tools/index.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { builderTaskResources, readBuilderTaskPayload } from "#modules/autonomy/workflows/builder/task-contract.js";
 import dispatcher from "#modules/autonomy/workflows/dispatcher/workflow.js";
 import { decodeExplorerState, EXPLORER_STATE_KEY, type ExplorerState } from "#modules/autonomy/workflows/explorer/explorer-state.js";
 import type { refreshExplorerSources } from "#modules/autonomy/workflows/explorer/source-evidence.js";
@@ -28,6 +33,20 @@ import { handleTaskStatus } from "#modules/repo-tasks/routes-state-handlers.js";
 import { mockResponse } from "#modules/repo-tasks/routes-test-helpers.js";
 import { repoTasksUiSurfaceSource } from "#modules/repo-tasks/ui-surface.js";
 import webAccess from "#modules/web-access/index.js";
+
+// Socket availability is controlled; runtime allocation and ownership stay real.
+vi.mock("node:net", async (importOriginal) => ({
+  ...await importOriginal<typeof import("node:net")>(),
+  createServer: () => {
+    const server = {
+      unref: () => server,
+      once: () => server,
+      listen: (_options: unknown, listening: () => void) => { listening(); return server; },
+      close: (closed: () => void) => { closed(); return server; },
+    };
+    return server;
+  },
+}));
 
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); clearCustomTools(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -344,4 +363,87 @@ it("dispatches only independent unclaimed work while preserving retained owners 
     // The unmodified open intent becomes available again only after runtime release.
     expect(listRepoTasks(root).workSupply.availableTaskIds).toEqual(["task-independent"]);
   } finally { resumed.close(); }
+
+  // Continue the same supply journey through event admission and automatic slot
+  // refill. This read-only consumer isolates scheduling from model-dependent
+  // implementation: it uses builder's immutable contract/resource binding but
+  // does not pretend that a controlled completion implements a real task.
+  writeTask("task-next");
+  writeTask("task-paused");
+  commitInput();
+  const refillDispatch = await dispatch();
+  expect(refillDispatch.status, refillDispatch.error).toBe("success");
+  const contracts = refillDispatch.emitted
+    .filter((event) => event.event === "autonomy.queue.available")
+    .map((event) => readBuilderTaskPayload(event.payload));
+  expect(contracts.map(({ taskId }) => taskId)).toEqual(["task-independent", "task-next", "task-paused"]);
+  const refillState = RunStateDatabase.openExisting(stateDir);
+  const { epoch: refillEpoch } = refillState.beginDaemonSession(new Date().toISOString());
+  const bus = new EventBus();
+  const pbus = new ScopedEventBus(bus, scopeId);
+  const releases = new Map<string, () => void>();
+  const started: string[] = [];
+  let runtime: WorkflowRuntime;
+  const coordinator = new RunCoordinator({
+    store: refillState, daemonEpoch: refillEpoch, concurrency: 1,
+    execute: (run, signal) => runtime.executeAdmittedRun(run, signal),
+    deliverPublication: (publication) => runtime.deliverPublication(publication),
+  });
+  runtime = new WorkflowRuntime({
+    bus, pbus, scopeRoot: root, scopeId,
+    runState: refillState, runCoordinator: coordinator, daemonEpoch: refillEpoch,
+    workflows: [{
+      name: "work-supply-consumer", repository: "none",
+      moduleRoot: process.cwd(), definitionPath: "work-supply-consumer.scenario.ts",
+      resources: builderTaskResources,
+      triggers: [{ event: "autonomy.queue.available", queueMode: "all" }],
+      steps: [{ id: "consume", type: "code", run: async (ctx) => {
+        const { taskId } = readBuilderTaskPayload(ctx.trigger.payload);
+        started.push(taskId);
+        await new Promise<void>((resolve) => { releases.set(taskId, resolve); });
+        return { taskId };
+      } }],
+    }],
+  });
+  const consumerRuns = () => refillState.listRuns(scopeId)
+    .filter((run) => run.workflow === "work-supply-consumer");
+  runtime.start();
+  try {
+    for (const contract of contracts) pbus.emit("autonomy.queue.available", { ...contract, dependsOn: [...contract.dependsOn] });
+    await expect.poll(() => started).toEqual(["task-independent"]);
+    expect(consumerRuns().map(({ state }) => state).sort()).toEqual(["queued", "queued", "running"]);
+    expect(listRepoTasks(root).workSupply).toMatchObject({ availableCount: 0, runningCount: 1, queuedCount: 2, retainedCount: 4 });
+    for (const contract of contracts) {
+      expect(consumerRuns().find((run) => run.trigger.payload.taskId === contract.taskId)?.trigger)
+        .toMatchObject({ event: "autonomy.queue.available", payload: contract });
+    }
+    releases.get("task-independent")!();
+    // No explicit refill or new idle event: completion must start the next run.
+    await expect.poll(() => started).toEqual(["task-independent", "task-next"]);
+    expect(consumerRuns().find((run) => run.trigger.payload.taskId === "task-independent")?.state).toBe("succeeded");
+    expect(listRepoTasks(root).workSupply).toMatchObject({ availableCount: 1, runningCount: 1, queuedCount: 1, retainedCount: 4 });
+    runtime.setDispatchPaused(true);
+    releases.get("task-next")!();
+    await coordinator.whenIdle();
+    expect(started).toEqual(["task-independent", "task-next"]);
+    expect(consumerRuns().find((run) => run.trigger.payload.taskId === "task-paused")?.state).toBe("queued");
+    runtime.setDispatchPaused(false);
+    await expect.poll(() => started).toEqual(["task-independent", "task-next", "task-paused"]);
+    releases.get("task-paused")!();
+    await coordinator.whenIdle();
+    expect(consumerRuns().every((run) => run.state === "succeeded")).toBe(true);
+    expect(listRepoTasks(root).workSupply).toMatchObject({ availableCount: 3, runningCount: 0, queuedCount: 0, retainedCount: 4 });
+    expect(refillState.getRun("held-inbox")?.state).toBe("waiting");
+    for (const id of ["task-a", "task-b", "task-c", "task-d"]) {
+      expect(refillState.getRun(`run-${id}`)?.state).toBe("needs_attention");
+    }
+    process.stdout.write("Isolated slot refill: dispatcher contracts admitted 1 running / 2 queued; completion started the next contract; pause held the final contract until resume; all 4 retained task owners and the retained inbox owner survived. Consumer completion leaves task intent open.\n");
+  } finally {
+    coordinator.pauseGlobalAdmission();
+    for (const release of releases.values()) release();
+    await runtime.stop();
+    await coordinator.dispose();
+    refillState.close();
+    bus.clear();
+  }
 });

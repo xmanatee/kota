@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p0
+status: done
 ---
 # Restore claim-aware work supply and exploration
 
@@ -246,3 +245,34 @@ Watchlist serialization corruption has a separate precise repair task; avoid
 conflating changed escaping with new source evidence. Retain the original
 unchanged-input decision and capacity-refill requirements, and do not manufacture
 opportunities merely to make an idle queue nonempty.
+
+
+## Completion under the September 12 waiver
+
+The supported dispatcher/explorer composition passes against this revision.
+The combined work-supply integration journey consumes readable article content
+following more than 90 KB of head markup, reviews a changed article, and suppresses
+unchanged due rechecks. Five collection rounds produce two controlled reviews
+with an explicit no-action revisit condition. Unusable, oversized and inaccessible
+sources retain failure evidence without replacing substantive fingerprints.
+
+The same journey now carries emitted dispatcher contracts into the production
+workflow runtime and coordinator. With one execution slot, three independent
+fixture contracts become one running and two queued consumers. Completion starts
+the next consumer without another idle event or explicit refill. An owner pause
+keeps the last consumer queued until resume. Trigger payloads and task digests
+survive admission; four retained task owners, the retained inbox owner, and an
+unrelated dependency wait remain intact. The rendered dashboard reports the
+retained-only queue truthfully. Atomic contention and release are also exercised.
+
+The refill consumer uses builder's task contract and resource binding with a
+controlled read-only completion. This proves runtime refill, not implementation
+of fixture tasks or a live model's research judgment. No real opportunity was
+manufactured. Production source review and refill observation remain non-gating
+operational follow-up, as specified by the current contract.
+
+The combined integration check and scoped extraction/queue/publication checks
+provide boundary evidence; validation commands and honest environment limitations
+are recorded in this run's verification summary. The already integrated production
+owners needed no further behavior change. This completion adds the missing refill
+proof and archives only this task.
