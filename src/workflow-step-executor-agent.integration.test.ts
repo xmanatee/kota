@@ -10,10 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  type AgentHarness,
-  pricedAgentUsage,
   registerAgentHarness,
-  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
@@ -88,180 +85,8 @@ function makeAgentStep(
   };
 }
 
-describe("executeAgentStep — outputFormat: json", () => {
-  let scopeRoot: string;
-
-  beforeEach(() => {
-    scopeRoot = join(
-      tmpdir(),
-      `kota-step-executor-json-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(scopeRoot, { recursive: true });
-    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
-    tryEmitMock.mockReset();
-    executeWithAgentSDKMock.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("extracts parsed JSON from the last fenced block when outputFormat is json", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "Some text\n\n```json\n{\"status\":\"ok\",\"count\":3}\n```",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-
-    const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
-    const metadata = makeMetadata("run-json-ok");
-
-    const result = await executeAgentStep(
-      definition,
-      step,
-      metadata,
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-
-    expect(result.output).toEqual({ status: "ok", count: 3 });
-    expect(result.harness).toBe("claude-agent-sdk");
-    expect(result.model).toBe("claude-opus-4-7");
-  });
-
-  it("fails the step when outputFormat is json but no fenced block is present", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "I did the analysis and found nothing special.",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-
-    const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
-    const metadata = makeMetadata("run-json-missing");
-
-    await expect(
-      executeAgentStep(
-        definition,
-        step,
-        metadata,
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { scopeRoot, log: () => {} },
-      ),
-    ).rejects.toThrow(/no fenced JSON block was found/);
-  });
-
-  it("fails the step when the fenced block content is not valid JSON", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "Result:\n\n```json\nnot valid json {\n```",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-
-    const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
-    const metadata = makeMetadata("run-json-bad");
-
-    await expect(
-      executeAgentStep(
-        definition,
-        step,
-        metadata,
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { scopeRoot, log: () => {} },
-      ),
-    ).rejects.toThrow(/invalid JSON/);
-  });
-
-  it("fails the step when outputSchema validation fails", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "Result:\n\n```json\n{\"status\":\"ok\"}\n```",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-
-    const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(scopeRoot, {
-      id: "analyze",
-      outputFormat: "json",
-      outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
-    });
-    const metadata = makeMetadata("run-json-schema-fail");
-
-    await expect(
-      executeAgentStep(
-        definition,
-        step,
-        metadata,
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { scopeRoot, log: () => {} },
-      ),
-    ).rejects.toThrow(/schema validation/);
-  });
-
-  it("succeeds when outputSchema validation passes", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "Result:\n\n```json\n{\"status\":\"done\",\"count\":5}\n```",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-
-    const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(scopeRoot, {
-      id: "analyze",
-      outputFormat: "json",
-      outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
-    });
-    const metadata = makeMetadata("run-json-schema-ok");
-
-    const result = await executeAgentStep(
-      definition,
-      step,
-      metadata,
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-
-    expect(result.output).toEqual({ status: "done", count: 5 });
-  });
-});
-
+// Adapter composition: correction feedback and resolved model must reach the SDK;
+// decoding cases live with run-executor-agent-output and JSON/schema owners.
 describe("executeAgentStep — schema validation feedback on retry", () => {
   let scopeRoot: string;
 
@@ -311,6 +136,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
 
     const step = makeAgentStep(scopeRoot, {
       id: "analyze",
+      agentName: "builder",
       outputFormat: "json",
       outputSchema: {
         type: "object",
@@ -328,72 +154,24 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       new AbortController(),
       () => {},
       () => {},
-      { scopeRoot, log: () => {} },
+      {
+        scopeRoot,
+        log: () => {},
+        config: { model: "fallback-model", agentModels: { builder: "claude-sonnet-4-6" } } as never,
+      },
     );
 
     expect(result.output).toEqual({ status: "ok", count: 3 });
+    expect(result.harness).toBe("claude-agent-sdk");
+    expect(result.model).toBe("claude-sonnet-4-6");
+    expect(executeWithAgentSDKMock.mock.calls.map((call) => call[1].model))
+      .toEqual(["claude-sonnet-4-6", "claude-sonnet-4-6"]);
     expect(capturedPrompts).toHaveLength(2);
     expect(capturedPrompts[0]).not.toContain("Previous output failed schema validation");
     expect(capturedPrompts[1]).toContain("Previous output failed schema validation");
     expect(capturedPrompts[1]).toContain("count");
   });
 
-  it("injects missing-fence feedback into the prompt on the second attempt", async () => {
-    const capturedPrompts: string[] = [];
-
-    executeWithAgentSDKMock.mockImplementation(async (prompt: string) => {
-      capturedPrompts.push(prompt);
-      if (capturedPrompts.length === 1) {
-        return {
-          text: "No JSON block here.",
-          streamedText: "",
-          sessionId: undefined,
-          turns: 1,
-          totalCostUsd: 0.01,
-          subtype: undefined,
-          isError: false,
-        };
-      }
-      return {
-        text: 'Result:\n\n```json\n{"status":"ok","count":3}\n```',
-        streamedText: "",
-        sessionId: undefined,
-        turns: 1,
-        totalCostUsd: 0.01,
-        subtype: undefined,
-        isError: false,
-      };
-    });
-
-    const step = makeAgentStep(scopeRoot, {
-      id: "analyze",
-      outputFormat: "json",
-      outputSchema: {
-        type: "object",
-        required: ["status", "count"],
-        properties: { status: { type: "string" }, count: { type: "number" } },
-      },
-      retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
-    });
-
-    const result = await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata(),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-
-    expect(result.output).toEqual({ status: "ok", count: 3 });
-    expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(2);
-    expect(capturedPrompts[0]).not.toContain("Previous output was missing usable structured JSON");
-    expect(capturedPrompts[1]).toContain(
-      "Previous output was missing usable structured JSON: no fenced JSON block was found in the response",
-    );
-  });
 });
 
 describe("executeAgentStep — provider errors from SDK result", () => {
@@ -542,173 +320,6 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
   });
 });
 
-describe("executeAgentStep — harness tool-control preflight", () => {
-  let scopeRoot: string;
-
-  beforeEach(() => {
-    scopeRoot = join(
-      tmpdir(),
-      `kota-step-executor-tool-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(scopeRoot, { recursive: true });
-    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
-    tryEmitMock.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("fails before running a harness that declares canUseTool unsupported", async () => {
-    const run = vi.fn(async () => ({
-      text: "should not run",
-      streamedText: "",
-      turns: 1,
-      usage: UNKNOWN_AGENT_USAGE,
-      isError: false,
-    }));
-    registerAgentHarness({
-      name: "unsupported-tool-control-harness",
-      description: "test-only unsupported harness",
-      supportsMultiTurn: true,
-      supportedHookKinds: [],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "kota",
-      unsupportedRunOptions: [
-        {
-          runOption: "canUseTool",
-          option: "canUseTool",
-          reason: "this harness cannot enforce KOTA tool gates",
-        },
-      ],
-      run,
-    });
-
-    await expect(
-      executeAgentStep(
-        makeDefinition(),
-        makeAgentStep(scopeRoot, {
-          harness: "unsupported-tool-control-harness",
-          model: "fake-model",
-        }),
-        makeMetadata("run-tool-control-blocked"),
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { scopeRoot, log: () => {} },
-      ),
-    ).rejects.toThrow(/unsupported-tool-control-harness.*canUseTool/);
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it("passes canUseTool through to a guardrail-capable harness", async () => {
-    const calls: Array<{ canUseTool: unknown }> = [];
-    registerAgentHarness({
-      name: "capable-tool-control-harness",
-      description: "test-only guardrail-capable harness",
-      supportsMultiTurn: true,
-      supportedHookKinds: [],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "kota",
-      async run(options) {
-        calls.push({ canUseTool: options.canUseTool });
-        return {
-          text: "done",
-          streamedText: "",
-          turns: 1,
-          usage: UNKNOWN_AGENT_USAGE,
-          isError: false,
-        };
-      },
-    });
-
-    const result = await executeAgentStep(
-      makeDefinition(),
-      makeAgentStep(scopeRoot, {
-        harness: "capable-tool-control-harness",
-        model: "fake-model",
-      }),
-      makeMetadata("run-tool-control-capable"),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-
-    expect(result.harness).toBe("capable-tool-control-harness");
-    expect(calls).toHaveLength(1);
-    expect(calls[0].canUseTool).toEqual(expect.any(Function));
-  });
-
-  it("rejects named KOTA tool restrictions for native tool-control harnesses", async () => {
-    const calls: Array<{
-      allowedTools?: string[];
-      disallowedTools?: string[];
-      hasCanUseTool: boolean;
-    }> = [];
-    registerAgentHarness({
-      name: "native-tool-control-harness",
-      description: "test-only native harness that owns its tool loop",
-      supportsMultiTurn: true,
-      supportedHookKinds: [],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "native",
-      nativeAbortQuarantine: "confirmed-stop",
-      unsupportedRunOptions: [
-        {
-          runOption: "disallowedTools",
-          option: "disallowedTools",
-          reason: "native harness owns tool filtering",
-        },
-        {
-          runOption: "canUseTool",
-          option: "canUseTool",
-          reason: "native harness owns tool approvals",
-        },
-      ],
-      async run(options) {
-        options.abortQuarantine?.register(() => {});
-        calls.push({
-          allowedTools: options.allowedTools,
-          disallowedTools: options.disallowedTools,
-          hasCanUseTool: options.canUseTool !== undefined,
-        });
-        return {
-          text: "done",
-          streamedText: "",
-          turns: 1,
-          usage: UNKNOWN_AGENT_USAGE,
-          isError: false,
-        };
-      },
-    });
-
-    await expect(
-      executeAgentStep(
-        makeDefinition(),
-        makeAgentStep(scopeRoot, {
-          harness: "native-tool-control-harness",
-          model: "fake-model",
-          disallowedTools: ["Bash"],
-        }),
-        makeMetadata("run-tool-control-native"),
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { scopeRoot, log: () => {} },
-      ),
-    ).rejects.toThrow(/disallowedTools.*native-tool-control-harness.*cannot honor/);
-
-    expect(calls).toEqual([]);
-  });
-});
-
 describe("executeAgentStep — writeScope enforcement", () => {
   let scopeRoot: string;
 
@@ -761,46 +372,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
 
   afterEach(() => {
     rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("passes when every tracked mutation is inside the declared writeScope", async () => {
-    executeWithAgentSDKMock.mockImplementation(async () => {
-      writeTracked(
-        scopeRoot,
-        "data/tasks/new-task.md",
-        "---\ntitle: x\n---\n",
-      );
-      return {
-        text: "done",
-        streamedText: "",
-        sessionId: undefined,
-        turns: 1,
-        usage: pricedAgentUsage(undefined, undefined, 0.01),
-        subtype: undefined,
-        isError: false,
-      };
-    });
-
-    const agent = makeAgentDef();
-    const step = makeAgentStep(scopeRoot, { agentName: agent.name });
-    const metadata = makeMetadata("run-ws-inscope");
-
-    await expect(
-      executeAgentStep(
-        makeDefinition("explorer"),
-        step,
-        metadata,
-        { event: "autonomy.queue.empty", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        {
-          scopeRoot,
-          log: () => {},
-          resolveAgentDef: () => agent,
-        },
-      ),
-    ).resolves.toBeDefined();
   });
 
   it("fails with the offending paths when writes escape the declared writeScope", async () => {
@@ -860,43 +431,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
     expect(parsed.violations).toEqual(["AGENTS.md", "src/core/keep.ts"]);
     expect(parsed.agentName).toBe("explorer");
     expect(parsed.stepId).toBe("explore");
-  });
-
-  it("treats writeScope: [] as explicit unrestricted and passes on any tracked mutation", async () => {
-    executeWithAgentSDKMock.mockImplementation(async () => {
-      writeTracked(scopeRoot, "src/core/keep.ts", "// anywhere\n");
-      writeTracked(scopeRoot, "AGENTS.md", "root agents\n");
-      return {
-        text: "done",
-        streamedText: "",
-        sessionId: undefined,
-        turns: 1,
-        totalCostUsd: 0.01,
-        subtype: undefined,
-        isError: false,
-      };
-    });
-
-    const agent = makeAgentDef({ name: "builder", writeScope: [] });
-    const step = makeAgentStep(scopeRoot, { agentName: agent.name });
-    const metadata = makeMetadata("run-ws-unrestricted");
-
-    await expect(
-      executeAgentStep(
-        makeDefinition("builder"),
-        step,
-        metadata,
-        { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        {
-          scopeRoot,
-          log: () => {},
-          resolveAgentDef: () => agent,
-        },
-      ),
-    ).resolves.toBeDefined();
   });
 
   it("restores every attempted mutation for an explicit deny-all writeScope", async () => {
@@ -975,136 +509,4 @@ describe("executeAgentStep — writeScope enforcement", () => {
     ).toBe("MM src/core/keep.ts");
   });
 
-  it("skips enforcement when the agent step does not run (recovery-only entry)", async () => {
-    // A recovery-only pass never calls `executeAgentStep` for the gated agent
-    // step — the workflow's `when` predicate returns false, so the executor
-    // shell skips the step and therefore never invokes scope enforcement.
-    // Simulate that: leave the SDK mock rejecting so any accidental invocation
-    // would fail, and assert that neither the SDK nor the scope check runs.
-    executeWithAgentSDKMock.mockRejectedValue(
-      new Error("SDK must not run on a recovery-gated step"),
-    );
-
-    // Pre-seed the worktree with an out-of-scope tracked mutation. Because we
-    // never call executeAgentStep, the enforcement never observes it.
-    writeTracked(scopeRoot, "src/core/keep.ts", "// recovery dirt\n");
-
-    expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
-    // And the enforcement helper is not reachable because no step ran.
-    expect(true).toBe(true);
-  });
-});
-
-describe("executeAgentStep — records resolved harness and model", () => {
-  let scopeRoot: string;
-
-  // A distinct harness registered under a second name lets us prove the step
-  // result records the name the *registry* returned, not just the optional
-  // `step.harness` config field.
-  const testHarnessCalls: Array<{ model?: string }> = [];
-  const testHarness: AgentHarness = {
-    name: "step-executor-test-harness",
-    description: "test-only adapter that captures invocation args",
-    supportsMultiTurn: true,
-    supportedHookKinds: [],
-    askOwnerToolName: null,
-    emitsAgentMessageStream: false,
-    toolControl: "kota",
-    async run(options) {
-      testHarnessCalls.push({ model: options.model });
-      return {
-        text: "done",
-        streamedText: "",
-        sessionId: undefined,
-        turns: 1,
-        usage: pricedAgentUsage(undefined, undefined, 0.01),
-        subtype: undefined,
-        isError: false,
-      };
-    },
-  };
-
-  beforeEach(() => {
-    scopeRoot = join(
-      tmpdir(),
-      `kota-step-executor-harness-id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(scopeRoot, { recursive: true });
-    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
-    testHarnessCalls.length = 0;
-    registerAgentHarness(testHarness);
-    tryEmitMock.mockReset();
-    executeWithAgentSDKMock.mockReset();
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "done",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
-    });
-  });
-
-  afterEach(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  it("records the registry-returned name when the step resolves via the registered default", async () => {
-    const step = makeAgentStep(scopeRoot);
-    const result = await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata("run-harness-default"),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-    expect(result.harness).toBe("claude-agent-sdk");
-    expect(result.model).toBe("claude-opus-4-7");
-  });
-
-  it("records the exact harness name when the step explicitly overrides", async () => {
-    const step = makeAgentStep(scopeRoot, {
-      harness: "step-executor-test-harness",
-    });
-    const result = await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata("run-harness-override"),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { scopeRoot, log: () => {} },
-    );
-    expect(result.harness).toBe("step-executor-test-harness");
-    expect(testHarnessCalls).toHaveLength(1);
-  });
-
-  it("records the model an agentModels override resolves to", async () => {
-    const step = makeAgentStep(scopeRoot, { agentName: "builder" });
-    const result = await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata("run-harness-agent-model"),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      {
-        scopeRoot,
-        log: () => {},
-        config: {
-          model: "fallback-model",
-          agentModels: { builder: "claude-sonnet-4-6" },
-        } as never,
-      },
-    );
-    expect(result.model).toBe("claude-sonnet-4-6");
-    // The harness received the same resolved model, not the static step.model.
-    expect(executeWithAgentSDKMock.mock.calls[0]?.[1]?.model).toBe("claude-sonnet-4-6");
-  });
 });

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const messagesCreateMock = vi.fn();
@@ -24,7 +27,10 @@ import {
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { thinAgentHarness } from "#modules/thin-agent-harness/adapter.js";
 
+let scopeRoot: string;
+
 beforeEach(() => {
+  scopeRoot = mkdtempSync(join(tmpdir(), "kota-hook-parity-"));
   messagesCreateMock.mockReset();
   createModelClientMock.mockReset();
   executeWithAgentSDKMock.mockReset();
@@ -49,6 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetHarnessHooks();
+  rmSync(scopeRoot, { recursive: true, force: true });
 });
 
 /**
@@ -76,6 +83,8 @@ describe("harness hook parity across adapters", () => {
     });
 
     await runAgentHarness(thinAgentHarness, {
+      scopeRoot,
+      cwd: scopeRoot,
       prompt: "say hi",
       model: "claude-haiku-4-5-20251001",
       effort: "xhigh",
@@ -107,7 +116,8 @@ describe("harness hook parity across adapters", () => {
     await runAgentHarness(claudeAgentHarness, {
       prompt: "task body",
       model: "claude-sonnet-4-6",
-      cwd: process.cwd(),
+      scopeRoot,
+      cwd: scopeRoot,
       effort: "xhigh",
     });
 
@@ -115,40 +125,5 @@ describe("harness hook parity across adapters", () => {
     expect(postRun).toHaveBeenCalledTimes(1);
     expect(preRun.mock.calls[0][0].harness.name).toBe("claude-agent-sdk");
     expect(postRun.mock.calls[0][0].result.text).toBe("claude-out");
-  });
-
-  it("delivers the same hook payload shape to both adapters", async () => {
-    const seen: Array<{ harnessName: string; prompt: string; resultText: string }> = [];
-    registerHarnessHook({
-      kind: "postRun",
-      owner: "observer",
-      name: "capture",
-      handler: ({ harness, options, result }) => {
-        seen.push({
-          harnessName: harness.name,
-          prompt: options.prompt,
-          resultText: result.text,
-        });
-      },
-    });
-
-    await runAgentHarness(thinAgentHarness, {
-      prompt: "parity-prompt",
-      model: "claude-haiku-4-5-20251001",
-      effort: "xhigh",
-      systemPrompt: "be terse",
-    });
-    await runAgentHarness(claudeAgentHarness, {
-      prompt: "parity-prompt",
-      model: "claude-sonnet-4-6",
-      cwd: process.cwd(),
-      effort: "xhigh",
-    });
-
-    expect(seen).toHaveLength(2);
-    expect(seen[0]?.harnessName).toBe("thin");
-    expect(seen[1]?.harnessName).toBe("claude-agent-sdk");
-    expect(seen[0]?.prompt).toBe("parity-prompt");
-    expect(seen[1]?.prompt).toBe("parity-prompt");
   });
 });

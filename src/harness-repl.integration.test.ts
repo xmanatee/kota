@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -242,7 +242,7 @@ describe("runHarnessRepl", () => {
   });
 
   it("expands @path references at the REPL boundary, not inside any adapter", async () => {
-    const tmpDir = process.cwd();
+    writeFileSync(join(scopeRoot, "fixture.md"), "Harness-neutral fixture body.\n");
     const calls: string[] = [];
     const harness: AgentHarness = {
       name: "capture",
@@ -267,16 +267,16 @@ describe("runHarnessRepl", () => {
     await runHarnessRepl({
       harness,
       model: "irrelevant",
-      cwd: tmpDir,
+      cwd: scopeRoot,
       run: { effort: "xhigh" },
-      input: makeInput(["read @package.json please", "exit"]),
+      input: makeInput(["read @fixture.md please", "exit"]),
       chrome: new CapturingChrome(),
       output: new CapturingOutput(),
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain('<file path="package.json">');
-    expect(calls[0]).toContain('"name": "kota"');
+    expect(calls[0]).toContain('<file path="fixture.md">');
+    expect(calls[0]).toContain("Harness-neutral fixture body.");
   });
 
   it("handles /reset by dropping the transcript", async () => {

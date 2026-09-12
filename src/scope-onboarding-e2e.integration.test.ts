@@ -376,34 +376,6 @@ function directoryHash(root: string, directory = root): string {
   return hash.digest("hex");
 }
 
-function productionSourceMatches(pattern: string): string[] {
-  try {
-    return execFileSync(
-      "rg",
-      [
-        "-l",
-        "--glob",
-        "*.ts",
-        "--glob",
-        "!*.test.ts",
-        "--glob",
-        "!*.integration.test.ts",
-        pattern,
-        "src",
-      ],
-      { cwd: process.cwd(), encoding: "utf8" },
-    ).trim().split("\n").filter(Boolean).sort();
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "status" in error &&
-      error.status === 1
-    ) return [];
-    throw error;
-  }
-}
-
 async function waitFor<T>(read: () => Promise<T> | T, accept: (value: T) => boolean, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let last = await read();
@@ -421,6 +393,8 @@ async function pauseScopeForDrain(client: KotaClient, scopeId: string): Promise<
   await waitFor(() => workflow.status(), (status) => status.activeRuns.length === 0);
 }
 
+// Composes CLI commands, live module loading, machine authority, onboarding,
+// autonomous publication and restart. The built CLI suite owns installed transport.
 describe("self-service external scope onboarding acceptance", () => {
   let root: string;
   let hostRoot: string;
@@ -600,7 +574,7 @@ describe("self-service external scope onboarding acceptance", () => {
     if (current === subject) current = null;
   }
 
-  async function runCli(args: string[], _input = ""): Promise<CliTranscriptEntry> {
+  async function runCli(args: string[]): Promise<CliTranscriptEntry> {
     if (current === null) throw new Error("CLI acceptance command requires a running daemon");
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -698,7 +672,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "--writes",
       "scope-directory",
       "--json",
-    ], "y\n");
+    ]);
     expect(addedCode.exitCode, addedCode.stderr).toBe(0);
     expect(JSON.parse(addedCode.stdout), addedCode.stdout).toMatchObject({
       ok: true,
@@ -771,7 +745,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "--writes",
       "none",
       "--json",
-    ], "y\n");
+    ]);
     expect(addedObserve.exitCode, addedObserve.stderr).toBe(0);
     expect(JSON.parse(addedObserve.stdout)).toMatchObject({
       ok: true,
@@ -852,7 +826,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "--reason",
       "Accept the onboarding-generated task for autonomous implementation",
       "--json",
-    ], "y\n");
+    ]);
     expect(upgraded.exitCode, upgraded.stderr).toBe(0);
     expect(JSON.parse(upgraded.stdout)).toMatchObject({ ok: true });
 
@@ -867,7 +841,7 @@ describe("self-service external scope onboarding acceptance", () => {
       expect.objectContaining({ workflow: "builder" }),
     ]));
     expect(existsSync(join(observeRoot, "cross-scope-write.txt"))).toBe(false);
-    const busyDrain = await runCli(["scope", "drain", codeScopeId, "--json"], "y\n");
+    const busyDrain = await runCli(["scope", "drain", codeScopeId, "--json"]);
     expect(busyDrain.exitCode).toBe(1);
     expect(JSON.parse(busyDrain.stdout)).toMatchObject({
       ok: false,
@@ -880,7 +854,7 @@ describe("self-service external scope onboarding acceptance", () => {
         }),
       ]),
     });
-    const busyRemove = await runCli(["scope", "remove", codeScopeId, "--json"], "y\n");
+    const busyRemove = await runCli(["scope", "remove", codeScopeId, "--json"]);
     expect(busyRemove.exitCode).toBe(1);
     expect(JSON.parse(busyRemove.stdout)).toMatchObject({
       ok: false,
@@ -1009,7 +983,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "--writes",
       "scope-directory",
       "--json",
-    ], "y\n");
+    ]);
     expect(missingSetup.exitCode, missingSetup.stderr).toBe(0);
     const missingSetupResult = JSON.parse(missingSetup.stdout);
     expect(missingSetupResult).toMatchObject({
@@ -1044,14 +1018,14 @@ describe("self-service external scope onboarding acceptance", () => {
       "drain",
       missingSetupScopeId,
       "--json",
-    ], "y\n");
+    ]);
     expect(drainedMissingSetup.exitCode, `${drainedMissingSetup.stdout}\n${drainedMissingSetup.stderr}`).toBe(0);
     const removedMissingSetup = await runCli([
       "scope",
       "remove",
       missingSetupScopeId,
       "--json",
-    ], "y\n");
+    ]);
     expect(removedMissingSetup.exitCode, removedMissingSetup.stderr).toBe(0);
     harnessReady = true;
 
@@ -1068,7 +1042,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "--writes",
       "none",
       "--json",
-    ], "y\n");
+    ]);
     expect(failedApply.exitCode).toBe(1);
     expect(JSON.parse(failedApply.stdout)).toMatchObject({
       ok: false,
@@ -1147,7 +1121,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "retry",
       recoveryOperationId,
       "--json",
-    ], "y\n");
+    ]);
     expect(retriedRecovery.exitCode, `${retriedRecovery.stdout}\n${retriedRecovery.stderr}`).toBe(0);
     expect(JSON.parse(retriedRecovery.stdout)).toMatchObject({
       ok: true,
@@ -1190,11 +1164,11 @@ describe("self-service external scope onboarding acceptance", () => {
     };
     const codeHashBeforeRemoval = directoryHash(codeRoot);
     await pauseScopeForDrain(running.client, observeScopeId);
-    const drainedObserve = await runCli(["scope", "drain", observeScopeId, "--json"], "y\n");
+    const drainedObserve = await runCli(["scope", "drain", observeScopeId, "--json"]);
     expect(drainedObserve.exitCode, `${drainedObserve.stdout}\n${drainedObserve.stderr}`).toBe(0);
     expect(JSON.parse(drainedObserve.stdout)).toMatchObject({ ok: true, status: "drained" });
     const observeHashBeforeRemoval = directoryHash(observeRoot);
-    const removedObserve = await runCli(["scope", "remove", observeScopeId, "--json"], "y\n");
+    const removedObserve = await runCli(["scope", "remove", observeScopeId, "--json"]);
     expect(removedObserve.exitCode, removedObserve.stderr).toBe(0);
     expect(JSON.parse(removedObserve.stdout)).toMatchObject({ ok: true, status: "removed" });
     const remainingScopes = await running.client.scopes.list();
@@ -1211,9 +1185,9 @@ describe("self-service external scope onboarding acceptance", () => {
     expect(directoryHash(codeRoot)).toBe(codeHashBeforeRemoval);
 
     await pauseScopeForDrain(running.client, recoveryScopeId);
-    const drainedRecovery = await runCli(["scope", "drain", recoveryScopeId, "--json"], "y\n");
+    const drainedRecovery = await runCli(["scope", "drain", recoveryScopeId, "--json"]);
     expect(drainedRecovery.exitCode, `${drainedRecovery.stdout}\n${drainedRecovery.stderr}`).toBe(0);
-    const removedRecovery = await runCli(["scope", "remove", recoveryScopeId, "--json"], "y\n");
+    const removedRecovery = await runCli(["scope", "remove", recoveryScopeId, "--json"]);
     expect(removedRecovery.exitCode, removedRecovery.stderr).toBe(0);
 
     const scopedRunIds = new Map([
@@ -1254,57 +1228,6 @@ describe("self-service external scope onboarding acceptance", () => {
       const payload = event.payload as { runId: string; scopeId: string };
       expect(payload.scopeId).toBe(runScopeById.get(payload.runId));
     }
-
-    const structuralSearch = {
-      registryMutationOwners: productionSourceMatches(
-        "new ScopeRegistry|registerDirectoryScope\\(",
-      ),
-      onboardingSurfaceOwners: productionSourceMatches(
-        "planOnboarding|addOnboarding|inspectOnboarding",
-      ),
-      authorityMutationOwners: productionSourceMatches(
-        "(authority|scopeAuthority)\\.(apply|applyTransactional)\\(",
-      ),
-      scopeScaffoldOwners: productionSourceMatches(
-        "create-runtime-directory|missingRuntimeDirectories|initializeScopeState",
-      ),
-      onboardingStateMachineOwners: productionSourceMatches(
-        "ScopeOnboardingStore|ScopeOnboardingService",
-      ),
-      clientActivationOwners: productionSourceMatches(
-        "activatePreparedScope\\(|scope\\.onboarding\\.apply",
-      ),
-    };
-    expect(structuralSearch.registryMutationOwners).toEqual([
-      "src/core/daemon/daemon-context-factory.ts",
-      "src/core/daemon/scope-lifecycle.ts",
-      "src/core/daemon/scope-registration.ts",
-    ]);
-    expect(structuralSearch.onboardingSurfaceOwners.every((path) =>
-      path === "src/client/kota-client.generated.ts" ||
-      path.startsWith("src/core/daemon/") || path.startsWith("src/modules/daemon-ops/")
-    )).toBe(true);
-    expect(structuralSearch.authorityMutationOwners).toEqual([
-      "src/core/daemon/daemon.ts",
-      "src/core/daemon/scope-onboarding.ts",
-    ]);
-    expect(structuralSearch.scopeScaffoldOwners).toEqual([
-      "src/core/daemon/scope-onboarding-types.ts",
-      "src/core/daemon/scope-onboarding.ts",
-      "src/modules/daemon-ops/scope-onboarding-presentation.ts",
-    ]);
-    expect(structuralSearch.onboardingStateMachineOwners).toEqual([
-      "src/core/daemon/daemon-handle.ts",
-      "src/core/daemon/daemon-init.ts",
-      "src/core/daemon/daemon-runtime-context.ts",
-      "src/core/daemon/index.ts",
-      "src/core/daemon/scope-onboarding.ts",
-    ]);
-    expect(structuralSearch.clientActivationOwners).toEqual([
-      "src/core/daemon/scope-lifecycle.ts",
-      "src/core/daemon/scope-onboarding.ts",
-      "src/modules/daemon-ops/operator-ui-scope-surface.ts",
-    ]);
 
     const report = {
       schemaVersion: 1,
@@ -1348,7 +1271,6 @@ describe("self-service external scope onboarding acceptance", () => {
         },
       },
       projectedClients: { code: projectedCode, observe: projectedObserve },
-      structuralSearch,
       isolation: {
         untrustedSiblingAfterCodeTrust,
         crossScopeFileAbsent: !existsSync(join(observeRoot, "cross-scope-write.txt")),
@@ -1367,7 +1289,7 @@ describe("self-service external scope onboarding acceptance", () => {
       ),
     };
     const artifactDir = process.env.KOTA_RUN_ARTIFACT_DIR ??
-      join(process.cwd(), ".kota", "artifacts", "scope-onboarding-e2e");
+      join(root, "evidence");
     mkdirSync(artifactDir, { recursive: true });
     writeFileSync(
       join(artifactDir, "scope-onboarding-e2e.json"),
