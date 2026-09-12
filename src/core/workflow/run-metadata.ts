@@ -1278,6 +1278,21 @@ function defaultEnumerationWarning(
 	);
 }
 
+/** Snapshot artifact candidates before consulting durable dispositions. */
+export function listWorkflowRunDirectoryIds(runsDir: string): string[] {
+	let entries: Dirent[];
+	try {
+		entries = readdirSync(runsDir, { withFileTypes: true });
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			entries = [];
+		} else {
+			throw new WorkflowRunMetadataEnumerationError(runsDir, error);
+		}
+	}
+	return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+}
+
 /**
  * The single collection owner for persisted run metadata. Child directories
  * without metadata.json are ignored unless durable state identifies them as
@@ -1290,36 +1305,28 @@ export function enumerateWorkflowRunMetadata(
 		authorityCriticalRunIds: ReadonlySet<string>;
 		operationallyActiveRunIds?: ReadonlySet<string>;
 		terminalRunIds?: ReadonlySet<string>;
+		/** Select durable outcomes before touching their evidence. Omit for recovery. */
+		selectedRunIds?: ReadonlySet<string>;
 		onDiagnostic?: (diagnostic: WorkflowRunMetadataDiagnostic) => void;
 		maxWarnings?: number;
 	}>,
 ): WorkflowRunMetadataEnumeration {
-	let entries: Dirent[];
-	try {
-		entries = readdirSync(runsDir, { withFileTypes: true });
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			entries = [];
-		} else {
-			throw new WorkflowRunMetadataEnumerationError(runsDir, error);
-		}
-	}
+	const runIds = options.selectedRunIds ?? listWorkflowRunDirectoryIds(runsDir);
 	const runs: StoredWorkflowRunMetadata[] = [];
 	const diagnostics: WorkflowRunMetadataDiagnostic[] = [];
 	const checkedAuthorityCriticalRunIds = new Set<string>();
 	const maxWarnings = options.maxWarnings ?? MAX_ENUMERATION_WARNINGS;
 	const onDiagnostic = options.onDiagnostic ?? defaultEnumerationWarning;
 
-	for (const entry of entries) {
-		if (!entry.isDirectory()) continue;
-		const path = join(runsDir, entry.name, "metadata.json");
+	for (const runId of runIds) {
+		const path = join(runsDir, runId, "metadata.json");
 		const operationallyActive =
-			options.operationallyActiveRunIds?.has(entry.name) ?? false;
-		const durablyTerminal = options.terminalRunIds?.has(entry.name) ?? false;
+			options.operationallyActiveRunIds?.has(runId) ?? false;
+		const durablyTerminal = options.terminalRunIds?.has(runId) ?? false;
 		const authorityCritical =
-			operationallyActive || options.authorityCriticalRunIds.has(entry.name);
+			operationallyActive || options.authorityCriticalRunIds.has(runId);
 		if (authorityCritical) {
-			checkedAuthorityCriticalRunIds.add(entry.name);
+			checkedAuthorityCriticalRunIds.add(runId);
 			const metadata = readWorkflowRunMetadataFile(path, {
 				authorityCritical: true,
 				operationallyActive,
@@ -1364,6 +1371,7 @@ export function enumerateWorkflowRunMetadata(
 		requiredRunIds.add(runId);
 	}
 	for (const runId of requiredRunIds) {
+		if (options.selectedRunIds !== undefined && !options.selectedRunIds.has(runId)) continue;
 		if (checkedAuthorityCriticalRunIds.has(runId)) continue;
 		const path = join(runsDir, runId, "metadata.json");
 		const operationallyActive =

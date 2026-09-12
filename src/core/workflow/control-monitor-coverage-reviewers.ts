@@ -6,7 +6,7 @@ import {
   triggerPayloadLinkedRunIds,
 } from "./control-monitor-coverage-readers.js";
 import { ASYNC_REVIEW_ARTIFACTS } from "./control-monitor-coverage-types.js";
-import { enumerateWorkflowRunMetadataWithDurableAuthority } from "./run-operational-projection.js";
+import { enumerateCompletedWorkflowRunMetadata } from "./run-operational-projection.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
 export type ReviewerResponseSummary = {
@@ -47,10 +47,12 @@ export function reviewerLinks(args: {
       ? Date.parse(args.metadata.completedAt)
       : null;
     if (existsSync(runsDir)) {
-      for (const metadata of enumerateWorkflowRunMetadataWithDurableAuthority({
+      for (const metadata of enumerateCompletedWorkflowRunMetadata({
         runsDir,
-        stateDir: args.stateDir ?? join(args.scopeRoot, ".kota"),
-        scopeRoot: args.scopeRoot,
+        authority: {
+          stateDir: args.stateDir ?? join(args.scopeRoot, ".kota"),
+          scopeRoot: args.scopeRoot,
+        },
       }).runs) {
         if (metadata.id === args.metadata.id) continue;
         const dir = join(runsDir, metadata.id);

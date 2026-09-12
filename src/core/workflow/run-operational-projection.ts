@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
 import {
   enumerateWorkflowRunMetadata,
+  listWorkflowRunDirectoryIds,
   type WorkflowRunMetadataDiagnostic,
   type WorkflowRunMetadataEnumeration,
   workflowRunMetadataAuthorityCriticalIds,
@@ -301,6 +302,8 @@ export type WorkflowRunMetadataDurableAuthority = Readonly<{
   authorityCriticalRunIds: ReadonlySet<string>;
   operationallyActiveRunIds: ReadonlySet<string>;
   terminalRunIds: ReadonlySet<string>;
+  /** IDs still held by durable state; older evidence can outlive these rows. */
+  knownRunIds?: ReadonlySet<string>;
 }>;
 
 /** Read durable dispositions used to classify persisted run evidence. */
@@ -322,36 +325,41 @@ export function readWorkflowRunMetadataDurableAuthority(input: {
     fileMustExist: true,
   });
   try {
-    const scope = database
-      .prepare("SELECT id FROM scopes WHERE root_path = ?")
-      .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
-    if (scope === undefined) {
-      return {
-        authorityCriticalRunIds: new Set(),
-        operationallyActiveRunIds: new Set(),
-        terminalRunIds: new Set(),
-      };
-    }
-    const runs = database
-      .prepare(
-        `SELECT id, state FROM runs
-         WHERE scope_id = ?`,
-      )
-      .all(scope.id) as Array<{ id: string; state: DurableRunState }>;
-    const publications = database
-      .prepare(
-        `SELECT DISTINCT run_id FROM run_publications
-         WHERE scope_id = ? AND delivered_at IS NULL`,
-      )
-      .all(scope.id) as Array<{ run_id: string }>;
-    return {
-      authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(
+    return database.transaction((): WorkflowRunMetadataDurableAuthority => {
+      const scope = database
+        .prepare("SELECT id FROM scopes WHERE root_path = ?")
+        .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
+      if (scope === undefined) {
+        return {
+          authorityCriticalRunIds: new Set(),
+          operationallyActiveRunIds: new Set(),
+          terminalRunIds: new Set(),
+        };
+      }
+      const runs = database
+        .prepare(
+          `SELECT id, state FROM runs
+           WHERE scope_id = ?`,
+        )
+        .all(scope.id) as Array<{ id: string; state: DurableRunState }>;
+      const publications = database
+        .prepare(
+          `SELECT DISTINCT run_id FROM run_publications
+           WHERE scope_id = ? AND delivered_at IS NULL`,
+        )
+        .all(scope.id) as Array<{ run_id: string }>;
+      const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
         runs,
         publications.map((publication) => ({ runId: publication.run_id })),
-      ),
-      operationallyActiveRunIds: workflowRunMetadataOperationallyActiveIds(runs),
-      terminalRunIds: workflowRunMetadataTerminalIds(runs),
-    };
+      );
+      const terminalRunIds = workflowRunMetadataTerminalIds(runs);
+      return {
+        authorityCriticalRunIds,
+        operationallyActiveRunIds: workflowRunMetadataOperationallyActiveIds(runs),
+        terminalRunIds,
+        knownRunIds: new Set([...runs.map((run) => run.id), ...authorityCriticalRunIds]),
+      };
+    })();
   } finally {
     database.close();
   }
@@ -386,20 +394,33 @@ export function enumerateWorkflowRunMetadataWithDurableAuthority(input: {
 }
 
 /**
- * Enumerate evidence when no canonical daemon state root is available.
- * Metadata that positively identifies itself as active still fails closed;
- * child directories without metadata are not evidence and are ignored.
+ * Select settled durable outcomes before opening evidence. A startup or retained
+ * publication is not an outcome; its recovery owner still validates all authority.
+ * Pin directory candidates first: a new admission cannot appear between the
+ * durable snapshot and evidence reads. Historical evidence can outlive its run
+ * row; its decoded metadata must still establish completion.
  */
-export function enumerateWorkflowRunMetadataFailClosed(input: {
+export function enumerateCompletedWorkflowRunMetadata(input: {
   runsDir: string;
+  authority?: { stateDir: string; scopeRoot: string };
   onDiagnostic?: (diagnostic: WorkflowRunMetadataDiagnostic) => void;
   maxWarnings?: number;
 }): WorkflowRunMetadataEnumeration {
-  return enumerateWorkflowRunMetadata(input.runsDir, {
-    authorityCriticalRunIds: new Set(),
-    ...(input.onDiagnostic !== undefined
-      ? { onDiagnostic: input.onDiagnostic }
-      : {}),
+  const runIds = listWorkflowRunDirectoryIds(input.runsDir);
+  const authority: WorkflowRunMetadataDurableAuthority = input.authority === undefined
+    ? { authorityCriticalRunIds: new Set(), operationallyActiveRunIds: new Set(), terminalRunIds: new Set() }
+    : readWorkflowRunMetadataDurableAuthority(input.authority);
+  const enumeration = enumerateWorkflowRunMetadata(input.runsDir, {
+    ...authority,
+    selectedRunIds: new Set(runIds.filter((id) =>
+      !authority.authorityCriticalRunIds.has(id) &&
+      (!authority.knownRunIds?.has(id) || authority.terminalRunIds.has(id))
+    )),
+    ...(input.onDiagnostic !== undefined ? { onDiagnostic: input.onDiagnostic } : {}),
     ...(input.maxWarnings !== undefined ? { maxWarnings: input.maxWarnings } : {}),
   });
+  return {
+    ...enumeration,
+    runs: enumeration.runs.filter((run) => run.status !== "running" && run.completedAt !== undefined),
+  };
 }

@@ -64,6 +64,10 @@ and publication.
 - A persisted sandbox that disappears keeps its ownership until Git-backed
   cleanup reconciliation or the runtime publication journal establishes its
   disposition. Missing files and empty historical diffs are not cleanup evidence.
+- Completed-outcome observers select artifact candidates against a coherent
+  durable run/publication snapshot before reading metadata. Startup and retained
+  publication evidence belongs to recovery; historical metadata still needs
+  explicit completion after its durable row expires.
 - `ctx.runEvidence` provides immutable, scope-filtered observations. Investigators
   receive redacted exports and unavailable diagnostics; database handles and
   host control authority stay in runtime.

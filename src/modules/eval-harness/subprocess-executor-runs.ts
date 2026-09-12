@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
+import { enumerateCompletedWorkflowRunMetadata, enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
 import type {
   RunMetadataSnapshot,
   WorkflowRunMetadataSnapshot,
@@ -37,8 +37,10 @@ export function readTerminalRunForWorkflow(
   workflowName: string,
   existingRunIds: ReadonlySet<string>,
 ): RunMetadataSnapshot | null {
-  const terminalRuns = readWorkflowRunsForWorkflow(workingDir, workflowName)
-    .filter((run) => run.terminal && !existingRunIds.has(run.id));
+  const terminalRuns = enumerateCompletedWorkflowRunMetadata({
+    runsDir: join(workingDir, ".kota", "runs"),
+    authority: { stateDir: join(workingDir, ".kota"), scopeRoot: workingDir },
+  }).runs.filter((run) => run.workflow === workflowName && !existingRunIds.has(run.id));
   const terminal = terminalRuns[terminalRuns.length - 1];
   return terminal ? { id: terminal.id, status: terminal.status } : null;
 }

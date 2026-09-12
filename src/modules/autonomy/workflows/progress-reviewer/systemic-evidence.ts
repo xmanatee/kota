@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod";
-import { enumerateWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
-import { readWorkflowRunMetadataDurableAuthority } from "#core/workflow/run-operational-projection.js";
+import { enumerateCompletedWorkflowRunMetadata } from "#core/workflow/run-operational-projection.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 
 export const systemicRunSchema = z.object({
@@ -47,9 +46,9 @@ export function collectSystemicRuns(scopeRoot: string, stateDir: string): {
   excluded: string[];
 } {
   const excluded: string[] = [];
-  const authority = readWorkflowRunMetadataDurableAuthority({ scopeRoot, stateDir });
-  const enumeration = enumerateWorkflowRunMetadata(join(stateDir, "runs"), {
-    ...authority,
+  const enumeration = enumerateCompletedWorkflowRunMetadata({
+    runsDir: join(stateDir, "runs"),
+    authority: { scopeRoot, stateDir },
     onDiagnostic: (diagnostic) => excluded.push(`${diagnostic.runId ?? "runs"}: ${diagnostic.reason}`),
   });
   return {

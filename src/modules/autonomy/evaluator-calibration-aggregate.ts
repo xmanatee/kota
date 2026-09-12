@@ -1,10 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import {
-  enumerateWorkflowRunMetadataFailClosed,
-  enumerateWorkflowRunMetadataWithDurableAuthority,
-} from "#core/workflow/run-operational-projection.js";
+import { enumerateCompletedWorkflowRunMetadata } from "#core/workflow/run-operational-projection.js";
 import { readWriterIntegrationEvidence } from "#core/workflow/writer-integration-evidence.js";
 import { isCalibrationSourceFile } from "./evaluator-calibration-artifact.js";
 import {
@@ -49,13 +46,7 @@ function loadCalibrationArtifactsInWindow(
   if (!existsSync(runsDir)) return [];
   const cutoffMs = nowMs - windowMs;
   const loaded: LoadedArtifact[] = [];
-  const enumeration = authority === undefined
-    ? enumerateWorkflowRunMetadataFailClosed({ runsDir })
-    : enumerateWorkflowRunMetadataWithDurableAuthority({
-      runsDir,
-      stateDir: authority.stateDir,
-      scopeRoot: authority.scopeRoot,
-    });
+  const enumeration = enumerateCompletedWorkflowRunMetadata({ runsDir, authority });
   for (const entry of enumeration.runs
     .map((run) => run.id)
     .sort()) {
