@@ -434,3 +434,5 @@ excerpt:
 
 
 > for (const path of context.readableRoots) access.set(path, "read");
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T10:23:57.524Z -->

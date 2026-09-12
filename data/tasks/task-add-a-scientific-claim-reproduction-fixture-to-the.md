@@ -269,3 +269,5 @@ operator capture.
 ## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 with current container/egress options. Retain claim-result.json, claim-holdout-result.json, predicate details and objective metric, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T10:23:57.524Z -->
