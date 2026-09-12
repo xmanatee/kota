@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-run-contained-linux-runtime-probes]
 ---
@@ -24,16 +24,62 @@ This contract supersedes historical blocking and operational-capture requirement
 The host has now demonstrated working Linux Bubblewrap confinement with synthetic
 data; the exported native-launcher result is under
 `.kota/runs/monitor-2026-09-12T11-03-45Z/native-sandbox-linux-corrected.json`.
-The remaining obstacle is making existing deterministic probes callable from a
-native worker. That is the internal implementation dependency above, not an
-owner-capture requirement. It reuses the contained-evaluation task's native tool
-mediation and the existing task-probe/container owners.
+The native-probe dependency is now archived as `done`. Its shared native tool
+mediation and task-probe/container owners are present, and this run successfully
+reached the host through that mediation. The prior continuation's dependency-wait
+rationale is stale; the concrete host grant failure below is the current obstacle.
 
-Once that dependency integrates, implement the missing credential writer and test
-successful private persistence plus relocation/symlink rejection. The prior
+Once the scoped execution grant is active, implement the missing credential writer
+and test successful private persistence plus relocation/symlink rejection. The prior
 fail-closed mitigation is not feature completion. Do not weaken it, restore the
 defeated writer, or demand an additional operator-readiness artifact before work
 can resume. The host monitor handles deployment follow-up after publication.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Host lifecycle owner activates an offline native-probe grant for this scope; normal native inspect/probe results or equivalent attributable host evidence permit resumption, with no separate readiness capture required.
+
+The invoking host has no `KOTA_EVAL_CONTAINED_PROFILES` configuration. In builder
+run `2026-09-12T17-27-13-592Z-builder-nzwt51`, the maintained command
+`pnpm kota eval contained '{"operation":"inspect"}'` reached the host and returned
+`Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment`
+(`tool-8def45d4c8d2510c3085637ef57042ae`). This is an observed missing execution
+grant, not an inference from the worker sandbox, missing credentials, or a claim
+that Docker/Linux is unavailable.
+
+The host lifecycle owner must activate an offline deterministic probe profile for
+this canonical scope, selecting a reviewed image through the existing contained
+evaluation setup. The builder cannot configure host grants or control its parent
+daemon. A draft `linux`/`browser` grant under this run's agent artifacts passed the
+production profile decoder and scope selection. Its `kota-eval:review` image is
+the deployment recipe's tag, not an inspected image; the host selects its reviewed
+digest before activation. No model access, host mounts, credentials, or network
+grant is requested. The existing service owner and deployment recipe supply the
+activation path; no new service or capture format is required.
+
+Resume through native profile inspection and the selected offline probe. A usable
+credential writer remains unimplemented: the current anchored-filesystem owner
+explicitly permits handles to follow relocated directories, and the task-probe
+owner isolates disposable execution rather than publishing credentials to an
+authorized host path. Neither is a safe replacement write primitive. Successful
+private publication and adversarial root/staging relocation rejection with
+unchanged outside sentinels remain unmet acceptance. The missing grant prevents
+contained Linux experiments at that boundary; it does not establish that any
+proposed writer design is correct.
+
+## Current disposition verification
+
+No production code changed. The existing browser profile lifecycle suite passed
+all 11 tests in this workspace, exercising explicit-save/close rejection before
+state collection, unchanged profiles, resource cleanup, existing-profile loading,
+scope ownership and policy rejection. This proves retained containment only.
+The draft host grant and current-source collection use the existing production
+decoders and collector; their results are setup evidence, not Linux execution.
+This run does not claim successful persistence, race safety, host activation, or
+completion of the security fix. Run-specific setup and evidence stay under this
+run's agent directory.
 
 
 ## Problem
