@@ -16,6 +16,9 @@ This workflow is the single AI decision path for durable autonomy issues.
   task changes and before finalizing any follow-up owner effects.
 - Repeated evidence enriches projection provenance without another review or
   attention item.
+- Investigators receive cited run diagnostics and module logs through the shared
+  scoped issue export in their agent directory. Missing or unsafe content stays
+  explicitly unavailable; references do not authorize canonical host reads.
 - Inspect the linked evidence, current owner, implementation, and related queue
   work before acting. Prefer one existing owner over parallel repair tasks.
 - Do not replay AI review without a new decision-request transition.

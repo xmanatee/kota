@@ -9,6 +9,7 @@ import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
 import type { AutonomyHealthEvidenceRef } from "./health-signal.js";
+import { collectIssueEvidenceFiles } from "./issue-evidence-files.js";
 import { getWorkflowChangeEvidence } from "./workflow-diff.js";
 
 /** Export only authority-selected, same-scope diagnostics into the agent sandbox. */
@@ -18,14 +19,14 @@ export async function writeIssueEvidence(
   namedReferences: readonly string[] = [],
 ): Promise<string | null> {
   return ctx.runBlocking(issueEvidenceOperation, {
-    stateDir: ctx.stateDir, scopeId: ctx.scopeId, runtimeStateDir: ctx.runtimeStateDir,
+    scopeRoot: ctx.scopeRoot, stateDir: ctx.stateDir, scopeId: ctx.scopeId, runtimeStateDir: ctx.runtimeStateDir,
     agentDir: resolveAgentRunDirFromContext(ctx), runDir: ctx.workflow.runDirPath,
     references, namedReferences,
   });
 }
 
 type IssueEvidenceInput = {
-  stateDir: string; scopeId: string; runtimeStateDir: string; agentDir: string; runDir: string;
+  scopeRoot: string; stateDir: string; scopeId: string; runtimeStateDir: string; agentDir: string; runDir: string;
   references: readonly AutonomyHealthEvidenceRef[]; namedReferences: readonly string[];
 };
 
@@ -48,7 +49,7 @@ async function exportIssueEvidence(ctx: IssueEvidenceInput, references: readonly
     .filter((ref) => ref.kind === "dead-letter")
     .map(({ ref }) => ref))];
   const runRefs = [...new Set(references.filter((ref) => ref.kind === "run").map(({ ref }) => ref))];
-  if (refs.length === 0 && runRefs.length === 0) return null;
+
   const store = new DeadLetterQueueStore(join(ctx.stateDir, "dead-letter-queue"));
   const evidence: object[] = refs.map((ref) => {
     const match = /^\.kota\/dead-letter-queue\/items\.json#(dlq-[a-f0-9-]+)$/.exec(ref);
@@ -106,6 +107,12 @@ async function exportIssueEvidence(ctx: IssueEvidenceInput, references: readonly
           evidence.push({ ref, unavailable: error instanceof Error ? error.message : String(error) });
         }
       }
+  }
+  evidence.push(...await collectIssueEvidenceFiles(ctx, references, authority, context));
+  for (const reference of references) {
+    if (!["run", "dead-letter", "artifact", "module-log"].includes(reference.kind)) {
+      evidence.push({ ...reference, unavailable: "Reference has no scoped diagnostic content exporter" });
+    }
   }
   context.signal.throwIfAborted();
   const agentDir = ctx.agentDir;

@@ -59,3 +59,52 @@ it.each(["file-link", "directory-link", "sandbox-link", "hard-link", "regular"] 
     else expect(exported).toContain("Critic review unavailable from anchored evidence");
   },
 );
+
+it("exports only cited same-scope diagnostic content, batches repeated log references, and reports unavailable inputs", async () => {
+  const root = mkdtempSync(join(tmpdir(), "issue-content-"));
+  roots.push(root);
+  const stateDir = join(root, ".kota");
+  const database = new RunStateDatabase(stateDir);
+  database.registerScope({ id: "scope", rootPath: root, createdAt: "2026-09-12T00:00:00Z" });
+  database.registerScope({ id: "other", rootPath: join(root, "other"), createdAt: "2026-09-12T00:00:00Z" });
+  for (const [id, scopeId] of [["selected", "scope"], ["foreign", "other"]]) {
+    database.admitRun({ id: id!, scopeId: scopeId!, workflow: "probe", repository: "none", resources: [],
+      admittedAt: "2026-09-12T00:00:00Z", trigger: { event: "manual", schemaRef: null, payload: {} } });
+    mkdirSync(join(stateDir, "runs", id!), { recursive: true });
+    writeFileSync(join(stateDir, "runs", id!, "control-monitor-coverage.json"), JSON.stringify({
+      scopeId, outcome: id === "selected" ? "control request timed out" : "foreign-private-content",
+      authorization: "Bearer private-token", thinking: "private-reasoning-content",
+    }));
+  }
+  database.close();
+  const logs = join(stateDir, "modules/telegram/logs.jsonl");
+  mkdirSync(join(stateDir, "modules/telegram"), { recursive: true });
+  writeFileSync(logs, [
+    { module: "telegram", msg: "unselected-line" },
+    { module: "telegram", msg: "getUpdates conflict", data: { token: "private-token", operation: "poll" } },
+  ].map((entry) => JSON.stringify(entry)).join("\n"));
+  writeFileSync(join(stateDir, "secrets.json"), JSON.stringify({ value: "host-secret-content" }));
+  symlinkSync(join(stateDir, "secrets.json"), join(stateDir, "runs/selected/linked.json"));
+  writeFileSync(join(stateDir, "runs/selected/oversize.json"), JSON.stringify({ text: "x".repeat(128 * 1024) }));
+  writeFileSync(join(stateDir, "runs/selected/invalid.json"), "host-secret-content is not JSON");
+  const path = await writeIssueEvidence({ scopeRoot: root, scopeId: "scope", stateDir, runtimeStateDir: stateDir,
+    runBlocking: runWorkflowBlockingOperation,
+    runtimeResources: { profileId: "review", env: {}, agentRunDir: join(root, "sandbox/agent") },
+    workflow: { name: "improver", runId: "review", runDir: ".kota/runs/review", runDirPath: join(stateDir, "runs/review"), definitionPath: "workflow.ts" },
+  }, [
+    { kind: "artifact", ref: ".kota/runs/selected/control-monitor-coverage.json" },
+    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl#L2" },
+    ...[".kota/runs/foreign/control-monitor-coverage.json", ".kota/secrets.json", ".kota/runs/selected/../../secrets.json",
+      ".kota/runs/selected/linked.json", ".kota/runs/selected/oversize.json", ".kota/runs/selected/invalid.json", ".kota/runs/selected/missing.json"].map((ref) => ({ kind: "artifact" as const, ref })),
+    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl#L99" },
+  ]);
+  expect(path).toBe(join(root, "sandbox/agent/issue-evidence.json"));
+  const exported = readFileSync(path!, "utf8");
+  expect(exported).toContain("control request timed out");
+  expect(exported).toContain("getUpdates conflict");
+  for (const denied of ["host-secret-content", "foreign-private-content", "private-token", "private-reasoning-content", "unselected-line"]) expect(exported).not.toContain(denied);
+  const parsed = JSON.parse(exported);
+  expect(parsed.evidence.filter((entry: { unavailable?: string }) => entry.unavailable)).toHaveLength(8);
+  expect(parsed.evidence.filter((entry: { content?: object }) => entry.content)).toHaveLength(2);
+  expect(readFileSync(join(stateDir, "runs/review/issue-evidence.json"), "utf8")).toBe(exported);
+});

@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
@@ -171,6 +172,57 @@ describe("improver issue disposition workflow", () => {
     expect(
       improverWorkflow.steps.find((step) => step.id === "select-issue"),
     ).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
+  });
+
+  it("hands scoped incident content to the investigator in its isolated agent directory", async () => {
+    const issue = openIssue();
+    issue.evidenceRefs = [
+      { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl" },
+      { kind: "artifact", ref: ".kota/runs/incident/control-monitor-coverage.json" },
+      { kind: "artifact", ref: ".kota/secrets.json" },
+    ];
+    issue.summaries = [];
+    const state = stateForProjection();
+    const database = RunStateDatabase.openExisting(state.stateDir);
+    database.admitRun({ id: "incident", scopeId: state.scopeId, workflow: "probe", repository: "none", resources: [],
+      admittedAt: "2026-09-12T00:00:00Z", trigger: { event: "manual", schemaRef: null, payload: {} } });
+    database.close();
+    mkdirSync(join(workspaceRoot, ".kota/modules/telegram"), { recursive: true });
+    mkdirSync(join(workspaceRoot, ".kota/runs/incident"), { recursive: true });
+    writeFileSync(join(workspaceRoot, ".kota/modules/telegram/logs.jsonl"), JSON.stringify({
+      module: "telegram", msg: "getUpdates conflict: competing consumer", data: { token: "private-token" },
+    }));
+    writeFileSync(join(workspaceRoot, ".kota/runs/incident/control-monitor-coverage.json"), JSON.stringify({
+      scopeId: state.scopeId, outcome: "control monitor missed deadline",
+    }));
+    writeFileSync(join(workspaceRoot, ".kota/secrets.json"), JSON.stringify({ value: "host-secret-content" }));
+    let reviewed = false;
+    const result = await new WorkflowScenarioDriver(improverWorkflow, {
+      runId: "incident-investigator", workspaceRoot,
+      trigger: { event: autonomyIssueDecisionRequested.name, payload: {
+        issueKey: issue.issueKey, semanticRevision: issue.semanticRevision,
+      } },
+      ports: { state, runCommand: improverCommandRunner(workspaceRoot), runAgent: ({ cwd }) => {
+        const selection = JSON.parse(readFileSync(join(workspaceRoot, ".kota/runs/incident-investigator/steps/select-issue.json"), "utf8"));
+        const evidencePath = selection.output.evidencePath;
+        const authority = RunStateDatabase.openReadOnly(state.stateDir);
+        const sandbox = authority.getRun("incident-investigator")!.sandbox!;
+        authority.close();
+        expect(cwd).toBe(sandbox.workspaceDir);
+        expect(evidencePath).toBe(join(sandbox.rootDir, "agent/issue-evidence.json"));
+        expect(existsSync(join(cwd, ".kota/modules/telegram/logs.jsonl"))).toBe(false);
+        const content = readFileSync(evidencePath, "utf8");
+        expect(content).toContain("getUpdates conflict: competing consumer");
+        expect(content).toContain("control monitor missed deadline");
+        expect(content).toContain("Reference is not an authorized scoped diagnostic file");
+        expect(content).not.toContain("host-secret-content");
+        expect(content).not.toContain("private-token");
+        reviewed = true;
+        return { ...OBSERVED_DISPOSITION, rationale: "Scoped export confirms a competing Telegram consumer and a missed control deadline; existing recovery owner remains responsible." };
+      } },
+    }).run();
+    expect(result.status, JSON.stringify(result)).toBe("success");
+    expect(reviewed).toBe(true);
   });
 
   it("reviews one undecided semantic revision and does not review it again", async () => {

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p0
+status: done
 ---
 # Make recovery evidence collection proportional to relevant work
 
@@ -175,3 +174,51 @@ The representative-history rerun held at 70 reads/two helpers; concurrent
 preflights reached the next step within 1.41 seconds and control-request pairs
 within 23 ms (`repair-runtime.log`). Task-named export discovery and content
 attribution passed at the evidence owner (`repair-behavior.log`).
+
+
+## Completion — September 12
+
+Run `2026-09-12T06-40-51-878Z-builder-5siqh7` closes the investigator-content
+gap in the shared issue export used by improver and builder. Cited scoped run
+JSON artifacts and module logs now materialize as redacted content in the
+runtime-provided agent directory, retaining reference, scope and content digest.
+Repeated references share anchored file reads. Line citations select their line;
+uncited files are not scanned. Unsupported, missing, oversized, malformed or
+unsafe references remain explicitly unavailable. JSON parse diagnostics cannot
+leak rejected content. Investigator permissions remain unchanged.
+
+The improver scenario uses the real isolated workflow, issue selection, worker,
+export and disposition owners with a controlled model port. An issue with empty
+summaries reaches that port with Telegram conflict and control-monitor deadline
+content despite the canonical logs being absent from its checkout. The export
+owner proves cross-scope rejection, traversal/link rejection, redaction and
+explicit unavailability. Existing filesystem and scope-authority guards passed.
+This establishes the handoff, not a live model's eventual disposition quality.
+
+The production daemon/control-route history journey passed with 3,452 unrelated
+runs and 37,972 JSON leaves. Selected collection remained 70 leaf reads and two
+helpers: 152 ms without history and 550 ms with history. Three concurrent
+preflights reached the next step within 2.39, 3.50 and 4.57 seconds; the slowest
+of 23 status-plus-health request pairs took 165 ms. No host suspension was
+subtracted. Run, scope and shutdown cancellation stopped retained collection;
+shutdown preserved its attention state. Activation drain, queued identity,
+operator pause and shared capacity refill passed at their existing runtime owners.
+Earlier same-lineage outcome, timestamp/copy exclusion and stale-contract proof
+recorded above remains applicable; those recovery mechanisms were not changed.
+
+`pnpm check:fast` passed, as did production TypeScript compilation into the run
+artifact directory. The selected owner run passed 80 of 81 tests; its external
+worker dependency-isolation fixture inherited repository dependencies from the
+run-owned temporary directory. Rerunning that complete six-test worker suite
+outside the repository passed. The new investigator journey passed both in the
+full improver run and alone. The full improver run's existing task-publication
+case could not launch its validator because sandbox process inspection denied
+`/bin/ps`; no production workaround or permission expansion was introduced.
+The other four cases passed. This limitation does not affect the exercised
+export/handoff behavior; publication remains runtime-owned.
+
+Logs are in this run's agent directory: `investigator-final.log`,
+`owner-final.log`, `blocking-final.log`, `recovery-history-final.log`,
+`check-fast-final.log`, `build-final.log`, and `build-result.txt`.
+Launching-daemon deployment observation remains operational follow-up under the
+owner's waiver; this completion does not close other activation/recovery tasks.
