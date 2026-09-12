@@ -105,6 +105,33 @@ Review wording is evaluated behavior; schemas and runtime policy own rejection.
 Generated-work question reconciliation preserves terminal responses. Replaying
 unchanged proposals has no effect; revised questions receive new records.
 
+## Running an AGY Canary
+
+Arrange the AGY rollout through the host lifecycle first. From the selected
+scope's canonical directory on that host, inspect `pnpm kota workflow status`
+and confirm the active agent runtime is Antigravity. Canary collection does not
+switch presets or start a daemon; a Codex-backed production scope is not an AGY
+observation environment.
+
+Use one run identity for the whole observation series:
+
+```sh
+pnpm kota agy-canary --run-id agy-rollout-1 --start
+# After at least three real hours:
+pnpm kota agy-canary --run-id agy-rollout-1 --phase three-hour
+# After at least six more real hours, and for each later six-hour window:
+pnpm kota agy-canary --run-id agy-rollout-1 --phase six-hour
+```
+
+Keep the baseline, checkpoint and timestamped window evidence under
+`.kota/runs/agy-rollout-1/agy-continuous-canary/`. Read the command's decision,
+metrics and review status together: a suppressed review leaves work pending,
+not approved. Reuse the same identity after recovery so pending reviews carry
+forward. Early or evidence-free observations reject without launching a reviewer.
+Do not edit timestamps or clear quality pauses to advance a window. Provider
+recovery and explicit quality recovery remain with the canonical workflow
+controls; deterministic maintenance remains eligible while agent work is parked.
+
 ## Queue Policy
 
 - Builder runs only from targeted, idempotent `autonomy.queue.available`

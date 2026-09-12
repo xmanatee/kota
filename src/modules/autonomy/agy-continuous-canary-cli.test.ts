@@ -517,5 +517,62 @@ describe("agy-canary command", () => {
       ".kota/runs/canary-incident/agy-continuous-canary/checkpoint.json",
     ), "utf8")) as { carriedRunIds: string[] };
     expect(checkpoint.carriedRunIds).toEqual([runId]);
+
+    const sixHourDir = join(
+      root,
+      ".kota/runs/canary-incident/agy-continuous-canary/six-hour",
+    );
+    const previousWindow = readdirSync(sixHourDir)[0]!;
+    const previousEvidence = readFileSync(
+      join(sixHourDir, previousWindow, "canary.json"),
+      "utf8",
+    );
+    incident = false;
+    failReviewWithIncident = false;
+    vi.setSystemTime(new Date("2026-09-01T21:00:00.000Z"));
+    await buildAgyCanaryCommand(ctx).parseAsync([
+      "--run-id", "canary-incident", "--phase", "six-hour",
+    ], { from: "user" });
+
+    const windows = readdirSync(sixHourDir);
+    expect(windows).toHaveLength(2);
+    expect(readFileSync(
+      join(sixHourDir, previousWindow, "canary.json"), "utf8",
+    )).toBe(previousEvidence);
+    const nextWindow = windows.find((window) => window !== previousWindow)!;
+    const reviewedArtifact = JSON.parse(readFileSync(
+      join(sixHourDir, nextWindow, "canary.json"), "utf8",
+    ));
+    expect(reviewedArtifact).toMatchObject({
+      windowStartedAt: "2026-09-01T15:00:00.000Z",
+      windowDurationMs: 6 * 60 * 60 * 1000,
+      metrics: {
+        agentRuns: 1,
+        pendingReviewRuns: 0,
+        usefulCompletions: 1,
+        instructionChecks: 1,
+        successfulEmptyResults: 0,
+      },
+      decision: { kind: "continue" },
+      qualityReview: { status: "completed", runs: [{ runId }] },
+    });
+    expect(JSON.parse(readFileSync(join(
+      root, ".kota/runs/canary-incident/agy-continuous-canary/checkpoint.json",
+    ), "utf8"))).toMatchObject({
+      completedWindows: 3,
+      nextWindowStartedAt: "2026-09-01T21:00:00.000Z",
+      carriedRunIds: [],
+    });
+    expect(runOneShot).toHaveBeenCalledTimes(3);
+
+    // A fresh command reads the checkpoint; it cannot review the same work again.
+    await expect(buildAgyCanaryCommand(ctx).parseAsync([
+      "--run-id", "canary-incident", "--phase", "six-hour",
+    ], { from: "user" })).rejects.toThrow("observation is early");
+    vi.setSystemTime(new Date("2026-09-02T03:00:00.000Z"));
+    await expect(buildAgyCanaryCommand(ctx).parseAsync([
+      "--run-id", "canary-incident", "--phase", "six-hour",
+    ], { from: "user" })).rejects.toThrow("neither AGY agent-run nor provider-incident evidence");
+    expect(runOneShot).toHaveBeenCalledTimes(3);
   });
 });

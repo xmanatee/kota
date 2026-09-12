@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createConfirmedActionDeadLetter,
   createEventEnvelopeDeadLetter,
@@ -19,6 +19,23 @@ import { deregisterTool, registerTool } from "#core/tools/index.js";
 import type { WorkflowRuntime } from "./runtime.js";
 import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
+
+// These workflows never listen on a socket. Keep real resource allocation and
+// persistence while controlling the external listener probe, as lifecycle tests do.
+vi.mock("./run-resources.js", async (original) => {
+  const actual = await original<typeof import("./run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(
+        store: import("./run-state-database.js").RunStateDatabase,
+        options: import("./run-resources.js").RunResourceAllocatorOptions,
+      ) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
 
 const runStates: Array<{ close(): void }> = [];
 

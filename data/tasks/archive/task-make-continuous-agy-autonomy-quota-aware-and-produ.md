@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-prove-agy-builder-parity-end-to-end]
+status: done
 ---
 # Make continuous AGY autonomy quota-aware and productive
 
@@ -158,3 +156,39 @@ start a competing daemon to manufacture evidence. Use the existing agy-canary
 AGY window is arranged through the host lifecycle. Preserve 3h/6h useful-work
 review, quota suppression, same-lineage recovery and continue/pause evidence.
 Do not reduce elapsed acceptance to a readiness check.
+
+
+## Completion under the September 12 contract
+
+Validated the existing quota and output-contract mechanisms in supported isolated
+context and documented the host-owned canary setup in
+`src/modules/autonomy/AGENTS.md`. No production preset or daemon was changed.
+The current scope gate is authoritative; the historical September 2 fleet-wide
+wording above is retained as history, not a new cross-scope guarantee.
+
+Extended the command-owned canary journey through an incident-blocked review,
+recovery, and another six-hour window. It proves that a retained run is reviewed
+and consumed once, previous evidence remains unchanged, and early or evidence-free
+repeated observations do not launch another reviewer. Its clock and daemon inputs
+are controlled test inputs, not observed AGY rollout measurements.
+
+The selected owner suites passed 116 tests: canary decisions/collection and
+citations; provider reset coalescing, admission suppression and durable queued
+identity; successful-empty correction and pause; DLQ deduplication; priority and
+same-lineage writer/session recovery; and daemon quality-control routing. The
+workflow DLQ suite now controls only the external port-availability probe using
+the existing allocator seam, matching the lifecycle suite. Resource allocation,
+persistence, workflow execution and restart remain real. This resolved six initial
+sandbox listener failures before workflow execution; it does not claim live
+listener availability.
+
+Run `2026-09-12T06-41-03-806Z-builder-3qkc11` retains
+`quota-canary-validation.log`, `runtime-recovery-validation.log`,
+`canary-command-help.txt`, `check-fast.log`, and `validation-summary.md` in its
+agent artifacts. The static gate validates types, lint, task state and generated
+client bindings. Runtime publication remains the next workflow stage.
+
+A host-owned AGY rollout must still capture real three-hour and consecutive
+six-hour observations using the documented command series. That operational
+follow-up is non-gating under the current owner waiver; no live productivity,
+quota-benefit comparison or model-quality result is claimed here.
