@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Publish KOTA Telegram production deploy artifact
@@ -120,3 +120,67 @@ the same token or drain unrelated automation just to reproduce an old install.
 The remaining proof is a real /status exchange attributable to that staging
 deployment, with healthy supervisor and rollback/secret-input behavior retained.
 Do not synthesize an inbound owner message or expose deployment secrets.
+
+
+## Retained implementation (2026-09-12)
+
+The deployment artifact now supplies the current pnpm build inputs and native
+SQLite build tooling, excludes runtime secrets/state from Docker build context,
+and selects the production daemon target while retaining the explicit eval target.
+Docker and systemd share configuration generation. Secret input is literal data
+rather than sourced shell; unsupported/duplicate keys fail before supervisor
+launch. Docker rollback no longer requires credentials and preserves state unless
+purge is explicit. The systemd unit remains supported with a complete prebuilt
+`/opt/kota` package and Node-compatible hardening. README inputs and rollback paths
+match these changes. Existing Telegram single-poller and voice-failure behavior
+is unchanged.
+
+`deploy/telegram-assistant/integration-test.sh` supplies the actual Docker build,
+installer, supervisor/daemon health, secret-boundary and rollback/purge journey
+with unique resources, fake credentials and no runtime network. It has not run
+successfully in this builder environment; it is not staging-bot proof.
+
+Validation: `pnpm build`, `pnpm check:fast`, ShellCheck, Compose YAML parsing and
+12 deploy-boundary tests passed. Another 59 Telegram bot/channel owner tests passed,
+including missing-transcription behavior. The daemon integration test was attempted
+but failed on sandbox `listen EPERM: operation not permitted 127.0.0.1` before
+acceptance could be observed. Docker capability probing returned permission denied
+for its socket, and the accessible CLI could not resolve `docker compose`. These
+observations describe this sandbox, not host credential or host capability absence.
+Run evidence: `2026-09-12T06-41-39-176Z-builder-rdgdrt`.
+
+## Workflow preset repair
+
+The critic identified a repairable configuration defect: selecting an OpenRouter
+chat model left workflow tiers on the shipped Codex default. The entrypoint now
+selects the shipped `openrouter` preset when an OpenRouter chat model has no
+explicit or saved preset. Other chat providers require an explicit/saved workflow
+preset. Harness selection inherits that preset unless explicitly overridden.
+The README distinguishes chat model selection from workflow tier/auth selection.
+
+All 16 deploy-boundary tests pass, including generated-config probes through the
+production `resolveAgentRuntime` and `createModelClientImpl` for every workflow
+tier with default and explicit OpenRouter presets. Explicit saved preset/harness
+inheritance and missing-preset rejection are covered. These checks require no
+Docker or live credentials and repair the critic finding independently of the
+contained launch prerequisite below.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Task-attributable authorized contained execution capability or equivalent actual deploy launch, health, secret-boundary and rollback evidence for the revised artifact.
+
+This evidence-review kind records execution authority, not a manual capture
+request. The path is a discovery hint; equivalent scoped exports are accepted.
+
+A runtime-authorized contained execution (or equivalent attributable export) of
+the actual deploy integration, permitting Docker image build and isolated
+supervisor/daemon launch, health, literal-secret checks and rollback. This run has
+no exposed contained-execution tool; direct Docker access and a local daemon
+listener are unavailable under its current sandbox. Resume with that execution
+capability or task-linked evidence for the revised artifact, then diagnose any
+observed failures. Do not expose host Docker authority or credentials to candidate
+code. No real staging token, owner impersonation, production poll handoff, or
+manual-only capture is required for this prerequisite. The authentic staging
+`/status` exchange remains non-gating operational follow-up under the owner waiver.

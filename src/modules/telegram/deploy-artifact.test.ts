@@ -1,145 +1,141 @@
-/**
- * Static coverage for the Telegram personal-assistant deploy artifact in
- * `deploy/telegram-assistant/`. The integration path — daemon + telegram
- * channels running together — is covered by `daemon-integration.test.ts`.
- * These tests guard the deploy artifact itself against drift: required
- * files exist, every env var referenced by docker-compose and the
- * systemd unit is listed in .env.example, and the install script wires
- * the same required inputs.
- */
+import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { type AgentRuntimeConfig, resolveAgentRuntime } from "#core/model/preset.js";
+import { createModelClientImpl } from "#modules/model-clients/factory.js";
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+const deploy = resolve(import.meta.dirname, "../../../deploy/telegram-assistant");
+let dir: string;
+let env: NodeJS.ProcessEnv;
 
-const DEPLOY_DIR = resolve(__dirname, "../../../deploy/telegram-assistant");
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "telegram-deploy-"));
+  env = { PATH: `${dir}:${dirname(process.execPath)}:/usr/bin:/bin`, KOTA_SCOPE_ROOT: join(dir, "scope") };
+  // Docker is the external process port. Record invocations without simulating
+  // Compose, supervisor state, the daemon, or Telegram transport.
+  writeFileSync(join(dir, "docker"), `#!/bin/sh\nprintf '%s\\n' "$*" >> "$DEPLOY_CALLS"\nexit "\${DEPLOY_EXIT:-0}"\n`, { mode: 0o755 });
+  env.DEPLOY_CALLS = join(dir, "calls");
+});
+afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-const REQUIRED_RUNTIME_ENV = [
-  "TELEGRAM_BOT_TOKEN",
-  "TELEGRAM_ALERT_CHAT_ID",
-];
-
-const OPTIONAL_RUNTIME_ENV = [
-  "ANTHROPIC_API_KEY",
-  "OPENAI_API_KEY",
-  "OPENROUTER_API_KEY",
-  "KOTA_MODEL",
-  "KOTA_DEFAULT_PRESET",
-  "KOTA_DEFAULT_AGENT_HARNESS",
-  "KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE",
-  "KOTA_TELEGRAM_ALLOWED_CHAT_IDS",
-];
-
-function read(name: string): string {
-  return readFileSync(resolve(DEPLOY_DIR, name), "utf8");
+function run(script: string, args: string[] = []) {
+  return spawnSync("bash", [join(deploy, script), ...args], { env, encoding: "utf8" });
+}
+function secrets(content: string) {
+  const path = join(dir, "secret-input");
+  writeFileSync(path, content, { mode: 0o600 });
+  return path;
+}
+function calls() { return existsSync(env.DEPLOY_CALLS!) ? readFileSync(env.DEPLOY_CALLS!, "utf8") : ""; }
+function entrypoint(overrides: NodeJS.ProcessEnv = {}) {
+  copyFileSync(join(deploy, "entrypoint.sh"), join(dir, "entrypoint.sh"));
+  mkdirSync(join(dir, "bin"), { recursive: true });
+  writeFileSync(join(dir, "bin/kota.mjs"), "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n");
+  return spawnSync("bash", [join(dir, "entrypoint.sh"), "daemon", "--scope-root", env.KOTA_SCOPE_ROOT!], {
+    env: { ...env, TELEGRAM_BOT_TOKEN: "fixture-token", TELEGRAM_ALERT_CHAT_ID: "123", KOTA_MODEL: "openrouter/openrouter/auto", ...overrides }, encoding: "utf8",
+  });
 }
 
-describe("telegram-assistant deploy artifact", () => {
-  it("ships the expected files", () => {
-    for (const file of [
-      "Dockerfile",
-      "docker-compose.yml",
-      "entrypoint.sh",
-      "kota-telegram.service",
-      ".env.example",
-      "install.sh",
-      "rollback.sh",
-      "smoke-test.sh",
-      "README.md",
-    ]) {
-      // readFileSync throws if absent, which is the assertion we want.
-      expect(() => read(file)).not.toThrow();
+describe("Telegram deploy boundary", () => {
+  it("passes a literal secrets file to Compose without executing or logging its values", () => {
+    const marker = join(dir, "executed");
+    const secret = `$(touch ${marker})`;
+    const path = secrets(`TELEGRAM_BOT_TOKEN=${secret}\nTELEGRAM_ALERT_CHAT_ID=123\n`);
+    const result = run("install.sh", ["--mode", "docker", "--env-file", path]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(marker)).toBe(false);
+    expect(result.stdout + result.stderr + calls()).not.toContain(secret);
+    expect(calls()).toContain("up --detach --build --wait");
+  });
+
+  it.each([
+    "TELEGRAM_BOT_TOKEN=fixture\n",
+    "TELEGRAM_BOT_TOKEN=fixture\nTELEGRAM_ALERT_CHAT_ID=123\nNODE_OPTIONS=--require evil\n",
+    "TELEGRAM_BOT_TOKEN=fixture\nTELEGRAM_ALERT_CHAT_ID=123\nTELEGRAM_ALERT_CHAT_ID=456\n",
+  ])("rejects incomplete, process-authority or duplicate inputs before launch", (input) => {
+    const result = run("install.sh", ["--mode", "docker", "--env-file", secrets(input)]);
+    expect(result.status).not.toBe(0);
+    expect(calls()).toBe("");
+  });
+
+  it("does not report success when the supervisor fails", () => {
+    env.DEPLOY_EXIT = "7";
+    const result = run("install.sh", ["--mode", "docker", "--env-file", secrets("TELEGRAM_BOT_TOKEN=fixture\nTELEGRAM_ALERT_CHAT_ID=123\n")]);
+    expect(result.status).toBe(7);
+    expect(result.stdout).not.toContain("healthy");
+  });
+
+  it("rolls back without secrets and purges state only when requested", () => {
+    expect(run("rollback.sh", ["--mode", "docker"]).status).toBe(0);
+    expect(calls()).toContain(" down");
+    expect(calls()).not.toContain("--volumes");
+    expect(run("rollback.sh", ["--mode", "docker", "--purge-state"]).status).toBe(0);
+    expect(calls()).toContain("down --volumes");
+  });
+
+  it("writes private config, preserves unrelated settings and launches the requested daemon command", () => {
+    const configPath = join(env.KOTA_SCOPE_ROOT!, ".kota/config.json");
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, JSON.stringify({ verbose: true, modules: { telegram: { allowedChatIds: [999] } } }), { mode: 0o644 });
+    const result = entrypoint({ KOTA_MODEL: "openrouter/openrouter/auto", OPENROUTER_API_KEY: "private-fixture-key" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(["daemon", "--scope-root", env.KOTA_SCOPE_ROOT]);
+    const raw = readFileSync(configPath, "utf8");
+    expect(JSON.parse(raw)).toMatchObject({ verbose: true, model: "openrouter/openrouter/auto", defaultPreset: "openrouter", modules: { telegram: { allowedChatIds: [123], defaultAutonomyMode: "supervised" } } });
+    expect(raw).not.toContain("private-fixture-key");
+    expect(raw).not.toContain("fixture-token");
+    expect(statSync(configPath).mode & 0o777).toBe(0o600);
+  });
+
+  it.each([undefined, "openrouter-lab"])("resolves deploy workflow tiers to usable OpenRouter clients with preset %s", (preset) => {
+    const result = entrypoint({ KOTA_DEFAULT_PRESET: preset });
+    expect(result.status, result.stderr).toBe(0);
+    const config: AgentRuntimeConfig = JSON.parse(readFileSync(join(env.KOTA_SCOPE_ROOT!, ".kota/config.json"), "utf8"));
+    const runtime = resolveAgentRuntime(config, {});
+    expect(runtime.preset.id).toBe(preset ?? "openrouter");
+    expect(runtime.harness).toBe("openai-tools");
+    for (const model of Object.values(runtime.tiers)) {
+      // Production provider resolution and client construction, without a
+      // network request or host secret-store access. This caught the previous
+      // unqualified Codex workflow tiers despite a valid OpenRouter chat model.
+      const resolved = createModelClientImpl({ model, apiKey: "fixture-key" });
+      expect(resolved.providerName).toBe("openrouter");
     }
   });
 
-  it(".env.example declares every required runtime env var", () => {
-    const env = read(".env.example");
-    for (const name of REQUIRED_RUNTIME_ENV) {
-      expect(env).toMatch(new RegExp(`^${name}=`, "m"));
-    }
-    for (const name of OPTIONAL_RUNTIME_ENV) {
-      expect(env).toMatch(new RegExp(`^${name}=`, "m"));
-    }
+  it("requires a workflow preset when the chat provider cannot supply the deploy default", () => {
+    const result = entrypoint({ KOTA_MODEL: "openai/gpt-4.1" });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("KOTA_DEFAULT_PRESET is required");
+    expect(result.stdout).toBe("");
+    expect(existsSync(join(env.KOTA_SCOPE_ROOT!, ".kota/config.json"))).toBe(false);
   });
 
-  it("docker-compose.yml references every required env var with a fail-loud marker", () => {
-    const compose = read("docker-compose.yml");
-    for (const name of REQUIRED_RUNTIME_ENV) {
-      // `${VAR:?...}` makes compose fail at parse time when the var is
-      // unset, which is the no-silent-default contract the deploy owes.
-      expect(compose).toContain(`\${${name}:?`);
-    }
-    // Optional vars use the `:-` default form so they can be empty or carry
-    // a non-secret deploy default.
-    for (const name of OPTIONAL_RUNTIME_ENV) {
-      expect(compose).toMatch(new RegExp(`\\$\\{${name}:-`));
-    }
+  it("preserves an existing explicit preset and lets it select the harness", () => {
+    const configPath = join(env.KOTA_SCOPE_ROOT!, ".kota/config.json");
+    mkdirSync(dirname(configPath), { recursive: true });
+    writeFileSync(configPath, JSON.stringify({ defaultPreset: "claude" }));
+    const result = entrypoint({ KOTA_MODEL: "anthropic/claude-sonnet-4-6" });
+    expect(result.status, result.stderr).toBe(0);
+    const config: AgentRuntimeConfig = JSON.parse(readFileSync(configPath, "utf8"));
+    expect(resolveAgentRuntime(config, {}).harness).toBe("claude-agent-sdk");
   });
 
-  it("docker-compose.yml pins a non-default restart policy and hardens the container", () => {
-    const compose = read("docker-compose.yml");
-    expect(compose).toMatch(/restart:\s*unless-stopped/);
-    expect(compose).toContain("no-new-privileges:true");
-    expect(compose).toMatch(/cap_drop:\s*\n\s*- ALL/);
-    expect(compose).toMatch(/healthcheck:/);
+  it.each([" ", "1,", "9007199254740993", "all"])("rejects invalid allowlists without writing config or launching: %s", (ids) => {
+    const result = entrypoint({ KOTA_TELEGRAM_ALLOWED_CHAT_IDS: ids });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(existsSync(join(env.KOTA_SCOPE_ROOT!, ".kota/config.json"))).toBe(false);
   });
 
-  it("systemd unit runs under a non-root user with hardening directives", () => {
-    const unit = read("kota-telegram.service");
-    expect(unit).toMatch(/^User=kota$/m);
-    expect(unit).toMatch(/^Group=kota$/m);
-    expect(unit).toMatch(/^EnvironmentFile=\/etc\/kota\/telegram-assistant\.env$/m);
-    expect(unit).toMatch(/^Restart=on-failure$/m);
-    expect(unit).toMatch(/^NoNewPrivileges=true$/m);
-    expect(unit).toMatch(/^ProtectSystem=strict$/m);
-    expect(unit).toMatch(/^ReadWritePaths=\/var\/lib\/kota$/m);
-    expect(unit).toMatch(/^ExecStart=.+ daemon .+\/var\/lib\/kota$/m);
-  });
-
-  it("docker entrypoint generates deploy config without baking provider secrets", () => {
-    const dockerfile = read("Dockerfile");
-    const entrypoint = read("entrypoint.sh");
-    expect(dockerfile).toContain("/runtime-assets/src");
-    expect(dockerfile).toContain("COPY --from=builder /runtime-assets/src ./src");
-    expect(dockerfile).toContain("entrypoint.sh");
-    expect(dockerfile).toContain('ENTRYPOINT ["/opt/kota/entrypoint.sh"]');
-    expect(entrypoint).toContain("trustedScopes");
-    expect(entrypoint).toContain("KOTA_MODEL");
-    expect(entrypoint).toContain("KOTA_DEFAULT_AGENT_HARNESS");
-    expect(entrypoint).toContain("KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE");
-    expect(entrypoint).not.toContain("OPENROUTER_API_KEY");
-    expect(entrypoint).not.toContain("ANTHROPIC_API_KEY");
-  });
-
-  it("install.sh enforces every required env var before starting a supervisor", () => {
-    const install = read("install.sh");
-    for (const name of REQUIRED_RUNTIME_ENV) {
-      expect(install).toMatch(new RegExp(`require_env\\s+${name}\\b`));
-    }
-    // Supports both supervisor paths.
-    expect(install).toMatch(/--mode docker\|systemd/);
-    expect(install).toMatch(/docker compose/);
-    expect(install).toMatch(/systemctl enable --now kota-telegram\.service/);
-  });
-
-  it("rollback.sh removes both supervisor paths and preserves state by default", () => {
-    const rollback = read("rollback.sh");
-    expect(rollback).toMatch(/docker compose .* down/);
-    expect(rollback).toMatch(/systemctl disable --now kota-telegram\.service/);
-    expect(rollback).toMatch(/rm -f \/etc\/systemd\/system\/kota-telegram\.service/);
-    // State purge is explicit, not default.
-    expect(rollback).toMatch(/--purge-state/);
-  });
-
-  it("README documents inputs, supervisors, and rollback", () => {
-    const readme = read("README.md");
-    expect(readme).toMatch(/## Inputs/);
-    expect(readme).toMatch(/## Supervisors/);
-    expect(readme).toMatch(/## Rollback/);
-    for (const name of REQUIRED_RUNTIME_ENV) {
-      expect(readme).toContain(name);
-    }
-    // Honest acknowledgment of the staging-bot acceptance step.
-    expect(readme).toMatch(/staging bot|live staging/i);
+  it("encodes literal systemd secrets without shell expansion", () => {
+    const source = secrets('TELEGRAM_BOT_TOKEN=a$HOME`id`"\\z\nTELEGRAM_ALERT_CHAT_ID=123\n');
+    const output = join(dir, "systemd-input");
+    const result = spawnSync(process.execPath, [join(deploy, "systemd-env.mjs"), source, output], { env, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(output, "utf8")).toBe('TELEGRAM_BOT_TOKEN="a$HOME`id`\\"\\\\z"\nTELEGRAM_ALERT_CHAT_ID="123"\n');
+    expect(statSync(output).mode & 0o777).toBe(0o600);
   });
 });

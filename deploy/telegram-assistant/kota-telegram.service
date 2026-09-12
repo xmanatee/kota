@@ -6,7 +6,6 @@
 # targets a long-lived server deploy: a dedicated user, an
 # EnvironmentFile for secrets, and process hardening.
 Description=KOTA Telegram personal assistant daemon
-Documentation=https://github.com/anthropic-experimental/kota deploy/telegram-assistant/README.md
 After=network-online.target
 Wants=network-online.target
 
@@ -20,10 +19,7 @@ Environment=NODE_ENV=production
 Environment=KOTA_SCOPE_ROOT=/var/lib/kota
 Environment=KOTA_DAEMON_LOG_FORMAT=json
 
-# The KOTA binary path is templated by install.sh based on the host.
-# Operators who install without the script must replace this with the
-# absolute path to `kota` (or `node /path/to/bin/kota.mjs`).
-ExecStart=/usr/local/bin/kota daemon --scope-root /var/lib/kota
+ExecStart=/opt/kota/entrypoint.sh daemon --scope-root /var/lib/kota
 
 # The daemon's own supervisor exits with RESTART_EXIT_CODE on recovery;
 # systemd handles hard crashes via Restart=on-failure.
@@ -55,7 +51,7 @@ RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Node/V8 requires executable JIT memory.
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 

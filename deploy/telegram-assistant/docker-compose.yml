@@ -1,40 +1,25 @@
-# KOTA Telegram personal assistant — docker compose file.
-#
-# Usage:
-#   1. Copy .env.example to .env and populate the required secrets.
-#   2. docker compose --env-file .env up -d --build
-#
-# One daemon process owns both Telegram channels, the scheduler, and every
-# workflow. There is no second supervised bot process.
-
+# Requires Docker Compose >= 2.30 (literal, non-interpolated secret inputs).
+name: ${KOTA_TELEGRAM_INSTANCE:-telegram-assistant}
 services:
   kota:
     build:
       context: ../../
       dockerfile: deploy/telegram-assistant/Dockerfile
-    image: kota-telegram-assistant:latest
-    container_name: kota-telegram
+      target: production
+    image: ${KOTA_TELEGRAM_INSTANCE:-kota-telegram-assistant}:latest
+    container_name: ${KOTA_TELEGRAM_INSTANCE:-kota-telegram}
     restart: unless-stopped
     stop_grace_period: 90s
     init: true
-    read_only: false
-    environment:
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
-      TELEGRAM_ALERT_CHAT_ID: ${TELEGRAM_ALERT_CHAT_ID:?TELEGRAM_ALERT_CHAT_ID is required}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      KOTA_MODEL: ${KOTA_MODEL:-}
-      KOTA_DEFAULT_PRESET: ${KOTA_DEFAULT_PRESET:-}
-      KOTA_DEFAULT_AGENT_HARNESS: ${KOTA_DEFAULT_AGENT_HARNESS:-openai-tools}
-      KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE: ${KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE:-supervised}
-      KOTA_TELEGRAM_ALLOWED_CHAT_IDS: ${KOTA_TELEGRAM_ALLOWED_CHAT_IDS:-}
-      KOTA_DAEMON_LOG_FORMAT: json
+    network_mode: ${KOTA_TELEGRAM_NETWORK_MODE:-bridge}
+    env_file:
+      - path: ${KOTA_TELEGRAM_ENV_FILE:-/dev/null}
+        format: raw
     volumes:
       - kota-state:/var/lib/kota
     healthcheck:
       test: ["CMD", "node", "/opt/kota/bin/kota.mjs", "daemon", "status"]
-      interval: 60s
+      interval: 10s
       timeout: 10s
       start_period: 45s
       retries: 3
@@ -47,7 +32,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-
 volumes:
   kota-state:
-    name: kota-telegram-state
+    name: ${KOTA_TELEGRAM_INSTANCE:-kota-telegram}-state

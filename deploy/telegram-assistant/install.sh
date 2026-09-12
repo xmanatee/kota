@@ -1,126 +1,75 @@
 #!/usr/bin/env bash
-# KOTA Telegram personal assistant — one-command installer.
-#
-# Picks between docker-compose (default when docker is present) and a
-# system-level systemd unit. Both paths converge on the same daemon
-# process that owns the telegram channels, the scheduler, and every
-# workflow.
-#
-# Usage:
-#   ./install.sh [--mode docker|systemd] [--env-file /path/to/.env]
-#
-# Required inputs:
-#   An .env file populated from .env.example. Pass with --env-file, or
-#   the script looks for ./.env next to this script.
-
+# Deploy with Docker Compose >= 2.30 or systemd and a prebuilt /opt/kota.
+# Usage: install.sh [--mode docker|systemd] [--env-file /path/to/secrets]
 set -euo pipefail
-
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$HERE/../.." && pwd)"
-
-MODE=""
 ENV_FILE="$HERE/.env"
-
+MODE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --mode)
-      MODE="${2:-}"
-      shift 2
-      ;;
     --env-file)
-      ENV_FILE="${2:-}"
-      shift 2
-      ;;
-    -h|--help)
-      sed -n '2,15p' "${BASH_SOURCE[0]}"
-      exit 0
-      ;;
-    *)
-      echo "install.sh: unknown argument: $1" >&2
-      exit 2
-      ;;
+      [[ $# -ge 2 && -n "$2" ]] || { echo "--env-file requires a path" >&2; exit 2; }
+      ENV_FILE="$2"; shift 2 ;;
+    --mode)
+      [[ "${2:-}" == docker || "${2:-}" == systemd ]] || { echo "--mode requires docker or systemd" >&2; exit 2; }
+      MODE="$2"
+      shift 2 ;;
+    -h|--help) sed -n '2,3p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-
 if [[ -z "$MODE" ]]; then
-  if command -v docker >/dev/null 2>&1; then
-    MODE="docker"
-  elif command -v systemctl >/dev/null 2>&1; then
-    MODE="systemd"
-  else
-    echo "install.sh: neither docker nor systemctl found; install one or pass --mode explicitly" >&2
-    exit 1
-  fi
+  if command -v docker >/dev/null 2>&1; then MODE=docker; else MODE=systemd; fi
 fi
-
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "install.sh: env file not found at $ENV_FILE" >&2
-  echo "Copy $HERE/.env.example to $ENV_FILE and populate the required secrets." >&2
-  exit 1
-fi
-
-require_env() {
-  local name="$1"
-  local value
-  # shellcheck disable=SC1090
-  value="$(set -a && . "$ENV_FILE" && printf '%s' "${!name:-}")"
-  if [[ -z "$value" ]]; then
-    echo "install.sh: $ENV_FILE is missing required value: $name" >&2
-    exit 1
+[[ -f "$ENV_FILE" ]] || { echo "Secrets file not found: $ENV_FILE" >&2; exit 1; }
+# Compose raw env_file uses literal KEY=VALUE lines. Never source this file or
+# print its values. Restrict keys to deploy inputs so it cannot override process
+# authority (HOME, NODE_OPTIONS, etc.). Values are literal, without shell quotes.
+awk '
+  /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+  {
+    pos = index($0, "="); key = substr($0, 1, pos - 1); value = substr($0, pos + 1)
+    if (!pos || key !~ /^(TELEGRAM_BOT_TOKEN|TELEGRAM_ALERT_CHAT_ID|ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENROUTER_API_KEY|KOTA_MODEL|KOTA_DEFAULT_PRESET|KOTA_DEFAULT_AGENT_HARNESS|KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE|KOTA_TELEGRAM_ALLOWED_CHAT_IDS)$/ || seen[key]++) {
+      print "Invalid or duplicate deploy input at line " NR > "/dev/stderr"; bad = 1
+    }
+    if (value != "") present[key] = 1
+  }
+  END {
+    if (!present["TELEGRAM_BOT_TOKEN"] || !present["TELEGRAM_ALERT_CHAT_ID"]) {
+      print "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID are required" > "/dev/stderr"; bad = 1
+    }
+    exit bad
+  }
+' "$ENV_FILE"
+if [[ "$MODE" == systemd ]]; then
+  [[ $EUID -eq 0 ]] || { echo "systemd mode requires root" >&2; exit 1; }
+  command -v systemctl >/dev/null
+  # Check the complete installed package before mutating host service state.
+  node /opt/kota/bin/kota.mjs --version >/dev/null
+  if ! id kota >/dev/null 2>&1; then
+    useradd --system --home-dir /var/lib/kota --shell /usr/sbin/nologin kota
   fi
-}
-
-require_env TELEGRAM_BOT_TOKEN
-require_env TELEGRAM_ALERT_CHAT_ID
-
-case "$MODE" in
-  docker)
-    if ! command -v docker >/dev/null 2>&1; then
-      echo "install.sh: docker not found in PATH" >&2
-      exit 1
-    fi
-    echo "Installing via docker compose from $REPO_ROOT"
-    (
-      cd "$REPO_ROOT"
-      docker compose \
-        --file "$HERE/docker-compose.yml" \
-        --env-file "$ENV_FILE" \
-        up --detach --build
-    )
-    echo "Up. Follow logs: docker logs -f kota-telegram"
-    echo "Rollback:       $HERE/rollback.sh --mode docker"
-    ;;
-  systemd)
-    if [[ $EUID -ne 0 ]]; then
-      echo "install.sh: systemd mode requires root (sudo)" >&2
-      exit 1
-    fi
-    if ! command -v systemctl >/dev/null 2>&1; then
-      echo "install.sh: systemctl not found" >&2
-      exit 1
-    fi
-    if ! id kota >/dev/null 2>&1; then
-      useradd --system --home-dir /var/lib/kota --shell /usr/sbin/nologin kota
-    fi
-    install -d -o kota -g kota -m 0750 /var/lib/kota /var/lib/kota/.kota /var/lib/kota/data
-    install -d -m 0750 /etc/kota
-    install -m 0640 -o root -g kota "$ENV_FILE" /etc/kota/telegram-assistant.env
-
-    if [[ ! -x /usr/local/bin/kota ]]; then
-      echo "install.sh: /usr/local/bin/kota not present; build and install first, e.g.:" >&2
-      echo "  (cd $REPO_ROOT && pnpm install --frozen-lockfile && pnpm run build)" >&2
-      echo "  install -m 0755 $REPO_ROOT/bin/kota.mjs /usr/local/bin/kota" >&2
-      exit 1
-    fi
-
-    install -m 0644 "$HERE/kota-telegram.service" /etc/systemd/system/kota-telegram.service
-    systemctl daemon-reload
-    systemctl enable --now kota-telegram.service
-    echo "Up. Follow logs: journalctl -u kota-telegram -f"
-    echo "Rollback:       sudo $HERE/rollback.sh --mode systemd"
-    ;;
-  *)
-    echo "install.sh: unsupported --mode: $MODE (expected docker or systemd)" >&2
-    exit 2
-    ;;
-esac
+  install -d -o kota -g kota -m 0750 /var/lib/kota /var/lib/kota/.kota /var/lib/kota/data
+  install -d -m 0750 /etc/kota
+  # Quote literal values for systemd's EnvironmentFile grammar. Neither shell
+  # substitution nor systemd specifier expansion is applied to these values.
+  umask 077
+  TEMP_ENV="$(mktemp /etc/kota/telegram-assistant.XXXXXX)"
+  trap 'rm -f "$TEMP_ENV"' EXIT
+  node "$HERE/systemd-env.mjs" "$ENV_FILE" "$TEMP_ENV"
+  install -m 0640 -o root -g kota "$TEMP_ENV" /etc/kota/telegram-assistant.env
+  install -m 0755 "$HERE/entrypoint.sh" /opt/kota/entrypoint.sh
+  install -m 0644 "$HERE/kota-telegram.service" /etc/systemd/system/kota-telegram.service
+  systemctl daemon-reload
+  systemctl enable kota-telegram.service
+  systemctl restart kota-telegram.service
+  echo "Service started. Check health: $HERE/smoke-test.sh systemd"
+  exit 0
+fi
+KOTA_TELEGRAM_ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
+export KOTA_TELEGRAM_ENV_FILE
+# Disable automatic dotenv discovery. Secrets use only the raw service env_file.
+docker compose --env-file /dev/null --file "$HERE/docker-compose.yml" config --quiet
+docker compose --env-file /dev/null --file "$HERE/docker-compose.yml" up --detach --build --wait --wait-timeout 180
+echo "Daemon healthy. Run $HERE/smoke-test.sh docker to inspect it."
+echo "Rollback: $HERE/rollback.sh --mode docker"

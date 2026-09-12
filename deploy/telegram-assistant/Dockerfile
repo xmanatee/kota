@@ -20,18 +20,21 @@ ARG NODE_VERSION=22-bookworm-slim
 
 FROM node:${NODE_VERSION} AS builder
 WORKDIR /src
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod=false
-COPY tsconfig.json biome.json ./
+COPY tsconfig.json tsconfig.build.json biome.json ./
 COPY bin ./bin
 COPY src ./src
 COPY schema ./schema
+COPY scripts ./scripts
+COPY clients ./clients
 RUN pnpm run build \
     && pnpm prune --prod \
     && pnpm store prune
-RUN mkdir -p /runtime-assets \
-    && find src -type f -name '*.md' -exec sh -c 'for file do mkdir -p "/runtime-assets/$(dirname "$file")"; cp "$file" "/runtime-assets/$file"; done' sh {} +
 
 FROM node:${NODE_VERSION} AS runtime
 ENV NODE_ENV=production \
@@ -52,7 +55,6 @@ COPY --from=builder /src/package.json ./package.json
 COPY --from=builder /src/bin ./bin
 COPY --from=builder /src/dist ./dist
 COPY --from=builder /src/node_modules ./node_modules
-COPY --from=builder /runtime-assets/src ./src
 COPY deploy/telegram-assistant/entrypoint.sh ./entrypoint.sh
 RUN chmod 0755 ./entrypoint.sh
 
@@ -68,3 +70,7 @@ CMD ["daemon", "--scope-root", "/var/lib/kota"]
 FROM runtime AS eval
 ENTRYPOINT []
 CMD ["node", "/opt/kota/bin/kota.mjs"]
+
+# Keep the default build runnable as the production service; eval remains an
+# explicit target for consumers that need to supply their own command.
+FROM runtime AS production

@@ -117,3 +117,11 @@ composition behavior, using the production channel and client namespace handlers
 Scope fixtures supply the production adapter ports and use the provider registry;
 they do not fabricate module lifecycle, tool execution, or session creation.
 Do not recreate domain HTTP routes or client transport encoders in channel fixtures.
+
+## Deployment
+
+The operator artifact and supervisor inputs live in
+`deploy/telegram-assistant/README.md`. Its entrypoint owns deployment configuration
+for Docker and systemd. Keep secret-input handling and rollback proof beside that
+artifact; Telegram transport behavior stays with this module. An isolated launch
+with fake credentials is not evidence of a real staging chat exchange.

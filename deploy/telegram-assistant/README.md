@@ -1,86 +1,116 @@
-# KOTA Telegram personal assistant — deploy artifact
+# KOTA Telegram personal assistant
 
-One reproducible bring-up for KOTA as a Telegram-channeled personal
-assistant on a Linux host. One daemon process owns both Telegram
-channels, the scheduler, and every workflow. There is no second
-supervised bot process.
+The Docker artifact builds KOTA and runs `kota daemon` as a non-root user under
+Compose restart supervision. That daemon hosts Telegram status and interactive
+channels, the scheduler and workflows. The interactive channel owns the only Bot
+API update stream. Before deploying an existing token, arrange a host-owned poll
+handoff from its current daemon. The installer does not control other daemons.
 
 ## Inputs
 
-Copy `.env.example` to `.env` and populate:
+Use a private file containing literal `KEY=VALUE` lines (LF endings), with no
+shell quoting, interpolation or `export` prefix. Blank lines and comments are
+allowed; unknown and duplicate keys fail before launch. Values, including `$`,
+are passed literally. Keep this file mode `0600` and outside the repository.
 
 | Variable | Purpose |
-|----------|---------|
-| `TELEGRAM_BOT_TOKEN` | Required. BotFather-issued token. |
-| `TELEGRAM_ALERT_CHAT_ID` | Required. Chat id authorized for `/status` and notification events. |
-| `KOTA_MODEL` | Optional but recommended. Provider/model id for chat sessions, for example `openrouter/openrouter/auto`. |
-| `OPENROUTER_API_KEY` | Optional. Required when `KOTA_MODEL` starts with `openrouter/`. |
-| `KOTA_DEFAULT_AGENT_HARNESS` | Optional. Defaults to `openai-tools` for OpenAI-compatible delegated agent steps. |
-| `KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE` | Optional. Defaults to `supervised`. |
-| `KOTA_TELEGRAM_ALLOWED_CHAT_IDS` | Optional comma-separated allowlist. Empty defaults to `TELEGRAM_ALERT_CHAT_ID`. |
-| `ANTHROPIC_API_KEY` | Optional. Only needed when selecting Anthropic-backed models. |
-| `OPENAI_API_KEY` | Optional. Enables OpenAI-backed models and a Whisper transcription provider for inbound voice notes. Without it, voice messages produce an explicit user-facing failure rather than a silent drop. |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Required BotFather token. |
+| `TELEGRAM_ALERT_CHAT_ID` | Required integer chat id for status and alerts. |
+| `KOTA_MODEL` | Model, e.g. `openrouter/openrouter/auto`. Select a provider for which credentials are populated. |
+| `OPENROUTER_API_KEY` | Required for OpenRouter models. |
+| `ANTHROPIC_API_KEY` | Required for Anthropic models. |
+| `OPENAI_API_KEY` | Required for OpenAI models; also enables Whisper transcription. |
+| `KOTA_DEFAULT_PRESET` | Workflow harness/model/effort bundle. Defaults to the shipped `openrouter` preset when `KOTA_MODEL` selects OpenRouter and no preset is saved. Otherwise required. |
+| `KOTA_DEFAULT_AGENT_HARNESS` | Optional override of the preset's harness; must support its workflow tier models. |
+| `KOTA_TELEGRAM_DEFAULT_AUTONOMY_MODE` | Defaults to `supervised`; also accepts `passive` and `autonomous`. |
+| `KOTA_TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated integer allowlist; defaults to the alert chat. |
 
-For OpenRouter, set `KOTA_MODEL` to `openrouter/<OpenRouter model slug>` and
-set `OPENROUTER_API_KEY`. For example, OpenRouter's `openrouter/auto` router is
-`KOTA_MODEL=openrouter/openrouter/auto` in KOTA syntax: the first segment
-selects KOTA's OpenRouter provider, and the remainder is the OpenRouter model
-slug. The Docker entrypoint writes these deploy choices into
-`/var/lib/kota/.kota/config.json`; it stores only model/config values, not raw
-provider keys.
+For OpenRouter, the first segment of `openrouter/<model slug>` selects KOTA's
+provider; `openrouter/auto` is the provider's model slug. Provider secrets use
+KOTA's standard environment resolver. Generated config contains model and channel
+settings, never these raw credentials. Without a transcription provider, voice
+messages receive an explicit failure; text and status commands remain available.
 
-## Supervisors
+`KOTA_MODEL` selects the chat model; the preset selects workflow tier models.
+The OpenRouter default supplies both an API-compatible harness and provider-qualified
+workflow models. An explicit or previously saved preset is preserved; select one
+whose harness, models and authentication are available on the deployment host.
+For example, Anthropic deployments can select `KOTA_DEFAULT_PRESET=claude`.
+An API key alone does not configure a CLI-authenticated workflow preset.
 
-| Path | Supervisor | When to pick |
-|------|-----------|--------------|
-| `install.sh --mode docker` | docker compose | Default on hosts with Docker. Most portable; the Dockerfile owns the Node runtime and KOTA build. |
-| `install.sh --mode systemd` | system-level systemd | Hosts without Docker, or deployments that prefer native process supervision with the hardening directives in `kota-telegram.service`. Requires a prebuilt `/usr/local/bin/kota`. |
+## Supervisors and bring-up
 
-Both paths ultimately run `kota daemon` with restart-on-failure
-supervision. The daemon's own in-process supervisor (see
-`RESTART_EXIT_CODE`) handles graceful restarts; docker/systemd handle
-hard crashes.
-
-## Bring-up
+On a Linux host with Docker Engine and Compose **2.30 or newer**, from a checked
+out repository and with populated secrets:
 
 ```sh
-cp deploy/telegram-assistant/.env.example deploy/telegram-assistant/.env
-# edit .env with real secrets
-sudo deploy/telegram-assistant/install.sh           # auto-detects docker or systemd
-deploy/telegram-assistant/smoke-test.sh             # verifies daemon is reachable
-# message the bot and send /status — reply confirms both channels live
+deploy/telegram-assistant/install.sh --mode docker --env-file /secure/kota-inputs
 ```
 
-For docker only, `sudo` is not needed if the invoking user is in the
-`docker` group.
+This builds the production image, starts the service and waits for daemon health.
+No host Node installation is needed. Build inputs follow the repository's pnpm
+install policy; runtime secrets and operational state are excluded from the build
+context. Docker stores supplied environment values in container metadata, so
+access to the Docker daemon must remain private to the operator.
 
-## Rollback
+The systemd path remains available on hosts with Node 22, Git, and a complete
+prebuilt KOTA package installed under `/opt/kota` (including `bin`, `dist`,
+`package.json` and Linux-compatible `node_modules`). Copying only `kota.mjs` is
+insufficient. The installer checks that package before changing service state:
 
 ```sh
-sudo deploy/telegram-assistant/rollback.sh           # removes the supervisor unit
-sudo deploy/telegram-assistant/rollback.sh --purge-state  # also deletes /var/lib/kota or the docker volume
+sudo deploy/telegram-assistant/install.sh --mode systemd --env-file /secure/kota-inputs
 ```
 
-State persists across rollbacks by default (`/var/lib/kota` for
-systemd; the `kota-telegram-state` docker volume for compose) so
-reinstalling picks up conversation history, scheduled items, and task
-queue.
+It creates the dedicated `kota` user, installs the shared configuration entrypoint,
+encodes literal secrets into a private systemd EnvironmentFile (`root:kota`,
+`0640`) and starts the system service. Both paths use `/var/lib/kota` for state.
+With no explicit mode, installation prefers Docker when present.
 
-## Operational notes
+## Health and rollback
 
-- Logs are structured JSON on both paths (`KOTA_DAEMON_LOG_FORMAT=json`).
-  Follow with `docker logs -f kota-telegram` or `journalctl -u kota-telegram -f`.
-- Health probes: docker healthcheck and `smoke-test.sh` both call
-  `kota daemon status`, which exits 0 only when the daemon's control
-  socket responds.
-- Secrets: never bake into the image. Mount via `--env-file` (docker)
-  or `/etc/kota/telegram-assistant.env` (systemd, mode `0640`, owner
-  `root:kota`).
-- Integration coverage for the in-process daemon + telegram channel
-  path lives in `src/modules/telegram/daemon-integration.test.ts`.
-  Static coverage for the deploy artifacts themselves lives in
-  `deploy/telegram-assistant/deploy.test.ts`.
-- An end-to-end launch against a live staging bot is the operator's
-  acceptance step — it requires real Telegram credentials which are
-  not committed to the repo. `smoke-test.sh` is the reproducible
-  post-install check that proves the daemon reached a healthy state.
+```sh
+deploy/telegram-assistant/smoke-test.sh docker
+# or: deploy/telegram-assistant/smoke-test.sh systemd
+deploy/telegram-assistant/rollback.sh --mode docker
+# or: sudo deploy/telegram-assistant/rollback.sh --mode systemd
+```
+
+Rollback stops/uninstalls supervision and preserves state. Docker rollback works
+after removal or rotation of the secrets file. Add `--purge-state` only to delete
+the Docker volume or `/var/lib/kota`. The systemd package under `/opt/kota` remains
+installed. To revert code, reinstall the desired repository revision/package;
+state/schema compatibility must be assessed before downgrading.
+
+Docker keeps the `kota-telegram` container and `kota-telegram-state` volume names.
+For independent deployments using different tokens, export a distinct
+`KOTA_TELEGRAM_INSTANCE` and reuse it for install, health and rollback. Logs:
+`docker logs -f kota-telegram` or `journalctl -u kota-telegram -f`.
+
+## Verification
+
+`src/modules/telegram/deploy-artifact.test.ts` exercises input rejection, literal
+secret handling, configuration permissions, daemon argument forwarding and
+supervisor failure/rollback commands through a controlled subprocess port. It
+does not simulate a successful Docker launch. Telegram's owner tests cover the
+single poll owner and missing-transcription reply.
+
+A host-owned isolated execution can run:
+
+```sh
+deploy/telegram-assistant/integration-test.sh
+```
+
+This uses the actual Dockerfile, installer, Compose supervisor, daemon health and
+rollback. It uses a unique container/volume, fake credential values, no host
+mounts and no runtime networking. It checks secret propagation/config privacy,
+state preservation and explicit purge. It records selected container provenance
+without exposing environment values and cleans up its state on exit. Image builds
+still need dependency download access. Do not give an untrusted candidate access
+to the host Docker socket; use the runtime's contained execution authority.
+
+A passing health check establishes daemon reachability. The isolated check does
+not establish Telegram transport readiness or a real staging-bot exchange. That
+exchange remains operational follow-up: after a host-owned poll handoff, an
+authentic chat sends `/status` and retains the reply with deployment provenance.
