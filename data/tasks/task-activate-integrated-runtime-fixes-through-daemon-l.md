@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Activate integrated runtime fixes through daemon lifecycle
@@ -14,6 +14,56 @@ launching-daemon rollout is non-gating operational follow-up, owned by the host
 lifecycle, not permission for a builder to restart its parent or bypass isolation.
 
 This contract supersedes historical blocking and operational-capture requirements.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Supported isolated execution with a permitted daemon control listener, or equivalent attributable restart evidence demonstrating fresh API/process identity, preserved ownership and refill. Authorized automated collection is sufficient; no manual capture, specific directory or launching-daemon rollout is required.
+
+The required real isolated restart needs a supported execution context permitted
+to open the daemon's loopback control listener, or an attributable execution
+export establishing the same process/API handoff, ownership preservation and
+refill. This builder's September 12 sandbox rejected both a minimal loopback
+listener and unmocked `Daemon.start()` with `EPERM: listen ... 127.0.0.1`.
+That establishes a restriction of this execution context, not absence of host
+capability or credentials. No alternate callable isolated executor or qualifying
+isolated-restart export was available in this step. The launching daemon's next
+rollout remains non-gating; restarting it or bypassing isolation is not the remedy.
+
+## September 12 scoped verification
+
+Run `2026-09-12T06-40-55-857Z-builder-zljmps` reviewed the existing daemon
+publication/restart path, config reload, workflow restart bridge, runtime revision
+policy and supervisor ownership. No production changes were needed on the
+evidence examined. All 34 tests passed with:
+
+`pnpm test:owner src/core/daemon/daemon-runtime-activation.test.ts src/modules/daemon-ops/daemon-supervisor.test.ts src/core/daemon/daemon-instance-lock.test.ts`
+
+These distinguish relevant publication from no-op/replayed changes, coalescing,
+durable queued identity and pause/backoff preservation, stale/failed activation,
+duplicate-owner rejection, real child reservation handoff and cancellation.
+Their controlled-listener scenarios still do not prove the required real API
+restart journey.
+
+The additional unmocked startup probe used a fresh temporary scope, isolated
+authority/token paths, production daemon initialization and no workflows. It
+reached the actual listener and failed with the sandbox error above. Shutdown
+left no instance lock or control identity; the temporary scope was removed.
+`isolated-startup-probe.json` in this run's agent directory records the timestamp,
+process identity, boundary, error and cleanup observations. No launching-daemon
+control or canonical runtime-state access was used.
+
+The supplied `issue-evidence.json` export, captured at
+`2026-09-12T06:51:37.420Z`, confirms successful publications and empty resource
+lists for historical runs `un8vlq` (`00588eaa61cbae0f3acc9a37f10b1ae5414ba1c5`)
+and `91e2py` (`3a253459480a29bc7dd6ed824464dded7ebbea72`). It contains no
+complete isolated-restart observation. Historical production activation remains
+partial evidence. Resume with the supported isolated execution capability or
+equivalent attributable evidence; the unmet acceptance is fresh API/process
+identity and preserved ownership/refill through that real restart. Only this
+task's disposition changed; existing runtime implementation and other writers'
+contracts remain intact.
 
 
 ## Problem
