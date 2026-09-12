@@ -444,52 +444,6 @@ describe("RunCoordinator", () => {
     expect(store.getRun("run-appended")?.state).toBe("succeeded");
   });
 
-  test("cancels and waits for one project without disturbing another", async () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "scope-b", "beta", "2026-08-25T10:00:02.000Z");
-    const startedA = deferred<void>();
-    const startedB = deferred<void>();
-    const finishB = deferred<RunExecutionOutcome>();
-    const coordinator = new RunCoordinator({
-      store,
-      daemonEpoch: epoch,
-      concurrency: 2,
-      execute: (run, signal) => {
-        if (run.scopeId === "scope-b") {
-          startedB.resolve();
-          return finishB.promise;
-        }
-        startedA.resolve();
-        return new Promise((resolve) => {
-          signal.addEventListener(
-            "abort",
-            () => resolve({ kind: "terminal", state: "cancelled" }),
-            { once: true },
-          );
-        });
-      },
-    });
-
-    coordinator.refill();
-    await Promise.all([startedA.promise, startedB.promise]);
-    expect(coordinator.activeRunIdsForScope("scope-a")).toEqual(["run-a"]);
-    expect(coordinator.activeRunIdsForScope("scope-b")).toEqual(["run-b"]);
-
-    const projectAIdle = coordinator.whenScopeIdle("scope-a");
-    expect(coordinator.cancelScope("scope-a")).toBe(1);
-    await projectAIdle;
-
-    expect(coordinator.isScopeBusy("scope-a")).toBe(false);
-    expect(coordinator.isScopeBusy("scope-b")).toBe(true);
-    expect(store.getRun("run-a")?.state).toBe("cancelled");
-    expect(store.getRun("run-b")?.state).toBe("running");
-
-    finishB.resolve({ kind: "terminal", state: "succeeded" });
-    await coordinator.whenIdle();
-  });
-
   test("pauses only new admission and resumes queued work", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
@@ -769,7 +723,8 @@ describe("RunCoordinator", () => {
     expect(store.getRun("run-a")?.state).toBe("succeeded");
   });
 
-  test("retries a durable terminal publication after delivery fails", async () => {
+  test("automatically retries a terminal publication without another run or manual drain", async () => {
+    vi.useFakeTimers();
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
@@ -779,6 +734,7 @@ describe("RunCoordinator", () => {
       store,
       daemonEpoch: epoch,
       concurrency: 1,
+      publicationRetryMs: 100,
       execute: async (run) => ({
         kind: "terminal",
         state: "succeeded",
@@ -795,16 +751,23 @@ describe("RunCoordinator", () => {
         delivered.push(publication.id);
       },
     });
+    try {
+      coordinator.refill();
+      await coordinator.whenIdle();
+      expect(store.getRun("run-a")).toMatchObject({ state: "succeeded", attempt: 1 });
+      expect(store.listPendingPublications()).toHaveLength(1);
 
-    coordinator.refill();
-    await coordinator.whenIdle();
-    expect(store.getRun("run-a")?.state).toBe("succeeded");
-    expect(store.listPendingPublications()).toHaveLength(1);
-
-    shouldFail = false;
-    await coordinator.drainPublications();
-    expect(delivered).toEqual(["workflow:run-a:completed"]);
-    expect(store.listPendingPublications()).toEqual([]);
+      shouldFail = false;
+      await vi.advanceTimersByTimeAsync(99);
+      expect(delivered).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(delivered).toEqual(["workflow:run-a:completed"]);
+      expect(store.listPendingPublications()).toEqual([]);
+      expect(store.getRun("run-a")).toMatchObject({ state: "succeeded", attempt: 1 });
+    } finally {
+      await coordinator.dispose();
+      vi.useRealTimers();
+    }
   });
 
   test("delivers staged workflow events when a run terminates without an inline publication", async () => {

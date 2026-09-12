@@ -332,7 +332,14 @@ describe("RunLifecycle", () => {
       createResourceAllocator,
     });
     const rejected = await runtime.execute(value.run, new AbortController().signal);
-    expect(rejected.kind).toBe("suspended");
+    expect(rejected).toMatchObject({
+      kind: "suspended",
+      state: "needs_attention",
+      wait: { reason: "integration-invariant-failed", evidence: ["required review is missing"] },
+    });
+    expect(git(value.root, "rev-parse", "HEAD")).toBe(value.store.getRun(value.run.id)?.sandbox?.baseCommit);
+    expect(value.store.getRun(value.run.id)?.sandbox?.workspaceDir).toBe(workspace);
+    if (changed) expect(readFileSync(join(workspace, "feature.txt"), "utf8")).toBe("retained work\n");
     if (rejected.kind !== "suspended") throw new Error("expected semantic rejection");
     expect(existsSync(join(value.root, "feature.txt"))).toBe(false);
     value.store.suspendRun({ runId: value.run.id, epoch: value.epoch,
@@ -807,42 +814,6 @@ describe("RunLifecycle", () => {
     expect(workflowReexecuted).toBe(false);
     expect(existsSync(workspace)).toBe(false);
     expect(readFileSync(join(value.root, "writer.txt"), "utf8")).toBe("writer\n");
-  });
-
-  test("moves a rejected post-reconcile invariant to attention without discarding work", async () => {
-    const value = fixture("invariant", "write");
-    let workspace = "";
-    const canonicalHead = git(value.root, "rev-parse", "HEAD");
-
-    const outcome = await new RunLifecycle({
-      store: value.store,
-      daemonEpoch: value.epoch,
-      executeWorkflow: async (context) => {
-        workspace = context.sandbox.workspaceDir;
-        write(workspace, "feature.txt", "preserve me\n");
-        return { kind: "completed", commitMessage: "candidate feature" };
-      },
-      continueIntegration: async () => undefined,
-      validate: async () => ({ status: "passed", evidence: ["verified"] }),
-      verifyPostReconcile: () => ({
-        satisfied: false,
-        reason: "source contract changed after admission",
-      }),
-      createResourceAllocator,
-    }).execute(value.run, new AbortController().signal);
-
-    expect(outcome).toMatchObject({
-      kind: "suspended",
-      state: "needs_attention",
-      wait: {
-        reason: "integration-invariant-failed",
-        evidence: ["source contract changed after admission"],
-      },
-    });
-    expect(git(value.root, "rev-parse", "HEAD")).toBe(canonicalHead);
-    expect(existsSync(join(value.root, "feature.txt"))).toBe(false);
-    expect(existsSync(join(workspace, "feature.txt"))).toBe(true);
-    expect(value.store.getRun(value.run.id)?.sandbox?.workspaceDir).toBe(workspace);
   });
 
   test(

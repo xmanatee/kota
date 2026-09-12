@@ -65,7 +65,6 @@ function createCoordinator(
   store: RunStateDatabase,
   daemonEpoch: number,
   deliverPublication: (publication: PendingRunPublication) => void,
-  publicationRetryMs = 1_000,
 ): RunCoordinator {
   const coordinator = new RunCoordinator({
     store,
@@ -73,7 +72,6 @@ function createCoordinator(
     concurrency: 1,
     execute: async () => ({ kind: "terminal", state: "succeeded" }),
     deliverPublication,
-    publicationRetryMs,
   });
   coordinator.pauseGlobalAdmission();
   return coordinator;
@@ -119,55 +117,13 @@ function persistPublication(
 }
 
 describe("durable run publication recovery", () => {
-  test("retries transient publication failures without another run or restart", async () => {
-    const root = mkdtempSync(join(tmpdir(), "kota-run-publication-retry-"));
-    let store: RunStateDatabase | undefined;
-
-    try {
-      store = new RunStateDatabase(join(root, "state"));
-      store.registerScope({
-        id: SCOPE_ID,
-        rootPath: join(root, "project"),
-        createdAt: "2026-08-25T10:00:00.000Z",
-      });
-      const session = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-      persistPublication(store, session.epoch);
-
-      let attempts = 0;
-      let acknowledgeRetry: (() => void) | undefined;
-      const retried = new Promise<void>((resolve) => {
-        acknowledgeRetry = resolve;
-      });
-      const coordinator = createCoordinator(
-        store,
-        session.epoch,
-        () => {
-          attempts += 1;
-          if (attempts === 1) throw new Error("temporary delivery failure");
-          acknowledgeRetry?.();
-        },
-        10,
-      );
-
-      await coordinator.drainPublications();
-      expect(store.listPendingPublications()).toHaveLength(1);
-
-      await retried;
-      await coordinator.drainPublications();
-      expect(attempts).toBe(2);
-      expect(store.listPendingPublications()).toEqual([]);
-    } finally {
-      store?.close();
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
   test("redelivery after synchronous admission and pre-ack crash admits downstream once", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-publication-recovery-"));
     const stateDir = join(root, "state");
     const scopeRoot = join(root, "project");
     let store: RunStateDatabase | undefined;
     let deliveries = 0;
+    let coordinator: RunCoordinator | undefined;
 
     try {
       store = new RunStateDatabase(stateDir);
@@ -185,6 +141,7 @@ describe("durable run publication recovery", () => {
         deliveries += 1;
         deliver(firstTarget, publication);
       });
+      coordinator = firstCoordinator;
       installDownstreamAdmission(
         firstTarget,
         store,
@@ -207,6 +164,7 @@ describe("durable run publication recovery", () => {
       expect(store.listPendingPublications()).toHaveLength(1);
 
       const admittedRunId = firstAdmissions[0]!.id;
+      await coordinator.dispose();
       store.close();
       store = undefined;
       store = new RunStateDatabase(stateDir);
@@ -221,6 +179,7 @@ describe("durable run publication recovery", () => {
           deliver(reopenedTarget, publication);
         },
       );
+      coordinator = reopenedCoordinator;
       installDownstreamAdmission(
         reopenedTarget,
         store,
@@ -238,6 +197,7 @@ describe("durable run publication recovery", () => {
       ).toEqual([admittedRunId]);
       expect(store.listPendingPublications()).toEqual([]);
     } finally {
+      await coordinator?.dispose();
       store?.close();
       rmSync(root, { recursive: true, force: true });
     }
