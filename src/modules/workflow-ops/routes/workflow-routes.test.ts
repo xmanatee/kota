@@ -436,134 +436,107 @@ describe("workflow-routes", () => {
     });
   });
 
+  // Both public routes share run loading and trigger transport. Eligibility differs below.
+  describe.each([
+    { name: "retry", handle: handleWorkflowRetry, lineage: { retryOf: "run-source" } },
+    { name: "replay", handle: handleWorkflowReplay, lineage: { replayOf: "run-source" } },
+  ])("$name request and handoff", ({ name, handle, lineage }) => {
+    it("reports an unavailable daemon", async () => {
+      const { res, result } = mockResponse();
+      await handle(makeRequest({ runId: "run-abc" }), res, null);
+      expect(result).toEqual({ status: 503, body: { error: "Daemon not running" } });
+    });
+
+    it.each([{}, { runId: "../etc/passwd" }])("rejects %j before daemon access", async (body) => {
+      const client = mockTransport();
+      const { res, result } = mockResponse();
+      await handle(makeRequest(body), res, client);
+      expect(result).toEqual({ status: 400, body: { error: "runId must be a non-empty string" } });
+      expect(client.calls).toEqual([]);
+    });
+
+    it("reports a missing run without enqueueing", async () => {
+      const client = mockTransport();
+      const { res, result } = mockResponse();
+      await handle(makeRequest({ runId: "missing" }, `/api/workflow/${name}?scopeId=scope-a`), res, client);
+      expect(result).toEqual({ status: 404, body: { error: 'Run "missing" not found' } });
+      expect(client.calls).toEqual([
+        { method: "GET", path: "/workflow/runs/missing?scopeId=scope-a", body: undefined },
+      ]);
+    });
+
+    // Successful step evidence is not retry eligibility; admission owns that decision.
+    it("submits the original trigger in the selected scope and returns admission's result", async () => {
+      const client = mockTransport({
+        runs: {
+          "run-source": runDetail("run-source", "success", {
+            triggerEvent: "autonomy.builder.recovery.requested",
+            triggerSchemaRef: { name: "builder-recovery", version: 1 },
+            triggerPayload: {
+              taskId: "task-ui",
+              _runId: "old",
+              triggeredAt: "old",
+              retryOf: "older-retry",
+              replayOf: "older-replay",
+            },
+          }),
+        },
+        trigger: { ok: true, queued: "builder", runId: "run-admitted" },
+      });
+      const { res, result } = mockResponse();
+      await handle(makeRequest({ runId: "run-source" }, `/api/workflow/${name}?scopeId=scope-a`), res, client);
+      expect(result).toEqual({ status: 200, body: { ok: true, queued: "builder", runId: "run-admitted" } });
+      expect(client.calls).toEqual([
+        { method: "GET", path: "/workflow/runs/run-source?scopeId=scope-a", body: undefined },
+        {
+          method: "POST",
+          path: "/workflow/trigger?scopeId=scope-a",
+          body: {
+            name: "builder",
+            event: "autonomy.builder.recovery.requested",
+            schemaRef: { name: "builder-recovery", version: 1 },
+            runId: expect.any(String),
+            payload: { taskId: "task-ui", ...lineage },
+          },
+        },
+      ]);
+    });
+  });
+
   describe("handleWorkflowRetry", () => {
-    it("returns 503 when daemon not running (null client)", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-abc" }), res, null);
-      expect(result.status).toBe(503);
-    });
-
-    it("returns 400 for missing runId", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({}), res, client);
-      expect(result.status).toBe(400);
-    });
-
-    it("returns 400 for invalid runId characters", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "../etc/passwd" }), res, client);
-      expect(result.status).toBe(400);
-    });
-
-    it("returns 404 when run does not exist", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "nonexistent" }), res, client);
-      expect(result.status).toBe(404);
-    });
-
-    it("returns 409 for running run", async () => {
+    it("hands running evidence to durable admission and preserves its rejection", async () => {
       const client = mockTransport({
         runs: { "run-running-01": runDetail("run-running-01", "running") },
         trigger: { status: 409, body: { ok: false, reason: "workflow_contract_conflict" } },
       });
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, client);
-      expect(result.status).toBe(409);
-    });
-
-    it.each(["success", "interrupted"] as const)("retries %s evidence through durable admission with the original trigger", async (status) => {
-      const client = mockTransport({
-        runs: {
-          "run-failed-01": runDetail("run-failed-01", status, {
-            triggerEvent: "autonomy.builder.recovery.requested",
-            triggerSchemaRef: { name: "builder-recovery", version: 1 },
-            triggerPayload: {
-              taskId: "task-ui",
-              _runId: "run-failed-01",
-              triggeredAt: "old",
-              replayOf: "older-run",
-            },
-          }),
-        },
-        trigger: { ok: true, queued: "builder", runId: "run-retry" },
+      expect(result).toEqual({
+        status: 409,
+        body: { ok: false, reason: "workflow_contract_conflict" },
       });
-      const { res, result } = mockResponse();
-      await handleWorkflowRetry(
-        makeRequest({ runId: "run-failed-01" }, "/api/workflow/retry?scopeId=scope-a"),
-        res,
-        client,
-      );
-      expect(result.status).toBe(200);
-      expect(client.calls).toContainEqual(expect.objectContaining({
+      expect(client.calls).toContainEqual({
         method: "POST",
-        path: "/workflow/trigger?scopeId=scope-a",
-        body: expect.objectContaining({
-          name: "builder",
-          event: "autonomy.builder.recovery.requested",
-          schemaRef: { name: "builder-recovery", version: 1 },
-          payload: { taskId: "task-ui", retryOf: "run-failed-01" },
-        }),
-      }));
+        path: "/workflow/trigger",
+        body: expect.objectContaining({ payload: { retryOf: "run-running-01" } }),
+      });
     });
   });
 
   describe("handleWorkflowReplay", () => {
-    it("returns 503 when daemon is not running", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-success" }), res, null);
-      expect(result.status).toBe(503);
-    });
-
-    it("returns 400 for missing runId", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({}), res, client);
-      expect(result.status).toBe(400);
-    });
-
-    it("returns 400 for invalid runId characters", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "../etc/passwd" }), res, client);
-      expect(result.status).toBe(400);
-    });
-
-    it("returns 404 when run does not exist", async () => {
-      const client = mockTransport({});
-      const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "nonexistent" }), res, client);
-      expect(result.status).toBe(404);
-    });
-
-    it("returns 409 for running run", async () => {
+    it("rejects a running replay before enqueueing", async () => {
       const client = mockTransport({
         runs: { "run-running-replay": runDetail("run-running-replay", "running") },
       });
       const { res, result } = mockResponse();
       await handleWorkflowReplay(makeRequest({ runId: "run-running-replay" }), res, client);
-      expect(result.status).toBe(409);
-    });
-
-    it("replays the original trigger through the daemon", async () => {
-      const client = mockTransport({
-        runs: {
-          "run-success-replay": runDetail("run-success-replay", "success", {
-            triggerEvent: "autonomy.builder.recovery.requested",
-            triggerPayload: { taskId: "task-ui", _runId: "old", retryOf: "older" },
-          }),
-        },
-        trigger: { ok: true, queued: "builder", runId: "run-replay" },
+      expect(result).toEqual({
+        status: 409,
+        body: { error: 'Run "run-running-replay" is still running. Cannot replay an active run.' },
       });
-      const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay" }), res, client);
-      expect(result.status).toBe(200);
-      expect(client.calls[1]?.body).toMatchObject({
-        event: "autonomy.builder.recovery.requested",
-        payload: { taskId: "task-ui", replayOf: "run-success-replay" },
-      });
+      expect(client.calls).toEqual([
+        { method: "GET", path: "/workflow/runs/run-running-replay", body: undefined },
+      ]);
     });
   });
 
