@@ -1,10 +1,40 @@
 ---
-status: open
-priority: p1
-depends_on: [task-consolidate-workflow-retry-replay-route-verification, task-consolidate-progress-reviewer-evidence-verification, task-restore-complete-scoped-instruction-delivery]
+status: dropped
 ---
 
 # Publish the bounded follow-ups from the retained test-reduction audit
+
+## Disposition: Superseded
+
+Archived as `dropped`, not as successful delivery of the 50% reduction. The
+bounded publication changeset retains the four existing task identities:
+
+- `task-restore-citation-restart-proof-after-evidence-retention`
+- `task-restore-tool-authorization-consumer-proofs`
+- `task-reconcile-runtime-issue-observation-verification`
+- `task-consolidate-reminder-transition-verification`
+
+`task-assess-fifty-percent-reduction-after-citation-and-reminder-followups`
+is the dependent successor, with all four as hard predecessors. The children
+remain independent open p1 tasks; the successor remains open p2. No shared
+validation, external benchmark or aggregate percentage gates their dispatch.
+
+Reviewed current main `ca4dd6dc0bd2c2f4ccad69a7a2c5e289d3d41c3e` for overlap
+and integrated repairs. Cleanup retention repair `e94bfed2f` is acknowledged
+in the citation/reviewer contract, which does not request reimplementation.
+The other named consumer sources and tests are unchanged since the measured
+revision. No matching active task was found; unrelated retained tasks remain
+untouched. The original audit contract is preserved in Git history; the current
+admitted owner direction follows below.
+
+The retained aggregate at `eb41e8e7c8b0509e8e33cc074f6baa0e950ba4eb` is
+266,089 executable-test LOC, 98,687 above the unchanged 167,402 ceiling.
+That historical measurement is not a claim about the later main revision.
+Static checks/build and 450 selected checks passed in the retained audit;
+selected failures and the incomplete broad attempt remain explicitly recorded
+in its logs. No broad portfolio was rerun for this task-only publication step.
+The final task validator and changeset review establish the decomposition's
+metadata, dependency and scope correctness, not completion of its child work.
 
 ## Current Owner Direction
 
