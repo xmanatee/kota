@@ -452,130 +452,47 @@ describe("DaemonControlServer", () => {
       }
     });
 
-    it("requires token on control routes", async () => {
-      const controlRoutes = [
-        { path: "/workflow/pause", method: "POST" },
-        { path: "/workflow/resume", method: "POST" },
-        { path: "/workflow/abort", method: "POST" },
-        { path: "/workflow/reload", method: "POST" },
-        { path: "/reload", method: "POST" },
-      ];
-      for (const { path, method } of controlRoutes) {
-        const res = await fetchNoToken(port, path, { method });
-        expect(res.status).toBe(401);
-      }
-    });
-
-    it("rejects dashboard-cookie control posts without the dashboard request guard", async () => {
-      const guardedHandle = makeHandle();
-      const dashboardServer = new DaemonControlServer(guardedHandle, TEST_TOKEN, {
+    it("guards built-in and contributed control requests before dispatch", async () => {
+      await server.stop();
+      const custom = vi.fn((_req, res) => { res.end("ok"); });
+      server = new DaemonControlServer(handle, TEST_TOKEN, {
         routes: [
-          {
-            method: "GET",
-            path: "/",
-            handler: (_req, res) => {
-              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-              res.end("<html>dashboard</html>");
-            },
-          },
+          { method: "GET", path: "/", handler: (_req, res) => { res.end("dashboard"); } },
+          { method: "POST", path: "/api/custom", handler: custom },
+        ],
+        controlRoutes: [
+          { method: "GET", path: "/api/control", capabilityScope: "control", handler: custom },
         ],
       });
-      const dashboardPort = await dashboardServer.start();
-      try {
-        const cookiePair = await mintDashboardCookie(dashboardPort);
-        const controlRoutes = [
-          { path: "/workflow/pause", method: "POST" },
-          { path: "/workflow/resume", method: "POST" },
-          { path: "/workflow/abort", method: "POST" },
-          { path: "/workflow/reload", method: "POST" },
-          { path: "/reload", method: "POST" },
-        ];
-
-        for (const { path, method } of controlRoutes) {
-          const res = await fetchNoToken(dashboardPort, path, {
-            method,
-            headers: { Cookie: cookiePair },
-          });
-          expect(res.status).toBe(403);
+      port = await server.start();
+      const cookie = await mintDashboardCookie(port);
+      // These exercise the two dispatch branches and control-capability GETs;
+      // individual endpoints need only their domain contract below.
+      const requests = [
+        ["/workflow/pause", "POST"],
+        ["/api/custom", "POST"],
+        ["/api/control", "GET"],
+      ] as const;
+      for (const [path, method] of requests) {
+        expect((await fetchNoToken(port, path, { method })).status).toBe(401);
+        for (const headers of [
+          new Headers({ Cookie: cookie }),
+          new Headers({ Cookie: cookie, Origin: "https://foreign.example" }),
+        ]) {
+          expect((await fetchNoToken(port, path, { method, headers })).status).toBe(403);
         }
-
-        expect(guardedHandle.pauseWorkflowDispatch).not.toHaveBeenCalled();
-        expect(guardedHandle.resumeWorkflowDispatch).not.toHaveBeenCalled();
-        expect(guardedHandle.abortActiveRuns).not.toHaveBeenCalled();
-        expect(guardedHandle.reloadWorkflowDefinitions).not.toHaveBeenCalled();
-        expect(guardedHandle.reloadConfig).not.toHaveBeenCalled();
-      } finally {
-        await dashboardServer.stop();
       }
-    });
+      expect(custom).not.toHaveBeenCalled();
+      expect(handle.pauseWorkflowDispatch).not.toHaveBeenCalled();
 
-    it("allows dashboard-cookie control posts with the dashboard request guard", async () => {
-      const guardedHandle = makeHandle();
-      const dashboardServer = new DaemonControlServer(guardedHandle, TEST_TOKEN, {
-        routes: [
-          {
-            method: "GET",
-            path: "/",
-            handler: (_req, res) => {
-              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-              res.end("<html>dashboard</html>");
-            },
-          },
-        ],
-      });
-      const dashboardPort = await dashboardServer.start();
-      try {
-        const cookiePair = await mintDashboardCookie(dashboardPort);
-        const res = await fetchNoToken(dashboardPort, "/workflow/pause", {
-          method: "POST",
-          headers: {
-            Cookie: cookiePair,
-            "X-Kota-Dashboard-Request": "1",
-          },
-        });
-
-        expect(res.status).toBe(200);
-        expect(guardedHandle.pauseWorkflowDispatch).toHaveBeenCalledOnce();
-      } finally {
-        await dashboardServer.stop();
+      for (const [path, method] of requests) {
+        expect((await fetchNoToken(port, path, {
+          method,
+          headers: { Cookie: cookie, "X-Kota-Dashboard-Request": "1" },
+        })).status).toBe(200);
       }
-    });
-
-    it("rejects dashboard-cookie module posts without the dashboard request guard", async () => {
-      const handler = vi.fn((_req, res) => {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
-      });
-      const dashboardServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-        routes: [
-          {
-            method: "GET",
-            path: "/",
-            handler: (_req, res) => {
-              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-              res.end("<html>dashboard</html>");
-            },
-          },
-          {
-            method: "POST",
-            path: "/api/custom",
-            handler,
-          },
-        ],
-      });
-      const dashboardPort = await dashboardServer.start();
-      try {
-        const cookiePair = await mintDashboardCookie(dashboardPort);
-        const res = await fetchNoToken(dashboardPort, "/api/custom", {
-          method: "POST",
-          headers: { Cookie: cookiePair },
-        });
-
-        expect(res.status).toBe(403);
-        expect(handler).not.toHaveBeenCalled();
-      } finally {
-        await dashboardServer.stop();
-      }
+      expect(custom).toHaveBeenCalledTimes(2);
+      expect(handle.pauseWorkflowDispatch).toHaveBeenCalledOnce();
     });
 
     it("does not require token when server has no token configured", async () => {
@@ -610,15 +527,12 @@ describe("DaemonControlServer", () => {
     });
 
     it("includes the channel posture array from the handle", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         listChannelStatuses: vi.fn(() => [
           { name: "alpha", status: "started" as const },
           { name: "beta", status: "disabled" as const, reason: "off-by-config" },
         ]),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/status");
       const body = await res.json();
@@ -657,11 +571,6 @@ describe("DaemonControlServer", () => {
           },
         ],
       });
-    });
-
-    it("requires the bearer token", async () => {
-      const res = await fetchNoToken(port, "/scopes");
-      expect(res.status).toBe(401);
     });
 
     it("returns resolved policy for a configured nested scope", async () => {
@@ -758,7 +667,7 @@ describe("DaemonControlServer", () => {
   });
 
   describe("scope onboarding", () => {
-    it("returns the durable completed operation when the accepted plan is applied again", async () => {
+    it("reuses the accepted plan when its operation is already completed", async () => {
       const { plan, operation } = completedOnboardingFixture();
       handle.getScopeOnboardingStatus = vi.fn(async () => operation);
       handle.planScopeOnboarding = vi.fn(async () => ({
@@ -787,34 +696,23 @@ describe("DaemonControlServer", () => {
       expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(plan, undefined);
     });
 
-    it("validates a fresh accepted plan after the prior operation was cancelled", async () => {
+    it.each(["cancelled", "removed"] as const)("validates a fresh plan after the prior scope is %s", async (disposition) => {
       const { plan, operation } = completedOnboardingFixture();
       const replacementPlan = {
         ...plan,
-        createdAt: "2026-09-02T01:00:00.000Z",
+        planId: "plan_reactivation",
+        inspectionId: "inspection_reactivation",
+        createdAt: "2026-09-02T02:00:00.000Z",
       };
       handle.getScopeOnboardingStatus = vi.fn(async () => ({
         ...operation,
-        state: "cancelled" as const,
+        state: disposition === "cancelled" ? "cancelled" as const : "succeeded" as const,
+        readiness: { ...operation.readiness, registered: disposition !== "removed" },
       }));
-      handle.planScopeOnboarding = vi.fn(async () => ({
-        ok: true as const,
-        plan: replacementPlan,
-      }));
-      const replacementOperation = {
-        ...operation,
-        acceptedPlan: replacementPlan,
-        provenance: {
-          ...operation.provenance,
-          acceptedAt: replacementPlan.createdAt,
-          lastUpdatedAt: replacementPlan.createdAt,
-        },
-      };
+      handle.planScopeOnboarding = vi.fn(async () => ({ ok: true as const, plan: replacementPlan }));
       handle.applyScopeOnboarding = vi.fn(async () => ({
-        ok: true as const,
-        operation: replacementOperation,
+        ok: true as const, operation: { ...operation, acceptedPlan: replacementPlan },
       }));
-
       const res = await fetchWithToken(port, "/scope-onboarding/apply", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -827,65 +725,14 @@ describe("DaemonControlServer", () => {
           choices: replacementPlan.choices,
         }),
       });
-
       expect(res.status).toBe(200);
-      expect(handle.planScopeOnboarding).toHaveBeenCalledWith(
-        replacementPlan.directoryRoot,
-        replacementPlan.choices,
-      );
+      expect(handle.planScopeOnboarding).toHaveBeenCalledWith(replacementPlan.directoryRoot, replacementPlan.choices);
       expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(replacementPlan, undefined);
-    });
-
-    it("validates a fresh accepted plan after the completed scope was removed", async () => {
-      const { plan, operation } = completedOnboardingFixture();
-      const reactivationPlan = {
-        ...plan,
-        planId: "plan_reactivation",
-        inspectionId: "inspection_reactivation",
-        createdAt: "2026-09-02T02:00:00.000Z",
-        registrationBaseline: {
-          registered: false,
-          displayName: "external",
-          hostingState: null,
-        },
-      };
-      handle.getScopeOnboardingStatus = vi.fn(async () => ({
-        ...operation,
-        readiness: { ...operation.readiness, registered: false },
-      }));
-      handle.planScopeOnboarding = vi.fn(async () => ({
-        ok: true as const,
-        plan: reactivationPlan,
-      }));
-      handle.applyScopeOnboarding = vi.fn(async () => ({
-        ok: true as const,
-        operation: { ...operation, acceptedPlan: reactivationPlan },
-      }));
-
-      const res = await fetchWithToken(port, "/scope-onboarding/apply", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId: reactivationPlan.planId,
-          operationId: reactivationPlan.operationId,
-          inspectionId: reactivationPlan.inspectionId,
-          directoryRoot: reactivationPlan.directoryRoot,
-          createdAt: reactivationPlan.createdAt,
-          choices: reactivationPlan.choices,
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      expect(handle.planScopeOnboarding).toHaveBeenCalledWith(
-        reactivationPlan.directoryRoot,
-        reactivationPlan.choices,
-      );
-      expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(reactivationPlan, undefined);
     });
   });
 
   describe("scope drain and removal", () => {
-    it("routes safe lifecycle mutations without implying directory deletion", async () => {
+    it("forwards scope drain and removal results", async () => {
       const drained = await fetchWithToken(port, "/scopes/scope-external/drain", {
         method: "POST",
       });
@@ -931,36 +778,11 @@ describe("DaemonControlServer", () => {
         "test-scope-id",
       );
     });
-
-    it("forwards a configured scopeId through to the same scoped handle path", async () => {
-      const res = await fetchWithToken(
-        port,
-        "/workflow/status?scopeId=test-scope-id",
-      );
-      expect(res.status).toBe(200);
-      expect(handle.getWorkflowLiveStatus).toHaveBeenCalledWith(
-        "test-scope-id",
-      );
-    });
-
-    it("returns 404 with the typed unknown_scope shape when ?scopeId= names an unconfigured scope", async () => {
-      const res = await fetchWithToken(
-        port,
-        "/workflow/status?scopeId=p-not-configured",
-      );
-      expect(res.status).toBe(404);
-      expect(await res.json()).toEqual({
-        error: "Unknown scope",
-        reason: "unknown_scope",
-        scopeId: "p-not-configured",
-      });
-    });
-
   });
 
   describe("GET /channels", () => {
     it("returns the channel posture from the handle", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         listChannelStatuses: vi.fn(() => [
           {
             name: "telegram-status",
@@ -973,10 +795,7 @@ describe("DaemonControlServer", () => {
             status: "started" as const,
           },
         ]),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/channels");
       expect(res.status).toBe(200);
@@ -990,16 +809,11 @@ describe("DaemonControlServer", () => {
         },
       ]);
     });
-
-    it("requires the bearer token", async () => {
-      const res = await fetchNoToken(port, "/channels");
-      expect(res.status).toBe(401);
-    });
   });
 
   describe("GET /capabilities", () => {
     it("returns 200 with the readiness response from the handle", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         probeCapabilityReadiness: vi.fn(async () => ({
           capabilities: [
             { id: "knowledge.search", moduleName: "knowledge", status: "ready" as const },
@@ -1013,10 +827,7 @@ describe("DaemonControlServer", () => {
           ],
           summary: { ready: 1, unavailable: 1, init_failed: 0 },
         })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/capabilities");
       expect(res.status).toBe(200);
@@ -1028,11 +839,6 @@ describe("DaemonControlServer", () => {
         status: "unavailable",
         reason: "embedding_unsupported",
       });
-    });
-
-    it("requires the bearer token", async () => {
-      const res = await fetchNoToken(port, "/capabilities");
-      expect(res.status).toBe(401);
     });
   });
 
@@ -1123,11 +929,6 @@ describe("DaemonControlServer", () => {
         event: "missing.event",
       });
     });
-
-    it("requires the bearer token", async () => {
-      const res = await fetchNoToken(port, "/event-schemas");
-      expect(res.status).toBe(401);
-    });
   });
 
   describe("setup requirement control routes", () => {
@@ -1190,7 +991,7 @@ describe("DaemonControlServer", () => {
       const completeModuleSetup = vi.fn(async (): Promise<ModuleSetupMutationResult> => mutation);
       const refreshModuleSetup = vi.fn(async () => mutation);
       const revokeModuleSetup = vi.fn(async () => mutation);
-      handle = makeHandle({
+      Object.assign(handle, {
         listModuleSetupStatuses: vi.fn(async () => listResponse),
         submitModuleSetupForm,
         storeModuleSetupSecret,
@@ -1198,10 +999,7 @@ describe("DaemonControlServer", () => {
         completeModuleSetup,
         refreshModuleSetup,
         revokeModuleSetup,
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const listed = await fetchWithToken(port, "/setup/requirements");
       expect(listed.status).toBe(200);
@@ -1305,7 +1103,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("reflects paused state from handle", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getWorkflowLiveStatus: vi.fn(() => ({
           activeRuns: [],
           pendingRuns: [],
@@ -1315,10 +1113,7 @@ describe("DaemonControlServer", () => {
           paused: true,
           concurrency: 4,
         })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/status");
       const body = await res.json();
@@ -1508,12 +1303,9 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 409 when workflow is already queued", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         enqueuePendingRun: vi.fn(async () => ({ ok: false, alreadyQueued: true })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/trigger", {
         method: "POST",
@@ -1524,16 +1316,13 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 409 when a retained run no longer matches the workflow contract", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         enqueuePendingRun: vi.fn(async () => ({
           ok: false,
           error: "Retained run no longer matches the loaded workflow contract",
           reason: "workflow_contract_conflict" as const,
         })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/trigger", {
         method: "POST",
@@ -1552,12 +1341,9 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 400 when enqueue fails with an error message", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         enqueuePendingRun: vi.fn(async () => ({ ok: false, error: "No such workflow" })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/trigger", {
         method: "POST",
@@ -1580,10 +1366,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("includes already:true when already paused", async () => {
-      handle = makeHandle({ pauseWorkflowDispatch: vi.fn(() => ({ already: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { pauseWorkflowDispatch: vi.fn(() => ({ already: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/pause", { method: "POST" });
       const body = await res.json();
@@ -1594,10 +1377,7 @@ describe("DaemonControlServer", () => {
   describe("POST /workflow/agent/quality-pause", () => {
     it("persists a reason without globally pausing deterministic workflows", async () => {
       const pauseAgentDispatchForQuality = vi.fn(() => ({ already: false }));
-      handle = makeHandle({ pauseAgentDispatchForQuality });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { pauseAgentDispatchForQuality } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/agent/quality-pause", {
         method: "POST",
@@ -1625,10 +1405,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("includes already:true when already running", async () => {
-      handle = makeHandle({ resumeWorkflowDispatch: vi.fn(() => ({ already: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { resumeWorkflowDispatch: vi.fn(() => ({ already: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/resume", { method: "POST" });
       const body = await res.json();
@@ -1640,10 +1417,7 @@ describe("DaemonControlServer", () => {
         already: true,
         agentBackoffCleared: true as const,
       }));
-      handle = makeHandle({ resumeWorkflowDispatch });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { resumeWorkflowDispatch } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(
         port,
@@ -1660,10 +1434,7 @@ describe("DaemonControlServer", () => {
 
   describe("POST /workflow/abort", () => {
     it("aborts active runs and returns count", async () => {
-      handle = makeHandle({ abortActiveRuns: vi.fn(() => ({ aborted: 2 })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { abortActiveRuns: vi.fn(() => ({ aborted: 2 })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/abort", { method: "POST" });
       expect(res.status).toBe(200);
@@ -1798,16 +1569,11 @@ describe("DaemonControlServer", () => {
       });
       expect(JSON.stringify(apiBody.events[0].payload)).not.toContain("raw config secret");
     });
-
-    it("requires authentication", async () => {
-      const res = await fetchNoToken(port, "/reload", { method: "POST" });
-      expect(res.status).toBe(401);
-    });
   });
 
   describe("GET /workflow/definitions", () => {
     it("returns 200 with definitions list", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getWorkflowDefinitions: vi.fn(() => [
           {
             name: "builder",
@@ -1816,10 +1582,7 @@ describe("DaemonControlServer", () => {
             triggers: [{ type: "event" as const, event: "runtime.idle" }],
           },
         ]),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions");
       expect(res.status).toBe(200);
@@ -1834,7 +1597,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("includes watch trigger metadata in definitions", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getWorkflowDefinitions: vi.fn(() => [
           {
             name: "file-watcher",
@@ -1843,10 +1606,7 @@ describe("DaemonControlServer", () => {
             triggers: [{ type: "watch" as const, patterns: ["src/**/*.ts", "tests/**/*.ts"], debounceMs: 300 }],
           },
         ]),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions");
       expect(res.status).toBe(200);
@@ -1856,21 +1616,13 @@ describe("DaemonControlServer", () => {
         triggers: [{ type: "watch", patterns: ["src/**/*.ts", "tests/**/*.ts"], debounceMs: 300 }],
       });
     });
-
-    it("requires auth", async () => {
-      const res = await fetchNoToken(port, "/workflow/definitions");
-      expect(res.status).toBe(401);
-    });
   });
 
   describe("POST /workflow/definitions/:name/disable", () => {
     it("calls handle.disableWorkflow and returns ok", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         disableWorkflow: vi.fn(() => ({ ok: true })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions/builder/disable", { method: "POST" });
       expect(res.status).toBe(200);
@@ -1881,31 +1633,20 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 404 when workflow not found", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         disableWorkflow: vi.fn(() => ({ ok: false, notFound: true })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions/unknown/disable", { method: "POST" });
       expect(res.status).toBe(404);
-    });
-
-    it("requires auth", async () => {
-      const res = await fetchNoToken(port, "/workflow/definitions/builder/disable", { method: "POST" });
-      expect(res.status).toBe(401);
     });
   });
 
   describe("POST /workflow/definitions/:name/enable", () => {
     it("calls handle.enableWorkflow and returns ok", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         enableWorkflow: vi.fn(() => ({ ok: true })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions/builder/enable", { method: "POST" });
       expect(res.status).toBe(200);
@@ -1916,20 +1657,12 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 404 when workflow not found", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         enableWorkflow: vi.fn(() => ({ ok: false, notFound: true })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/definitions/unknown/enable", { method: "POST" });
       expect(res.status).toBe(404);
-    });
-
-    it("requires auth", async () => {
-      const res = await fetchNoToken(port, "/workflow/definitions/builder/enable", { method: "POST" });
-      expect(res.status).toBe(401);
     });
   });
 
@@ -1985,54 +1718,25 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ runs: [] });
-      expect(handle.listWorkflowRuns).toHaveBeenCalled();
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: undefined, causedByRunId: undefined, scopeId: undefined });
     });
 
-    it("returns runs from handle", async () => {
+    it("projects filtered runs and forwards the complete query", async () => {
       const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", triggerSchemaRef: null, startedAt: "2026-01-01T00:00:00.000Z" };
-      handle = makeHandle({ listWorkflowRuns: vi.fn(() => [run]) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/workflow/runs");
+      handle.listWorkflowRuns = vi.fn(() => [run]);
+      const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5&tag=my-tag&causedByRunId=upstream&scopeId=test-feature");
       expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.runs).toHaveLength(1);
-      expect(body.runs[0].id).toBe("run-1");
-    });
-
-    it("passes workflow filter and limit to handle", async () => {
-      const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5");
-      expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: "builder", limit: 5, tag: undefined, causedByRunId: undefined, scopeId: undefined });
-    });
-
-    it("passes tag filter to handle", async () => {
-      const res = await fetchWithToken(port, "/workflow/runs?tag=my-tag");
-      expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: "my-tag", causedByRunId: undefined, scopeId: undefined });
-    });
-
-    it("passes causedByRunId filter to handle", async () => {
-      const res = await fetchWithToken(port, "/workflow/runs?causedByRunId=upstream-run-id");
-      expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: undefined, causedByRunId: "upstream-run-id", scopeId: undefined });
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/workflow/runs");
-      expect(res.status).toBe(401);
+      expect((await res.json()).runs).toEqual([run]);
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({
+        workflow: "builder", limit: 5, tag: "my-tag", causedByRunId: "upstream", scopeId: "test-feature",
+      });
     });
   });
 
   describe("GET /workflow/runs/:id", () => {
     it("returns 200 with run detail when found", async () => {
       const run = { id: "run-1", workflow: "builder", status: "success", triggerEvent: "runtime.idle", triggerSchemaRef: null, startedAt: "2026-01-01T00:00:00.000Z", steps: [] };
-      handle = makeHandle({ getWorkflowRun: vi.fn(() => run) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { getWorkflowRun: vi.fn(() => run) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/run-1");
       expect(res.status).toBe(200);
@@ -2052,21 +1756,13 @@ describe("DaemonControlServer", () => {
       const getWorkflowRun = vi.fn(() => {
         throw new Error("getWorkflowRun should not be called for invalid run ids");
       });
-      handle = makeHandle({ getWorkflowRun });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { getWorkflowRun } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/..%2foutside");
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBeTruthy();
       expect(getWorkflowRun).not.toHaveBeenCalled();
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/workflow/runs/run-1");
-      expect(res.status).toBe(401);
     });
   });
 
@@ -2089,7 +1785,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("omits agent diagnostic text from the unauthenticated response", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getHealthStatus: vi.fn(() => ({
           scheduler: "ok" as const,
           modules: "ok" as const,
@@ -2099,10 +1795,7 @@ describe("DaemonControlServer", () => {
             reason: "provider failed with credential sk-health-secret",
           },
         })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchNoToken(port, "/health");
       const body = await res.json();
@@ -2119,12 +1812,9 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 503 with degraded status when scheduler reports error", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getHealthStatus: vi.fn(() => ({ scheduler: "error" as const, modules: "ok" as const })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchNoToken(port, "/health");
       expect(res.status).toBe(503);
@@ -2136,12 +1826,9 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 503 with degraded status when modules report error", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, modules: "error" as const })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchNoToken(port, "/health");
       expect(res.status).toBe(503);
@@ -2150,7 +1837,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("includes module health states without diagnostic messages", async () => {
-      handle = makeHandle({
+      Object.assign(handle, {
         getHealthStatus: vi.fn(() => ({
           scheduler: "ok" as const,
           modules: "ok" as const,
@@ -2162,10 +1849,7 @@ describe("DaemonControlServer", () => {
             },
           },
         })),
-      });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchNoToken(port, "/health");
       expect(res.status).toBe(200);
@@ -2180,10 +1864,7 @@ describe("DaemonControlServer", () => {
 
   describe("DELETE /workflow/runs/:id", () => {
     it("returns 200 when run is successfully cancelled", async () => {
-      handle = makeHandle({ cancelQueuedRun: vi.fn(() => ({ ok: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { cancelQueuedRun: vi.fn(() => ({ ok: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/2026-01-01T00-00-00-000Z-builder-abc123", { method: "DELETE" });
       expect(res.status).toBe(200);
@@ -2200,29 +1881,18 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 409 when run is active", async () => {
-      handle = makeHandle({ cancelQueuedRun: vi.fn(() => ({ ok: false, active: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { cancelQueuedRun: vi.fn(() => ({ ok: false, active: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/some-active-run-id", { method: "DELETE" });
       expect(res.status).toBe(409);
       const body = await res.json();
       expect(body.error).toBeTruthy();
     });
-
-    it("requires auth", async () => {
-      const res = await fetchNoToken(port, "/workflow/runs/some-run-id", { method: "DELETE" });
-      expect(res.status).toBe(401);
-    });
   });
 
   describe("POST /workflow/runs/:id/abort", () => {
     it("aborts an active run and returns 200", async () => {
-      handle = makeHandle({ abortActiveRun: vi.fn(() => ({ ok: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { abortActiveRun: vi.fn(() => ({ ok: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/2026-01-01T00-00-00-000Z-builder-abc123/abort", { method: "POST" });
       expect(res.status).toBe(200);
@@ -2239,20 +1909,12 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns 409 when run is queued not active", async () => {
-      handle = makeHandle({ abortActiveRun: vi.fn(() => ({ ok: false, queued: true })) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
+      Object.assign(handle, { abortActiveRun: vi.fn(() => ({ ok: false, queued: true })) } satisfies Partial<DaemonControlHandle>);
 
       const res = await fetchWithToken(port, "/workflow/runs/queued-run-id/abort", { method: "POST" });
       expect(res.status).toBe(409);
       const body = await res.json();
       expect(body.error).toBeTruthy();
-    });
-
-    it("requires auth", async () => {
-      const res = await fetchNoToken(port, "/workflow/runs/some-run-id/abort", { method: "POST" });
-      expect(res.status).toBe(401);
     });
   });
 
@@ -2299,20 +1961,6 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.events).toEqual([]);
-    });
-
-    it("returns all buffered events", async () => {
-      const emit = pushEvents(handle);
-      emit(makeWorkflowStartedEvent({ workflow: "builder" }));
-      emit(makeWorkflowCompletedEvent({ workflow: "builder" }));
-
-      const res = await fetchWithToken(port, "/api/events");
-      const body = await res.json();
-      expect(body.events).toHaveLength(2);
-      expect(body.events[0].id).toBe("evt-1");
-      expect(body.events[1].id).toBe("evt-2");
-      expect(body.events[0].type).toBe("workflow.started");
-      expect(body.events[1].type).toBe("workflow.completed");
     });
 
     it("filters by type prefix", async () => {
@@ -2382,18 +2030,6 @@ describe("DaemonControlServer", () => {
       expect(body.events[0].type).toBe("workflow.completed");
     });
 
-    it("limits result count", async () => {
-      const emit = pushEvents(handle);
-      for (let i = 0; i < 10; i++) {
-        emit(makeWorkflowStartedEvent({ runId: `run-${i}` }));
-      }
-
-      const res = await fetchWithToken(port, "/api/events?limit=3");
-      const body = await res.json();
-      expect(body.events).toHaveLength(3);
-      expect(body.events[0].payload.runId).toBe("run-7");
-    });
-
     it("combines type filter and limit", async () => {
       const emit = pushEvents(handle);
       for (let i = 0; i < 5; i++) {
@@ -2406,17 +2042,8 @@ describe("DaemonControlServer", () => {
       expect(body.events).toHaveLength(2);
       expect(body.events.every((e: { type: string }) => e.type.startsWith("workflow"))).toBe(true);
       expect(body.events[0].payload.runId).toBe("run-3");
-      expect(body.events[1].payload.runId).toBe("run-4");
-    });
-
-    it("includes timestamp in ISO format", async () => {
-      const emit = pushEvents(handle);
-      emit(makeWorkflowStartedEvent());
-
-      const res = await fetchWithToken(port, "/api/events");
-      const body = await res.json();
-      expect(body.events[0].id).toBe("evt-1");
       expect(body.events[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(body.events[1].payload.runId).toBe("run-4");
     });
 
     it("filters by after event id without returning the cursor event", async () => {

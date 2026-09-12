@@ -320,60 +320,6 @@ describe("DaemonControlServer chat endpoints", () => {
     rmSync(bindingsDir, { recursive: true, force: true });
   });
 
-  it("POST /sessions creates a daemon session", async () => {
-    const res = await fetchWithToken(port, "/sessions", { method: "POST" });
-    expect(res.status).toBe(201);
-    const body = await res.json() as { session_id: string };
-    expect(body.session_id).toBeTruthy();
-  });
-
-  it("POST /sessions returns 400 without request mode when no default is configured", async () => {
-    const handle = makeHandle();
-    const serverWithoutDefault = new DaemonControlServer(handle, TEST_TOKEN, {
-      makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
-      chatBindings: makeBindingStore(),
-      conversationResolver: makeResolver(new Set()),
-    });
-    const portWithoutDefault = await serverWithoutDefault.start();
-    try {
-      const res = await fetchWithToken(portWithoutDefault, "/sessions", { method: "POST" });
-      expect(res.status).toBe(400);
-    } finally {
-      await serverWithoutDefault.stop();
-    }
-  });
-
-  it("POST /sessions accepts request mode when no default is configured", async () => {
-    const handle = makeHandle();
-    const serverWithoutDefault = new DaemonControlServer(handle, TEST_TOKEN, {
-      makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
-      chatBindings: makeBindingStore(),
-      conversationResolver: makeResolver(new Set()),
-    });
-    const portWithoutDefault = await serverWithoutDefault.start();
-    try {
-      const res = await fetchWithToken(portWithoutDefault, "/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autonomy_mode: "autonomous" }),
-      });
-      expect(res.status).toBe(201);
-      const body = await res.json() as { autonomy_mode: string };
-      expect(body.autonomy_mode).toBe("autonomous");
-    } finally {
-      await serverWithoutDefault.stop();
-    }
-  });
-
-  it("GET /sessions includes daemon sessions with source daemon", async () => {
-    await fetchWithToken(port, "/sessions", { method: "POST" });
-    const res = await fetchWithToken(port, "/sessions");
-    expect(res.status).toBe(200);
-    const body = await res.json() as { sessions: Array<{ source: string; guardrailsSnapshot?: { id: string } }> };
-    expect(body.sessions.some((s) => s.source === "daemon")).toBe(true);
-    expect(body.sessions.find((s) => s.source === "daemon")?.guardrailsSnapshot?.id).toMatch(/^gr_/);
-  });
-
   it("GET /sessions/bindings exposes persisted daemon chat bindings", async () => {
     bindings.put("stored-session", "stored-conversation", DEFAULT_SCOPE_ID);
 
@@ -494,13 +440,6 @@ describe("DaemonControlServer chat endpoints", () => {
     };
     const finalSnapshot = finalStatus.sessions.find((s) => s.id === session_id)?.guardrailsSnapshot;
     expect(finalSnapshot).toEqual(afterSnapshot);
-  });
-
-  it("DELETE /sessions/:id closes daemon session", async () => {
-    const createRes = await fetchWithToken(port, "/sessions", { method: "POST" });
-    const { session_id } = await createRes.json() as { session_id: string };
-    const deleteRes = await fetchWithToken(port, `/sessions/${session_id}`, { method: "DELETE" });
-    expect(deleteRes.status).toBe(204);
   });
 
   it("DELETE /sessions/:id aborts an in-flight daemon chat request", async () => {
@@ -842,19 +781,20 @@ describe("DaemonControlServer defaultAutonomyMode knob", () => {
       expect(createBody.autonomy_mode).toBe("passive");
 
       const listRes = await fetchWithToken(port, "/sessions");
-      const listBody = await listRes.json() as { sessions: Array<{ id: string; autonomyMode: string }> };
+      const listBody = await listRes.json() as { sessions: Array<{ id: string; autonomyMode: string; source: string; guardrailsSnapshot?: { id: string } }> };
       const entry = listBody.sessions.find((s) => s.id === createBody.session_id);
-      expect(entry?.autonomyMode).toBe("passive");
+      expect(entry).toMatchObject({ autonomyMode: "passive", source: "daemon" });
+      expect(entry?.guardrailsSnapshot?.id).toMatch(/^gr_/);
     } finally {
       await server.stop();
     }
   });
 });
 
-// --- Wake-after-restart: the task's defining use case ---
+// HTTP recovery composes persisted bindings with a newly created session pool.
 
 describe("DaemonControlServer wake after daemon restart", () => {
-  it("accepts POST /sessions with prior session_id backed by the persisted binding", async () => {
+  it("wakes a persisted session after restart and forgets it after deletion", async () => {
     const bindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-restart-"));
     try {
       // First daemon boot: create a session, remember its id + conv.
@@ -895,6 +835,16 @@ describe("DaemonControlServer wake after daemon restart", () => {
         expect(woken.session_id).toBe(created.session_id);
         expect(woken.conversation_id).toBe(created.conversation_id);
         expect(resumedResumes).toEqual([created.conversation_id]);
+
+        const deleted = await fetchWithToken(port2, `/sessions/${created.session_id}`, { method: "DELETE" });
+        expect(deleted.status).toBe(204);
+        const missing = await fetchWithToken(port2, "/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: created.session_id }),
+        });
+        expect(missing.status).toBe(404);
+        expect(new DaemonChatBindingStore(bindingsDir).getBySession(created.session_id)).toBeUndefined();
       } finally {
         await server2.stop();
       }
@@ -903,58 +853,4 @@ describe("DaemonControlServer wake after daemon restart", () => {
     }
   });
 
-  it("returns 404 when waking an unknown session_id", async () => {
-    const bindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-404-"));
-    try {
-      const server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-        makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
-        defaultAutonomyMode: "supervised",
-        chatBindings: new DaemonChatBindingStore(bindingsDir),
-        conversationResolver: makeResolver(new Set()),
-      });
-      const port = await server.start();
-      try {
-        const res = await fetchWithToken(port, "/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: "never-existed" }),
-        });
-        expect(res.status).toBe(404);
-      } finally {
-        await server.stop();
-      }
-    } finally {
-      rmSync(bindingsDir, { recursive: true, force: true });
-    }
-  });
-
-  it("DELETE /sessions/:id clears the binding so subsequent wake attempts 404", async () => {
-    const bindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-del-"));
-    try {
-      const conversations = new Set<string>();
-      const server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-        makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
-        defaultAutonomyMode: "supervised",
-        chatBindings: new DaemonChatBindingStore(bindingsDir),
-        conversationResolver: makeResolver(conversations),
-      });
-      const port = await server.start();
-      try {
-        const createRes = await fetchWithToken(port, "/sessions", { method: "POST" });
-        const created = await createRes.json() as { session_id: string };
-        const delRes = await fetchWithToken(port, `/sessions/${created.session_id}`, { method: "DELETE" });
-        expect(delRes.status).toBe(204);
-        const wakeRes = await fetchWithToken(port, "/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: created.session_id }),
-        });
-        expect(wakeRes.status).toBe(404);
-      } finally {
-        await server.stop();
-      }
-    } finally {
-      rmSync(bindingsDir, { recursive: true, force: true });
-    }
-  });
 });
