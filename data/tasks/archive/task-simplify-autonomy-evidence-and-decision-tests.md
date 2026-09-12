@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Simplify shared autonomy evidence and decision verification
@@ -31,3 +30,23 @@ Follow `task-verify-fifty-percent-test-reduction` rules. A concise family-level
 retained/deleted rationale, focused decision tests, support cleanup and measured
 local delta complete this slice. It does not own all automation behavior or the
 final percentage.
+
+## Completion
+
+Consolidated critic parsing/publication, issue projection, generated-work lifecycle
+and report evidence tests. Reused the canonical typed writer-integration fixture;
+removed the external-pattern catalog's test-only validator, duplicated report
+cohorts and unused proposal-template content. Retained malformed-evidence and
+scope-confinement rejection, priority/retained-owner behavior, deferred effects and
+truthful attribution. No production, workflow, prompt or cadence change.
+
+Local frozen-recipe counts: executable tests 14,719 → 14,339 LOC (380 removed),
+authored support 2,266 → 2,234 LOC (32 removed); exclusions unchanged. These are
+candidate-slice counts, not global published acceptance. Family rationale and
+per-file counts are in this builder run's `agent/summary.md` and
+`agent/autonomy-{before,after}.json`.
+
+Validation: 14 unique focused owner suites / 65 distinct tests passed across two
+selections; `pnpm check:fast` passed, with test typechecking and focused lint rerun
+after final test edits. Final task validation checks the archive transition.
+Full release verification and global percentage remain with the final audit.

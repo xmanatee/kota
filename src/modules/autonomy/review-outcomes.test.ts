@@ -7,7 +7,7 @@ import { collectReviewOutcomeReport } from "./review-outcomes.js";
 
 const NOW = "2026-06-23T12:00:00.000Z";
 
-function writeRunMetadata(
+function reviewRun(
   runsDir: string,
   id: string,
   workflow: string,
@@ -27,7 +27,6 @@ function writeRunMetadata(
   };
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "metadata.json"), JSON.stringify(run), "utf-8");
   return run;
 }
 
@@ -90,8 +89,8 @@ describe("review outcome aggregation", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("links task-backed critic reviews from immutable trigger metadata", () => {
-    const firstRun = writeRunMetadata(runsDir, "first-builder-run", "builder", {
+  it("keeps accepted, failed and absent reviews distinct and attributable to their tasks", () => {
+    const firstRun = reviewRun(runsDir, "first-builder-run", "builder", {
       trigger: builderTrigger("task-from-first-trigger"),
     });
     writeJson(runsDir, firstRun.id, "critic-review.json", {
@@ -101,7 +100,7 @@ describe("review outcome aggregation", () => {
       summary: "Accepted with no findings.",
     });
 
-    const secondRun = writeRunMetadata(runsDir, "second-builder-run", "builder", {
+    const secondRun = reviewRun(runsDir, "second-builder-run", "builder", {
       trigger: builderTrigger("task-from-second-trigger"),
     });
     writeJson(runsDir, secondRun.id, "critic-review.json", {
@@ -111,57 +110,40 @@ describe("review outcome aggregation", () => {
       summary: "Accepted with a warning.",
     });
 
-    const report = collectReviewOutcomeReport({
-      runsDir,
-      runs: [firstRun, secondRun],
+    const failed = reviewRun(runsDir, "failed", "builder", { trigger: builderTrigger("task-failed") });
+    writeJson(runsDir, failed.id, "critic-review.json", {
+      verdict: "fail", critical_issues: ["Required behavior is absent."], warnings: [], summary: "Incomplete.",
     });
+    const unknown = reviewRun(runsDir, "unknown", "builder");
+    const report = collectReviewOutcomeReport({ runsDir, runs: [firstRun, secondRun, failed, unknown] });
+    expect(report).toMatchObject({ totalReviews: 3, approvalLikeDecisions: 2, unsupportedArtifacts: 0 });
+    expect(report.records.map((record) => record.decision)).toEqual(["pass", "pass_with_warnings", "fail"]);
 
     expect(report.records.map((record) => record.taskId)).toEqual([
       "task-from-first-trigger",
       "task-from-second-trigger",
+      "task-failed",
     ]);
   });
 
-  it("counts malformed or old reviewer artifacts as unsupported without crashing", () => {
-    const run = writeRunMetadata(runsDir, "old-run", "builder");
-    writeFileSync(join(runsDir, run.id, "critic-review.json"), "{not-json", "utf-8");
-
-    const report = collectReviewOutcomeReport({ runsDir, runs: [run] });
-
-    expect(report.records).toEqual([]);
-    expect(report.unsupportedArtifacts).toBe(1);
-    expect(report.unsupported[0]).toMatchObject({
-      runId: run.id,
-      workflow: "builder",
-      artifact: "critic-review.json",
-    });
-  });
-
-  it("counts partial critic verdict artifacts as unsupported", () => {
-    const run = writeRunMetadata(runsDir, "partial-run", "builder");
-    writeJson(runsDir, run.id, "critic-review.json", {
-      verdict: "pass",
-    });
-
-    const report = collectReviewOutcomeReport({ runsDir, runs: [run] });
-
-    expect(report.records).toEqual([]);
-    expect(report.unsupportedArtifacts).toBe(1);
-    expect(report.unsupported[0]).toMatchObject({
-      runId: run.id,
-      workflow: "builder",
-      artifact: "critic-review.json",
-      reason: "Critic summary must be a string",
-    });
-  });
+  it.each(["{not-json", JSON.stringify({ verdict: "pass" })])(
+    "reports malformed evidence as unsupported rather than approval: %s",
+    (content) => {
+      const run = reviewRun(runsDir, "invalid", "builder");
+      writeFileSync(join(runsDir, run.id, "critic-review.json"), content);
+      const report = collectReviewOutcomeReport({ runsDir, runs: [run] });
+      expect(report).toMatchObject({ records: [], approvalLikeDecisions: 0, unsupportedArtifacts: 1 });
+      expect(report.unsupported[0]).toMatchObject({ runId: run.id, workflow: "builder", artifact: "critic-review.json" });
+    },
+  );
   it("projects original progress, semantic and PR decisions without a scrutiny artifact", () => {
-    const progress = writeRunMetadata(runsDir, "progress", "progress-reviewer");
+    const progress = reviewRun(runsDir, "progress", "progress-reviewer");
     writeJson(runsDir, progress.id, "progress-review.json", progressReview("on-track", { claims: [], followUpTasks: [] }));
-    const semantic = writeRunMetadata(runsDir, "semantic", "improver");
+    const semantic = reviewRun(runsDir, "semantic", "improver");
     writeJson(runsDir, semantic.id, "semantic-gate-review.json", {
       verdict: "pass", critical_issues: [], warnings: [], summary: "The existing API serves both callers.",
     });
-    const pr = writeRunMetadata(runsDir, "pr", "pr-reviewer", { steps: [{
+    const pr = reviewRun(runsDir, "pr", "pr-reviewer", { steps: [{
       id: "prepare-comment", type: "code", status: "success", startedAt: NOW, completedAt: NOW, durationMs: 1,
       output: { repo: "example/project", prNumber: 42, recommendation: "approve" },
     }] });

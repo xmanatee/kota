@@ -2,6 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
@@ -44,7 +46,7 @@ function writeTask(
 function writeRun(
   runsDir: string,
   id: string,
-  metadata: Record<string, unknown>,
+  metadata: Omit<WorkflowRunMetadata, "id" | "definitionPath" | "trigger" | "runDir"> & Partial<Pick<WorkflowRunMetadata, "trigger">>,
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
@@ -82,23 +84,12 @@ function writeWriterIntegration(
   workflow: string,
   changedPaths: readonly string[] = [],
 ): void {
-  writeFileSync(
-    join(runsDir, id, "writer-integration.json"),
-    JSON.stringify({
-      version: 1,
-      runId: id,
-      workflow,
-      scopeId: "test-scope",
-      targetBranch: "main",
-      baseHead: "base",
-      integratedFromHead: "base",
-      publishedHead: "abc",
-      commitSubject: "x",
-      commitMessage: "x",
-      changedPaths,
-      completedAt: new Date(NOW).toISOString(),
-    }),
-  );
+  writeWriterIntegrationFixture(runsDir, {
+    runId: id,
+    workflow,
+    changedPaths,
+    completedAt: new Date(NOW).toISOString(),
+  });
 }
 
 // Historical triggers predate the priority and dependency fields required for new admission.
@@ -327,6 +318,7 @@ describe("aggregateAutonomyReport", () => {
       "data/tasks/task-strategic-add.md",
       "data/tasks/task-fanout-add.md",
       "data/tasks/task-missing.md",
+      "src/feature.ts",
     ]);
 
     const report = aggregateAutonomyReport({
@@ -340,47 +332,11 @@ describe("aggregateAutonomyReport", () => {
     expect(report.explorer.totalRuns).toBe(1);
     expect(report.explorer.totalTaskAdditions).toBe(2);
     expect(report.explorer.unresolvedTaskAdditions).toBe(1);
+    expect(report.explorer.taskAdditions[0]?.priority).toBe("p1");
     expect(report.explorer.taskAdditions.map((addition) => addition.taskId)).toEqual([
       "task-strategic-add",
       "task-fanout-add",
     ]);
-  });
-
-  it("uses runtime integration evidence when explorer output omits addedTaskFiles", () => {
-    writeTask(workspaceRoot, "open", "task-explorer-fallback", {
-      priority: "p1",
-    });
-
-    const explorerRunId = "2026-04-28T08-30-00-000Z-explorer-bbb";
-    writeRun(runsDir, explorerRunId, {
-      workflow: "explorer",
-      startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
-      status: "success",
-      durationMs: 1000,
-      usage: {
-        tokens: { state: "unknown" },
-        cost: { state: "complete", usd: 0.5 },
-      },
-      steps: [measuredAgentStep(0.5)],
-    });
-    writeWriterIntegration(runsDir, explorerRunId, "explorer", [
-      "data/tasks/task-explorer-fallback.md",
-      "src/modules/autonomy/report/aggregate.ts",
-    ]);
-
-    const report = aggregateAutonomyReport({
-      workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      runsDir,
-      windowEndMs: NOW,
-      windowDays: 7,
-    });
-
-    expect(report.explorer.totalTaskAdditions).toBe(1);
-    expect(report.explorer.taskAdditions[0]?.taskId).toBe(
-      "task-explorer-fallback",
-    );
-    expect(report.explorer.taskAdditions[0]?.priority).toBe("p1");
   });
 
   it("links builder commits to archived tasks", () => {

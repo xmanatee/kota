@@ -133,6 +133,8 @@ describe("generated-work proposal materializer", () => {
       expect.objectContaining({ kind: "dropped-task", taskId: task.taskId }),
       expect.objectContaining({ kind: "reopened-owner-question" }),
     ]));
+    expect(renewed.taskId).toBeNull();
+    expect(listFullRepoTasks(workspaceRoot)).toEqual([expect.objectContaining({ id: task.taskId, state: "dropped" })]);
     expect(renewed.ownerQuestionId).not.toBe(first.ownerQuestionId);
     expect(queue.list("pending").map((item) => item.id)).toEqual([renewed.ownerQuestionId]);
     expect(queue.get(first.ownerQuestionId!)).toEqual(terminalQuestion);
@@ -170,28 +172,5 @@ describe("generated-work proposal materializer", () => {
         join(workspaceRoot, ".kota", "owner-questions"),
       ).list("pending"),
     ).toEqual([]);
-  });
-
-  it("reports only the current linked record when disposition kind changes", () => {
-    const workspaceRoot = makeGeneratedWorkScopeRoot("current-link");
-    const task = materializeGeneratedWorkProposal({
-      workspaceRoot,
-      proposal: taskProposal(),
-    });
-    const question = materializeGeneratedWorkProposal({
-      workspaceRoot,
-      proposal: questionProposal(),
-    });
-
-    expect(question).toMatchObject({
-      taskId: null,
-      ownerQuestionId: expect.stringMatching(/^[0-9a-f]{8}$/),
-      actions: expect.arrayContaining([
-        expect.objectContaining({ kind: "dropped-task", taskId: task.taskId }),
-      ]),
-    });
-    expect(listFullRepoTasks(workspaceRoot)).toEqual([
-      expect.objectContaining({ id: task.taskId, state: "dropped" }),
-    ]);
   });
 });

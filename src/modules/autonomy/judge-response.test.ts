@@ -12,6 +12,15 @@ describe("judge response decisions", () => {
     expect(decideJudgeResponse({ ...context, response })).toEqual({ kind: "verdict", verdict });
   });
 
+  it("recovers bare JSON after a preamble without trusting the surrounding prose", () => {
+    const accepted = { ...verdict, verdict: "pass_with_warnings", warnings: ["Minor issue"] };
+    expect(decideJudgeResponse({ ...context, response: {
+      text: `Assessment:\n${JSON.stringify(accepted)}`,
+      isError: true,
+      subtype: "error_max_turns",
+    } })).toEqual({ kind: "verdict", verdict: accepted });
+  });
+
   it("uses runtime classification for provider retries and stops at the attempt boundary", () => {
     const response = { text: "API Error: 503 overloaded", isError: true };
     expect(decideJudgeResponse({ ...context, response })).toMatchObject({ kind: "retry", formatReminder: false });

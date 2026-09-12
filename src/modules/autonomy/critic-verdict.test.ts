@@ -1,10 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createCriticCheck, getCriticPromptHash, handleVerdict } from "./critic.js";
+import { createCriticCheck, getCriticPromptHash } from "./critic.js";
 import {
   type CodeCheck,
-  getMockRunAgentHarness,
   makeContext,
   makeRunDir,
   makeTmpDir,
@@ -14,159 +13,38 @@ import {
   writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 
-const mockRunAgentHarness = getMockRunAgentHarness();
-
+// Parsing and malformed-response decisions belong to judge-response.test.ts.
+// This boundary proves that the critic publishes its verdict and gates repair.
 describe("critic verdict handling", () => {
   beforeEach(resetCriticTestMocks);
 
-  it("recovers verdict from response with preamble text before JSON", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-preamble.md", "---\nstatus: open\npriority: p2\n---\n\n# Test preamble\n\nContent.");
-    const runDir = makeRunDir(dir);
-    mockRunAgentHarness.mockResolvedValue({
-      text: 'Based on my review:\n\n```json\n{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Looks good."}\n```',
-      streamedText: "",
-      turns: 1,
-      isError: true,
-      subtype: "error_max_turns",
-    });
+  it.each(["pass", "pass_with_warnings", "fail"] as const)(
+    "persists the %s verdict and propagates its disposition",
+    async (verdict) => {
+      const dir = makeTmpDir();
+      writeOpenTask(dir, "task-review.md", "---\nstatus: open\npriority: p2\n---\n\n# Review the implementation\n");
+      const runDir = makeRunDir(dir);
+      const response = {
+        verdict,
+        critical_issues: verdict === "fail" ? ["The API returns another scope's data."] : [],
+        warnings: verdict === "pass_with_warnings" ? ["The error message could be clearer."] : [],
+        summary: "The review's detailed evidence stays in its artifact.",
+      };
+      setApiResponse(response);
+      const check = createCriticCheck({ runDirPath: runDir }) as CodeCheck;
+      const result = check.run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/pass/);
-  });
-
-  it("recovers verdict from response with bare JSON after preamble", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-bare.md", "---\nstatus: open\npriority: p2\n---\n\n# Test bare\n\nContent.");
-    const runDir = makeRunDir(dir);
-    mockRunAgentHarness.mockResolvedValue({
-      text: 'Assessment:\n\n{"verdict":"pass_with_warnings","critical_issues":[],"warnings":["Minor issue"],"summary":"Mostly complete."}',
-      streamedText: "",
-      turns: 1,
-      isError: true,
-      subtype: "error_max_turns",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/pass_with_warnings/);
-  });
-
-  it("throws on fail verdict with critical issues", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-bar.md", "---\nstatus: open\npriority: p2\n---\n\n# Do bar\n\nDo bar.");
-    const runDir = makeRunDir(dir);
-    setApiResponse({
-      verdict: "fail",
-      critical_issues: ["Missing unit tests", "Docs not updated"],
-      warnings: [],
-      summary: "Work is incomplete.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
-    ).rejects.toThrow(/2 critical issue/);
-  });
-
-  it("writes critic-review.json on fail", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-bar.md", "---\nstatus: open\npriority: p2\n---\n\n# Do bar\n\nDo bar.");
-    const runDir = makeRunDir(dir);
-    setApiResponse({
-      verdict: "fail",
-      critical_issues: ["Incomplete"],
-      warnings: [],
-      summary: "Not done.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    await expect((check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP)).rejects.toThrow();
-
-    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
-    expect(artifact.verdict).toBe("fail");
-    expect(artifact.critical_issues).toHaveLength(1);
-  });
-
-  it("keeps detailed failure evidence out of the repair-loop error", () => {
-    const dir = makeTmpDir();
-    const runDir = makeRunDir(dir);
-    const issue =
-      "A concrete security-sensitive reproduction belongs in the durable verdict artifact.";
-
-    let thrownMessage = "";
-    try {
-      handleVerdict(
-        {
-          verdict: "fail",
-          critical_issues: [issue],
-          warnings: [],
-          summary: "Detailed remediation evidence is available.",
-          reviewerPromptHash: "review-policy",
-        },
-        runDir,
-      );
-    } catch (error) {
-      thrownMessage = error instanceof Error ? error.message : String(error);
-    }
-
-    expect(thrownMessage).toContain(`Review ${join(runDir, "critic-review.json")}`);
-    expect(thrownMessage).not.toContain(issue);
-    expect(thrownMessage).not.toContain("Detailed remediation evidence");
-    const artifact = JSON.parse(
-      readFileSync(join(runDir, "critic-review.json"), "utf8"),
-    );
-    expect(artifact.critical_issues).toEqual([issue]);
-    expect(artifact.summary).toBe("Detailed remediation evidence is available.");
-  });
-
-  it("passes with warnings and writes critic-review.json", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-baz.md", "---\nstatus: open\npriority: p2\n---\n\n# Do baz\n\nDo baz.");
-    const runDir = makeRunDir(dir);
-    setApiResponse({
-      verdict: "pass_with_warnings",
-      critical_issues: [],
-      warnings: ["Could improve error messages"],
-      summary: "Mostly complete.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/pass_with_warnings/);
-    expect(result).toMatch(/1 warning/);
-
-    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
-    expect(artifact.verdict).toBe("pass_with_warnings");
-    expect(artifact.warnings).toHaveLength(1);
-    expect(artifact.reviewerPromptHash).toBe(getCriticPromptHash(dir));
-  });
-
-  it("preserves a clean accepted verdict without manufacturing a warning", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(dir, "task-thin.md", "---\nstatus: open\npriority: p2\n---\n\n# Do thin\n\nDo thin.");
-    const runDir = makeRunDir(dir);
-    mkdirSync(join(dir, "src"), { recursive: true });
-    writeFileSync(join(dir, "src", "feature.ts"), "export const enabled = true;\n");
-    setApiResponse({
-      verdict: "pass",
-      critical_issues: [],
-      warnings: [],
-      summary: "All required work is complete.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/verdict — pass/);
-
-    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
-    expect(artifact).toMatchObject({
-      verdict: "pass",
-      critical_issues: [],
-      warnings: [],
-      summary: "All required work is complete.",
-      reviewerPromptHash: getCriticPromptHash(dir),
-    });
-  });
+      if (verdict === "fail") {
+        await expect(result).rejects.toThrow(/1 critical issue/);
+        await expect(result).rejects.toThrow(`Review ${join(runDir, "critic-review.json")}`);
+        await expect(result).rejects.not.toThrow(response.critical_issues[0]);
+        await expect(result).rejects.not.toThrow(response.summary);
+      } else {
+        await expect(result).resolves.toContain(`verdict — ${verdict}`);
+        if (verdict === "pass_with_warnings") await expect(result).resolves.toContain("1 warning");
+      }
+      expect(JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8")))
+        .toMatchObject({ ...response, reviewerPromptHash: getCriticPromptHash(dir) });
+    },
+  );
 });

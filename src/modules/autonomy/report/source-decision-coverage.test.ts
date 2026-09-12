@@ -100,6 +100,16 @@ describe("source decision coverage report", () => {
         message: "watchlist entry has no captured snapshot",
       },
     ]);
+
+    const text = renderToString(renderSourceDecisionCoverageReport(report), { width: 120 });
+    expect(text).toContain("adopt (1)");
+    expect(text).toContain("partial-adopt (1)");
+    expect(text).toContain("reject (1)");
+    expect(text).toContain("needs-research (1)");
+    expect(text).toContain("covered-by-done-task");
+    expect(text).toContain("covered-by-open-task");
+    expect(text).toContain("local-decision");
+    expect(text).toContain("unmapped");
   });
 
   it("flags stale snapshots without inventing a task mapping", () => {
@@ -129,68 +139,6 @@ describe("source decision coverage report", () => {
         },
       ],
     });
-  });
-
-  it("renders a sample section with adopted, open, rejected, and unmapped sources", () => {
-    writeWatchlist(workspaceRoot, [
-      watchlistEntry({
-        url: "https://example.com/adopted",
-        summary: "Covered by task-done-source.",
-        lastSeen: "2026-07-06T00:00:00.000Z",
-      }),
-      watchlistEntry({
-        url: "https://example.com/open",
-        summary: "Remaining local gap opened task-open-source.",
-        lastSeen: "2026-07-06T00:00:00.000Z",
-      }),
-      watchlistEntry({
-        url: "https://example.com/rejected",
-        summary: "Reviewed locally.",
-        lastSeen: "2026-07-06T00:00:00.000Z",
-      }),
-      [
-        "  - url: https://example.com/unmapped",
-        '    added: "2026-07-01"',
-      ].join("\n"),
-    ]);
-    writeTask(workspaceRoot, {
-      state: "done",
-      id: "task-done-source",
-      title: "Done source task",
-      body: sourceTaskBody("https://example.com/adopted"),
-    });
-    writeTask(workspaceRoot, {
-      state: "open",
-      id: "task-open-source",
-      title: "Open source task",
-      body: sourceTaskBody("https://example.com/open"),
-    });
-
-    const text = renderToString(
-      renderSourceDecisionCoverageReport(
-        buildSourceDecisionCoverageReport({
-          workspaceRoot,
-          nowMs: NOW_MS,
-          localDecisionMarkers: [
-            localDecision({
-              sourceRefs: ["https://example.com/rejected"],
-              disposition: "reject",
-              summary: "Rejected in KOTA because the peer DSL duplicates workflow.",
-            }),
-          ],
-        }),
-      ),
-      { width: 120 },
-    );
-
-    expect(text).toContain("adopt (1)");
-    expect(text).toContain("partial-adopt (1)");
-    expect(text).toContain("reject (1)");
-    expect(text).toContain("needs-research (1)");
-    expect(text).toContain("covered-by-done-task");
-    expect(text).toContain("covered-by-open-task");
-    expect(text).toContain("local-decision");
-    expect(text).toContain("unmapped");
   });
 });
 

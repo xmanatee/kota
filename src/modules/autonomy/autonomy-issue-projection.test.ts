@@ -57,9 +57,7 @@ describe("durable autonomy issue projection", () => {
     }
   });
 
-  it("reduces observations and dispositions without writing private state", () => {
-    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-issues-"));
-    scopeRoots.push(workspaceRoot);
+  it("distinguishes fresh, repeated, changed and replayed evidence", () => {
     const observations = [
       observation({ runId: "run-1", observedAt: "2026-06-17T12:00:00.000Z" }),
       observation({ runId: "run-2", observedAt: "2026-06-17T13:00:00.000Z" }),
@@ -74,10 +72,10 @@ describe("durable autonomy issue projection", () => {
       current: emptyAutonomyIssueProjection(),
       observations,
     });
-    expect(reduced.transitions.map((transition) => transition.kind)).toEqual([
-      "opened",
-      "repeated",
-      "revised",
+    expect(reduced.transitions.map(({ kind, requiresDecision }) => ({ kind, requiresDecision }))).toEqual([
+      { kind: "opened", requiresDecision: true },
+      { kind: "repeated", requiresDecision: false },
+      { kind: "revised", requiresDecision: true },
     ]);
     const disposed = recordAutonomyIssueDispositions({
       current: reduced.projection,
@@ -96,7 +94,9 @@ describe("durable autonomy issue projection", () => {
       disposition: { kind: "task", semanticRevision: 2 },
       links: { taskIds: ["task-health-builder"] },
     });
-    expect(existsSync(join(workspaceRoot, ".kota"))).toBe(false);
+    const replay = applyAutonomyIssueObservations({ current: disposed, observations });
+    expect(replay.transitions.every((transition) => !transition.requiresDecision)).toBe(true);
+    expect(replay.projection).toEqual(disposed);
   });
 
   it("ignores a disposition produced for an older semantic revision", () => {
@@ -153,31 +153,6 @@ describe("durable autonomy issue projection", () => {
       current: next,
       next: structuredClone(next),
     })).toBe(false);
-    expect(readAutonomyIssueProjection(state.stateDir, state.stateDir)).toEqual(next);
-    expect(state.read<AutonomyIssueProjection>(
-      AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-    )).toEqual({ revision: 1, value: next });
-  });
-
-  it("rejects a stale competing projection publication", () => {
-    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-stale-"));
-    scopeRoots.push(workspaceRoot);
-    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
-    const current = emptyAutonomyIssueProjection();
-    const next = applyAutonomyIssueObservations({
-      current,
-      observations: [observation({
-        runId: "run-1",
-        observedAt: "2026-06-17T12:00:00.000Z",
-      })],
-    }).projection;
-    stageAutonomyIssueProjection({
-      state,
-      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-      revision: 0,
-      current,
-      next,
-    });
     expect(() => stageAutonomyIssueProjection({
       state,
       key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
@@ -185,6 +160,10 @@ describe("durable autonomy issue projection", () => {
       current,
       next,
     })).toThrow(StateValueConflictError);
+    expect(readAutonomyIssueProjection(state.stateDir, state.stateDir)).toEqual(next);
+    expect(state.read<AutonomyIssueProjection>(
+      AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    )).toEqual({ revision: 1, value: next });
   });
 
   it("reads only the selected canonical scope and leaves obsolete mirrors untouched", () => {
