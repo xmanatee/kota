@@ -7,20 +7,26 @@ resources:
   - url: https://github.com/Tencent/teamai-cli
     added: "2026-09-12"
     notes: "From data/inbox/links-to-explore.md. README read on September 12: distributes team skills, rules, hooks and MCP configuration across agent harnesses, with optional knowledge recall and friction-based learning suggestions. Monitor shared-context distribution and learning quality as peer-runtime research; adoption needs concrete KOTA outcome evidence."
+    snapshot:
+      fingerprint: sha256:b6ced8f72b91e6be77177d48fb29c331
+      summary: "The README describes Git-backed distribution of team skills, rules, hooks and MCP configuration across agent harnesses, opt-in knowledge recall, codebase graphs, and friction-triggered learning suggestions."
+      last_seen_at: "2026-09-12T21:51:36.841Z"
   - url: https://github.com/danielmiessler/LifeOS
     added: "2026-09-12"
     notes: "From data/inbox/links-to-explore.md. README read on September 12: personal context, persistent memory, skills, routing and self-improvement layered on coding harnesses. Monitor memory continuity, capability-aware setup and evidence-backed verification as peer-runtime research; README claims are not verified product outcomes."
+    snapshot:
+      fingerprint: sha256:5abc9246fe0d90cce9bb00fdba4e70ae
+      summary: "The README describes a personal-context layer on coding harnesses with persistent memory, bundled skills, hooks, routing and self-improvement; it identifies Claude Code as its most-tested path."
+      last_seen_at: "2026-09-12T21:51:36.775Z"
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:ba1d859ed2095027dc8ee31704d64b06
-      summary: "The repository README describes a local Gateway for sessions, tools, events and channels, swappable provider and harness plugins, companion apps, sender pairing, and configurable sandboxing."
-      last_seen_at: "2026-09-10T00:15:48.407Z"
+      fingerprint: sha256:996c4c024fff7cf51259b858387f3060
+      summary: "The README describes a local Gateway shared by clients and channels, swappable model and harness plugins, personal or team deployments, sender pairing, and configurable sandboxing; main-session tools run on the host unless sandboxing is configured."
+      last_seen_at: "2026-09-12T21:51:37.329Z"
   - url: https://github.com/openclaw/clawbench
     added: "2026-05-28"
     notes: "ClawBench is OpenClaw's trace/reliability-focused benchmark. Monitor as an eval-methodology signal for KOTA's eval-harness reliability diagnostics, low-signal fixture detection, and trace-based scoring; do not import it as a benchmark runner."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:29ae5de4201ccf1d9aba6e8566ee9244
       summary: "ClawBench Core v1 reinforces KOTA's eval-harness fixture reliability diagnostics and adds a nonduplicative baseline-comparability signal: record strict eval-run configuration fingerprints before cadence compares scores."
@@ -42,7 +48,6 @@ resources:
   - url: https://github.com/zsworld6/projdevbench
     added: "2026-06-22"
     notes: "ProjDevBench evaluates coding agents on end-to-end project development with OJ-style execution feedback and resource-limit diagnostics. Monitor as an eval-harness signal for scalable-design, time/memory-budget, and project-construction canaries; do not import the benchmark, online judge, or LLM review rubric."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:8c0818c977cb1829f11f2576a5522f7f
       summary: "ProjDevBench is accessible; its scalable-design and resource-limit signal is already covered by blocked task-add-algorithmic-resource-budget-canaries-to-the-ev, which is waiting on operator-captured live eval evidence."
@@ -50,21 +55,18 @@ resources:
   - url: https://github.com/datacurve-ai/deep-swe
     added: "2026-05-29"
     notes: "DeepSWE evaluates frontier coding agents on original long-horizon tasks with behavioral verifiers and Pier sandboxing. Monitor as an eval-harness signal for contamination-resistant task construction, behavior-first verification, and provider-only agent egress inside otherwise isolated task environments; do not import the benchmark runner."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:1dabc33789d3e0add0c1477ac8af2178
       summary: "DeepSWE is accessible; its nonduplicative KOTA signal is provider-only model API egress for containerized eval-harness agent steps while fixture task code stays offline, which opened task-add-provider-egress-policy-to-containerized-eval-h."
       last_seen_at: "2026-05-29T10:32:22.816Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:91478f5eb891ba8534a0e35d3a9f8d1f
       summary: "ZeroClaw still reinforces KOTA's daemon/session/channel/tool/skill model plus provider fallback and local ownership; no new KOTA primitive or task was opened from this refresh."
       last_seen_at: "2026-05-18T06:08:15.722Z"
   - url: https://github.com/RightNow-AI/openfang
     added: "2026-04-14"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:52e4189cf96f4ecb5eb61dd7fedc465f
       summary: "OpenFang continues to package tools, prompts, skills, guardrails, and metrics as capability bundles; KOTA maps this to modules/workflows/skills and does not need a second Hand primitive."
@@ -74,28 +76,24 @@ resources:
     canonicalized_from:
       - https://github.com/badlogic/pi-mono
     notes: "Canonicalized from https://github.com/badlogic/pi-mono after the old Pi watchlist URL redirected here."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:9b40f26a20b569112c27e4a9f0018f6a
       summary: "The old Pi watchlist URL redirects to earendil-works/pi; the current run opened task-canonicalize-moved-watchlist-repository-entries for the stale-alias gap."
       last_seen_at: "2026-05-27T11:36:10.460Z"
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:8cada414624dd3b31638b86dafc1a91a
       summary: "Claude Code releases now highlight login-expiry, stale-session recovery, and headless hook streaming reliability; this run opened task-warn-before-native-cli-harness-auth-expires-during for KOTA's local native-CLI readiness warning gap."
       last_seen_at: "2026-07-08T06:19:08.180Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:c95e281c2eab290756ff86de7faf6e7a
       summary: "Codex releases advanced alpha prereleases after stable 0.142.5; the stable trace-payload fix is already covered by an existing KOTA provider-payload canary, so no duplicate task was opened."
       last_seen_at: "2026-07-08T06:19:08.181Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:57d14bb10e9afac7279224f1d3c3ec31
       summary: "Gemini CLI nightly adds sandbox/gitconfig and string-literal hardening; KOTA's existing protected Git bare-repo work covers adjacent subprocess safety, so no duplicate task was opened from this snapshot."
@@ -117,14 +115,12 @@ resources:
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:d523f8192411bfced1011844e29bc866
       summary: "Antigravity CLI docs now have a first watchlist snapshot; they reinforce KOTA's completed readiness-only antigravity-cli adapter and do not open a nonduplicative task until AGY documents a stable headless structured-output/auth boundary."
       last_seen_at: "2026-05-26T11:31:16.640Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:41299206762d1af653c841d79659fe72
       summary: "Aider still reinforces git-aware terminal pair-programming, repo maps, and test/lint loops; no new KOTA task was opened from this refresh."
@@ -140,14 +136,12 @@ resources:
       last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:0b9e91ac508d9856515546c2fa8bed10
-      summary: "OpenHands now has a concrete explicit sandbox host-capability signal; this run opened task-add-an-executable-container-isolation-backend-for- for KOTA's matching eval-harness container backend gap instead of adding a new sandbox primitive."
-      last_seen_at: "2026-05-26T18:36:35.301Z"
+      fingerprint: sha256:a447fd77e063b59163e529126f39b554
+      summary: "The retrieved README presents Agent Canvas, a self-hosted control center for ACP-compatible coding agents, selectable local/remote/cloud backends, and scheduled or webhook automations. It separates the frontend, Agent Server/SDK, TypeScript client and automation service."
+      last_seen_at: "2026-09-12T21:51:41.835Z"
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:7f125fd9f4b6ef49e60b8e4541899b21
       summary: "SWE-agent remains a research coding-agent reference, but current actionable KOTA signal continues to live in the mini-SWE-agent/ProgramBench successor path already tracked."
@@ -155,7 +149,6 @@ resources:
   - url: https://github.com/SWE-agent/mini-swe-agent
     added: "2026-05-17"
     notes: "SWE-agent now points operators at mini-SWE-agent as its simplified successor: a compact coding-agent runtime built around independent bash actions, multiple sandbox backends, and SWE-bench evaluation. Monitor as a peer signal for harness-parity substrate evidence and coding-agent eval ergonomics."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:159387e84e15c7b087e323054871c93f
       summary: "mini-SWE-agent v2 now surfaces ProgramBench support; the relevant KOTA signal is black-box behavior reconstruction under deterministic tests, which opened task-add-a-black-box-behavior-reconstruction-fixture-to."
@@ -163,14 +156,12 @@ resources:
   - url: https://programbench.com/
     added: "2026-05-26"
     notes: "ProgramBench is a cleanroom software-engineering benchmark where agents rebuild programs from a reference executable and documentation under behavioral tests. Monitor as an eval-harness signal for black-box behavior discovery, source-lookup shortcut prevention, and holistic coding-agent capability beyond patch-shaped tasks."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:928a273fc2761d245f0ea9aed03d829d
       summary: "ProgramBench is now accessible and matches the existing KOTA black-box behavior-reconstruction fixture direction; no duplicate task is needed because task-add-a-black-box-behavior-reconstruction-fixture-to already covers the nonduplicative local eval-harness gap and is waiting only on live operator capture."
       last_seen_at: "2026-05-26T06:54:03.346Z"
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:7a8177b66c7880e71f52c4ac5f774869
       summary: "SWE-bench still reinforces Docker-backed reproducible evaluation and explicit resource requirements; KOTA's eval-harness ResourceProfile isolation and preflight gap is now covered by completed executable-isolation work."
@@ -178,7 +169,6 @@ resources:
   - url: https://arxiv.org/abs/2606.13995
     added: "2026-06-20"
     notes: "Dialogue SWE-Bench evaluates coding agents on resolving software tasks through user dialogue with a persona-grounded user simulator. Monitor as an eval-harness signal for bounded clarification, answer-use evidence, and dialogue quality distinct from autonomous patch success; do not import the benchmark runner or add an LLM user simulator."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b239e1c3ddb9c0dbdf64f80242515bb1
       summary: "Dialogue SWE-Bench was accessible at this observation. The local dialogue fixture was retired by task-prune-deterministic-eval-harness-tests because candidate-written transcripts and keyword classification did not prove useful clarification; this capability is currently unmeasured."
@@ -186,7 +176,6 @@ resources:
   - url: https://arxiv.org/abs/2606.10933
     added: "2026-06-20"
     notes: "Frontier Coding Agents Use Metaprogramming to Adapt to Unfamiliar Programming Languages evaluates coding agents on unfamiliar-language tasks where helper/generator strategies and local feedback matter. Monitor as an eval-harness signal for strategy construction under unfamiliar execution rules; do not import the benchmark tasks or add an esolang benchmark runner."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:fa6f40a5fc6cc782088715b08433c9f9
       summary: "Frontier Coding Agents Use Metaprogramming to Adapt to Unfamiliar Programming Languages is accessible; its unfamiliar-rule strategy-construction signal is already covered by the blocked Spool eval-harness fixture task, so no duplicate task is needed."
@@ -194,7 +183,6 @@ resources:
   - url: https://arxiv.org/abs/2606.17799
     added: "2026-06-20"
     notes: "Coding Benchmarks Are Misaligned with Agentic Software Engineering argues that coding-agent scores conflate model, harness, context, environment, and feedback components. Monitor as an eval-harness signal for component-level attribution and explainable score movement rather than importing a benchmark runner."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:38f6a32c97ff8878966865985364b460
       summary: "Coding Benchmarks Are Misaligned with Agentic Software Engineering is accessible; its component-attribution signal is already covered by completed KOTA work, and this run opened task-add-accepted-alternative-verifier-calibration-to-e for the remaining single-reference/valid-alternative scorer-calibration gap."
@@ -202,7 +190,6 @@ resources:
   - url: https://arxiv.org/abs/2606.07297
     added: "2026-06-21"
     notes: "SWE-Explore isolates repository exploration by asking coding agents to return ranked relevant code regions under a line budget. Monitor as a harness-parity/eval signal for exploration-only localization scenarios, ranking quality, and context efficiency; do not import the benchmark dataset or runner. This review opened task-add-ranked-repository-exploration-scenario-to-harn."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:ce59b99f2863938c7dc1c1ea3ba9734d
       summary: "SWE-Explore is accessible; its ranked-region repository-exploration signal is already covered by completed task-add-ranked-repository-exploration-scenario-to-harn, so no duplicate task is needed from this snapshot."
@@ -210,7 +197,6 @@ resources:
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b47d293218f1310563f501953bd7e62e
       summary: "Overeager Coding Agents reinforces KOTA's completed autonomy eval fixture work: out-of-scope helpful edits are authorization failures that need artifact-level checks, not prompt-only guidance."
@@ -218,7 +204,6 @@ resources:
   - url: https://arxiv.org/abs/2605.07769
     added: "2026-05-19"
     notes: "Coding Agents Don't Know When to Act / FixedBench measures stale already-fixed coding tasks where the correct action is no production patch. Monitor as a restraint/no-op eval signal for builder and critic calibration."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:a3a17073290f624c610e1023be9c31a1
       summary: "FixedBench reinforces KOTA's completed no-op restraint fixture: already-satisfied tasks must be a valid success path, while unnecessary production patches should fail."
@@ -226,7 +211,6 @@ resources:
   - url: https://arxiv.org/abs/2605.12925
     added: "2026-05-26"
     notes: "AgentLens / Lucky Pass evaluates SWE-agent trajectories beyond final pass/fail, with process-quality signals for missing verification, blind retries, regression cycles, and disordered exploration/implementation/verification. Monitor as a trajectory-diagnostics signal for KOTA's harness-parity and eval-harness artifacts, not as a replacement benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:10338f4bbf2826680cae0e89a631fbd4
       summary: "AgentLens reinforces KOTA's lucky-pass trajectory-diagnostic direction; harness-parity is already covered, so this refresh opened task-write-trajectory-quality-diagnostics-for-workflow- for normal workflow agent-step artifacts."
@@ -234,7 +218,6 @@ resources:
   - url: https://arxiv.org/abs/2605.20530
     added: "2026-05-27"
     notes: "AgentAtlas argues that deployable agent evaluation needs control-decision coverage (Act, Ask, Refuse, Stop, Confirm, Recover), trajectory-failure diagnosis, and benchmark-coverage auditing beyond outcome leaderboards. Monitor as a planning signal for KOTA eval-harness coverage metadata, not as an imported benchmark or second taxonomy."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0be8f9c919503c61eac1502cfc4fbf7d
       summary: "AgentAtlas reinforces KOTA's completed eval-harness control-decision coverage metadata and existing trajectory diagnostics; no duplicate task is needed because task-add-control-decision-coverage-metadata-to-eval-fix already covered the nonduplicative local gap."
@@ -242,7 +225,6 @@ resources:
   - url: https://arxiv.org/abs/2605.00803
     added: "2026-05-27"
     notes: "AutoMat evaluates coding agents on reproducing computational materials-science claims by recovering underspecified procedures, executing the workflow, and judging whether evidence supports the claim. Monitor as an eval-harness signal for claim-reproduction fixtures and execution-fragility diagnostics, not as an imported benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:a1a1525b7a036d6489aa04600d4e5422
       summary: "AutoMat reinforces the existing scientific-claim reproduction fixture direction; no duplicate task is needed because task-add-a-scientific-claim-reproduction-fixture-to-the already covers the local eval-harness gap and is waiting only on operator-captured live pass evidence."
@@ -250,7 +232,6 @@ resources:
   - url: https://arxiv.org/abs/2605.24110
     added: "2026-05-28"
     notes: "EvoCode-Bench evaluates coding agents across preserved-workspace multi-round software tasks with cumulative executable tests. Monitor as an eval-harness signal for persistent multi-round builder scoring rather than importing the external benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0c6fe793e1352a39cd2879462e3f56c5
       summary: "EvoCode-Bench reinforces KOTA's completed persistent multi-round eval-harness mode; no duplicate task is needed because task-add-persistent-multi-round-scoring-to-the-eval-har already covers the local gap."
@@ -258,7 +239,6 @@ resources:
   - url: https://arxiv.org/abs/2605.21384
     added: "2026-05-28"
     notes: "SpecBench measures reward hacking in long-horizon coding agents by comparing visible validation suites with held-out composition tests. Monitor as an eval-harness signal for cumulative hidden predicates and test-suite proxy gaps, not as a parallel scoring system."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:6415a88609bc80fe396ff381f8565172
       summary: "SpecBench reinforces KOTA's completed persistent multi-round eval-harness mode and existing hidden/composition predicate direction; no duplicate task is needed because task-add-persistent-multi-round-scoring-to-the-eval-har already covered the nonduplicative gap."
@@ -266,18 +246,16 @@ resources:
   - url: https://arxiv.org/abs/2603.24755
     added: "2026-05-28"
     notes: "SlopCodeBench measures code degradation across iterative coding-agent tasks. Monitor as an eval-harness signal for structural erosion and verbosity diagnostics in persistent multi-round fixtures, not as an imported benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:fa8fe822dfad357d93310c202dd0b380
       summary: "SlopCodeBench is accessible and reinforces KOTA's completed persistent multi-round code-health diagnostics; no duplicate task is needed because task-add-code-health-diagnostics-to-persistent-multi-ro already covers structural-erosion and verbosity evidence."
       last_seen_at: "2026-05-28T23:56:21.909Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:7e83eb9fbd8f2df3df0de80d77f7e324
-      summary: "Letta now foregrounds Letta Code plus skills/subagents and memory blocks; existing KOTA memory-block and skill decisions cover the nonduplicative signal."
-      last_seen_at: "2026-05-27T11:36:10.460Z"
+      fingerprint: sha256:091f6013f45dd53aae925e9abcebcb4c
+      summary: "The README directs active development to letta-ai/letta-code for the harness, terminal UI, App Server, channels and app runtime; this repository retains the retired V1 API server on its archive branch and historical releases."
+      last_seen_at: "2026-09-12T21:51:43.631Z"
   - url: https://mubit.ai/
     added: "2026-06-16"
     notes: "Execution-memory product: records run outcomes, tool calls, verifiers, and traces, then feeds lessons plus prompt/tool updates into later runs. Monitor as a vendor signal for run-artifact learning and verifier-gated self-improvement; do not import managed memory or automatic prompt mutation without evaluator evidence."
@@ -287,28 +265,24 @@ resources:
       last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:10720418c3610cca91cf0d2c6d2fa3f4
       summary: "AutoGen remains a maintenance-mode pointer to Microsoft Agent Framework; no new KOTA task beyond the existing rejected/read MAF decision and completed skill-pack import work."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:ccd4d66a868ba929bce31950914fa209
       summary: "CrewAI still reinforces rejected workflow-DSL/control-plane patterns; its official coding-agent skill-pack signal is now covered by completed skill import and runtime-resolution tasks."
       last_seen_at: "2026-05-18T03:42:05.722Z"
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0b0416322098b798d485476379411c30
       summary: "LangGraph's current v3 event-streaming signal reinforces KOTA's typed stream-projection direction and opened task-project-workflow-run-streams-from-typed-agent-even for KOTA's stale workflow-run SSE decoder."
       last_seen_at: "2026-05-27T10:58:44.086Z"
   - url: https://github.com/huggingface/smolagents
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:3bdf213f2be6d9484e059953881a53cb
       summary: "smolagents still centers code-executing agents; its useful KOTA signal is now covered by completed `code_exec` dependency policy work, not a second code-agent primitive."
@@ -318,21 +292,18 @@ resources:
     canonicalized_from:
       - https://github.com/mannaandpoem/OpenManus
     notes: "Canonicalized from https://github.com/mannaandpoem/OpenManus because the old URL is only a moved-project pointer to this tracked project."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:6f82d03886b3495e3319b5babf4be939
       summary: "OpenManus remains a general Python agent framework with MCP, browser automation, and optional multi-agent flow; no new nonduplicative KOTA primitive surfaced."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/vercel/ai
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:1264ded49500425f701a269a404ec306
       summary: "Vercel AI SDK now explicitly recommends Skills.sh-style coding-agent skill installation; KOTA's skill-pack import path is complete, so this snapshot does not call for a new agent or workflow primitive."
       last_seen_at: "2026-05-18T04:16:37.406Z"
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:c36cfb9465e95b41302c7b33eacbc2be
       summary: "Reflexion remains an archival verbal self-reflection signal; KOTA's existing reject verdict still covers it."
@@ -340,9 +311,9 @@ resources:
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:1092aa0ccf94a6707d197816c20d32c6
-      summary: "Returned a partial research index describing its teams and linking \"Scenarios for our Economic Future\"; the retained content does not contain the linked research."
-      last_seen_at: "2026-09-09T23:42:21.298Z"
+      fingerprint: sha256:14f2864dff22bae4cdfcebe568c071fa
+      summary: "The research index lists a September 9 alignment assessment of four unauthorized-access incidents and a September 10 tactical-intelligence and conventional-weapons capability study, alongside formal mathematics and automated alignment research. The retrieved page contains listings and brief descriptions, not the full studies."
+      last_seen_at: "2026-09-12T21:51:45.650Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
@@ -366,25 +337,22 @@ resources:
       last_seen_at: "2026-05-25T11:39:27.852Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
       fingerprint: sha256:526eae3f649986557a005f0cd6ef8d2b
       summary: "DeepMind's June 18 AI Control Roadmap surfaces a nonduplicative KOTA gap: normal autonomous workflow runs need deterministic control-monitor coverage artifacts, which opened task-record-autonomy-control-monitor-coverage-in-run-ar."
       last_seen_at: "2026-06-22T09:47:30.713Z"
   - url: https://research.google/blog/
     added: "2026-04-19"
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:26d35885af11fcebf41a8a521e7be1d2
-      summary: "Google Research now leads with the May 19 ERA release; the KOTA-relevant signal is scorable empirical-code optimization, which opened task-add-a-scorable-empirical-code-optimization-fixture."
-      last_seen_at: "2026-05-26T02:25:43.089Z"
+      fingerprint: sha256:f81fa302851a3b609045ced7419b5a6c
+      summary: "The index lists the September 10, 2026 ToolGrad article on efficient tool-use dataset generation with textual gradients, plus recent genomics, connectomics, forecasting and Earth AI posts. This extraction supplies titles and categories rather than the ToolGrad methodology."
+      last_seen_at: "2026-09-12T21:51:46.178Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
     status: inaccessible
   - url: https://github.com/nousresearch/hermes-agent
     added: "2026-04-22"
     notes: "Nous Research's open-source personal-assistant runtime with agent-curated persistent memory, autonomous self-improving skills, FTS5 session search with LLM summarization, built-in cron scheduler, MCP integration, Agentskills.io skill interop, and 40+ tools across six terminal backends (local/Docker/SSH/Daytona/Singularity/Modal) — direct peer to KOTA's module+workflow+session model. Snapshot to be captured by the next explorer run."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0d020a163e63d05892cddd43cf3d24e2
       summary: "Hermes continues to reinforce KOTA's existing daemon/channel/session/tool/skill/workflow mapping; no new primitive or task was opened from this refresh."
@@ -392,15 +360,13 @@ resources:
   - url: https://claude.com/blog
     added: "2026-04-22"
     notes: "Anthropic's Claude product blog — distinct surface from anthropic.com/engineering, lands Claude Code release notes and model-specific best-practices posts. Relevant to autonomy-loop posture and harness defaults on claude-agent-sdk."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:75824b4f5e4e744db4472d0dec572c84
-      summary: "Claude's latest blog feed adds a concrete computer/browser-use guidance thread; KOTA's screenshot-to-GUI-coordinate contract is complete, while Managed Agents remains covered by existing reject/read decisions."
-      last_seen_at: "2026-05-16T05:17:13.075Z"
+      fingerprint: sha256:140222d5b12162c24fec925b9a9a757b
+      summary: "The retrieved blog page shows the September 10, 2026 entry about T. Rowe Price bringing more of Claude to its investment process; article details are absent from this extraction."
+      last_seen_at: "2026-09-12T21:51:46.290Z"
   - url: https://github.com/microsoft/agent-framework
     added: "2026-04-23"
     notes: "Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode). The AutoGen watchlist snapshot explicitly names it as the active investment target, so peer-runtime coverage of the Microsoft ecosystem is currently stale. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:186ee6d56c2875b8e4c2b308465efbee
       summary: "Microsoft Agent Framework remains a parallel agent/workflow platform; its discoverable-agent-skills signal is now covered by KOTA's completed skill-pack import and runtime-resolution work."
@@ -408,7 +374,6 @@ resources:
   - url: https://github.com/cline/cline
     added: "2026-04-26"
     notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:47242078d37d025cb8c923c11278763c
       summary: "Cline has broadened from IDE-first HITL coding into a shared agent engine across CLI, SDK, Kanban, scheduled agents, and channels; KOTA already maps most primitives, and dependency-chain task ordering is now covered by typed task dependency edges."
@@ -416,7 +381,6 @@ resources:
   - url: https://github.com/continuedev/continue
     added: "2026-04-26"
     notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:3eb46f85be762c4d3d044129b28ca0b9
       summary: "Continue still reinforces repo-local AI checks enforced through CI; KOTA's matching workflow-backed check import and execution gap is already covered by task-run-repo-local-ai-check-files-through-the-workflow."
@@ -424,7 +388,6 @@ resources:
   - url: https://github.com/livekit/agents
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:9d2a528340e2f412b95f77f1afa4a963
       summary: "LiveKit Agents reinforces config-update observability through OTLP session logs; KOTA's daemon config reload events now flow through typed event and tracing surfaces."
@@ -432,15 +395,13 @@ resources:
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:960b15b923358fc606b7a7664e75679b
-      summary: "GitNexus has grown route/tool/shape-checking MCP tools; KOTA already covers much of this through conformance fixtures, with the relevant lesson being protocol-derived checks over heuristics."
-      last_seen_at: "2026-05-16T02:53:47.679Z"
+      fingerprint: sha256:902da37cfd443aca3a8a0145751b471f
+      summary: "The README describes codebase dependency and execution-flow graphs exposed through CLI, MCP and a web UI, optional embedding installation, grammar-specific setup fallbacks, and token-authenticated hosted deployment with a private indexing backend."
+      last_seen_at: "2026-09-12T21:51:48.188Z"
   - url: https://github.com/vercel-labs/open-agents
     added: "2026-05-07"
     notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:310194637cdcc062e75568ae891640a4
       summary: "Open Agents still maps mostly to KOTA's existing workflow/session/harness model; its frontend-preview harness-parity signal is now covered by the completed frontend preview scenario."
@@ -455,7 +416,6 @@ resources:
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:4a2817002fbaf71eac1cc4dde99eaf5f
       summary: "Vercel Workflow continues to reinforce already-covered durable workflow, await-event, and observability patterns; no new KOTA workflow primitive was opened from this refresh."
@@ -463,7 +423,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/basic/transports
     added: "2026-05-21"
     notes: "Official MCP transport draft - monitor stdio, Streamable HTTP, origin validation, request metadata headers, header/body validation, SSE response streams, cancellation, and HTTP+SSE compatibility for KOTA's first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:246f8eeac8cb29ecc6adad4e958bab3c
       summary: "Returned an overview title and truncated layout script; the retained body does not expose the transport specification."
@@ -471,7 +430,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification
     added: "2026-05-26"
     notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:61a7e99e40b0a577042db786922a7de0
       summary: "MCP specification still resolves to 2025-11-25 latest; existing KOTA MCP tasks and completed protocol-alignment work cover the current local gaps."
@@ -479,7 +437,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:3cfd1e9ac207635208803aef43b60fb6
       summary: "MCP Authorization still matches KOTA's completed protected-resource, OAuth client-flow, client-credentials, private_key_jwt, and enterprise-managed authorization work; no new task was opened."
@@ -487,7 +444,6 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials
     added: "2026-05-25"
     notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for client_secret_basic and task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:3cf5bab565c24da65f662f48b8413cbf
       summary: "Official MCP OAuth Client Credentials is accessible; KOTA already has client_secret_basic support, and this refresh opened task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
@@ -495,7 +451,6 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization
     added: "2026-05-25"
     notes: "Official MCP Authorization extension for enterprise IdP-managed remote MCP access. Monitor ID-JAG flow details, SSO identity-assertion requirements, capability negotiation, scope handling, and SDK support for KOTA's external MCP client authorization modes."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:379f0c3344496ccd2a721dbd8bfd8cd5
       summary: "Official MCP Enterprise-Managed Authorization is accessible; its IdP-mediated ID-JAG flow is distinct from KOTA's completed OAuth client-credentials/private_key_jwt support, so this run opened task-add-mcp-enterprise-managed-authorization-support."
@@ -503,7 +458,6 @@ resources:
   - url: https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
     added: "2026-05-21"
     notes: "Official MCP security guidance - monitor confused-deputy, token-passthrough, OAuth-discovery SSRF, session hijacking, local HTTP server exposure, and scope-minimization guidance that affects KOTA's MCP client/server security boundaries."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:e0346f435cbe477ff74ddd2429d597dc
       summary: "MCP security best practices reinforce KOTA's completed Streamable HTTP authorization and transport posture: no token passthrough, same-origin metadata discovery, per-request authorization, restricted local HTTP exposure, and least-privilege scopes are already covered without a new queue item."
@@ -511,7 +465,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/tools
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:59f9fe08cb563c7970b1010e9ac7eeb8
       summary: "Official MCP draft Tools still reinforces KOTA's completed stale-declaration, task/input-required, result-variant, and header-schema work; no duplicate MCP task was opened from this refresh."
@@ -519,7 +472,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/resources
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:7bb13dfb1e23f7b0530f62970a383e4f
       summary: "MCP draft Resources now maps to completed first-party server resource pagination/template work and completed external-client resource discovery/read operations; no new resource task is open from this snapshot."
@@ -527,7 +479,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/prompts
     added: "2026-05-20"
     notes: "Official MCP prompts spec draft - monitor prompts/list pagination, prompt metadata, input-required prompt resolution, completions, and promptsListChanged subscriptions that affect KOTA's MCP prompt-template surface."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:533b0854f5413ac8bd77a078ebb3e3c9
       summary: "MCP draft Prompts now maps to completed first-party prompt alignment and completed external-client prompt list/get operations; no new prompt task is open from this snapshot."
@@ -543,7 +494,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/client/elicitation
     added: "2026-05-20"
     notes: "Official MCP elicitation client-feature draft - monitor form/url mode support, URL-mode consent rules, and sensitive-data boundaries for KOTA's MRTR input_required flows."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b153d609d9944ee266273341d7a21905
       summary: "MCP draft Elicitation is covered by completed client capability advertisement, decline-action alignment, and URL-mode safety work; no new elicitation task is open from this snapshot."
@@ -551,7 +501,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/client/sampling
     added: "2026-05-22"
     notes: "Official MCP sampling client-feature draft - monitor tool-enabled sampling, request-scoped tool definitions, tool-use/tool-result message balance, content block variants, and context-inclusion deprecation for KOTA's MRTR and MCP client/server protocol fidelity."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:6136aa696db919286b06684c6cfe8335
       summary: "MCP draft Sampling is accessible and already covered by KOTA's completed draft sampling alignment: typed MRTR sampling/createMessage requests and responses, request-scoped tools, tool-use/tool-result balance validation, soft-deprecated context handling, and explicit no-bridge diagnostics are already represented, so no new task is open from this snapshot."
@@ -559,7 +508,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/completion
     added: "2026-05-20"
     notes: "Official MCP completion utility draft - monitor completion/complete request context, prompt/resource references, bounded completion results, and invalid-param behavior for KOTA's MCP server completions."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:4e75f85c26869c172eb6c9cf9151a01f
       summary: "MCP draft Completion is covered by completed completion/complete alignment for prompt/resource references, bounded metadata, contextual arguments, and invalid-params behavior; no new completion task is open from this snapshot."
@@ -567,7 +515,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/logging
     added: "2026-05-22"
     notes: "Official MCP logging utility draft - monitor deprecated request-scoped logLevel metadata, notifications/message response-stream behavior, invalid-level handling, and HTTP diagnostics implications for KOTA's first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:e0ca0d8d930692a405e46607b6475e23
       summary: "MCP draft Logging is accessible and now maps to KOTA's completed request-scoped MCP logging work: per-request logLevel metadata, notifications/message streaming, invalid-level handling, no default log emission, sanitized payloads, and explicit deprecated-feature boundaries are already covered."
@@ -575,7 +522,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/server/utilities/caching
     added: "2026-05-21"
     notes: "Official MCP caching utility draft - monitor ttlMs/cacheScope hints, cache scope security, TTL freshness, pagination interaction, and list-changed invalidation for KOTA's MCP server and external MCP client."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:01ba6c019b48761f2bd11d2d2849e9ea
       summary: "MCP draft Caching is accessible and already covered by KOTA's completed cacheable-results alignment: typed ttlMs/cacheScope hints, conservative stale defaults, per-page freshness, notification invalidation, and no cache-scope authorization bypass."
@@ -583,7 +529,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/progress
     added: "2026-05-21"
     notes: "Official MCP progress utility draft - monitor progressToken metadata, notifications/progress, monotonic progress validation, cancellation cleanup, and flood/coalescing behavior for KOTA's external MCP client and first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0d76da2fb252903c9b09e413433c18b0
       summary: "MCP draft Progress is accessible and now matches KOTA's already-completed client/server progress notification task; no new nonduplicative task is open from this snapshot."
@@ -591,7 +536,6 @@ resources:
   - url: https://modelcontextprotocol.io/specification/draft/basic/utilities/tasks
     added: "2026-05-21"
     notes: "Official MCP Tasks utility draft - monitor task-augmented requests, CreateTaskResult, task polling/result retrieval, cancellation, task input responses, status notifications, TTL handling, and lifecycle transition rules for KOTA's MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:ceef7dac3c7bbd1fa0feada4d1bcc12b
       summary: "MCP draft Tasks still documents the earlier experimental top-level task-augmentation model; KOTA's completed draft implementation covers that page, while the new Tasks extension overview is now tracked separately."
@@ -599,7 +543,6 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/tasks/overview
     added: "2026-05-25"
     notes: "Official MCP Tasks extension overview - monitor extension negotiation, server-directed task creation, resultType task handles, tasks/get polling, tasks/update input continuation, cooperative cancellation, and drift from KOTA's earlier draft utility implementation."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0c605473dbbcccde6f4b40658f5cf77f
       summary: "Official MCP Tasks still defines the client-side task consumption contract; this run opened task-consume-mcp-tasks-extension-results-in-the-externa for KOTA's remaining external-client resultType=task gap."
@@ -607,7 +550,6 @@ resources:
   - url: https://modelcontextprotocol.io/registry/about
     added: "2026-05-22"
     notes: "Official MCP Registry documentation - monitor server.json schema, package verification, remote-server metadata, registry publication flow, server-card discovery direction, and configuration portability for KOTA's first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0fb9062f3ed2b1e4cdea58ba7fee4c82
       summary: "MCP Registry docs are now accessible; KOTA already covers first-party server metadata, and this refresh opened task-add-mcp-registry-backed-external-server-config-import for the remaining external-server config import gap."
@@ -615,7 +557,6 @@ resources:
   - url: https://modelcontextprotocol.io/community/server-card/charter
     added: "2026-05-22"
     notes: "Official MCP Server Card Working Group charter - monitor the server-card document format, .well-known/resource discovery paths, server.json alignment, public-metadata constraints, and reference implementation status for KOTA's first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:6a620929f05f869244566685035b16cd
       summary: "MCP Server Card WG charter is accessible; the linked SEP and experimental extension show KOTA's completed first-party card has drifted from the current experimental schema, so this run opened task-align-mcp-server-card-with-the-experimental-extens."
@@ -623,7 +564,6 @@ resources:
   - url: https://github.com/modelcontextprotocol/experimental-ext-server-card
     added: "2026-05-22"
     notes: "Official experimental MCP Server Card extension repo - monitor schema, examples, path conventions, graduation status, and KOTA's first-party MCP server projection."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:96d6246b5fcd8353aa85d48d07817d0a
       summary: "The official experimental MCP Server Card extension remains the active schema/path source, and KOTA's completed Server Card alignment already covers its nonduplicative signal: current well-known path, public remote metadata, no primitive listings, and strict schema drift tests."
@@ -631,7 +571,6 @@ resources:
   - url: https://modelcontextprotocol.io/extensions/apps/overview
     added: "2026-05-25"
     notes: "Official MCP Apps extension overview - monitor io.modelcontextprotocol/ui capability negotiation, ui:// resources, _meta.ui.resourceUri tool metadata, CSP/permission fields, postMessage App Bridge behavior, and host support for KOTA's first-party MCP server."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:de242626687bcf55256bf60549b337e6
       summary: "MCP Apps still matches KOTA's completed first-party MCP server UI-resource slice; no new nonduplicative task was opened from this refresh."
@@ -639,7 +578,6 @@ resources:
   - url: https://github.com/modelcontextprotocol/experimental-ext-skills
     added: "2026-05-25"
     notes: "Official experimental Skills Over MCP Working Group repo - monitor SEP-2640, io.modelcontextprotocol/skills negotiation, skill://index.json, skill://<name>/SKILL.md resource mapping, sibling skill resources, host/client adoption, and security guidance that MCP-served skill content remains untrusted text with no implicit local execution."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:959011e35b95700e45827090e901db31
       summary: "Skills Over MCP now has a concrete resources-based SEP-2640 direction; KOTA already serves local skills and reads generic resources, so this run opened task-consume-mcp-served-skills-as-explicit-remote-skill for the remaining remote-skill catalog consumption gap."
@@ -647,7 +585,6 @@ resources:
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     notes: "GitHub Agentic Workflows is a GitHub Actions-hosted agent workflow runtime; monitor for event-trigger, safe-output, input-sanitization, and multi-engine guardrail patterns relevant to KOTA's workflow runtime."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b836805b9e0619f55d0a92a0a22e9d22
       summary: "GitHub Agentic Workflows now has a concrete Agent Performance Analyzer signal: repeated multi-day workflow failures are detected from run evidence and auto-escalated, which opened task-escalate-persistent-workflow-failure-patterns-into for KOTA's matching deterministic repair-task gap."
@@ -663,7 +600,6 @@ resources:
   - url: https://github.com/Alienfader/continuity-benchmarks
     added: "2026-05-19"
     notes: "Reproducible benchmark for execution-intent memory in long-horizon AI coding agents. Monitor as a peer signal for KOTA's recall/memory eval coverage, action-keyed retrieval, noisy cross-session continuity, and deterministic memory-eval artifacts."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b7839f8147b6cc1e9cbfb7496aad63f4
       summary: "Continuity Benchmarks is accessible and still directly maps to KOTA's execution-intent recall gap; that gap is already covered by the completed `task-add-execution-intent-recall-eval-fixture`, so this refresh opened no duplicate task."
@@ -671,7 +607,6 @@ resources:
   - url: https://arxiv.org/abs/2605.18565
     added: "2026-05-19"
     notes: "LongMINT evaluates memory under multi-target interference in long-horizon agent systems, including revised facts, noisy long contexts, GitHub commits, single-target recall, and multi-target aggregation. Monitor as a recall/eval signal for stale-decision resistance and aggregation over multiple current memories."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:dd9e828c496b0a9e823f819d4514ebab
       summary: "LongMINT directly reinforces KOTA's completed interference-heavy recall fixture: revised facts, distractors, and multi-hit aggregation are already covered without importing the external benchmark."
@@ -679,7 +614,6 @@ resources:
   - url: https://arxiv.org/abs/2605.26302
     added: "2026-05-29"
     notes: "AgingBench / agent lifespan engineering evaluates longitudinal agent reliability across compression, interference, revision, and maintenance aging. Monitor as an eval-harness signal for KOTA memory-lifecycle fixtures, maintenance-shock diagnostics, and per-stage write/store/retrieve/utilize evidence rather than importing the benchmark runner."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:278564466a0d309dcfac4d27866ea3ce
       summary: "AgingBench is accessible and reinforces KOTA's completed longitudinal memory-lifecycle aging fixture; no duplicate task is needed because task-add-a-longitudinal-memory-lifecycle-aging-fixture- already covers the local eval-harness gap."
@@ -687,7 +621,6 @@ resources:
   - url: https://arxiv.org/abs/2605.14678
     added: "2026-05-28"
     notes: "Pi-Bench evaluates proactive personal-assistant agents across hidden user intents, inter-task dependencies, and cross-session continuity. Monitor as an eval-harness signal for assistant proactivity that remains evidence-grounded and authorization-safe."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:91d59e0b1e9c7d311c1afe11551a03e3
       summary: "Pi-Bench reinforces KOTA's completed proactive cross-session intent-resolution fixture; no duplicate task is needed because task-add-proactive-cross-session-intent-resolution-eval already covers the local hidden-intent and authorization-safe proactivity gap."
@@ -695,7 +628,6 @@ resources:
   - url: https://arxiv.org/abs/2605.14415
     added: "2026-05-19"
     notes: "SWE-Chain evaluates coding agents on chained release-level package upgrades where each transition inherits the prior codebase. Monitor as a harness-parity/eval signal for staged maintenance tasks, upgrade regression retention, and long-horizon package migration evidence."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:414dee148ffdf253d9cf7db1b5cff8d0
       summary: "SWE-Chain reinforces KOTA's just-completed staged package-upgrade harness-parity scenario: release-level chained upgrades need inherited working-tree evidence, and no duplicate task is needed."
@@ -703,7 +635,6 @@ resources:
   - url: https://arxiv.org/abs/2605.13139
     added: "2026-05-26"
     notes: "SWE-Cycle evaluates code agents across environment reconstruction, implementation, verification-test generation, and a bare-repository FullCycle task. Monitor as an eval-harness signal for setup-to-tests-to-implementation dependencies, artifact-graded verification, and avoiding preconfigured benchmark environments."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:003b8a8815f1650ea4018c0748980e06
       summary: "SWE-Cycle reinforces KOTA's completed bare-repository full-cycle builder fixture: environment reconstruction, verification-test generation, and implementation repair now have artifact-graded local coverage, so no duplicate task was opened."
@@ -711,7 +642,6 @@ resources:
   - url: https://github.com/EuniAI/TerminalWorld
     added: "2026-05-29"
     notes: "TerminalWorld reverse-engineers terminal-agent eval tasks from public terminal recordings, then validates synthesized environments and state-based tests. Monitor as an eval-harness authoring signal for fixture-candidate mining from KOTA run artifacts, safety filtering, reproducibility checks, and no-op/partial verifier calibration; do not import the benchmark runner or scrape external recordings."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:c2540f6c01a1984c811f27cff93c5b6d
       summary: "TerminalWorld is accessible and still maps to KOTA's completed fixture-candidate mining work; no duplicate task is needed from this snapshot."
@@ -719,7 +649,6 @@ resources:
   - url: https://github.com/scaleapi/SWE-Atlas
     added: "2026-05-29"
     notes: "SWE Atlas evaluates coding agents on Codebase QnA, Test Writing, and Refactoring across professional repository tasks. Monitor as an eval-methodology signal for targeted test-writing, mutation-style test relevance checks, behavior-preserving refactors, and codebase-exploration diagnostics; do not import Harbor, Modal, or an LLM judge."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:df29d9074aacbd0f06d27ee7039b4191
       summary: "SWE Atlas is accessible; Test Writing and Refactoring signals are already covered locally, and this run opened task-add-a-codebase-investigation-answer-scenario-to-ha for the remaining Codebase Q&A answer-completeness parity gap."
@@ -735,7 +664,6 @@ resources:
   - url: https://github.com/ShadeCloak/SaaSbench
     added: "2026-05-27"
     notes: "SaaSBench project repository for the long-horizon enterprise SaaS engineering benchmark. Monitor code, dataset, and DockerHub release status as an eval-harness signal for multi-component SaaS setup, dependency-aware validation nodes, and configuration/integration failures that happen before isolated business logic."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:6671b79539e6dfe1aab6485dbb1cb1d9
       summary: "SaaSBench is accessible and already maps to KOTA's completed builder-multi-service-integration fixture; code, dataset, and Docker releases remain pending, so no duplicate task is needed from this snapshot."
@@ -743,7 +671,6 @@ resources:
   - url: https://arxiv.org/abs/2605.11378
     added: "2026-05-26"
     notes: "AgentEvalBench / EvalAgent studies automated agent-evaluation authoring. Monitor as an eval-harness signal for focused executable eval artifacts, bounded metrics, first-run evaluation success, and reusable evaluator guidance without adding a second KOTA evaluation pipeline."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:9c36c27ef8b0e757154852e25fdd5207
       summary: "AgentEvalBench reinforces KOTA's existing eval-authoring restraint direction; task-add-an-eval-authoring-restraint-fixture-to-the-eva already covers the nonduplicative local gap, so this snapshot opens no duplicate task."
@@ -751,7 +678,6 @@ resources:
   - url: https://github.com/snowmountainAi/webdevbench
     added: "2026-05-27"
     notes: "SWE-WebDev-Bench project repository for evaluating AI coding platforms as virtual software agencies. Monitor benchmark/code/data updates as an eval-harness signal for product-requirement canaries, app-creation vs app-modification retention, frontend/backend coupling, production readiness, security, and business-readiness scoring."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:c2bec5f42afd453adc5073f108a52743
       summary: "SWE-WebDev-Bench is accessible and reinforces KOTA's completed product-requirements canary fixture direction; no duplicate task is needed because task-add-a-product-requirements-canary-fixture-to-the-e already covers the nonduplicative local gap."
@@ -766,7 +692,6 @@ resources:
   - url: https://ibm.github.io/CLEAR/
     added: "2026-05-29"
     notes: "Agentic CLEAR evaluates agent traces at system, node, and trace levels and clusters recurring failure patterns. Monitor as an autonomy-evaluation signal for aggregating KOTA's existing typed trajectory diagnostics into repairable process-quality patterns; do not import CLEAR or add an LLM trace judge by default."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:2323052bb481c38e2ba1ff17ed8e17dd
       summary: "Agentic CLEAR is accessible and now maps to KOTA's completed recurring trajectory-diagnostic escalation path; no duplicate task is needed because task-escalate-recurring-trajectory-diagnostic-patterns- already covered the nonduplicative local gap and the current ready queue contains a generated repair from that mechanism."
@@ -774,7 +699,6 @@ resources:
   - url: https://github.com/agent0ai/agent-zero
     added: "2026-06-19"
     notes: "Agent Zero is a direct peer workbench with a full Linux desktop, browser DOM annotation, plugin hub, project isolation, skills, MCP/A2A/custom tools, subagents, host connector, and time-travel workspace recovery. Monitor as a product/client signal for operator-visible agent workspaces and recoverable artifacts; map ideas to KOTA clients, modules, skills, workflows, and run artifacts rather than copying its all-in-one workbench."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:d34e325e9d1a9405bcb374a8c7daa152
       summary: "Agent Zero is accessible; it remains a product/workspace watch signal for operator-visible desktop/browser artifacts and recoverable project workspaces, with no new KOTA task beyond existing client, module, scope, and artifact primitives."
@@ -782,7 +706,6 @@ resources:
   - url: https://github.com/agent0ai/space-agent
     added: "2026-06-19"
     notes: "Space Agent is Agent Zero's browser-first workspace where the agent can reshape the running interface and uses a DOX AGENTS.md hierarchy. Monitor as a client/workspace and scoped-instruction signal for KOTA's shared client surfaces and AGENTS hierarchy; do not add a second docs system beside scoped AGENTS.md."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:e2a262404c8e8a1c5697a4a050319ddf
       summary: "Space Agent is accessible; it reinforces KOTA's existing scoped-instruction and recoverable client-surface direction, while runtime-authored UI remains watch-only until local evidence requires it."
@@ -791,9 +714,9 @@ resources:
     added: "2026-06-19"
     notes: "Rowboat is a local-first AI coworker that turns email, meetings, and notes into an inspectable Markdown knowledge graph with background agents. Monitor as a knowledge/memory/client signal for editable operator-owned context and recurring brief generation; map to KOTA stores, clients, workflows, and channels rather than adding a parallel memory product."
     snapshot:
-      fingerprint: sha256:b65bfe5e73365055d5c57f3390068158
-      summary: "The README describes editable local Markdown knowledge, email and meeting context, event- and schedule-triggered background agents, an isolated browser, custom apps, and MCP integrations."
-      last_seen_at: "2026-09-10T02:06:55.005Z"
+      fingerprint: sha256:59405af86182f45438a90786eced7b9b
+      summary: "The README describes an editable local Markdown knowledge graph, email, meeting notes, isolated browser, parallel coding agents, custom work surfaces and event/schedule automation. It also documents an optional Parallel Search MCP connection and its data disclosure and removal steps."
+      last_seen_at: "2026-09-12T21:51:54.621Z"
   - url: https://github.com/lfnovo/open-notebook
     added: "2026-06-19"
     notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
@@ -804,7 +727,6 @@ resources:
   - url: https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
     added: "2026-06-19"
     notes: "OpenAI Secure MCP Tunnel exposes private MCP servers to supported OpenAI products through an outbound tunnel-client while keeping the server inside the customer's network. Monitor as a private MCP connectivity signal for KOTA's mcp-server, mcp-registry, setup, and secret surfaces; this review opened task-add-private-mcp-tunnel-connector-support for the nonduplicative local gap."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:a2b3812be5efa8b414190b67e20c6489
       summary: "OpenAI Secure MCP Tunnel is accessible and still maps to completed task-add-private-mcp-tunnel-connector-support; no additional tunnel task is opened from this snapshot."
@@ -812,7 +734,6 @@ resources:
   - url: https://arxiv.org/abs/2602.14878
     added: "2026-06-22"
     notes: "MCP tool-description quality paper studying 856 tools across 103 MCP servers. Monitor as a core tool-guidance and MCP-client signal for compact diagnostics around purpose, effect, input/output, and negative-use guidance; do not add a model scanner, rewrite remote tool descriptions, or expand normal agent prompts by default."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0b7cb1aab500b2096b2219cd1bbb7476
       summary: "MCP tool-description smells are accessible and already covered by completed task-add-tool-description-quality-diagnostics-for-agent, so no duplicate task is needed from this snapshot."
@@ -820,7 +741,6 @@ resources:
   - url: https://arxiv.org/abs/2606.22721
     added: "2026-06-23"
     notes: "Habituation at the Gate studies rising approval and declining scrutiny in human review of AI-agent pull requests using the AIDev dataset. Monitor as an autonomy/GitHub review safety signal for local PR-review scrutiny artifacts, approval-pattern warnings, and operator-facing review-quality evidence; do not import AIDev or add an external PR-review benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:7745a0f9dd6558369e93e3b3f44fa036
       summary: "Habituation at the Gate is accessible; its nonduplicative KOTA signal is operator-visible review-scrutiny diagnostics for approval-like autonomy and PR review decisions, which opened task-record-autonomy-review-scrutiny-metrics."
@@ -828,7 +748,6 @@ resources:
   - url: https://arxiv.org/abs/2601.16809
     added: "2026-06-24"
     notes: "Will It Survive? studies the long-term fate of AI-generated code in open source. Monitor as an autonomy/reporting safety signal for post-completion corrective follow-up metrics; this review opened task-record-post-completion-corrective-follow-up-metric for the nonduplicative local gap and should not import an external code-survival benchmark."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:0efe904181f04ef97de1638a96e07271
       summary: "Will It Survive? is accessible; its post-completion corrective-maintenance signal is already covered by completed task-record-post-completion-corrective-follow-up-metric, and this run opened no duplicate code-survival benchmark task."
@@ -836,7 +755,6 @@ resources:
   - url: https://arxiv.org/abs/2604.09409
     added: "2026-06-24"
     notes: "Do AI Coding Agents Log Like Humans? studies logging and observability behavior in agentic pull requests. Monitor as an autonomy/runtime diagnostic signal for deterministic logging-obligation checks around agent-authored runtime-sensitive changes; do not add generic log-volume prompts or a parallel audit log."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:4f2aed1ae29925f95ed8c72f1371eec7
       summary: "Do AI Coding Agents Log Like Humans? is accessible; its logging-observability signal is already covered by completed task-add-agent-authored-logging-obligation-diagnostics, so no duplicate logging task was opened."
@@ -844,7 +762,6 @@ resources:
   - url: https://arxiv.org/abs/2606.22711
     added: "2026-06-24"
     notes: "Beyond Simpson's Paradox studies confounded AI-agent pull-request outcome metrics in the AIDev dataset. Monitor as an autonomy/reporting safety signal for stratifying KOTA's own quality metrics by workflow, harness, task shape, and source area before comparing pooled trends; do not import AIDev or mine GitHub."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:273657614c8d6fc07aa449a3ecfcc0ce
       summary: "Beyond Simpson's Paradox is accessible; its nonduplicative KOTA signal is stratifying autonomy quality report metrics before comparing pooled trends, which opened task-stratify-autonomy-quality-metrics-before-comparing."
@@ -852,7 +769,6 @@ resources:
   - url: https://arxiv.org/abs/2605.29442
     added: "2026-06-24"
     notes: "How Coding Agents Fail Their Users studies developer-agent misalignment through visible pushback in real IDE and CLI sessions. Monitor as an autonomy/reporting safety signal for KOTA's own owner-question intervention pressure, timeout, and free-form correction evidence; this review opened task-report-owner-intervention-pressure-in-autonomy-sum and should not import the paper's session dataset."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:265874ad44d0fe1882afa78807e37aff
       summary: "How Coding Agents Fail Their Users is accessible; its owner-correction pressure signal is already covered by the completed owner-intervention report, while this run opened task-escalate-recurring-owner-intervention-patterns-int for the remaining adjacent-run recurrence-to-repair gap."
@@ -860,7 +776,6 @@ resources:
   - url: https://arxiv.org/abs/2606.24429
     added: "2026-07-01"
     notes: "Detecting AI Coding Agents in Open Source studies multi-method detection of coding-agent traces across commits, configuration files, author identity, and bot signatures. Monitor as an autonomy/reporting signal for KOTA's own agent-authored work attribution, harness/run provenance, and post-completion quality metrics; do not mine external repositories or add a bot-account-only adoption heuristic."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:3815fa046837291496f67c2e3cbdccc9
       summary: "Detecting AI Coding Agents in Open Source is accessible; its multi-method attribution signal reinforces KOTA's completed post-completion, review-scrutiny, diff-summary, and quality-stratification reporting plus open source-to-decision coverage, so no duplicate task was opened."
@@ -868,7 +783,6 @@ resources:
   - url: https://arxiv.org/abs/2606.22678
     added: "2026-07-07"
     notes: "RigorBench studies process discipline in autonomous coding agents across planning, verification, recovery, abstention, and atomicity dimensions. Monitor as an autonomy/reporting signal for projecting KOTA's existing trajectory diagnostics into bounded operator-facing discipline scores; do not import the benchmark runner, external weights, or an LLM process judge."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:9b7fe3a4cb5474b0d0e2e8cca36a6c51
       summary: "RigorBench is accessible; its process-discipline benchmark signal is already covered by completed task-report-process-discipline-scores-from-trajectory-d, so no duplicate task is needed."
@@ -883,7 +797,6 @@ resources:
   - url: https://arxiv.org/abs/2602.10975
     added: "2026-07-07"
     notes: "FeatureBench evaluates end-to-end feature-oriented coding tasks with execution-based verification and test/dependency-graph-derived slices spanning multiple commits and PRs. Monitor as an eval-harness signal for compact feature-slice fixtures with adjacent regression proof; do not import the benchmark, external environments, or automated repository-mining pipeline."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:628750b9fada4e5fc8ba986644fef927
       summary: "FeatureBench is accessible; its feature-oriented executable-evaluation signal is already covered by completed task-add-a-feature-slice-development-fixture-to-the-eva, so no duplicate task was opened."
@@ -891,7 +804,6 @@ resources:
   - url: https://arxiv.org/abs/2605.15226
     added: "2026-07-07"
     notes: "Phoenix-bench studies agentic hardware-engineering debugging with repository navigation, hierarchy-aware localization, executable verification, and maintenance-style patching. Monitor as an eval-harness signal for cross-hierarchy root-cause debugging from structured failure evidence; do not import Verilator, EDA tooling, Docker environments, or the external benchmark corpus."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:b5cea6d89c2c1cdedff9f4565eadad1b
       summary: "Phoenix-bench is accessible; its cross-hierarchy hardware-debugging signal is already covered by blocked task-add-a-cross-hierarchy-signal-flow-debugging-fixtur, which borrows the root-cause/testbench-feedback shape without importing Verilator, EDA, Docker, or the external corpus."
@@ -899,8 +811,10 @@ resources:
   - url: https://arxiv.org/abs/2605.26457
     added: "2026-07-08"
     notes: "Verus-SpecGym studies agentic specification autoformalization: translating informal programming requirements into faithful executable/formal specs and testing them against official plus adversarial cases. Monitor as an eval-harness signal for spec-faithfulness fixtures; do not import Verus, Harbor, Codeforces data, Docker environments, or the external benchmark corpus."
-    status: inaccessible
     snapshot:
       fingerprint: sha256:93d106847914ebeff21f1ef1b2228417
       summary: "Verus-SpecGym is accessible; its executable spec-faithfulness and adversarial-counterexample signal is already covered by completed task-add-a-formal-spec-faithfulness-fixture-to-the-eval, so no duplicate task is needed."
       last_seen_at: "2026-07-08T04:01:41.981Z"
+  - url: https://github.com/letta-ai/letta-code
+    added: "2026-09-12"
+    notes: "The September 12 runtime observation of letta-ai/letta identifies this as its active source for the harness, terminal UI, App Server, channels and app runtime. Monitor current memory-continuity and client/server development here; this new source has not yet been fetched by the watchlist runtime."
