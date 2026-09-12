@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Security review: Database read protection depends on writer authorization. A native CLI invocation without writer identity, running from the daemon's canonical repository, receives repository-wide read access without denials for kota.sqlite or its journals. On a multi-scope daemon, this exposes other scopes' persisted workflow data. The writer fix therefore leaves a non-writer cross-scope confidentiality gap.
@@ -19,6 +19,80 @@ a block. The confidentiality finding remains unclosed until its guarantee is pro
 security family: 0d08d683e9a7787d3a4e0da83efee038bb24506b96c6a42898dea41b55935c86
 
 This contract supersedes historical blocking and operational-capture requirements.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Task-attributable availability of authorized Linux confinement execution, or equivalent executed synthetic boundary evidence.
+
+The existing evidence-review kind records execution authority. Its path is a
+discovery hint, not a required capture location. Reopen when scoped capability
+evidence establishes an authorized invocation; running and assessing the tests
+remains this task's work.
+
+An authorized execution path from this retained run to a Linux environment that
+can launch the production bubblewrap boundary against synthetic data, or an
+attributable export of that execution. This is an execution-authority limitation
+of the current worker, not a claim that the host lacks Docker. No particular
+capture directory or manual operator execution is required.
+
+Repair assessment on 2026-09-12, run
+`2026-09-12T06-41-37-210Z-builder-kuqngk`, checked the available setup paths:
+
+- The worker runs on Darwin. Docker is installed at `/usr/local/bin/docker`;
+  `docker version --format '{{json .Server}}'` exited 1 with permission denied
+  connecting to `unix:///var/run/docker.sock`. No server version was returned.
+  `bwrap`, `podman`, `limactl` and `qemu-system-aarch64` were not discoverable
+  on the worker PATH.
+- Repository dependencies are usable. The existing synthetic non-writer and
+  absent-state tests reached the production native launcher, then explicitly
+  skipped because the enclosing sandbox forbids nested OS sandbox execution.
+  This is no confinement pass and does not alone justify this blocker.
+- `pnpm kota eval --help` succeeded. Its current surface offers fixture runs,
+  calibration, fixture discovery and AGY model evaluation. Inspection of
+  `src/modules/eval-harness/client.ts` and `index.ts` found fixture/model run
+  contracts, not a worker-callable command for these deterministic Linux tests.
+  The native request/reply owner in
+  `src/core/workflow/native-run-authorization.ts` returns only a boolean writer
+  authorization challenge; its writable request directory is not a host
+  execution service. No contained-execution tool is exposed to this invocation.
+- The supplied `issue-evidence.json` contains the original security reviews and
+  published writer `1743ee4d323e646d2ececcac7cd84650878a53d4`, without a new
+  task-linked Linux execution export. The open contained-evaluation task is
+  relevant enabling work, but its fixture/model scope is not itself proof that
+  this deterministic confinement probe can execute.
+
+Available local setup and discovery therefore reach an unavailable authority:
+this worker cannot dispatch a Linux child through an exposed trusted runtime
+capability. Installing dependencies or changing test commands cannot grant that
+authority. No Docker socket, raw daemon data, credentials, or weakened launcher
+was supplied to candidate code; the parent daemon was not controlled.
+
+Resume when the runtime exposes scoped execution for these synthetic checks or
+equivalent attributable results become available. Run the existing database,
+late-journal and absent-state cases and verify both denied private reads and
+successful repository reads/persisted artifact writes. Repair any observed
+confinement defect before marking this finding done.
+
+## Verification of this disposition
+
+No production code or tests were changed in this run. The prior handoff-only
+return did not satisfy builder completion; this blocked disposition replaces it.
+The existing published implementation remains subject to the unfulfilled Linux
+execution contract above.
+
+- `pnpm test:owner src/core/agent-harness/native-cli-sandbox.test.ts -t
+  'non-writer|without a state directory' --reporter=verbose`: two policy checks
+  passed for canonical/custom-linked live database locators. Two selected
+  confinement checks skipped at sandbox bootstrap; nine other tests were
+  excluded by selection. This distinguishes missing locator propagation, not
+  successful OS confinement.
+- `pnpm test:owner src/core/agent-harness/machine-authority-sandbox.test.ts
+  src/core/agent-harness/native-cli-sandbox-roots.test.ts --reporter=verbose`:
+  16 passed, two Linux-only cases skipped on Darwin. These checks cover mount
+  policy construction, effective restriction preservation, absent paths and
+  intended runtime/dependency roots; they do not establish Linux execution.
 
 
 
