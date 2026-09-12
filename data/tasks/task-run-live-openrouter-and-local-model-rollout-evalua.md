@@ -1,14 +1,17 @@
 ---
-status: blocked
+status: open
 priority: p1
-depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
+depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode, task-enable-runtime-mediated-contained-evaluation]
 ---
 # Run live OpenRouter and local model rollout evaluation
 
 ## Current Contract
 
-Reopened for the two explicit native/local routing gaps below and supported
-image, egress and model setup. Existing credential resolution is implementation
+Native/local routing and the contained Codex proxy handoff integrated in
+`3835edb0f`. The shared invocation gap is assigned to
+`task-enable-runtime-mediated-contained-evaluation`; consume that capability
+rather than creating another bridge. Finish image, egress and model setup, then
+run the live comparison. Existing credential resolution is implementation
 work; an empty local model inventory is setup work. Use available owner-mediated
 auth and isolated execution, reporting any genuinely unavailable credential or
 entitlement precisely. Historical sandbox denials do not justify deferring these
@@ -342,23 +345,13 @@ Evidence is in builder run `2026-09-12T06-41-11-663Z-builder-drp743`, runtime
 `repair3-owner-tests.txt`, `repair3-check-fast.txt`, `repair3-compile.txt`, and
 `repair3-validate-tasks.txt`.
 
-## Blocked on
+## Remaining setup and evaluation
 
-```text
-kind: operator-capture
-path: .kota/runs
-description: Task-linked evidence of runtime-authorized contained native/OpenRouter/local evaluation capability, or equivalent attributable execution exports.
-```
-
-This path is a discovery hint for semantic review, not a requirement for manual
-collection or a particular capture directory. Equivalent scoped evidence can
-satisfy the prerequisite.
-
-An available runtime-authorized evaluation context or attributable scoped execution
-export that can use the existing host-managed credentials and Docker/local-runtime
-capabilities while keeping candidate code contained. This agent's policy denies
-those connections and credential paths and exposes no applicable mediation tool;
-a new credential purchase or blanket grant of host authority is not requested.
+The native invocation denied host connections and exposed no contained-eval
+mediation tool. The shared implementation dependency above now owns that gap;
+it is not a request for an owner capture, new credential purchase or blanket host
+authority. This task stays open behind that code prerequisite. The routing repair
+is delivered, but no live benchmark or model promotion is claimed.
 
 Resume by binding the existing OpenRouter credential through its scope secret
 owner, validating a compatible image and provider proxy (including native nested
