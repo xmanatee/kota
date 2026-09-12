@@ -6,9 +6,10 @@
  * event handlers, scripts, and module lifecycle.
  */
 
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { appendAnchoredTextFile, readAnchoredTextFile, writeAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
-import { listModuleDirectories, moduleFile } from "./module-files.js";
+import { assertModuleStorageName, listModuleDirectories, moduleFile } from "./module-files.js";
 import { ModuleStorage } from "./module-storage.js";
 
 export type LogLevel = "info" | "warn" | "error" | "debug";
@@ -102,7 +103,7 @@ export class ModuleLogStore {
   private readLog(module: string): LogEntry[] {
     const content = new ModuleStorage(this.baseDir, module).readFile("logs.jsonl");
     if (content === undefined) return [];
-    return content.split("\n").filter(Boolean).map(line => decodeLogLine(line, module));
+    return content.split("\n").filter(Boolean).map(line => decodeModuleLogLine(line, module));
   }
 
   private maybePrune(module: string): void {
@@ -111,7 +112,7 @@ export class ModuleLogStore {
     if (file === null) throw new Error(`Module log disappeared before pruning: ${module}`);
     const lines = file.content.split("\n").filter(Boolean);
     // Never discard malformed history during retention. It needs explicit repair.
-    for (const line of lines) decodeLogLine(line, module);
+    for (const line of lines) decodeModuleLogLine(line, module);
     if (lines.length > MAX_ENTRIES) {
       writeAnchoredTextFile({ ...access, expectation: "existing", expectedSnapshot: file.snapshot,
         content: `${lines.slice(-PRUNE_TO).join("\n")}\n` });
@@ -119,7 +120,7 @@ export class ModuleLogStore {
   }
 }
 
-function decodeLogLine(line: string, module: string): LogEntry {
+export function decodeModuleLogLine(line: string, module: string): LogEntry {
   let entry: unknown;
   try { entry = JSON.parse(line); }
   catch { throw new Error(`Invalid module log JSON for ${module}`); }
@@ -132,4 +133,14 @@ function decodeLogLine(line: string, module: string): LogEntry {
   }
   return { ts: entry.ts, msg: entry.msg, module: entry.module, level: entry.level,
     ...("data" in entry ? { data: entry.data } : {}) };
+}
+
+/** Content identity survives retention moving the record to a different line. */
+export function moduleLogRecordReference(module: string, line: string): string {
+  assertModuleStorageName(module);
+  return `.kota/modules/${module}/logs.jsonl#sha256=${moduleLogRecordDigest(line)}`;
+}
+
+export function moduleLogRecordDigest(line: string): string {
+  return createHash("sha256").update(line).digest("hex");
 }

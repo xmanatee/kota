@@ -32,6 +32,9 @@ operation scope from the request, signal, session, or channel runtime; module
 loader `cwd` is storage context and must not be used as runtime attribution.
 Operations without authoritative scope remain ordinary diagnostics.
 
+Module-log record references bind the stored content identity because retention reuses
+line numbers. Unqualified log references provide bounded current context.
+
 Module logs resolve through the host runtime-scope provider. Tool/session/workflow scope
 owns request logs; explicit operation scope takes precedence. Activation logs
 use the loader's declared canonical `scopeRoot`, never its storage `cwd` or the

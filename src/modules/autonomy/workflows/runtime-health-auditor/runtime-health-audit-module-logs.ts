@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { assertModuleStorageName } from "#core/modules/module-files.js";
+import { moduleLogRecordReference } from "#core/modules/module-log.js";
 import { listAnchoredDirectory, readAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
 import { classifyModuleOperationHealth } from "#modules/autonomy/autonomy-issue-module-failure.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
@@ -20,8 +21,7 @@ import {
 type LogObservation = {
   moduleName: string;
   operation: string;
-  path: string;
-  lineNumber: number;
+  line: string;
   text: string;
 };
 
@@ -62,7 +62,7 @@ function classifyLogObservation(
 ): PatternInput | null {
   const evidence: AutonomyHealthEvidenceRef = {
     kind: "module-log",
-    ref: `${observation.path}#L${observation.lineNumber}`,
+    ref: moduleLogRecordReference(observation.moduleName, observation.line),
     summary: truncateSingleLine(observation.text),
   };
 
@@ -98,7 +98,6 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
     const file = readAnchoredTextFile({ rootPath: ctx.scopeRoot, boundaryDir: join(modulesDir, moduleName), filePath: absolutePath });
     if (file === null) continue;
 
-    const repoPath = join(".kota", "modules", moduleName, "logs.jsonl");
     ctx.inspected.moduleLogFiles += 1;
     const lines = file.content
       .split(/\r?\n/)
@@ -126,8 +125,7 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
       const pattern = classifyLogObservation({
         moduleName,
         operation: line.operation,
-        path: repoPath,
-        lineNumber: line.lineNumber,
+        line: line.line,
         text: line.text,
       });
       if (!pattern) continue;

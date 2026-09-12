@@ -2,6 +2,7 @@ import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { ModuleLogStore, moduleLogRecordReference } from "#core/modules/module-log.js";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { writeIssueEvidence } from "./issue-evidence.js";
@@ -79,21 +80,30 @@ it("exports only cited same-scope diagnostic content, batches repeated log refer
   database.close();
   const logs = join(stateDir, "modules/telegram/logs.jsonl");
   mkdirSync(join(stateDir, "modules/telegram"), { recursive: true });
-  writeFileSync(logs, [
-    { module: "telegram", msg: "unselected-line" },
-    { module: "telegram", msg: "getUpdates conflict", data: { token: "private-token", operation: "poll" } },
-  ].map((entry) => JSON.stringify(entry)).join("\n"));
+  const entries = Array.from({ length: 1000 }, (_, index) => JSON.stringify({
+    ts: new Date(Date.UTC(2026, 8, 12, 0, 0, index)).toISOString(),
+    level: "info", module: "telegram", msg: index === 0 ? "unselected-line" : `history ${index} ${"x".repeat(200)}`,
+  }));
+  entries[100] = JSON.stringify({ ts: "2026-09-12T00:01:40Z", level: "error", module: "telegram", msg: "old failure" });
+  entries[400] = JSON.stringify({ ts: "2026-09-12T00:06:40Z", level: "error", module: "telegram", msg: "getUpdates conflict", data: { token: "private-token", operation: "poll" } });
+  const selectedRef = moduleLogRecordReference("telegram", entries[400]!);
+  const expiredRef = moduleLogRecordReference("telegram", entries[100]!);
+  const logContent = `${entries.join("\n")}\n`;
+  expect(Buffer.byteLength(logContent)).toBeGreaterThan(128 * 1024);
+  writeFileSync(logs, logContent);
   writeFileSync(join(stateDir, "secrets.json"), JSON.stringify({ value: "host-secret-content" }));
   symlinkSync(join(stateDir, "secrets.json"), join(stateDir, "runs/selected/linked.json"));
   writeFileSync(join(stateDir, "runs/selected/oversize.json"), JSON.stringify({ text: "x".repeat(128 * 1024) }));
   writeFileSync(join(stateDir, "runs/selected/invalid.json"), "host-secret-content is not JSON");
-  const path = await writeIssueEvidence({ scopeRoot: root, scopeId: "scope", stateDir, runtimeStateDir: stateDir,
+  const context = { scopeRoot: root, scopeId: "scope", stateDir, runtimeStateDir: stateDir,
     runBlocking: runWorkflowBlockingOperation,
     runtimeResources: { profileId: "review", env: {}, agentRunDir: join(root, "sandbox/agent") },
     workflow: { name: "improver", runId: "review", runDir: ".kota/runs/review", runDirPath: join(stateDir, "runs/review"), definitionPath: "workflow.ts" },
-  }, [
+  };
+  const path = await writeIssueEvidence(context, [
     { kind: "artifact", ref: ".kota/runs/selected/control-monitor-coverage.json" },
-    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl#L2" },
+    { kind: "module-log", ref: selectedRef },
+    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl" },
     ...[".kota/runs/foreign/control-monitor-coverage.json", ".kota/secrets.json", ".kota/runs/selected/../../secrets.json",
       ".kota/runs/selected/linked.json", ".kota/runs/selected/oversize.json", ".kota/runs/selected/invalid.json", ".kota/runs/selected/missing.json"].map((ref) => ({ kind: "artifact" as const, ref })),
     { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl#L99" },
@@ -105,6 +115,29 @@ it("exports only cited same-scope diagnostic content, batches repeated log refer
   for (const denied of ["host-secret-content", "foreign-private-content", "private-token", "private-reasoning-content", "unselected-line"]) expect(exported).not.toContain(denied);
   const parsed = JSON.parse(exported);
   expect(parsed.evidence.filter((entry: { unavailable?: string }) => entry.unavailable)).toHaveLength(8);
-  expect(parsed.evidence.filter((entry: { content?: object }) => entry.content)).toHaveLength(2);
+  expect(parsed.evidence.filter((entry: { content?: object }) => entry.content)).toHaveLength(3);
   expect(readFileSync(join(stateDir, "runs/review/issue-evidence.json"), "utf8")).toBe(exported);
+  expect(Buffer.byteLength(exported)).toBeLessThan(128 * 1024);
+  // Production pruning moves the selected record and reuses both original line numbers.
+  new ModuleLogStore(root).append("telegram", "info", "poll recovered");
+  const prunedPath = await writeIssueEvidence(context, [
+    { kind: "module-log", ref: selectedRef },
+    { kind: "module-log", ref: expiredRef },
+    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl#L401" },
+    { kind: "module-log", ref: ".kota/modules/telegram/logs.jsonl" },
+  ]);
+  const pruned = JSON.parse(readFileSync(prunedPath!, "utf8"));
+  expect(pruned.evidence).toEqual(expect.arrayContaining([
+    expect.objectContaining({ ref: selectedRef, content: [expect.objectContaining({ msg: "getUpdates conflict" })] }),
+    expect.objectContaining({ ref: expiredRef, unavailable: expect.stringContaining("expired") }),
+    expect.objectContaining({ ref: ".kota/modules/telegram/logs.jsonl#L401", unavailable: expect.stringContaining("no stable record identity") }),
+  ]));
+  expect(JSON.stringify(pruned)).toContain("poll recovered");
+  expect(JSON.stringify(pruned)).not.toContain("old failure");
+  new ModuleLogStore(root).clear("telegram");
+  const absentPath = await writeIssueEvidence(context, [{ kind: "module-log", ref: selectedRef }]);
+  expect(JSON.parse(readFileSync(absentPath!, "utf8")).evidence).toEqual([
+    expect.objectContaining({ ref: selectedRef, unavailable: expect.stringContaining("absent") }),
+  ]);
+
 });

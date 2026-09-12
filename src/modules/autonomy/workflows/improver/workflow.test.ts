@@ -189,9 +189,14 @@ describe("improver issue disposition workflow", () => {
     database.close();
     mkdirSync(join(workspaceRoot, ".kota/modules/telegram"), { recursive: true });
     mkdirSync(join(workspaceRoot, ".kota/runs/incident"), { recursive: true });
-    writeFileSync(join(workspaceRoot, ".kota/modules/telegram/logs.jsonl"), JSON.stringify({
+    const logHistory = Array.from({ length: 999 }, (_, index) => JSON.stringify({
+      ts: "2026-09-12T00:00:00Z", level: "info", module: "telegram", msg: `poll ${index} ${"x".repeat(200)}`,
+    }));
+    logHistory.push(JSON.stringify({ ts: "2026-09-12T00:01:00Z", level: "error",
       module: "telegram", msg: "getUpdates conflict: competing consumer", data: { token: "private-token" },
     }));
+    expect(Buffer.byteLength(logHistory.join("\n"))).toBeGreaterThan(128 * 1024);
+    writeFileSync(join(workspaceRoot, ".kota/modules/telegram/logs.jsonl"), logHistory.join("\n"));
     writeFileSync(join(workspaceRoot, ".kota/runs/incident/control-monitor-coverage.json"), JSON.stringify({
       scopeId: state.scopeId, outcome: "control monitor missed deadline",
     }));

@@ -18,6 +18,9 @@ filename selection, content formats, and domain transitions.
   Text decoding rejects malformed UTF-8 bytes and preserves valid Unicode and BOMs.
   Existing entries require their exact stored spelling, including on filesystems
   that otherwise alias case or Unicode normalization variants.
+- Bounded line reads stream one opening snapshot and limit selected output, not
+  total file size. Exact selections fail visibly when they exceed the byte budget;
+  recent context omits oversized lines. Callers own record attribution and expiry.
 - Cross-directory moves install then remove, with snapshot-checked compensation.
   They are not atomic transactions; failed cleanup may retain a temporary or
   quarantined entry rather than remove an entry whose identity is uncertain.

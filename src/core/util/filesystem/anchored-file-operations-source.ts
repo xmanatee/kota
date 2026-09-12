@@ -46,7 +46,9 @@ function readTextFile(request, parentIdentity) {
   if (opened === undefined) return { exists: false };
   try {
     let content;
-    if (request.maxBytes !== undefined) {
+    if (request.lines !== undefined) {
+      content = readSelectedLines(opened, request);
+    } else if (request.maxBytes !== undefined) {
       if (!Number.isSafeInteger(request.maxBytes) || request.maxBytes < 0 || opened.snapshot.size > request.maxBytes) {
         refuse("file exceeds read limit");
       }
@@ -71,6 +73,77 @@ function readTextFile(request, parentIdentity) {
   } finally {
     closeSync(opened.fd);
   }
+}
+
+// Stream the opening snapshot only. Memory and output depend on selected lines,
+// not log size; the caller still receives a snapshot-verified result.
+function readSelectedLines(opened, request) {
+  const selected = [];
+  const recent = [];
+  const wanted = new Set(request.lines.digests);
+  let selectedBytes = 0;
+  let recentBytes = 0;
+  let lineBytes = 0;
+  let parts = [];
+  let hash = createHash("sha256");
+  let pendingCR = false;
+  const chunk = Buffer.alloc(16384);
+  function append(bytes) {
+    hash.update(bytes);
+    lineBytes += bytes.length;
+    if (lineBytes <= request.maxBytes) parts.push(Buffer.from(bytes));
+    else parts = [];
+  }
+  function finish() {
+    const digest = hash.digest("hex");
+    const exact = wanted.has(digest);
+    if (exact && lineBytes + 1 > request.maxBytes) refuse("selected line exceeds read limit");
+    if (lineBytes > 0 && lineBytes + 1 <= request.maxBytes) {
+      const text = decodeText(Buffer.concat(parts));
+      const entry = { text, bytes: lineBytes + 1 };
+      if (exact) {
+        selected.push(entry);
+        selectedBytes += entry.bytes;
+        if (selectedBytes > request.maxBytes) refuse("selected lines exceed read limit");
+      } else if (request.lines.tailLines > 0) {
+        recent.push(entry);
+        recentBytes += entry.bytes;
+      }
+      while (recent.length > request.lines.tailLines || recentBytes + selectedBytes > request.maxBytes) {
+        recentBytes -= recent.shift().bytes;
+      }
+    }
+    lineBytes = 0;
+    parts = [];
+    hash = createHash("sha256");
+    pendingCR = false;
+  }
+  let position = 0;
+  while (position < opened.snapshot.size) {
+    const count = readSync(opened.fd, chunk, 0, Math.min(chunk.length, opened.snapshot.size - position), position);
+    if (count === 0) refuse("file entry changed while it was read");
+    position += count;
+    let start = 0;
+    // Hold a trailing CR until the following byte distinguishes CRLF from data.
+    for (let index = 0; index < count; index++) {
+      if (chunk[index] !== 10) continue;
+      let end = index;
+      if (pendingCR && index > start) append(Buffer.from([13]));
+      if (end > start && chunk[end - 1] === 13) end--;
+      append(chunk.subarray(start, end));
+      finish();
+      start = index + 1;
+    }
+    if (start < count) {
+      if (pendingCR) append(Buffer.from([13]));
+      const end = chunk[count - 1] === 13 ? count - 1 : count;
+      append(chunk.subarray(start, end));
+      pendingCR = end !== count;
+    }
+  }
+  if (pendingCR) append(Buffer.from([13]));
+  if (lineBytes > 0) finish();
+  return [...selected, ...recent].map(entry => entry.text).join("\\n");
 }
 
 function appendTextFile(request, parentIdentity, directoryFd) {

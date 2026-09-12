@@ -6,6 +6,7 @@ import {
   type AnchoredBatchEntry,
   type AnchoredDirectoryEntry,
   type BatchReadRequest,
+  type BoundedTextRead,
   type FileAccess,
   type FileIdentity,
   type FileSnapshot,
@@ -194,7 +195,7 @@ export function appendAnchoredTextFile(args: FileAccess & { content: string }): 
 
 /** Bounded independent reads share one isolated helper and retain per-file failures. */
 export async function readAnchoredTextFiles(
-  files: readonly (FileAccess & { maxBytes: number })[],
+  files: readonly BoundedTextRead[],
   signal?: AbortSignal,
 ): Promise<AnchoredBatchEntry[]> {
   if (files.length > 64) throw new Error("Anchored read batch exceeds 64 files");
@@ -204,7 +205,7 @@ export async function readAnchoredTextFiles(
   const request: BatchReadRequest = { operation: "read-batch", requests: [] };
   for (const [index, file] of files.entries()) {
     try {
-      request.requests.push({ ...prepareFile(file, false), operation: "read", maxBytes: file.maxBytes });
+      request.requests.push({ ...prepareFile(file, false), operation: "read", maxBytes: file.maxBytes, ...(file.lines ? { lines: file.lines } : {}) });
       selected.push(index);
     } catch (error) {
       entries[index] = { ok: false, reason: error instanceof Error ? error.message : "Unsafe file access" };

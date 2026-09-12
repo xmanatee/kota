@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make recovery evidence collection proportional to relevant work
 
@@ -240,3 +239,35 @@ Logs are in this run's agent directory: `investigator-final.log`,
 `check-fast-final.log`, `build-final.log`, and `build-result.txt`.
 Launching-daemon deployment observation remains operational follow-up under the
 owner's waiver; this completion does not close other activation/recovery tasks.
+
+
+## Reopened diagnostic reader completion — September 12
+
+Run `2026-09-12T17-27-13-559Z-builder-inh3mx` removes whole-log size rejection
+from the shared investigator export. The anchored batch helper streams cited logs
+with bounded selected output and memory; scope authorization, no-follow and
+single-link checks, snapshot verification, cancellation, and redaction remain
+with their existing owners. The module-log decoder validates exported records.
+Exact citations use stored-content identity and survive pruning; legacy line-only
+references explicitly remain unavailable because retention can reuse their offset.
+Unqualified references provide labelled bounded recent context. No history is
+deleted by collection and no additional log store or host authority is introduced.
+
+The extended diagnostic-export check uses 1,000 valid records exceeding 128 KiB,
+then real module-log pruning and absence. It proves selected content, recovery
+context, expired references, and secret/scope rejection. The shared filesystem
+checks cover streaming boundaries, byte budgets, malformed UTF-8, links, and
+helper cancellation. The 67-test owner selection passed; the isolated improver
+handoff also passed with the larger log and the real worker/export owners.
+A separate worker-backed probe exported 18,927 bytes from a 286,772-byte log in
+210 ms, preserving the selected conflict after pruning and redacting its token.
+The inspectable exports and measurement are in this run's agent directory as
+`diagnostic-export.json`, `diagnostic-pruned-export.json`, and
+`diagnostic-measurement.json`.
+
+Static validation and production compilation are recorded in `check-fast.log`
+and `build.log`; focused results are in `owner.log` and `investigator.log`.
+This completion addresses the reopened reader defect. The monitor owns activation
+and live improver observation after publication, as the current contract requires;
+the builder has not restarted or controlled its launching daemon. Historical
+recovery/activation proof above remains attributable to its original runs.

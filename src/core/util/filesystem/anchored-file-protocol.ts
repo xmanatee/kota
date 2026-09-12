@@ -36,11 +36,15 @@ export type PreparedDirectory = {
   rootPath: string;
 };
 
+/** Select exact UTF-8 lines by SHA-256 (excluding CR/LF), plus bounded recent context. */
+export type TextLineSelection = { digests: string[]; tailLines: number };
+export type BoundedTextRead = FileAccess & { maxBytes: number; lines?: TextLineSelection };
+
 export type HelperRequest = PreparedDirectory &
   (
     | { operation: "list"; nameSuffix: string | null }
     | { operation: "list-entries" }
-    | { operation: "read"; fileName: string; maxBytes?: number }
+    | { operation: "read"; fileName: string; maxBytes?: number; lines?: TextLineSelection }
     | { operation: "append"; fileName: string; content: string }
     | ({ operation: "write"; fileName: string; content: string } & MutationExpectation)
     | { operation: "remove"; fileName: string; expectedSnapshot: FileSnapshot }
@@ -56,7 +60,7 @@ const batchEntrySchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), reason: z.string() }),
 ]);
 export type AnchoredBatchEntry = z.infer<typeof batchEntrySchema>;
-export type BatchReadRequest = { operation: "read-batch"; requests: Array<PreparedDirectory & { operation: "read"; fileName: string; maxBytes: number }> };
+export type BatchReadRequest = { operation: "read-batch"; requests: Array<PreparedDirectory & { operation: "read"; fileName: string; maxBytes: number; lines?: TextLineSelection }> };
 
 export const helperResponseSchema = z.discriminatedUnion("ok", [
   z.object({

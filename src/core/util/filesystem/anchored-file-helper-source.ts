@@ -27,7 +27,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 ${ANCHORED_FILE_COMMON_SOURCE}
 ${ANCHORED_FILE_OPERATIONS_SOURCE}
@@ -151,7 +151,10 @@ try {
   const request = JSON.parse(readFileSync(0, "utf8"));
   if (request.operation === "read-batch") {
     if (!Array.isArray(request.requests) || request.requests.length > 64 ||
-      request.requests.some(item => item.operation !== "read" || !Number.isSafeInteger(item.maxBytes) || item.maxBytes < 0 || item.maxBytes > 131072)) {
+      request.requests.some(item => item.operation !== "read" || !Number.isSafeInteger(item.maxBytes) || item.maxBytes < 0 || item.maxBytes > 131072 ||
+        (item.lines !== undefined && (item.lines === null || !Array.isArray(item.lines.digests) ||
+          item.lines.digests.length > 64 || item.lines.digests.some(digest => typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) ||
+          !Number.isSafeInteger(item.lines.tailLines) || item.lines.tailLines < 0 || item.lines.tailLines > 1000)))) {
       refuse("invalid bounded batch read");
     }
     const files = request.requests.map(item => {
