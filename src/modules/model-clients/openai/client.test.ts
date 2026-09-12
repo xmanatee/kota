@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-	KotaTextBlock,
-	KotaToolUseBlock,
-} from "#core/agent-harness/message-protocol.js";
-import type { ModelClient } from "#core/model/model-client.js";
+import type { KotaTextBlock } from "#core/agent-harness/message-protocol.js";
 import { outboundHttpStreamingPort } from "#core/outbound-http/testing/request-port.js";
 import {
 	anthropicThinkingTranslator,
@@ -44,15 +40,6 @@ describe("OpenAIModelClient", () => {
 		activeFetch = mock;
 		return mock;
 	}
-
-	it("satisfies ModelClient interface", () => {
-		const client: ModelClient = makeClient({
-			baseUrl: "http://localhost/v1",
-			apiKey: "k",
-			presetName: "test",
-		});
-		expect(client.messages).toBeDefined();
-	});
 
 	it("throws on no choices in create response", async () => {
 		const resp: OAIResponse = {
@@ -196,8 +183,10 @@ describe("OpenAIModelClient", () => {
 		});
 		expect(msg.stop_reason).toBe("tool_use");
 		expect(msg.content).toHaveLength(2);
-		expect((msg.content[0] as KotaToolUseBlock).name).toBe("search");
-		expect((msg.content[1] as KotaToolUseBlock).name).toBe("read");
+		expect(msg.content).toEqual([
+			{ type: "tool_use", id: "c1", name: "search", input: { q: "test" } },
+			{ type: "tool_use", id: "c2", name: "read", input: { p: "/x" } },
+		]);
 	});
 
 	it("propagates HTTP error details", async () => {

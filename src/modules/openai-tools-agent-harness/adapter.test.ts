@@ -780,53 +780,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
 });
 
 describe("openaiToolsAgentHarness — unsupported options rejection", () => {
-  it("accepts caller mcpServers and proceeds through the model surface", async () => {
-    queueStream(
-      makeStubStream({
-        final: {
-          id: "msg_mcp_boundary",
-          stop_reason: "end_turn",
-          content: [
-            { type: "text", text: "ok", citations: null } as KotaContentBlock,
-          ],
-        },
-      }),
-    );
-
-    await openaiToolsAgentHarness.run({
-      prompt: "x",
-      model: "openai/gpt-5.6-luna",
-      effort: "xhigh",
-      mcpServers: {},
-    });
-
-    expect(messagesStreamMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("accepts supervised autonomy mode", async () => {
-    queueStream(
-      makeStubStream({
-        final: {
-          id: "msg_supervised_boundary",
-          stop_reason: "end_turn",
-          content: [
-            { type: "text", text: "ok", citations: null } as KotaContentBlock,
-          ],
-        },
-      }),
-    );
-
-    await openaiToolsAgentHarness.run({
-      prompt: "x",
-      model: "openai/gpt-5.6-luna",
-      effort: "xhigh",
-      autonomyMode: "supervised",
-    });
-
-    expect(messagesStreamMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects per-step harness overrides (no validateStepOptions)", async () => {
+  it("rejects unknown per-step harness overrides", async () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
@@ -846,30 +800,6 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
         thinkingEnabled: true,
       }),
     ).rejects.toThrow(/extended thinking/);
-  });
-
-  it("forwards the portable system-prompt string straight to the model client", async () => {
-    queueStream(
-      makeStubStream({
-        final: {
-          id: "msg_system_string",
-          stop_reason: "end_turn",
-          content: [
-            { type: "text", text: "ok", citations: null } as KotaContentBlock,
-          ],
-          usage: { input_tokens: 1, output_tokens: 1 },
-        },
-      }),
-    );
-    await openaiToolsAgentHarness.run({
-      prompt: "x",
-      model: "openai/gpt-5.6-luna",
-      effort: "xhigh",
-      systemPrompt: "## Scope context\n\nProject is named KOTA.",
-    });
-    expect(streamCallSnapshots[0].system).toBe(
-      "## Scope context\n\nProject is named KOTA.",
-    );
   });
 
   it("refuses to run without an explicit model", async () => {

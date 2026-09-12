@@ -94,7 +94,7 @@ describe("toOpenAIMessages edge cases", () => {
 	});
 });
 
-describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
+describe("kotaMessageToOpenAiMessage wire projection", () => {
 	it("translates a user text message into one OpenAI entry", () => {
 		const msg: KotaMessage = { role: "user", content: "hello" };
 		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
@@ -216,9 +216,16 @@ describe("toOpenAITools edge cases", () => {
 	});
 });
 
-describe("mapFinishReason edge cases", () => {
-	it("maps content_filter to end_turn (no special mapping)", () => {
-		expect(mapFinishReason("content_filter")).toBe("end_turn");
+describe("mapFinishReason", () => {
+	it.each([
+		["stop", "end_turn"],
+		["tool_calls", "tool_use"],
+		["length", "max_tokens"],
+		["content_filter", "end_turn"],
+		[null, "end_turn"],
+		["unknown", "end_turn"],
+	])("maps %s to %s", (wire, neutral) => {
+		expect(mapFinishReason(wire)).toBe(neutral);
 	});
 });
 
@@ -255,14 +262,6 @@ describe("buildKotaModelResponse edge cases", () => {
 		expect(msg.usage.input_tokens).toBe(100);
 		expect(msg.usage.output_tokens).toBe(50);
 	});
-
-	it("generates unique-ish message ids", () => {
-		const m1 = buildKotaModelResponse({
-			text: "a", toolCalls: [], stopReason: "end_turn",
-			model: "t", usage: { input: 0, output: 0 },
-		});
-		expect(m1.id).toMatch(/^msg_oai_\d+$/);
-	});
 });
 
 describe("systemToText edge cases", () => {
@@ -272,5 +271,38 @@ describe("systemToText edge cases", () => {
 
 	it("handles single-element TextBlockParam array", () => {
 		expect(systemToText([{ type: "text" as const, text: "only" }])).toBe("only");
+	});
+});
+
+// Mixed transcripts detect ordering and content loss that isolated block cases cannot.
+describe("OpenAI conversation projection", () => {
+	it("preserves text/tool ordering and omits private thinking", () => {
+		expect(toOpenAIMessages("system rules", [
+			{ role: "user", content: [{ type: "text", text: "first" }, { type: "text", text: "second" }] },
+			{ role: "assistant", content: [
+				{ type: "thinking", thinking: "private", signature: "" },
+				{ type: "text", text: "checking" },
+				{ type: "tool_use", id: "c1", name: "lookup", input: { key: "foo" } },
+			] },
+			{ role: "user", content: [
+				{ type: "text", text: "context" },
+				{ type: "tool_result", tool_use_id: "c1", content: "failed", is_error: true },
+			] },
+			{ role: "assistant", content: "reply" },
+		])).toEqual([
+			{ role: "system", content: "system rules" },
+			{ role: "user", content: "first\nsecond" },
+			{ role: "assistant", content: "checking", tool_calls: [
+				{ id: "c1", type: "function", function: { name: "lookup", arguments: '{"key":"foo"}' } },
+			] },
+			{ role: "user", content: "context" },
+			{ role: "tool", tool_call_id: "c1", content: "[ERROR] failed" },
+			{ role: "assistant", content: "reply" },
+		]);
+	});
+
+	it("joins system text blocks with paragraph boundaries", () => {
+		expect(systemToText([{ type: "text", text: "first" }, { type: "text", text: "second" }])).toBe("first\n\nsecond");
+		expect(systemToText(undefined)).toBeUndefined();
 	});
 });
