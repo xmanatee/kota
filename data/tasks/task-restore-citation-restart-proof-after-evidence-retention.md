@@ -3,19 +3,23 @@ status: open
 priority: p1
 ---
 
-# Reconcile citation and reviewer consumer proofs after runtime evidence retention
+# Restore readable systemic review and truthful citation follow-through
 
-## Current Main Review
+## Observed Product Gap
 
-Reviewed against `ca4dd6dc0bd2c2f4ccad69a7a2c5e289d3d41c3e`. Integrated
-`e94bfed2f` already replaces cleanup-time review projection with raw runtime
-retention under `retained-runtime/`; cleanup no longer calls
-`requireRetainedRunArtifacts`. Do not implement that repair again or assume the
-historical citation failure still reproduces. Verify the existing citation
-journey against that lifecycle and leave it unchanged if it now passes. Its
-fixture and the shadow-review launch assertion below are unchanged on main.
-The remaining shadow consumer must follow the current judge/harness contract.
-No current-main execution result is claimed by this source comparison.
+Progress-reviewer `2026-09-12T22-02-48-336Z-progress-reviewer-junxjt` reported
+its full packet and recent artifacts inaccessible, then published no tasks,
+handoffs, questions or resolutions. Its retained reference manifest has zero
+entries. `workflow-steps.ts` writes the full packet under the canonical run while
+passing compact references to the isolated reviewer. Reproduce that access path
+on current main: `e94bfed2f` subsequently repaired cleanup retention, so do not
+implement it again or assume every historical failure remains.
+
+Use the existing runtime evidence handoff to expose selected same-scope outcomes,
+interventions and counterevidence to the reviewer. Repair this consumer, not a
+new store or another reviewer. Missing evidence must remain visibly unavailable,
+not be reported as a clean no-action assessment. Preserve private originals and
+deny unrelated scope access.
 
 ## Historical Failure And Owner
 
@@ -34,12 +38,17 @@ ignores `.kota/`; this observation establishes a broken composed proof, not a
 claim that production dispatch is broken. The previous bounded collector task
 changed only `workflow.test.ts`, and must not be repeated.
 
-Own the citation-restart scenario and its direct fixture. Consult the production
-runtime handoff and dispatcher clean-tree boundary; change those owners only if
-a real consumer defect is demonstrated. Do not weaken clean-tree admission,
-discard runtime evidence, or fake the consumption/publication state machine.
+Own the reviewer consumption path and its citation-restart fixture. Preserve
+clean-tree admission, evidence integrity and real consumption/publication.
 
 ## Outcome And Acceptance
+
+An isolated reviewer can read its pinned packet and selected outcome evidence,
+distinguish an ineffective intervention from task closure, and reject a hypothesis
+using counterevidence. A concrete guidance defect can reach its implementation
+owner through the existing handoff; scope-improver's deterministic skip does not
+count as semantic review. No finding is required when evidence supports none.
+No runtime packet is committed to source and replay creates no duplicate work.
 
 Verify the real publication/evidence lifecycle in the existing composed
 scenario; correct a remaining mismatch only if reproduced. Exhausted malformed
@@ -55,13 +64,10 @@ this journey with a mock returning the expected watermark.
 
 ## Measurement And Provenance
 
-Follow the measurement and family-level verification rules in
-`task-assess-fifty-percent-reduction-after-citation-and-reminder-followups`.
-This repair has no deletion quota. Report test/support/exclusion/production
-deltas separately. Audit run `2026-09-12T22-32-50-597Z-builder-67j7si` retains
-`citation-triage.log`, `citation-diagnostic.log`, the reversible diagnostic script,
-and `selected-results.json`. The diagnostic changes were restored byte-for-byte.
-This task is independent of retained live benchmark writers and host activation.
+Use `docs/VERIFICATION.md`; this repair has no deletion quota. The detailed
+citation and assertion diagnostics remain in audit run
+`2026-09-12T22-32-50-597Z-builder-67j7si`. Update existing consumer scenarios,
+not an all-harness matrix. This task is independent of live benchmark writers.
 
 ## Direct Judge Consumer
 

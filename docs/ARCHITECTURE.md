@@ -1,8 +1,16 @@
 # Architecture
 
-KOTA should expose a small set of public concepts and use one clear mechanism
-for each job. New capability should fit into the existing model instead of
-adding a parallel surface.
+KOTA's product direction is a local-first, general-purpose agent runtime for
+multiple projects and uses, with interchangeable harnesses and modular
+capabilities. Self-development is one use of the runtime, not its identity.
+Autonomous work must preserve scoped authority, privacy and security, recover
+useful progress, and improve outcomes without repeated operator intervention.
+
+Expose a small set of public concepts and one clear owner for each mechanism.
+New capability should fit the existing model. Prefer removing duplicate
+authority, boilerplate and unnecessary verification over accumulating special
+cases. Judge improvement by working consumer journeys and reduced maintenance
+burden, not task closures, generated artifacts, code volume or agent activity.
 
 ## Glossary
 

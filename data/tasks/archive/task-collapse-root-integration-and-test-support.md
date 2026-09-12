@@ -33,7 +33,9 @@ Final cleanup stage before the program-wide reduction audit.
 
 ## Completion evidence
 
-Run 2026-09-08T15-32-51-032Z-builder-z8t1un classified 140 journey paths and 409 support/fixture paths with zero unresolved rows. Root integration LOC: 25,877 → 17,739; all test LOC: −7,031 including owner relocations; internal support: −520; fixtures unchanged; public scenario API: −44; other implicated production: −233.
+Run 2026-09-08T15-32-51-032Z-builder-z8t1un reported classifying 140 journey paths and 409 support/fixture paths with zero unresolved rows. That completeness claim was too strong: commit `5443aedb5` still retained a recovery case in `workflow-step-executor-agent.integration.test.ts` which never executed recovery and ended with `expect(true).toBe(true)`. Later cleanup `d48581536` removed it. This correction records a missed acceptance condition and subsequent repair, not a reason to reopen already-fixed code.
+
+The original run reported root integration LOC 25,877 → 17,739; all test LOC −7,031 including owner relocations; internal support −520; fixtures unchanged; public scenario API −44; other implicated production −233. Those measurements do not establish that every retained scenario was meaningful or that the wider cleanup goal was achieved.
 
 Removed false integrations, duplicate numbered repair setup, unused helper exports, model-double production exports/global ID reset, and test-only normalized scenario aliases. Workflow scenarios now delegate child admission and waits, settlement and writer publication to the production coordinator, lifecycle and integration policy. Synthetic checkout overrides are removed, and SQLite fixture state has explicit cleanup ownership. Real session history/delegation and retry/approval boundaries remain.
 

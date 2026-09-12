@@ -12,8 +12,10 @@ Owns KOTA's autonomous workflows and their shared policy.
 
 Progress-reviewer owns systemic operational/product learning across runs;
 improver owns durable incident disposition; architecture-gardener owns code
-structure; scope-improver owns guidance/policy. Shared generated-work proposal
-identity follows a topic across handoffs. Reviewers inspect existing owners
+structure; scope-improver routes and materializes guidance/policy changes but
+does not judge their quality. Progress-reviewer owns that judgment and its
+follow-through. Shared generated-work proposal identity follows a topic across
+handoffs. Reviewers inspect existing owners
 before proposing work and follow interventions beyond task creation.
 
 ## Core Decisions

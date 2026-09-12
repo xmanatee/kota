@@ -1,10 +1,10 @@
 ---
 status: open
 priority: p2
-depends_on: [task-restore-citation-restart-proof-after-evidence-retention, task-restore-tool-authorization-consumer-proofs, task-reconcile-runtime-issue-observation-verification, task-consolidate-reminder-transition-verification]
+depends_on: [task-restore-citation-restart-proof-after-evidence-retention, task-restore-tool-authorization-consumer-proofs, task-reconcile-runtime-issue-observation-verification, task-consolidate-reminder-transition-verification, task-share-answer-command-outcomes-across-channels, task-render-workflow-details-without-synthetic-runtime-metadata, task-retire-historical-runtime-copies-from-source-tree]
 ---
 
-# Assess reduction after the bounded verification follow-ups
+# Assess delivered simplification and preserve remaining cleanup work
 
 ## Goal
 
@@ -17,7 +17,15 @@ Baseline `fcaf40c60921445b1bfc7cb9ebac91013ce7f77a` has 334,805 executable-test
 LOC. Use the frozen `scripts/count-verification-loc.py` recipe; the ceiling is
 167,402. Report support, exclusions and production separately. Latest retained
 audit `2026-09-12T22-32-50-597Z-builder-67j7si` recorded 266,089: target not met.
-The four predecessors do not claim to close that entire gap.
+The original four proof repairs do not close that gap. The answer-command and
+workflow-detail predecessors remove demonstrated production duplication; the
+runtime-copy predecessor removes repository clutter without deleting evidence.
+These are independent implementation tasks, not a claim that cleanup is finished.
+
+The September 13 review at `ab2889452` counted 266,114 executable-test lines.
+Twelve recent cleanup implementation commits removed a net 6,221 test lines but
+added a net two production lines. That is real test reduction, not substantial
+production simplification. Assess both dimensions and preserved capability.
 
 Retain recipe SHA256
 `08d6b17c1f8e68d6b3bc77e05405d0a48c05c9b6750956776dcad89e536a505b`.
@@ -40,6 +48,11 @@ behavior. Publish independent follow-ups using existing task/decomposition
 mechanisms and retire this assessment as superseded, not as goal achievement.
 Do not implement the remainder of the repository in this task, reissue unchanged
 audits, or block independent cleanup waiting for an aggregate numeric outcome.
+Do not replace this with another percentage-only assessment. Any remaining
+follow-up must own a concrete implementation outcome and name the duplicated
+behavior or unnecessary mechanism it removes. Supersession preserves the unmet
+owner goal; it never establishes completion. Necessary safety/behavior checks
+take precedence over the numeric target, with any genuine conflict reported.
 
 ## Shared Verification Rules
 
