@@ -1,7 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p1
-depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres, task-enable-runtime-mediated-contained-evaluation]
+depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres, task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
 # Execute AGY model benchmark and document routing decision evidence
 
@@ -190,17 +190,14 @@ This is an accessibility repair, not a new capability observation or benchmark
 execution. The [review guide](../../.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/REVIEW.md)
 links the substantive evidence and explains the remaining limits.
 
-## Blocked on
+## Next execution
 
-```
-kind: operator-capture
-path: .kota/runs/
-description: The trusted host must configure a scope-authorized KOTA_EVAL_CONTAINED_PROFILES grant for the existing AGY eval surface; a successful attributed inspect exposing the allowed candidates and three repeats, or equivalent host capability evidence, permits resumption.
-```
-
-This discovery hint is not an existence test or a request for another benchmark
-capture. The concrete prerequisite is the host-owned execution grant, verified
-absent by this invocation's mediated response. The prepared profile makes that
-configuration reviewable. After the grant exists, image/proxy/auth setup and
-candidate measurements remain builder work; credential and quota availability
-cannot yet be assessed.
+The missing host grant was an unfinished setup dependency, not a request for
+owner-captured evidence. `task-complete-contained-evaluation-host-setup` now owns
+the deployable image/profile journey and AGY authentication gap. This task stays
+open behind that dependency. Once the setup is installed, use the retained cohort
+and current native action for actual discovery and measurement. Do not repeat a
+task-only blocked commit while implementation or setup can still advance. A
+verified unavailable account credential, entitlement or quota is distinct from
+an unperformed observation. Runtime artifacts must remain inspectable without
+committing copied code, binaries or whole evidence packets into the repository.

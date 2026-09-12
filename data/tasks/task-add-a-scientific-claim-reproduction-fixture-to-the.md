@@ -1,7 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p2
-depends_on: [task-enable-runtime-mediated-contained-evaluation]
+depends_on: [task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
 # Add a scientific-claim reproduction fixture to the eval harness
 
@@ -261,20 +261,14 @@ holdout artifacts, objective metric and builder provenance are still outstanding
 Command logs and the host-error observation are retained in this run's agent
 directory as `eval-list.log`, `scorer-checks.log`, and `contained-inspect.json`.
 
-## Blocked on
+## Next execution
 
-```
-kind: operator-capture
-path: .kota/runs
-description: The trusted host must supply KOTA_EVAL_CONTAINED_PROFILES granting scope /Users/xmanatee/Desktop/mono/apps/kota a model-evaluation profile for builder-scientific-claim-reproduction, at least one repeat, an explicit preset, bounded resources, an identified current-source image and image-local KOTA executable, and restricted provider-egress with adapter-owned authentication.
-```
-
-The existing metadata kind tracks externally controlled execution availability;
-the path is only an evidence discovery hint. No human-run evaluation, readiness
-artifact, specific capture path, new permission decision or completed benchmark
-is required to resume. Host setup can be automated by its authorized owner. The
-worker cannot install this trusted-host grant or build host images through the
-available profile-less tool. Once inspection exposes the scoped grant, resume
-setup and one live run through `eval contained`, inspect claim/holdout predicates,
-objective metrics and live provenance, and retain the runner's returned artifacts.
-Do not change the parent daemon, expose credentials or loosen verifier isolation.
+This is the same unfinished host setup as the AGY and rollout evaluations,
+not a separate owner-capture prerequisite. The shared
+`task-complete-contained-evaluation-host-setup` dependency owns the recipe and
+scope-bound grants, including this fixture. Keep this task open behind that
+dependency instead of rediscovering the absent grant in another builder run.
+After host activation, execute the existing fixture through `eval contained`
+and retain its actual claim/holdout results. The fixture implementation and
+deterministic calibration already exist; neither is evidence of a live model
+pass, and no replacement fixture or execution bridge is needed.

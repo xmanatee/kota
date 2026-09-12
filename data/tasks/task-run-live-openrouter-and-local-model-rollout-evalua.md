@@ -1,7 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p1
-depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode, task-enable-runtime-mediated-contained-evaluation]
+depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode, task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
 # Run live OpenRouter and local model rollout evaluation
 
@@ -375,16 +375,14 @@ artifacts `contained-inspect.txt`, `rollout-preflight.json`, and
 `validate-tasks.txt`. These establish the returned setup failure and task-data
 integrity only; they are not live model or containment proof.
 
-## Blocked on
+## Next execution
 
-```
-kind: operator-capture
-path: .kota/runs/
-description: The trusted host must configure scope-authorized KOTA_EVAL_CONTAINED_PROFILES for the live rollout; a successful attributable contained inspect exposing the evaluation grants, or equivalent host capability evidence, permits resumption of setup and measurement.
-```
-
-The path is an evidence-discovery hint, not an existence check or a requirement
-for manual benchmark capture. The prerequisite is the host-owned grant.
+This is open work behind `task-complete-contained-evaluation-host-setup`, which
+owns the missing deployable host grants and shared setup journey. Missing
+operator-capture files are not an external prerequisite. Do not repeat a
+task-only blocked receipt for the same unfinished setup. The coordinator owns
+host activation; this task owns the actual comparable model measurements after
+activation, with the original quality and containment requirements intact.
 
 The trusted host must supply scope-authorized `KOTA_EVAL_CONTAINED_PROFILES`
 through its existing environment configuration owner. The profile contract in
