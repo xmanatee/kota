@@ -53,6 +53,26 @@ const evalHarnessModule: KotaModule = {
     "rendering",
     "repo-tasks",
   ],
+  manifest: {
+    schemaVersion: 1,
+    capabilities: [{
+      id: "eval-harness.contained-evaluation",
+      description: "Run isolated provider evaluations within host-authorized profiles.",
+      scope: "external",
+      scopePolicyHooks: ["external-effects", "writes"],
+    }],
+    dataClasses: [{
+      id: "eval-harness.results",
+      description: "Evaluation results and provider execution evidence.",
+      sensitivity: "provider-payload",
+      retention: "run-artifact",
+      redaction: "metadata-only",
+    }],
+    simulation: {
+      support: "external-effects-blocked",
+      blockedReasons: ["Live evaluations invoke external providers."],
+    },
+  },
   events: [evalHarnessSetCompleted],
   tools: [containedEvaluationTool],
   commands: (ctx) => [buildEvalCommand(ctx)],
