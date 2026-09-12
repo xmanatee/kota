@@ -1,8 +1,36 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Review security by evidence and root-cause family
+
+## Completion receipt (September 12)
+
+Validated the retained implementation against the superseding Current Contract;
+no additional production mechanism change was needed. The supplied scoped export
+pins both historical reviews, their examined Git heads, unchanged database evidence
+and differing family wording. Two mobile paths recur with unchanged digests;
+33 paths appear only in the second selection. The two reviews took 15.82215 elapsed
+agent-step minutes and increased pending evidence from one to two, without proving
+a second vulnerability, duplicate published task or capacity savings.
+
+The security-review/publication/dispatcher portfolio passes 90 cases covering
+family grouping, synonymous replay, distinct variants, completed evidence,
+unchecked coverage, failed-review/current-head retry, repository-sized persistence,
+artifact integrity, legacy recovery and retained ownership. Two full changed-task
+publication scenarios stop at supervised validator launch (`spawnSync /bin/ps EPERM`);
+they are not claimed passed. Another 37 production runtime/task-policy checks pass,
+including real Git publication/reconciliation, source drift, validation rejection,
+held-task protection and recovery. The real blocking-worker integration and `pnpm check:fast` pass.
+These provide scoped acceptance under Standards; the full supervised composition
+and canonical outbox settlement remain runtime-owner follow-up.
+
+Evidence is in builder run `2026-09-12T06-41-09-700Z-builder-fbn6rg`, agent artifacts
+`security-review-summary.md`, `security-cohort.json`, the supplied
+`issue-evidence.json`, pinned fix diffs and validation logs. The prior scanner
+no-adoption decision remains. Live after-cohort yield/occupancy is unmeasured and
+non-gating under the owner waiver. Today's separate retained scan/finalization
+owner and its live outbox were not changed. Only this task is archived.
+
 
 ## Current Contract
 
