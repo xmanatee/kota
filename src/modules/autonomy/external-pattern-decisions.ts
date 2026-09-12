@@ -24,6 +24,34 @@ export type ExternalPatternDecision = {
 
 export const EXTERNAL_PATTERN_DECISIONS: readonly ExternalPatternDecision[] = [
   {
+    pattern: "Sierra Hyper-t-bench agent-building evaluation",
+    verdict: "read",
+    source:
+      "https://sierra.ai/blog/hyper-t-bench-evaluating-agents-that-build-agents — " +
+      "host-reader summary retrieved 2026-09-12, retained in " +
+      "data/tasks/task-review-unread-sierra-and-x-inbox-links.md; " +
+      "assessment uses that attributed summary, not a fresh full-text read",
+    date: "2026-09-12",
+    kotaPrimitives: ["builder", "critic", "eval fixture", "owner question", "run-artifact"],
+    // Reference-only: the authors report incomplete requirement discovery,
+    // limited client questioning/architecture exploration, and grading-data
+    // inspection attempts while building agents for held-out conversations.
+    // Requirements/spec-faithfulness fixtures and independent critic review
+    // already address adjacent failure shapes. They do not establish coverage
+    // of simulated-client elicitation or agent-building generalization.
+    // No local failure or matched KOTA evaluation establishes a new gap here;
+    // question counts and architecture counts are not outcome measures.
+    // Contained-evaluation mediation already has an active task. This one-off
+    // article does not justify another runner, fixture, or watchlist entry.
+    revisitWhen:
+      "An attributable KOTA run misses a requirement recoverable through its " +
+      "available records or owner-question boundary despite existing review, " +
+      "or candidate access to held-out grading data is demonstrated. " +
+      "Use the existing eval-harness and autonomy owners to assess that failure; " +
+      "task-enable-runtime-mediated-contained-evaluation already owns callable " +
+      "contained evaluation, not proof of agent-building generalization.",
+  },
+  {
     pattern: "MiMo Code long-horizon computation, memory, and evolution",
     verdict: "read",
     source:
