@@ -1,6 +1,7 @@
 ---
-status: open
+status: blocked
 priority: p2
+depends_on: [task-complete-contained-evaluation-host-setup]
 ---
 # Validate end-to-end coding-task parity across registered agent harnesses
 
@@ -226,12 +227,12 @@ successes. No all-adapter or native-versus-KOTA parity claim is made.
 The earlier protected-session-lock failure is an internal execution-boundary
 gap, not an owner prerequisite. Shared native tool mediation and contained
 evaluation integrated in `6604e48d8`; module admission was corrected in
-`504e59f4f`. The current contained-evaluation tool exposes fixture and AGY runs,
-not the harness-parity scenario runner. Its existence alone does not complete
-this task or prove a usable configured provider route.
+`504e59f4f`. The current source also contains the contained parity matrix and
+image-local scenario entrypoint. That integration alone does not complete this
+task or prove a usable configured provider route.
 
-Reuse that native invocation, host authorization, process ownership and artifact
-return mechanism for the existing parity runner. Keep parity semantics in its
+Use the existing native invocation, host authorization, process ownership and
+artifact return mechanism for the parity runner. Keep parity semantics in its
 owning module; do not create another command bridge or expose host credentials,
 conversation stores or Docker access to candidate agents. Prepare the smallest
 current-source image/profile/egress setup needed for one supported coding route;
@@ -244,3 +245,103 @@ the September 12 waiver. Publish safe routing/setup improvements with honest
 partial results while the remaining code stays open. Only verified unavailable
 credentials or entitlement outside our authority justify an external block.
 Do not repeat the denied worker launch or claim unexecuted parity succeeded.
+
+
+## Current repair evidence (2026-09-12, builder a1q4mj)
+
+The previous preserve-yield response did not complete the build step. This repair
+inspected the actual operator path rather than treating continuation notes as
+completion evidence. The current source already contains `contained_model_matrix`
+and the image-local parity stage runner; the earlier statement that contained
+execution lacks a parity entrypoint is historical.
+
+The real `harness-parity contained` CLI failed before profile lookup because the
+shared JSON Schema validator compared `type: integer` with JavaScript's `number`.
+Even the CLI's default `repeatCount: 1` was rejected. The retained change fixes
+integer matching in `src/core/util/json-schema-validator.ts`, preserving number
+and union behavior and rejecting fractional, string and nonfinite integer inputs.
+No tool-specific validation exemption or alternate execution path was introduced.
+The unchanged module decoder still enforces positive counts and the host maximum.
+
+A non-executing setup assessment resolved the source-registered raw and scaffolded
+OpenAI-compatible harnesses against the same `ollama/qwen2.5-coder:3b` model and
+`fix-arithmetic-bug` scenario. The scope-bound proposed host profile decodes through
+the shared profile owner and the parity selection owner; its request passes the
+corrected shared input validator. This is configuration evidence only. The model
+was already installed and positively probed by the coordinator, as recorded by
+`task-complete-contained-evaluation-host-setup`; no reinstall was attempted.
+
+Evidence is retained under this run's `agent/harness-parity-repair/`:
+
+- `host-evaluation-inspection.json`: the real native host response for tool call
+  `tool-19dd69b9139bdb7981cd490b698636a1`, reporting the unset host profile grant.
+- `host-cli-integer-rejection.json`: the real CLI failure for call
+  `tool-61f5631a8334fc471d95bd237fc491fe`. Omitting the repeat field through the
+  existing transport also rejected it as required; that separate receipt is
+  `host-matrix-inspection.json`. No model was invoked by either request.
+- `proposed-host-profiles.json`, `setup-validation.json`, and `activation.md`:
+  decoded local route proposal, exact model/adapter selection, provider-owned
+  network labels and the normal invocation after trusted host activation.
+  The image and proxy are explicitly unverified; the proposal grants no access.
+- `source-adapter-inventory.json`: nine bundled adapter declarations, not a
+  claim about host-loaded readiness. Codex declares contained native auth;
+  Claude SDK does not. Gemini, Gemini CLI, AGY, Vercel and thin lack matrix routing
+  declarations in this source cohort. Thin has no editing tool loop. These seven
+  unexecuted rows remain explicit follow-ups under the waiver, with host
+  credentials/entitlement unknown. The two proposed local rows are also unrun.
+
+Verification: 14 focused tests passed across integer semantics, tool admission
+and contained matrix behavior; 41 shared-consumer tests passed across workflow
+payload and tool output validation. `pnpm check:fast` passed. The direct setup
+assessment used the real matrix schema and registered source adapter declarations.
+These checks establish safe input repair and compatible configuration; they do
+not establish live code edits, provider access or deployed confinement.
+
+## Remaining work and current prerequisite
+
+The earlier dependency wait was based on this retained worktree's stale open
+copy of `task-complete-contained-evaluation-host-setup`. Canonical `main` now
+archives that predecessor as `done` in commit
+`a2ec5e774333c7fe4e45810a4335730ce03bb276`. Its implementation includes the normal
+service installation journey for operator-authored grants. Its completion record
+explicitly leaves service activation and live measurements to the coordinator
+and dependent benchmarks. The predecessor's contract and this writer's Git
+metadata were not changed; runtime owns reconciliation with that integrated code.
+
+A fresh authorized `pnpm kota eval contained '{"operation":"inspect"}'` reached
+the native host and returned tool error `tool-6651130598a0005f979a5fd915ae3c82`:
+`Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment.` This establishes
+that the required host execution grant remains unavailable, even though its
+installation implementation has integrated. It establishes no absence of vendor
+credentials, entitlement to a particular model, or installed host software.
+
+The current block is the operator-controlled scope-bound execution grant, not
+unfinished predecessor implementation or an unavailable human capture operator.
+Workers cannot install their own host authority. The coordinator must activate
+an authorized compatible profile using the integrated service/setup owners.
+Existing owner authorization for live validation remains valid; no new approval
+of that intent is requested. An equivalent already-authorized execution service
+with attributable readiness evidence also satisfies this prerequisite.
+
+After a usable grant is available, execute supported routes against the same
+scenario/model and retain actual prompts, traces, code diffs and verifier outcomes,
+including the native-runner comparison required by the contract. Account for every
+unavailable adapter under the owner waiver. The prepared local raw/scaffold cohort
+remains only a proposal; no live parity or deployed confinement is claimed.
+
+The integer validator repair, its 55 passing focused/shared-consumer tests and
+passing static gate remain intact. No new source changes or live runs were made
+in this disposition repair. The fresh host receipt and canonical predecessor
+revision are recorded in this run's `agent/host-grant-recheck.json`.
+
+## Blocked on
+
+kind: operator-capture
+path: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs
+description: Trusted host activation of a scope-bound contained coding profile, confirmed through the authorized inspection service or equivalent attributable capability export; setup implementation is already integrated.
+
+The path is only an evidence discovery hint. No particular directory, filename,
+or manual command is required. Semantic review must confirm that the selected
+scope has a usable authorized coding execution route. A setup recipe, this
+writer's proposed profile, or another missing-grant receipt does not satisfy it.
+This prerequisite enables collection; it does not replace live parity acceptance.
