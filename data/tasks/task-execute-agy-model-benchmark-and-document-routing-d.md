@@ -65,3 +65,5 @@ The retained build, scenario and adapter tests establish preparation, not model
 quality. Routing remains needs-more-data with zero completed scenario repeats.
 Shared partial-cohort reporting is owned by the OpenRouter/local rollout task;
 do not duplicate its repair, runtime cleanup or host setup work here.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T23:38:46.335Z -->

@@ -48,3 +48,5 @@ Compare the active queue, decision store and watchlist before adding work.
 Inaccessible is the current access disposition, not a research verdict. Resume
 on a changed access capability or attributable export, not repeated unchanged
 fetch attempts. Sierra and the two GitHub links need no successor tasks.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T23:38:46.335Z -->

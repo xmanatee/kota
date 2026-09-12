@@ -67,3 +67,5 @@ The rollout task owns the observed all-or-nothing contained preparation repair;
 do not implement it twice or create another matrix. This task retains only the
 distinct live coding outcome. No duplicate setup/evidence successor, runtime
 cleanup, Explorer finalization or held-claim recovery is needed.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T23:38:46.335Z -->

@@ -55,3 +55,5 @@ repair record reports 81 passes with the same six skips. Neither establishes
 successful Linux publication or a complete persistence fix. This is a real
 pre-activation security prerequisite, not a deployment-observation ritual.
 No source or activation changed in this audit, and no successor is needed.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T23:38:46.335Z -->
