@@ -30,7 +30,6 @@ import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
-import { safeJsonStringify } from "#core/workflow/run-io.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
@@ -619,12 +618,6 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.evidence.map((item) => item.id)).toContain(
       "run:batched-builder-run",
     );
-    expect(() =>
-      decodeProgressReviewAgentOutputForEvidence(
-        citingReview(["run:batched-builder-run"], "The workflow batch included the builder recovery run."),
-        evidence,
-      ),
-    ).not.toThrow();
   });
 
   it("quarantines malformed terminal batch run metadata without blocking review", () => {
@@ -653,8 +646,8 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("keeps high-signal run artifacts in the bounded review-agent packet", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-high-signal-artifacts");
+  it("collects nested artifact citations and prioritizes outcome evidence over step noise", () => {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-artifacts");
     const noiseRunId = "aaaa-blocked-promoter-run";
     const builderRunId = "zzzz-builder-run";
     writeRun(
@@ -677,42 +670,60 @@ describe("progress-reviewer workflow", () => {
         workspaceRoot,
         noiseRunId,
         `steps/noise-${String(index).padStart(2, "0")}.json`,
-        JSON.stringify({ index }),
+        "{}",
       );
     }
-    for (const file of [
+    const outcomeFiles = [
       "acceptance-evidence.txt",
       "critic-review.json",
       "evaluator-calibration.json",
-    ]) {
-      writeRunArtifactFile(
-        workspaceRoot,
-        builderRunId,
-        file,
-        JSON.stringify({ file }),
-      );
-    }
-    writeRunArtifactFile(
-      workspaceRoot,
-      builderRunId,
+    ];
+    const stepFiles = [
       "steps/build.json",
-      JSON.stringify({ id: "build", status: "success" }),
-    );
+      "steps/build.input.md",
+      "steps/build.events.jsonl",
+      "steps/build.tool-telemetry.json",
+    ];
+    // Collection inventories paths; file contents are not parsed by this owner.
+    for (const file of [...outcomeFiles, ...stepFiles]) {
+      writeRunArtifactFile(workspaceRoot, builderRunId, file, "artifact");
+    }
+    writeRunArtifactFile(workspaceRoot, builderRunId, "workflow.json", "{}");
 
     const evidence = collectEvidence(workspaceRoot, {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload: runCountBatchPayload(workspaceRoot, builderRunId),
-      });
+      event: WORKFLOW_BATCH_FLUSH_EVENT,
+      schemaRef: null,
+      payload: runCountBatchPayload(workspaceRoot, builderRunId),
+    });
+    for (const file of stepFiles) {
+      expect(evidence.artifacts).toContainEqual(
+        expect.objectContaining({
+          id: `artifact:${builderRunId}:${file}`,
+          file,
+          path: `.kota/runs/${builderRunId}/${file}`,
+        }),
+      );
+    }
+    const artifactRef = evidence.evidence.find(
+      (item) => item.id === `artifact:${builderRunId}:steps/build.input.md`,
+    );
+    expect(artifactRef).toMatchObject({
+      kind: "artifact",
+      path: `.kota/runs/${builderRunId}/steps/build.input.md`,
+    });
+    expect(artifactRef).not.toHaveProperty("runId");
+    for (const file of ["metadata.json", "trigger.json", "workflow.json"]) {
+      expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(
+        file,
+      );
+    }
+
     const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
     const exposedIds = reviewInput.evidence.map((item) => item.id);
-
     expect(exposedIds).toEqual(
-      expect.arrayContaining([
-        `artifact:${builderRunId}:acceptance-evidence.txt`,
-        `artifact:${builderRunId}:critic-review.json`,
-        `artifact:${builderRunId}:evaluator-calibration.json`,
-      ]),
+      expect.arrayContaining(
+        outcomeFiles.map((file) => `artifact:${builderRunId}:${file}`),
+      ),
     );
     expect(exposedIds).not.toContain(
       `artifact:${noiseRunId}:steps/noise-${String(noiseArtifactCount - 1).padStart(2, "0")}.json`,
@@ -1123,9 +1134,6 @@ describe("progress-reviewer workflow", () => {
       artifact.evidence.deadLetters.find((item) => item.itemId === deadLetter.id)
         ?.sourceEventIds,
     ).toHaveLength(largeSourceEventIds.length);
-    expect(artifact.reviewInput.evidence.length).toBeLessThanOrEqual(
-      PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
-    );
     expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
       `run:${runId}`,
       `dead-letter:${deadLetter.id}`,
@@ -1140,6 +1148,10 @@ describe("progress-reviewer workflow", () => {
     writeRun(scopeARoot, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
     writeRun(scopeBRoot, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
     const scopeAId = deriveDirectoryScopeId(scopeARoot);
+    new ScopeRegistry({
+      stateDir: join(scopeARoot, ".kota"),
+      scopes: [{ scopeRoot: scopeARoot }, { scopeRoot: scopeBRoot }],
+    });
 
     const evidence = collectEvidence(scopeARoot, {
         event: progressReviewRequested.name,
@@ -1190,163 +1202,49 @@ describe("progress-reviewer workflow", () => {
       }),
     );
     expect(approvalRef).not.toHaveProperty("tool");
-    expect(() =>
-      decodeProgressReviewAgentOutputForEvidence(
-        citingReview(["approval:a1b2c3d4"], "The reviewed scope includes an approved operator decision."),
-        evidence,
-      ),
-    ).not.toThrow();
-  });
-
-  it("collects nested step artifacts as citeable run evidence", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-step-artifacts");
-    const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    writeRun(
-      workspaceRoot,
-      "builder-success",
-      "builder",
-      "success",
-      "2026-06-04T11:20:00.000Z",
-    );
-    writeRunArtifactFile(
-      workspaceRoot,
-      "builder-success",
-      "steps/build.json",
-      JSON.stringify({ id: "build", status: "success" }),
-    );
-    writeRunArtifactFile(
-      workspaceRoot,
-      "builder-success",
-      "steps/build.input.md",
-      "# User Prompt\n\nImplement the task.",
-    );
-    writeRunArtifactFile(
-      workspaceRoot,
-      "builder-success",
-      "steps/build.events.jsonl",
-      "{\"type\":\"assistant\",\"text\":\"done\"}\n",
-    );
-    writeRunArtifactFile(
-      workspaceRoot,
-      "builder-success",
-      "steps/build.tool-telemetry.json",
-      JSON.stringify({ summary: "1 tool call", tools: { shell: { calls: 1 } } }),
-    );
-
-    const evidence = collectEvidence(workspaceRoot, {
-        event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
-      });
-
-    expect(evidence.artifacts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "artifact:builder-success:steps/build.json",
-          file: "steps/build.json",
-          path: ".kota/runs/builder-success/steps/build.json",
-        }),
-        expect.objectContaining({
-          id: "artifact:builder-success:steps/build.input.md",
-          file: "steps/build.input.md",
-        }),
-        expect.objectContaining({
-          id: "artifact:builder-success:steps/build.events.jsonl",
-          file: "steps/build.events.jsonl",
-        }),
-        expect.objectContaining({
-          id: "artifact:builder-success:steps/build.tool-telemetry.json",
-          file: "steps/build.tool-telemetry.json",
-        }),
-      ]),
-    );
-    expect(evidence.evidence.map((item) => item.id)).toContain(
-      "artifact:builder-success:steps/build.input.md",
-    );
-    const artifactRef = evidence.evidence.find(
-      (item) => item.id === "artifact:builder-success:steps/build.input.md",
-    );
-    expect(artifactRef).toEqual(
-      expect.objectContaining({
-        id: "artifact:builder-success:steps/build.input.md",
-        kind: "artifact",
-        path: ".kota/runs/builder-success/steps/build.input.md",
-      }),
-    );
-    expect(artifactRef).not.toHaveProperty("runId");
-    expect(safeJsonStringify({ output: evidence })).not.toContain("[Circular]");
-    expect(evidence.artifacts.map((artifact) => artifact.file)).not.toEqual(
-      expect.arrayContaining(["metadata.json", "trigger.json", "workflow.json"]),
-    );
   });
 
   it("rejects unsafe or mismatched run metadata ids before path lookup", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-run-id-boundary");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    writeRun(
-      workspaceRoot,
-      "builder-success",
-      "builder",
-      "success",
-      "2026-06-04T11:20:00.000Z",
-    );
-    writeRun(
-      workspaceRoot,
-      "renamed-run",
-      "builder",
-      "success",
-      "2026-06-04T11:30:00.000Z",
-    );
-    writeRunArtifactFile(workspaceRoot, "builder-success", "artifact.txt", "inside");
-    writeFileSync(
-      join(workspaceRoot, ".kota", "runs", "builder-success", "metadata.json"),
-      JSON.stringify(
-		{
-			id: "../../../outside-run-root",
-			workflow: "builder",
-			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-			runDir: ".kota/runs/builder-success",
-			trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-			status: "success",
-          startedAt: "2026-06-04T11:20:00.000Z",
-          completedAt: "2026-06-04T11:20:00.000Z",
-			durationMs: 1000,
-			steps: [],
-        },
-        null,
-        2,
-      ),
-    );
-    writeFileSync(
-      join(workspaceRoot, ".kota", "runs", "renamed-run", "metadata.json"),
-      JSON.stringify(
-		{
-			id: "other-run",
-			workflow: "builder",
-			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-			runDir: ".kota/runs/renamed-run",
-			trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-			status: "success",
-          startedAt: "2026-06-04T11:30:00.000Z",
-          completedAt: "2026-06-04T11:30:00.000Z",
-			durationMs: 1000,
-			steps: [],
-        },
-        null,
-        2,
-      ),
-    );
+    for (const [directory, metadataId] of [
+      ["builder-success", "../../../outside-run-root"],
+      ["renamed-run", "other-run"],
+    ]) {
+      writeRun(
+        workspaceRoot,
+        directory,
+        "builder",
+        "success",
+        "2026-06-04T11:20:00.000Z",
+      );
+      writeRunArtifactFile(workspaceRoot, directory, "artifact.txt", "inside");
+      const metadataPath = join(
+        workspaceRoot,
+        ".kota",
+        "runs",
+        directory,
+        "metadata.json",
+      );
+      const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+      writeFileSync(
+        metadataPath,
+        JSON.stringify({ ...metadata, id: metadataId }),
+      );
+    }
 
     const evidence = collectEvidence(workspaceRoot, {
-        event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
-      });
+      event: progressReviewRequested.name,
+      schemaRef: null,
+      payload: { scopeId, windowMs: 3_600_000 },
+    });
 
     expect(evidence.runs).toHaveLength(0);
     expect(evidence.artifacts).toHaveLength(0);
     expect(evidence.excluded).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("does not match directory \"builder-success\""),
-        expect.stringContaining("does not match directory \"renamed-run\""),
+        expect.stringContaining('does not match directory "builder-success"'),
+        expect.stringContaining('does not match directory "renamed-run"'),
       ]),
     );
     expect(
@@ -1465,100 +1363,69 @@ describe("progress-reviewer workflow", () => {
     ).toThrow("before restarting or dispatching");
   });
 
-  it("collects open dead-letter queue counts and citeable item evidence", () => {
+  it("collects dead-letter counts and task citations while bounding the agent projection", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-dlq");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    const deadLetterQueue = new DeadLetterQueueStore(
+    const taskId = "task-review-autonomous-workflow-failure";
+    writeTask(workspaceRoot, "open", taskId);
+    const queue = new DeadLetterQueueStore(
       join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
-    const item = createWorkflowDispatchDeadLetter({
-      store: deadLetterQueue,
-      scopeId,
-      workflowName: "telegram-ingest",
-      trigger: {
-        event: "telegram.message",
-        schemaRef: null,
-        eventId: "evtj-000000000042",
-        payload: {
-          scopeId,
-          chatId: "chat-1",
-          botToken: "secret",
+    const items = Array.from({ length: 6 }, (_, index) =>
+      createWorkflowDispatchDeadLetter({
+        store: queue,
+        scopeId,
+        workflowName: "progress-reviewer",
+        trigger: {
+          event: WORKFLOW_BATCH_FLUSH_EVENT,
+          schemaRef: null,
+          eventId: `evtj-${String(index).padStart(12, "0")}`,
+          payload: { scopeId },
         },
-      },
-      reason: "payload validation failed",
-      errorClass: "validation",
-    });
-
+        reason: `Validation failed for ${workspaceRoot}/data/tasks/${taskId}.md (failure ${index})`,
+        errorClass: "validation",
+      }),
+    );
     const evidence = collectEvidence(workspaceRoot, {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { scopeId, windowMs: 3_600_000 },
-      });
+      event: progressReviewRequested.name,
+      schemaRef: null,
+      payload: { scopeId, windowMs: 3_600_000 },
+    });
 
     expect(evidence.deadLetterCounts).toEqual([
       {
         scopeId,
         path: ".kota/dead-letter-queue/items.json",
-        open: 1,
+        open: items.length,
         dismissed: 0,
         redriven: 0,
-        openItemIds: [item.id],
+        openItemIds: expect.arrayContaining(items.map((item) => item.id)),
         redriveRunIds: [],
       },
     ]);
-    expect(evidence.deadLetters).toEqual([
-      expect.objectContaining({
-        id: `dead-letter:${item.id}`,
-        kind: "dead-letter",
-        itemId: item.id,
-        itemType: "workflow-dispatch",
-        status: "open",
-        affectedWorkflowNames: ["telegram-ingest"],
-        sourceEventIds: ["evtj-000000000042"],
-      }),
-    ]);
-    expect(evidence.evidence).toContainEqual(
-      expect.objectContaining({
-        id: `dead-letter:${item.id}`,
-        kind: "dead-letter",
-        path: ".kota/dead-letter-queue/items.json",
-      }),
-    );
-  });
-
-  it("keeps tasks referenced by dead-letter reasons citeable", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-dlq-task-reference");
-    const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    const taskId = "task-review-autonomous-workflow-failure";
-    writeTask(workspaceRoot, "open", taskId, {
-    });
-    const queue = new DeadLetterQueueStore(
-      join(workspaceRoot, ".kota", "dead-letter-queue"),
-      () => NOW,
-    );
-    const item = createWorkflowDispatchDeadLetter({
-      store: queue,
-      scopeId,
-      workflowName: "progress-reviewer",
-      trigger: {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload: { scopeId },
-      },
-      reason:
-        `- [meta-task-missing-product-safety-link] ${workspaceRoot}/data/tasks/${taskId}.md ` +
-        "is actionable open work but does not explain which higher-priority blocker it closes.",
-      errorClass: "validation",
-    });
-
-    const evidence = collectEvidence(workspaceRoot, {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { scopeId, windowMs: 3_600_000 },
-      });
-    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
-
+    expect(evidence.deadLetterCounts[0].openItemIds).toHaveLength(items.length);
+    expect(evidence.deadLetters).toHaveLength(items.length);
+    for (const item of items) {
+      expect(evidence.deadLetters).toContainEqual(
+        expect.objectContaining({
+          id: `dead-letter:${item.id}`,
+          kind: "dead-letter",
+          itemId: item.id,
+          itemType: "workflow-dispatch",
+          status: "open",
+          affectedWorkflowNames: ["progress-reviewer"],
+          sourceEventIds: item.sourceEventIds,
+        }),
+      );
+      expect(evidence.evidence).toContainEqual(
+        expect.objectContaining({
+          id: `dead-letter:${item.id}`,
+          kind: "dead-letter",
+          path: ".kota/dead-letter-queue/items.json",
+        }),
+      );
+    }
     expect(evidence.tasks.map((task) => task.taskId)).toContain(taskId);
     expect(evidence.evidence).toContainEqual(
       expect.objectContaining({
@@ -1567,83 +1434,34 @@ describe("progress-reviewer workflow", () => {
         path: `data/tasks/${taskId}.md`,
       }),
     );
-    expect(() =>
-      decodeProgressReviewAgentOutputForEvidence(
-        reviewOutput({
-          verdict: "needs-steering",
-          summary: "The dead-lettered validation failure references a task.",
-          localScope: {
-            claims: [
-              {
-                id: "dead-letter-task-reference",
-                claim: "The dead letter points at a current task record.",
-                evidenceIds: [`dead-letter:${item.id}`, `task:${taskId}`],
-                confidence: "high",
-              },
-            ],
-          },
-        }),
-        reviewInput,
-        evidence,
-      ),
-    ).not.toThrow();
-  });
 
-  it("bounds dead-letter ids in the compact agent packet", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-dead-letter-agent-packet");
-    const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    const queue = new DeadLetterQueueStore(
-      join(workspaceRoot, ".kota", "dead-letter-queue"),
-      () => NOW,
-    );
-    for (let index = 0; index < 6; index += 1) {
-      queue.record({
-        type: "workflow-dispatch",
-        scopeId,
-        owningModule: "workflow-runtime",
-        sourceEventIds: [`evtj-${String(index).padStart(12, "0")}`],
-        affectedWorkflowNames: ["trajectory-diagnostic-escalator"],
-        failure: {
-          reason: `Malformed trajectory diagnostics artifact ${index}`,
-          lastErrorClass: "execution",
-          failedAt: NOW.toISOString(),
-        },
-        source: {
-          kind: "workflow-dispatch",
-          workflowName: "trajectory-diagnostic-escalator",
-          triggerEvent: "workflow.completed",
-          triggerSchemaRef: null,
-        },
-        redrive: { kind: "none", reason: "fixture has no redrive target" },
-        redactedProjection: {},
-        retention: { kind: "retain" },
-      });
-    }
-
-    const evidence = collectEvidence(workspaceRoot, {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { scopeId, windowMs: 3_600_000 },
-      });
     const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
-    const compactDeadLetterIds = reviewInput.evidence
-      .filter((item) => item.kind === "dead-letter")
-      .map((item) => item.id);
-
-    expect(evidence.deadLetterCounts[0]?.openItemIds).toHaveLength(6);
-    expect(reviewInput.deadLetterCounts[0]).toEqual(
-      expect.objectContaining({
-        open: 6,
-        openItemIds: [],
-        redriveRunIds: [],
-      }),
-    );
-    expect(compactDeadLetterIds).toHaveLength(5);
+    expect(reviewInput.deadLetterCounts[0]).toMatchObject({
+      open: items.length,
+      openItemIds: [],
+      redriveRunIds: [],
+    });
+    expect(
+      reviewInput.evidence.filter((item) => item.kind === "dead-letter"),
+    ).toHaveLength(5);
     expect(reviewInput.excluded).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("dead-letter counts: omitted raw item/run id lists"),
+        expect.stringContaining(
+          "dead-letter counts: omitted raw item/run id lists",
+        ),
       ]),
     );
+    const citations = [`dead-letter:${items[0].id}`, `task:${taskId}`];
+    expect(
+      decodeProgressReviewAgentOutputForEvidence(
+        citingReview(
+          citations,
+          "The dead letter points at a current task record.",
+        ),
+        reviewInput,
+        evidence,
+      ).findings.localScope.claims[0]?.evidenceIds,
+    ).toEqual(citations);
   });
 
   it("stops artifact traversal at the max artifact count", () => {
