@@ -345,3 +345,5 @@ or manual command is required. Semantic review must confirm that the selected
 scope has a usable authorized coding execution route. A setup recipe, this
 writer's proposed profile, or another missing-grant receipt does not satisfy it.
 This prerequisite enables collection; it does not replace live parity acceptance.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T21:00:31.492Z -->

@@ -297,3 +297,5 @@ the candidate workspace. Two direct production auth-resolver probes rejected
 empty and synthetic API-key environments with the corrected implementation
 diagnostic. These establish the safety of the retained correction; no Linux
 login, credential-confidentiality or benchmark pass is claimed.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T21:00:31.492Z -->

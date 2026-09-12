@@ -126,3 +126,5 @@ of that exact post becomes available. No particular capture directory or manual
 operator action is required. Finish its content-grounded disposition in this
 same task; Sierra's assessment need not be repeated. Retained changes are the
 Sierra reference decision and these task notes, with no runtime behavior changes.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T21:00:31.492Z -->
