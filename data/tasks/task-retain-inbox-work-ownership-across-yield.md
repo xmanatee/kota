@@ -77,31 +77,35 @@ and successor eligibility after success/cancellation. Run evidence is under
 
 kind: operator-capture
 path: .kota/runs
-description: Attributable runtime-owned inventory and reconciliation of the existing inbox owners, followed by retained resume, publication and safe cleanup; equivalent scoped exports are accepted.
+description: Resolve the one missing-worktree legacy disposition through the runtime owner and observe the current claimed inbox run resume, publish and release ownership after its real prerequisites clear.
 
-Canonical runtime reconciliation and live acceptance evidence remain outstanding.
-This writer has no exposed scoped runtime inspection/cancellation capability.
-Direct reads of the two cited host run metadata paths returned `Operation not
-permitted`; the normal client's daemon discovery uses an explicitly denied
-control file. These restrictions do not establish that the host lacks capability
-or credentials. No daemon-control or database authority was read or changed.
+The declaration integrated as `c90520e42` and activated on September 11.
+The September 12 operator inventory verified twelve resource-less, yielded
+checkouts with zero tracked/untracked changes and zero commits beyond their
+recorded bases. Normal `DELETE /workflow/runs/:id` cancellation returned 200
+for each: x46pe9, 0s3tlk, ouquva, z6hbly, xh5md8, y9vsax, uqksrf, rueqdh,
+lptjyr, 5j8bez, 43h32l and p4o7u8. Their September 11 durable run records now
+show cancelled, no resources and removed worktrees; artifacts remain retained.
+No direct database edits or manual Git deletion were used.
 
-The runtime-provided `issue-evidence.json`, captured at 2026-09-11 16:16:27 UTC,
-contains only the first and latest cited runs. Both were waiting, attempt 1,
-with no resources and empty workspace diffs at their continuation decision.
-Neither has current writer evidence in that export. This is insufficient to
-classify all eleven current checkouts or safely select cancellations. All
-existing run identities, worktrees, capture contents and owner edits are retained.
+The original jkdwsr run already lacked its recorded worktree. Its continuation
+snapshot contains no changes, but that alone cannot establish present branch
+disposition. Normal cancellation returned 409 and preserved it as
+needs_attention with missing-sandbox evidence. Resolve that disposition through
+the existing recovery owner using actual branch/artifact evidence, not a forged
+checkout or relaxed cancellation guard.
 
-Resume with an attributable scoped runtime inventory covering all eleven runs
-and any later equivalent runs, current writer diffs/artifacts, and normal
-runtime cancellation/recovery results. Activate the declaration through the
-normal integration/runtime owner, reconcile old resource-less admissions without
-rewriting their claims, preserve ambiguous/dirty work, and observe the remaining
-owner resume after its real prerequisite clears, publish inbox progress, and
-release ownership. Record a later inventory showing no new equivalent executing
-owners and terminally authorized cleanup. Candidate code must not receive host
-authority. The task is not complete until these operational outcomes are shown.
+Keep `2026-09-11T16-44-52-830Z-inbox-sorter-udfvtw`, which uniquely owns
+`scope:8nrg1m:autonomy:inbox-triage`, and its single queued successor y4pewi.
+Repeated dispatcher observations update that successor without allocating a
+new checkout. Live retained resume, inbox publication, release and subsequent
+capture admission still need verification; cleanup alone is not acceptance.
+The original capture and all dirty unrelated work remain untouched.
+
+The builder's earlier scoped export covered only two runs and could not expose
+host inspection/cancellation. The operator evidence above supplies the broader
+inventory without giving candidate code daemon credentials or raw database
+access. Consume attributable runtime exports, not repeated unchanged retries.
 
 The static gate passed. Local behavior suites also expose execution restrictions:
 one existing inbox scenario cannot launch its validator because `/bin/ps` is
