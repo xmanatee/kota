@@ -1,10 +1,94 @@
 ---
-status: open
-priority: p1
-depends_on: [task-simplify-remaining-root-journey-tests, task-simplify-evaluation-and-parity-tests, task-simplify-approval-boundary-tests, task-simplify-tool-execution-owner-tests]
+status: dropped
 ---
 
 # Verify a fifty-percent reduction with a lean behavioral test portfolio
+
+## Disposition: Superseded After Unsuccessful Assessment
+
+This task is **dropped as superseded, not done**. The required reduction was not
+delivered. The post-check repair makes the replacement concrete in the isolated
+changeset; runtime still owns independent critic review and publication.
+
+Replacement open tasks (all p1):
+
+- `task-consolidate-workflow-retry-replay-route-verification`
+- `task-consolidate-progress-reviewer-evidence-verification`
+- `task-restore-complete-scoped-instruction-delivery`
+- `task-reassess-published-fifty-percent-test-reduction`, with hard dependencies
+  on the three preceding tasks and the unchanged 50% minimum acceptance.
+
+The bounded follow-ups are concrete remaining opportunities and a proven delivery
+repair, not a projection that they will close the entire 98,568-line gap. The
+successor preserves the owner's complete measurement, safety, research and
+final-assessment rules. No unrelated retained writer or task was changed.
+
+## Published Assessment And Proof
+
+Assessment revision: `538a5487fca0f0fb124179c269d27aa684128727`, published main
+when pinned and this writer's HEAD. The unchanged frozen recipe reproduces the
+334,805-test-LOC baseline exactly. Published final test LOC is **265,970**:
+**20.5597% reduction**, **98,568 above** the 167,402 ceiling. The 70% stretch
+also remains unmet; this audit does not delete necessary behavior to pursue it.
+
+| Category | Baseline | Assessed published revision |
+| --- | ---: | ---: |
+| Executable test files | 1,353 | 1,267 |
+| Executable test LOC | 334,805 | 265,970 |
+| Original authored support LOC | 26,305 | 21,075 |
+| Generated/vendor exclusion LOC | 20,872 | 15,791 |
+| Other source LOC classified as production | 340,567 | 352,301 |
+
+Exclusions comprise initial snapshots 11,567 -> 7,415, mobile daemon bindings
+2,867 -> 1,135, and generated schemas 6,438 -> 7,241. Production totals cover
+other .ts/.tsx/.js/.mjs/.swift sources under src/ and clients/; unrelated product
+growth is included, so this delta is not attributed solely to test cleanup.
+
+Classification correction: the frozen support suffix rule misses
+`-fixture.integration.ts` and `-test-tools.integration.ts`. Adding those plus
+`-fixtures.integration.ts` to the same rule for both revisions gives support
+**27,917 -> 22,826** and other production **338,955 -> 350,550**. Test LOC and
+exclusions are unchanged. The correction accounts for 8 baseline / 9 final
+support files and does not change either acceptance threshold. Both full original
+and corrected reports are retained; the frozen repository recipe is unchanged.
+
+The four direct child publications are ancestors of the assessed revision:
+approval `e53b4041e` (-504 test LOC), eval/parity `d63bb44a4` (-690),
+tools/execution `48d561d53` (-226), and root journeys `d48581536` (-832).
+Together: -2,252 test LOC, -109 support LOC, production +3/-1, exclusions unchanged.
+Their inspected diffs do not move deleted tests into helpers, fixtures or
+excluded paths. Retained protections include real approval digest/replay and
+runner effects, tool policy/symlink confinement, Git/SQLite recovery, evaluator
+scope/fsmonitor rejection, parity stage artifacts, and actual hook/REPL journeys.
+The sole direct-child production change keeps parity session state with artifacts.
+
+Validation at the pinned revision: static gate and production build passed.
+125 tests across 14 files passed: 76 SQLite/Git state, lifecycle and publication;
+12 permission/process-env; 8 evaluator scope/materialization; 7 parity runner;
+22 root authorization, conversation-file, REPL and hook checks. Another 25
+approval-route tests passed, yielding **150 distinct selected passing checks**.
+These sample real effects and recovery; they do not establish full release proof.
+
+The original broad attempt hit an inaccessible temporary grandparent. A nested
+root inside the permitted tool-runtime directory repaired approval setup. The
+restarted broad attempt was interrupted after recurring process/HTTP timeouts;
+its 73 printed failed files / 449 failures are incomplete observations. Guardrails
+had 65/66 passing, with the remaining case failing cleanup on rmdir EPERM.
+Untriaged failures are not all assumed environmental. A direct production loader
+probe additionally confirms seven truncated guidance files omitting final rules;
+the named instruction follow-up owns that repair. No live-model quality or full
+HTTP/native-process pass is claimed. No production, test or client contract was
+changed by this assessment or disposition repair.
+
+Later canonical publication `19cd328b6` adds 41 test LOC and one net production
+LOC, so it does not close the gap. Measurements and tests above remain pinned;
+they do not claim to validate that subsequent change.
+
+Run `2026-09-12T19-11-38-383Z-builder-7hd0ll` retains `summary.md`, original and
+corrected census/recipes, integrated-child diffs, instruction-probe results,
+`scoped-results.json`, and validation logs. The essential findings are included
+here so task review does not depend on access to run artifacts. The original
+contract and research basis follow unchanged for historical intent.
 
 ## Owner Decision And Measurement
 
