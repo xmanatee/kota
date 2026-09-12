@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
@@ -263,12 +263,46 @@ directory as `eval-list.log`, `scorer-checks.log`, and `contained-inspect.json`.
 
 ## Next execution
 
-This is the same unfinished host setup as the AGY and rollout evaluations,
-not a separate owner-capture prerequisite. The shared
-`task-complete-contained-evaluation-host-setup` dependency owns the recipe and
-scope-bound grants, including this fixture. Keep this task open behind that
-dependency instead of rediscovering the absent grant in another builder run.
+Both implementation dependencies are now archived as done. The shared
+host-setup task supplied the deployment recipe and scope-bound profile support,
+including this fixture; its completion explicitly excludes service activation.
 After host activation, execute the existing fixture through `eval contained`
 and retain its actual claim/holdout results. The fixture implementation and
 deterministic calibration already exist; neither is evidence of a live model
 pass, and no replacement fixture or execution bridge is needed.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: Trusted-host activation of the reviewed scope-bound scientific-claim profile, observable through native contained inspection; equivalent attributable host readiness permits resuming without manual captures.
+```
+
+The path is a discovery hint required by the existing task vocabulary, not a
+required capture destination. A successful native inspection returning the
+authorized fixture profile is sufficient to resume execution.
+
+The trusted host must activate an operator-reviewed `KOTA_EVAL_CONTAINED_PROFILES`
+grant for this canonical scope and `builder-scientific-claim-reproduction`, using
+the completed deployment/service setup owner. This is execution authority that
+worker requests cannot configure, not an unfinished implementation dependency or
+a requirement for manual benchmark capture. Once activated, this same task can
+request its live run through the supported contained-evaluation action.
+
+Run `2026-09-12T19-11-40-556Z-builder-yd54kg` rechecked the supported native
+surface with `pnpm kota eval contained '{"operation":"inspect"}'`.
+The host returned `is_error: true` for
+`tool-f480efead51bde96565350bbf35c7e7a`: `Set KOTA_EVAL_CONTAINED_PROFILES in
+the trusted host environment`; the CLI exited 1. This fresh response establishes
+the missing grant. It does not establish absent credentials, images, Docker or
+provider connectivity. No nested builder was launched, and live claim/holdout
+results, objective metric and execution provenance remain unmet.
+
+The existing fixture and scorer are retained unchanged. `pnpm kota eval list`
+loads the fixture, and all 11 checks in the three scientific-claim owner test
+files pass. They distinguish incorrect or hardcoded analysis, malformed
+provenance, forbidden filesystem access, and missing or exceeded analyzer
+containment from accepted evidence; they do not establish live model success.
+Inspection evidence and current verification logs are under this run's agent
+directory; no host policy, other task or retained writer was changed.
