@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Preserve watchlist values across YAML updates
 
@@ -72,3 +71,46 @@ and snapshot attribution are copied to
 remain in the builder run evidence. `live-acceptance-status.json` records the
 collection assessment. A live explorer observation was not obtained by that
 attempt; the current contract assigns it to operational follow-up.
+
+
+## Completion under the September 12 contract
+
+The retained parser and editor-first validation satisfy the current contract;
+no additional production-code or watchlist-content change was needed. The live
+explorer capture remains unobserved operational follow-up under the owner waiver.
+
+At revision `3396727738494f225142b4fc2a9523a79dd8a3cd`, the current real watchlist
+contains 118 entries. A direct single-source snapshot edit in an isolated copy
+preserved the semantic values of the other 117 entries, all operator fields on
+the edited entry, and the surrounding YAML bytes. Five repeated reads preserved
+values and bytes. The explorer's declared publication validator accepted escaped
+quotes, literal backslashes, multiline text and date strings without rewriting;
+it rejected a numeric snapshot date with a field-specific diagnostic and left
+the invalid input intact.
+
+The production source-evidence owner and workflow review predicate admitted an
+initial observation, suppressed unchanged evidence after the YAML edit,
+preserved its fingerprint on failed access, and admitted changed source content.
+This used a controlled web-tool replay of the checked-in OpenClaw snapshot with
+fresh cache records for other entries. It is deterministic boundary evidence,
+not a live source fetch, full agent workflow run, or deployed-success claim.
+
+The earlier `.kota/runs/watchlist-yaml-repair-evidence/` directory was absent in
+this workspace. Historical evidence was therefore reproduced from Git commit
+`4ef8db5195e5913315d21bfaf652e29f4485a462`: its old parser/serializer changes the
+Anthropic research entry on a single round trip. The attributed snapshot repair
+diff from `624eb851d` is retained alongside that reproduction; no global string
+unescaping was performed.
+
+Evidence is in builder run `2026-09-12T06-41-05-779Z-builder-rwi8w4`, under
+`agent/watchlist-probe.mjs` and `agent/watchlist-evidence/`: `result.json`, real
+before/after YAML, multiline YAML, invalid-input diagnostic, controlled source
+content, observed source outputs, historical source/before/after YAML, and the
+attributed repair diff.
+
+Validation: `pnpm check:fast` passed. The existing watchlist and source-evidence
+owner suites passed 21 tests; two validation-command tests could not start
+because the sandbox denied `/bin/ps` in the shared process wrapper. The direct
+probe executed the identical declared validator successfully and checked both
+acceptance and rejection without changing the wrapper. Task validation was
+rerun after this archive transition.
