@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p2
 depends_on: [task-run-contained-linux-runtime-probes]
 ---
@@ -29,17 +29,19 @@ mediation and task-probe/container owners are present, and this run successfully
 reached the host through that mediation. The prior continuation's dependency-wait
 rationale is stale; the concrete host grant failure below is the current obstacle.
 
-Once the scoped execution grant is active, implement the missing credential writer
-and test successful private persistence plus relocation/symlink rejection. The prior
-fail-closed mitigation is not feature completion. Do not weaken it, restore the
-defeated writer, or demand an additional operator-readiness artifact before work
-can resume. The host monitor handles deployment follow-up after publication.
+Implement the missing credential writer now. Host activation is a prerequisite
+for the final contained Linux observation, not for tracing maintained consumers,
+choosing the owning primitive, implementing it or exercising available tests.
+Use proportionate proof at that owner; do not add another execution bridge or
+repeat unchanged readiness calls. Preserve the fail-closed mitigation wherever
+the replacement cannot enforce the boundary. It is not feature completion.
+Publish useful implementation independently of deployment observation, reporting
+unperformed Linux checks honestly. Block again only when no implementation or
+available validation can advance the task, naming the exact remaining check.
+Do not weaken containment or restore the defeated writer. The host monitor owns
+deployment follow-up; no separate operator-readiness artifact is required.
 
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs
-description: Host lifecycle owner activates an offline native-probe grant for this scope; normal native inspect/probe results or equivalent attributable host evidence permit resumption, with no separate readiness capture required.
+## Deployment Follow-up
 
 The invoking host has no `KOTA_EVAL_CONTAINED_PROFILES` configuration. In builder
 run `2026-09-12T17-27-13-592Z-builder-nzwt51`, the maintained command
@@ -59,8 +61,8 @@ digest before activation. No model access, host mounts, credentials, or network
 grant is requested. The existing service owner and deployment recipe supply the
 activation path; no new service or capture format is required.
 
-Resume through native profile inspection and the selected offline probe. A usable
-credential writer remains unimplemented: the current anchored-filesystem owner
+Once activation is available, validate through native profile inspection and the
+selected offline probe. A usable credential writer remains unimplemented: the current anchored-filesystem owner
 explicitly permits handles to follow relocated directories, and the task-probe
 owner isolates disposable execution rather than publishing credentials to an
 authorized host path. Neither is a safe replacement write primitive. Successful
@@ -262,5 +264,3 @@ The task validator was run after this task-body correction. Browser lifecycle,
 configuration/setup, and reporting changes remain safe containment only.
 Restoring functional persistence still requires implementation and positive and
 adversarial boundary proof on an authorized contained execution surface.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T19:14:11.234Z -->
