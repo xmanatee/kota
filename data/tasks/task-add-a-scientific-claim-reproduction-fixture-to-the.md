@@ -1,6 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p2
+depends_on: [task-enable-runtime-mediated-contained-evaluation]
 ---
 # Add a scientific-claim reproduction fixture to the eval harness
 
@@ -16,50 +17,15 @@ requirement without exposing secrets or inferring absence from an old denial.
 
 This contract supersedes historical blocking and operational-capture requirements.
 
-## Blocked on
+## Implementation Prerequisite
 
-kind: operator-capture
-path: .kota/runs
-description: Attributable runtime evidence that this task can invoke authenticated contained evaluation with image/setup discovery and restricted provider egress.
-
-The existing evidence-review kind above records an execution-authority
-precondition, not a request for manual capture or a completed eval. Its path is
-only a discovery hint: automatically collected, task-linked capability exports
-from any scoped location are acceptable. Reopen as soon as they establish a
-permitted invocation; image setup and the live nested-builder pass remain this
-task's work. A report's existence or the mediation task's completion alone does
-not establish that authority.
-
-## Execution assessment (2026-09-12 resumption and repair)
-
-This native invocation lacks a permitted runtime action for the authenticated,
-contained evaluation. On resumption and again during repair, `/usr/local/bin/docker version --format
-'{{.Server.Version}}'` failed with permission denied at `/var/run/docker.sock`.
-This establishes a restriction of this worker, not missing host Docker or login.
-The available native authorization service only returns task-writer authorization;
-the eval module exposes CLI/client/HTTP execution but no callable native eval tool
-in this invocation. No current-source image or provider-egress setup could be
-identified through that restricted execution path.
-
-Resume when the runtime exposes an authorized contained-eval invocation with
-image/setup discovery, adapter-owned authentication and restricted provider
-egress to this run. The existing
-`task-enable-runtime-mediated-contained-evaluation` owns that mediation work.
-It is a potential remedy rather than a hard predecessor: an equivalent authorized
-runtime invocation also satisfies this prerequisite, so no `depends_on` is required.
-No additional owner consent or manually captured result is required. Preserve
-the same fixture, isolated verifier and run lineage, then perform the live
-nested-builder evaluation and inspect both claim artifacts, predicate results,
-objective metric and execution provenance before completion.
-
-Run `2026-09-12T06-41-29-357Z-builder-zdcy03` revalidated fixture discovery and
-11 scientific-claim owner tests against source
-`8e5cb18a046ab3f55c35605b55eb97ddd1689b60`. These cover scorer acceptance,
-hardcoded/prewritten shortcut rejection, malformed provenance and analyzer
-boundary behavior. Process doubles in owner tests do not prove live Docker
-containment or model execution. No source changes were needed; no live pass is
-claimed. Transcripts and the execution-boundary assessment are retained under
-this run's agent artifact directory, summarized in `execution-readiness.md`.
+The native worker cannot call the host Docker socket. Host Docker is available;
+this is the shared contained-evaluation implementation dependency above, not an
+owner-capture block. Once that capability integrates, resume setup and evaluation
+through its scoped tool. Do not require a separate readiness artifact to admit
+the task, or treat the dependency's completion as a successful benchmark.
+The fixture/scorer already has focused local coverage; the live nested-agent
+result remains to be obtained and inspected by this task.
 
 
 ## Problem
@@ -269,5 +235,3 @@ operator capture.
 ## Historical disposition (2026-09-10)
 
 Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 with current container/egress options. Retain claim-result.json, claim-holdout-result.json, predicate details and objective metric, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T10:23:57.524Z -->

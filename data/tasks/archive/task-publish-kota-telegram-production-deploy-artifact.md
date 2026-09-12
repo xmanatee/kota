@@ -1,6 +1,5 @@
 ---
-status: blocked
-priority: p3
+status: done
 ---
 # Publish KOTA Telegram production deploy artifact
 
@@ -165,22 +164,15 @@ inheritance and missing-preset rejection are covered. These checks require no
 Docker or live credentials and repair the critic finding independently of the
 contained launch prerequisite below.
 
-## Blocked on
+## Completed host integration (2026-09-12)
 
-kind: operator-capture
-path: .kota/runs
-description: Task-attributable authorized contained execution capability or equivalent actual deploy launch, health, secret-boundary and rollback evidence for the revised artifact.
+The host ran the checked-in `integration-test.sh` against the revised deploy
+artifact at `db6cc65d96e20dd5c78cce5e5db789f9854ea3a9`. It passed the actual
+Docker build, installer, supervised daemon health, literal/private secret input,
+rollback with state retention, and explicit state purge. The container used fake
+credentials, no host mounts and network mode `none`; no second real Telegram
+poller was started. Container and volume cleanup completed. Transcript:
+`/tmp/kota-deploy-check-20260912.log` (retained monitoring copy under .kota/runs).
 
-This evidence-review kind records execution authority, not a manual capture
-request. The path is a discovery hint; equivalent scoped exports are accepted.
-
-A runtime-authorized contained execution (or equivalent attributable export) of
-the actual deploy integration, permitting Docker image build and isolated
-supervisor/daemon launch, health, literal-secret checks and rollback. This run has
-no exposed contained-execution tool; direct Docker access and a local daemon
-listener are unavailable under its current sandbox. Resume with that execution
-capability or task-linked evidence for the revised artifact, then diagnose any
-observed failures. Do not expose host Docker authority or credentials to candidate
-code. No real staging token, owner impersonation, production poll handoff, or
-manual-only capture is required for this prerequisite. The authentic staging
-`/status` exchange remains non-gating operational follow-up under the owner waiver.
+An authentic staging-chat exchange remains unperformed, as the Current Contract
+explicitly permits; it is not a prerequisite for this artifact's completion.
