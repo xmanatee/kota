@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
@@ -30,109 +30,6 @@ afterEach(() => {
 });
 
 describe("continueOnFailure", () => {
-  it("subsequent steps run when a continueOnFailure step fails", async () => {
-    const executed: string[] = [];
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "optional-step",
-          type: "code",
-          continueOnFailure: true,
-          run: () => {
-            executed.push("optional-step");
-            throw new Error("transient failure");
-          },
-        },
-        {
-          id: "next-step",
-          type: "code",
-          run: () => {
-            executed.push("next-step");
-            return { ok: true };
-          },
-        },
-      ],
-    });
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: fixture.runContext,
-      bus: fixture.bus,
-      store: fixture.store,
-      log: fixture.log,
-    });
-    await promise;
-
-    expect(executed).toEqual(["optional-step", "next-step"]);
-  });
-
-  it("run finishes with completed-with-warnings when a continueOnFailure step fails", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "optional-step",
-          type: "code",
-          continueOnFailure: true,
-          run: () => {
-            throw new Error("non-critical error");
-          },
-        },
-      ],
-    });
-
-    const completed: unknown[] = [];
-    fixture.bus.on("workflow.completed", (payload) => completed.push(payload));
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: fixture.runContext,
-      bus: fixture.bus,
-      store: fixture.store,
-      log: fixture.log,
-    });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("completed-with-warnings");
-    expect(completed).toEqual([]);
-  });
-
-  it("failed continueOnFailure step result has continueOnFailure flag set in stored metadata", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "optional-step",
-          type: "code",
-          continueOnFailure: true,
-          run: () => {
-            throw new Error("boom");
-          },
-        },
-      ],
-    });
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: fixture.runContext,
-      bus: fixture.bus,
-      store: fixture.store,
-      log: fixture.log,
-    });
-    await promise;
-
-    const runDirs = readdirSync(join(fixture.workspaceRoot, ".kota", "runs"));
-    const metadata = JSON.parse(
-      readFileSync(
-        join(fixture.workspaceRoot, ".kota", "runs", runDirs[0], "metadata.json"),
-        "utf-8",
-      ),
-    ) as { steps: Array<{ status: string; continueOnFailure?: boolean; error?: string }> };
-
-    expect(metadata.steps).toHaveLength(1);
-    expect(metadata.steps[0].status).toBe("failed");
-    expect(metadata.steps[0].continueOnFailure).toBe(true);
-    expect(metadata.steps[0].error).toBe("boom");
-  });
-
   it("run aborts normally when a step without continueOnFailure fails", async () => {
     const executed: string[] = [];
     const definition = makeDefinition({
@@ -200,40 +97,40 @@ describe("continueOnFailure", () => {
     expect(completed).toEqual([]);
   });
 
-  it("next step can inspect failed continueOnFailure step result via stepResults", async () => {
-    let capturedResult: unknown;
+  it("continues with the failed result and persists a warning without publishing completion", async () => {
+    const completed: unknown[] = [];
+    fixture.bus.on("workflow.completed", (payload) => completed.push(payload));
     const definition = makeDefinition({
       steps: [
         {
           id: "optional-step",
           type: "code",
           continueOnFailure: true,
-          run: () => {
-            throw new Error("non-critical");
-          },
+          run: () => { throw new Error("non-critical"); },
         },
         {
           id: "check-step",
           type: "code",
-          run: (ctx) => {
-            capturedResult = ctx.stepResults["optional-step"];
-            return "done";
-          },
+          run: (ctx) => ctx.stepResults["optional-step"],
         },
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: fixture.runContext,
-      bus: fixture.bus,
-      store: fixture.store,
-      log: fixture.log,
+    const result = await fixture.execute(definition).promise;
+    const failedStep = {
+      id: "optional-step",
+      status: "failed",
+      continueOnFailure: true,
+      error: "non-critical",
+    };
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    expect(result.metadata.steps).toHaveLength(2);
+    expect(result.metadata.steps[1]).toMatchObject({
+      status: "success",
+      output: failedStep,
     });
-    await promise;
-
-    expect((capturedResult as { status: string }).status).toBe("failed");
-    expect((capturedResult as { error: string }).error).toBe("non-critical");
+    expect(fixture.store.getRun(result.metadata.id)?.steps[0]).toMatchObject(failedStep);
+    expect(completed).toEqual([]);
   });
 });
 

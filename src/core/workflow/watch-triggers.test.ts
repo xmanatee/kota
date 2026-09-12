@@ -22,9 +22,12 @@ function makeDefinition(
 ): WorkflowDefinition {
   const patterns = Array.isArray(watch) ? watch : [watch];
   return {
+    repository: "none",
+    tags: [],
     name,
     enabled: true,
     definitionPath: `test/${name}.ts`,
+    moduleRoot: "/test-module-root",
     triggers: [
       {
         event: "files.changed",
@@ -34,7 +37,7 @@ function makeDefinition(
       },
     ],
     steps: [],
-  } as unknown as WorkflowDefinition;
+  };
 }
 
 describe("WatchTriggerManager", () => {
@@ -66,7 +69,7 @@ describe("WatchTriggerManager", () => {
   }
 
   async function setup(definitions: WorkflowDefinition[]): Promise<void> {
-    mgr.setup(definitions, subscribe as Parameters<typeof mgr.setup>[1]);
+    mgr.setup(definitions, subscribe);
     await Promise.resolve();
   }
 
@@ -94,20 +97,6 @@ describe("WatchTriggerManager", () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("fires trigger when a matching file changes", async () => {
-    const def = makeDefinition("watcher", "src/**/*.ts", 50);
-    await setup([def]);
-
-    emitFileChanged(watcherId, [{ path: "src/foo.ts", type: "change" }]);
-
-    await new Promise((r) => setTimeout(r, 150));
-
-    expect(enqueuedRuns).toHaveLength(1);
-    expect(enqueuedRuns[0].event).toBe("files.changed");
-    expect((enqueuedRuns[0].payload as { files: string[] }).files).toContain("src/foo.ts");
-    expect(startNextCount).toBeGreaterThan(0);
-  });
-
   it("does not fire when no file matches the pattern", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
     await setup([def]);
@@ -119,40 +108,31 @@ describe("WatchTriggerManager", () => {
     expect(enqueuedRuns).toHaveLength(0);
   });
 
-  it("batches multiple changes within the debounce window", async () => {
+  it("reports pending changes, deduplicates files and queues one debounced trigger", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 100);
     await setup([def]);
 
     emitFileChanged(watcherId, [{ path: "src/a.ts", type: "change" }]);
     await new Promise((r) => setTimeout(r, 30));
-    emitFileChanged(watcherId, [{ path: "src/b.ts", type: "create" }]);
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    expect(enqueuedRuns).toHaveLength(1);
-    const files = (enqueuedRuns[0].payload as { files: string[] }).files;
-    expect(files).toContain("src/a.ts");
-    expect(files).toContain("src/b.ts");
-  });
-
-  it("reports accepted changes until their debounce buffer is queued", async () => {
-    const def = makeDefinition("watcher", "src/**/*.ts", 150);
-    await setup([def]);
-
     emitFileChanged(watcherId, [
       { path: "src/b.ts", type: "create" },
       { path: "src/a.ts", type: "change" },
     ]);
-
+    expect(enqueuedRuns).toEqual([]);
     expect(mgr.listPendingBuffers()).toEqual([{
       workflowName: "watcher",
       triggerIndex: 0,
       files: ["src/a.ts", "src/b.ts"],
     }]);
 
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 200));
 
     expect(enqueuedRuns).toHaveLength(1);
+    expect(enqueuedRuns[0]).toMatchObject({
+      event: "files.changed",
+      payload: { files: ["src/a.ts", "src/b.ts"] },
+    });
+    expect(startNextCount).toBe(1);
     expect(mgr.listPendingBuffers()).toEqual([]);
   });
 
@@ -182,12 +162,15 @@ describe("WatchTriggerManager", () => {
 
   it("skips definitions with no watch triggers", async () => {
     const def: WorkflowDefinition = {
+      repository: "none",
+      tags: [],
       name: "no-watch",
       enabled: true,
       definitionPath: "test/no-watch.ts",
+      moduleRoot: tmpDir,
       triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
       steps: [],
-    } as unknown as WorkflowDefinition;
+    };
 
     await setup([def]);
 

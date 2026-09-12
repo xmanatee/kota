@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createRunExecutorTestFixture,
@@ -40,7 +38,10 @@ describe("outputSchema validation", () => {
     expect(result.metadata.warnings).toBeUndefined();
   });
 
-  it("run is completed-with-warnings when last step output mismatches outputSchema", async () => {
+  it.each([
+    ["wrong property type", { value: "not-a-number" }],
+    ["missing required property", { notValue: "oops" }],
+  ])("persists an output warning for %s", async (_label, output) => {
     const definition = makeDefinition({
       outputSchema: {
         type: "object",
@@ -51,7 +52,7 @@ describe("outputSchema validation", () => {
         {
           id: "step",
           type: "code",
-          run: () => ({ value: "not-a-number" }),
+          run: () => output,
         },
       ],
     });
@@ -62,6 +63,10 @@ describe("outputSchema validation", () => {
     expect(result.metadata.warnings).toHaveLength(1);
     expect(result.metadata.warnings?.[0]?.type).toBe("output-schema-mismatch");
     expect(result.metadata.warnings?.[0]?.message).toContain("value");
+    expect(fixture.store.getRun(result.metadata.id)).toMatchObject({
+      status: "completed-with-warnings",
+      warnings: result.metadata.warnings,
+    });
   });
 
   it("run succeeds with no warnings when outputSchema is absent", async () => {
@@ -79,33 +84,6 @@ describe("outputSchema validation", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(result.metadata.warnings).toBeUndefined();
-  });
-
-  it("output schema mismatch warning is persisted in metadata.json", async () => {
-    const definition = makeDefinition({
-      outputSchema: { type: "object", required: ["name"] },
-      steps: [
-        {
-          id: "step",
-          type: "code",
-          run: () => ({ notName: "oops" }),
-        },
-      ],
-    });
-
-    await fixture.execute(definition).promise;
-
-    const runDirs = readdirSync(join(fixture.workspaceRoot, ".kota", "runs"));
-    const metadata = JSON.parse(
-      readFileSync(
-        join(fixture.workspaceRoot, ".kota", "runs", runDirs[0], "metadata.json"),
-        "utf-8",
-      ),
-    ) as { status: string; warnings?: Array<{ type: string; message: string }> };
-
-    expect(metadata.status).toBe("completed-with-warnings");
-    expect(metadata.warnings).toHaveLength(1);
-    expect(metadata.warnings?.[0]?.type).toBe("output-schema-mismatch");
   });
 
   it("output schema is not validated when run fails", async () => {

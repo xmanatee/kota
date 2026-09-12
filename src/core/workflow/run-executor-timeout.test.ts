@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import {
   createRunExecutorTestFixture,
   delayWithAbort,
@@ -19,94 +18,46 @@ afterEach(() => {
 });
 
 describe("step timeout", () => {
-  it("DEFAULT_STEP_TIMEOUT_MS is a hang rail, not a task-size limit", () => {
-    expect(DEFAULT_STEP_TIMEOUT_MS).toBe(3 * 60 * 60 * 1000);
-  });
-
-  it("fails the run when a step exceeds its timeoutMs", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "hanging-step",
-          type: "code",
-          timeoutMs: 50,
-          run: () => new Promise(() => {}),
-        },
-      ],
-    });
-
-    const result = await fixture.execute(definition).promise;
-
-    expect(result.metadata.status).toBe("failed");
-    expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
-    const errorLog = (fixture.log.mock.calls as string[][])
-      .flat()
-      .find((message) => message.includes("Failed"));
-    expect(errorLog).toContain("hanging-step");
-    expect(errorLog).toContain("timed out");
-  }, 10_000);
-
-  it("run status is 'failed' (not 'interrupted') on step timeout", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "slow-step",
-          type: "code",
-          timeoutMs: 50,
-          run: () => new Promise(() => {}),
-        },
-      ],
-    });
-
-    const result = await fixture.execute(definition).promise;
-
-    expect(result.metadata.status).toBe("failed");
-  }, 10_000);
-
-  it("subsequent steps do not run after a timeout failure", async () => {
-    const executed: string[] = [];
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "slow-step",
-          type: "code",
-          timeoutMs: 50,
-          run: () => new Promise(() => {}),
-        },
-        {
-          id: "unreachable-step",
-          type: "code",
-          run: () => {
-            executed.push("unreachable-step");
+  it.each(["cooperative", "unresponsive"] as const)(
+    "times out %s work, skips following steps and leaves alerts to the terminal rail",
+    async (cancellation) => {
+      let cancelled = false;
+      let reachedNext = false;
+      const alerts: unknown[] = [];
+      fixture.bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
+      const definition = makeDefinition({
+        steps: [
+          {
+            id: "hanging-step",
+            type: "code",
+            timeoutMs: 50,
+            run: async (ctx) => {
+              if (cancellation === "unresponsive") return new Promise(() => {});
+              try {
+                await delayWithAbort(5_000, ctx.signal);
+              } finally {
+                cancelled = ctx.signal?.aborted === true;
+              }
+            },
           },
-        },
-      ],
-    });
+          { id: "unreachable", type: "code", run: () => { reachedNext = true; } },
+        ],
+      });
 
-    await fixture.execute(definition).promise;
+      const result = await fixture.execute(definition).promise;
 
-    expect(executed).toEqual([]);
-  }, 10_000);
-
-  it("defers workflow failure publication on step timeout to the terminal rail", async () => {
-    const alerts: unknown[] = [];
-    fixture.bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "stuck-step",
-          type: "code",
-          timeoutMs: 50,
-          run: () => new Promise(() => {}),
-        },
-      ],
-    });
-
-    const result = await fixture.execute(definition).promise;
-
-    expect(result.metadata.status).toBe("failed");
-    expect(alerts).toEqual([]);
-  }, 10_000);
+      expect(result.metadata.status).toBe("failed");
+      expect(cancelled).toBe(cancellation === "cooperative");
+      expect(reachedNext).toBe(false);
+      expect(alerts).toEqual([]);
+      expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
+      const errorLog = (fixture.log.mock.calls as string[][])
+        .flat()
+        .find((message) => message.includes("Failed"));
+      expect(errorLog).toContain("hanging-step");
+      expect(errorLog).toContain("timed out");
+    }, 10_000,
+  );
 
   it("lets code steps exceed idleTimeoutMs when they report typed progress", async () => {
     const definition = makeDefinition({
@@ -191,28 +142,4 @@ describe("foreach step timeout", () => {
     expect(errorLog).toContain("timed out");
   }, 10_000);
 
-  it("run status is 'failed' (not 'interrupted') on foreach step timeout", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "slow-foreach",
-          type: "foreach",
-          timeoutMs: 50,
-          items: [1],
-          as: "item",
-          steps: [
-            {
-              id: "inner",
-              type: "code",
-              run: () => new Promise(() => {}),
-            },
-          ],
-        },
-      ],
-    });
-
-    const result = await fixture.execute(definition).promise;
-
-    expect(result.metadata.status).toBe("failed");
-  }, 10_000);
 });

@@ -1,80 +1,15 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "#core/events/event-bus.js";
-import type { RunContext } from "./run-context.js";
-import { executeWorkflowRun } from "./run-executor.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  createRunExecutorTestFixture,
+  makeDefinition,
+  type RunExecutorTestFixture,
+  TRIGGER,
+} from "./run-executor-test-fixture.js";
 import { findRetryFromIndex } from "./run-executor-utils.js";
-import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
-import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
+import type { WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-
-function makeRunContext(
-  workspaceRoot: string,
-  trigger: RunContext["trigger"],
-  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = workspaceRoot,
-): RunContext {
-  return {
-    runtimeStateDir: join(workspaceRoot, ".kota"),
-    run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    scope: { id: "test-scope", root: workspaceRoot },
-    workflow: "test",
-    trigger,
-    sandbox: {
-      runId,
-      repository: "none",
-      rootDir: workspaceRoot,
-      workspaceDir,
-      tempDir: workspaceRoot,
-      artifactDir: workspaceRoot,
-    },
-    resources: {
-      runId,
-      attempt: 1,
-      daemonEpoch: 1,
-      workspaceDir,
-      runDir: workspaceRoot,
-      tempDir: workspaceRoot,
-      artifactDir: workspaceRoot,
-      agentDir: workspaceRoot,
-      packageCacheDir: workspaceRoot,
-      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
-      env: {},
-    },
-    signal: new AbortController().signal,
-    processes: { register: vi.fn() },
-    effects: { execute: (effect) => effect.execute() },
-    publications: { stageEmit: vi.fn() },
-    state: createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state")),
-  };
-}
-
-
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
-import {
-  registerWorkflowDefinition,
-  validateWorkflowDefinitions,
-} from "./validation.js";
-
-function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
-  return {
-    name: "test",
-    enabled: true,
-    repository: "none",
-    definitionPath: "src/modules/test/workflows/test/workflow.ts",
-    moduleRoot: "/test-module-root",
-    triggers: [],
-    steps: [],
-    ...overrides,
-    tags: overrides.tags ?? [],
-  };
-}
-
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
+import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
 describe("findRetryFromIndex", () => {
   it("returns 0 when original steps is empty", () => {
@@ -117,41 +52,16 @@ describe("findRetryFromIndex", () => {
 });
 
 describe("retry execution", () => {
-  let workspaceRoot: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
+  let fixture: RunExecutorTestFixture;
   beforeEach(() => {
-    workspaceRoot = join(
-      tmpdir(),
-      `kota-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(workspaceRoot, { recursive: true });
-    store = new WorkflowRunStore(workspaceRoot);
-    bus = new EventBus();
-    log.mockReset();
+    fixture = createRunExecutorTestFixture();
   });
-
   afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
+    fixture.dispose();
   });
 
-  async function runDefinition(definition: WorkflowDefinition, trigger = TRIGGER) {
-    const { promise } = executeWorkflowRun(definition, trigger, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot, trigger),
-      bus,
-      store,
-      log,
-    });
-    return promise;
-  }
-
-  function readRunMetadata(runId: string): WorkflowRunMetadata {
-    return JSON.parse(
-      readFileSync(join(workspaceRoot, ".kota", "runs", runId, "metadata.json"), "utf-8"),
-    ) as WorkflowRunMetadata;
+  function runDefinition(definition: WorkflowDefinition, trigger = TRIGGER) {
+    return fixture.execute(definition, { trigger }).promise;
   }
 
   it("retries from the first failed step, replaying prior successful steps", async () => {
@@ -171,7 +81,10 @@ describe("retry execution", () => {
         {
           id: "step-c",
           type: "code",
-          run: (ctx) => { executed.push("step-c"); return { prevOutput: ctx.previousOutput }; },
+          run: (ctx) => {
+            executed.push("step-c");
+            return { fromA: ctx.stepOutputs["step-a"], previous: ctx.previousOutput };
+          },
         },
       ],
     });
@@ -198,7 +111,10 @@ describe("retry execution", () => {
         {
           id: "step-c",
           type: "code",
-          run: (ctx) => { executed.push("step-c"); return { prevOutput: ctx.previousOutput }; },
+          run: (ctx) => {
+            executed.push("step-c");
+            return { fromA: ctx.stepOutputs["step-a"], previous: ctx.previousOutput };
+          },
         },
       ],
     });
@@ -214,6 +130,10 @@ describe("retry execution", () => {
     expect(executed).toEqual(["step-b", "step-c"]);
     expect(retried.metadata.status).toBe("success");
     expect(retried.metadata.retryOf).toBe(originalId);
+    expect(retried.metadata.steps[2]?.output).toEqual({
+      fromA: { fromA: true }, previous: { fromB: true },
+    });
+    expect(fixture.store.getRun(retried.metadata.id)?.retryOf).toBe(originalId);
 
     // All three steps should be recorded in the retry run
     expect(retried.metadata.steps).toHaveLength(3);
@@ -273,7 +193,7 @@ describe("retry execution", () => {
           ],
         }),
       ],
-      workspaceRoot,
+      fixture.workspaceRoot,
     );
     if (!definition) throw new Error("validated workflow definition is missing");
 
@@ -349,108 +269,4 @@ describe("retry execution", () => {
     expect(retried.metadata.steps).toHaveLength(2);
   });
 
-  it("replayed steps carry original outputs into step context", async () => {
-    let capturedPreviousOutput: unknown;
-    let capturedStepOutputs: Record<string, unknown> = {};
-
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "step-a",
-          type: "code",
-          run: () => ({ fromA: "original-value" }),
-        },
-        {
-          id: "step-b",
-          type: "code",
-          run: () => { throw new Error("fail"); },
-        },
-        {
-          id: "step-c",
-          type: "code",
-          run: (ctx) => {
-            capturedPreviousOutput = ctx.previousOutput;
-            capturedStepOutputs = ctx.stepOutputs as Record<string, unknown>;
-            return "done";
-          },
-        },
-      ],
-    });
-
-    // Original: step-a succeeds, step-b fails
-    const original = await runDefinition(definition);
-    const originalId = original.metadata.id;
-
-    // Retry with step-b fixed
-    const retryDefinition = makeDefinition({
-      steps: [
-        {
-          id: "step-a",
-          type: "code",
-          run: () => ({ fromA: "original-value" }),
-        },
-        {
-          id: "step-b",
-          type: "code",
-          run: () => ({ fromB: true }),
-        },
-        {
-          id: "step-c",
-          type: "code",
-          run: (ctx) => {
-            capturedPreviousOutput = ctx.previousOutput;
-            capturedStepOutputs = ctx.stepOutputs as Record<string, unknown>;
-            return "done";
-          },
-        },
-      ],
-    });
-
-    const retryTrigger: WorkflowRunTrigger = {
-      event: "runtime.idle",
-      schemaRef: null, payload: { retryOf: originalId },
-    };
-    await runDefinition(retryDefinition, retryTrigger);
-
-    // step-c should see step-a's output from the original run via stepOutputs
-    expect((capturedStepOutputs["step-a"] as { fromA: string }).fromA).toBe("original-value");
-    // previousOutput at step-c should be step-b's output (from the retry re-execution)
-    expect((capturedPreviousOutput as { fromB: boolean }).fromB).toBe(true);
-  });
-
-  it("links retry run to original via retryOf metadata", async () => {
-    const definition = makeDefinition({
-      steps: [
-        {
-          id: "step-a",
-          type: "code",
-          run: () => { throw new Error("fail"); },
-        },
-      ],
-    });
-
-    const original = await runDefinition(definition);
-    expect(original.metadata.status).toBe("failed");
-    const originalId = original.metadata.id;
-
-    const retryDefinition = makeDefinition({
-      steps: [
-        { id: "step-a", type: "code", run: () => "ok" },
-      ],
-    });
-
-    const retryTrigger: WorkflowRunTrigger = {
-      event: "runtime.idle",
-      schemaRef: null, payload: { retryOf: originalId },
-    };
-    const retried = await runDefinition(retryDefinition, retryTrigger);
-
-    expect(retried.metadata.retryOf).toBe(originalId);
-
-    // Verify persisted metadata has retryOf
-    const dirs = readdirSync(join(workspaceRoot, ".kota", "runs")).sort().reverse();
-    const retryRunId = dirs[0]; // most recent
-    const persisted = readRunMetadata(retryRunId);
-    expect(persisted.retryOf).toBe(originalId);
-  });
 });
