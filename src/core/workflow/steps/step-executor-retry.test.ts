@@ -180,14 +180,24 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
-  it("classifies Codex CLI high-demand responses as provider failures", () => {
+  it.each([
+    "Reconnecting... 2/5 (We're currently experiencing high demand, which may cause temporary errors.)",
+    "Selected model is at capacity. Please try a different model.",
+    'Agent step "build" failed (codex_cli_error): Selected model is at capacity. Please try a different model.',
+  ])("classifies Codex CLI high-demand responses as provider failures: %s", (message) => {
     expect(
       classifyAgentRuntimeFailure({
         subtype: "codex_cli_error",
-        message:
-          "Reconnecting... 2/5 (We're currently experiencing high demand, which may cause temporary errors.)",
+        message,
       }),
     ).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("does not treat arbitrary capacity text as a provider response", () => {
+    const message = "Selected model is at capacity. Please try a different model.";
+    expect(classifyAgentRuntimeFailure({ message })).toBeNull();
+    expect(classifyAgentRuntimeFailure({ subtype: "codex_cli_error", message: `Tool result: ${message}` })).toBeNull();
+    expect(classifyAgentRuntimeFailure({ subtype: "codex_cli_error", message, errorName: "AbortError" })).toBeNull();
   });
 
   it("classifies no-detail Codex CLI exits as provider failures", () => {

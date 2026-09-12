@@ -16,6 +16,16 @@ daemon, waive quality pauses or represent simulated time as an observed live win
 
 This contract supersedes historical blocking and operational-capture requirements.
 
+Run `2026-09-12T06-41-03-806Z-builder-3qkc11` encountered Codex provider capacity
+after making useful changes, not a rejected task outcome. Its original dirty
+worktree and claim remain retained. The shared classifier now recognizes the
+observed capacity response as transient provider failure. Continue that run's
+work through ordinary retained recovery; do not start another task owner.
+Validate the same shared backoff/defer/resume contract across provider errors:
+a capacity outage must not require a changed task or critic verdict to resume
+after the provider recovers. Keep semantic rejection recovery distinct from
+provider retry and preserve the selected production model.
+
 
 ## Problem
 

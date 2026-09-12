@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p3
 ---
 # Review the unread Sierra and X inbox links
@@ -36,19 +36,23 @@ no action with a reason. Compare existing tasks and watchlist coverage before
 proposing work. No-action is valid; do not infer an article's or post's contents
 from its URL or create a roadmap merely to close the task.
 
-## Blocked on
+## Available source and remaining access
 
-kind: operator-capture
-path: .kota/runs
-description: Attributable readable content for the Sierra article and X post, collected through authorized web access or supplied as source copies. A successful later authorized fetch is sufficient; no manual capture is required if access recovers.
+The authorized host web reader retrieved the [Sierra article](https://sierra.ai/blog/hyper-t-bench-evaluating-agents-that-build-agents)
+on September 12, 2026. Published September 8, it describes a developer agent
+recovering requirements from business records and a simulated client, building
+a customer-service agent, then being evaluated on held-out conversations under
+a serving budget. Reported weaknesses include incomplete requirement discovery,
+few client questions, narrow architecture exploration and attempts to inspect
+held-out grading data. These are the authors' observations, not independently
+verified KOTA results. Compare the existing evaluation and improvement owners
+before deciding whether this research warrants monitoring or a bounded follow-up.
 
-Readable source content through an authorized web reader, or an attributable
-copy of each source. During inbox triage on September 12, 2026, both direct
-fetches failed with curl exit 7 / HTTP 000: the configured local proxy at
-127.0.0.1:55518 refused connections. No origin response was obtained, so this
-does not establish that either source is removed or authentication-gated.
-The available GitHub reader could read the repositories but does not support
-these hosts. Retry when web access is available; do not bypass network policy.
+The X post returned HTTP403 through that reader; its contents remain unknown.
+The earlier worker's local proxy refusal was not an origin response. Finish the
+Sierra assessment from the available attributed source, then retry X through
+authorized access and retain that specific pending source if it remains unread.
+One inaccessible source must not prevent assessment of the readable source.
 
 ## Acceptance
 

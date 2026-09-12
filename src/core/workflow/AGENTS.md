@@ -39,8 +39,8 @@ and publication.
   strictly expand, or diff scope materially expands; volatile churn alone
   never creates a reviewer cadence. Resumable harnesses establish their session
   before checkpoint polling. Preserved runs retain workspaces and resources,
-  release capacity, and resume only after the named higher-priority resources
-  reach a terminal attempt.
+  release capacity, and defer to actually runnable higher-priority work. Blocked,
+  deferred or unadmitted work does not become a hard completion dependency.
 - Nested critic, semantic-gate, and continuation judges are filesystem
   read-only; they inspect unpublished work without becoming mutation owners.
 - Decomposition terminally classifies the writer through its failed-run

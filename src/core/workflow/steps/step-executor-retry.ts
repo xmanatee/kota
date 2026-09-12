@@ -272,11 +272,13 @@ function isCodexReconnectRequestTimeout(
   return WRAPPED_CODEX_RECONNECT_REQUEST_TIMEOUT.test(input.message);
 }
 
-function isCodexProviderReconnectFailure(
+function isCodexProviderResponseFailure(
   input: AgentFailureContext,
 ): boolean {
   if (!hasCodexCliFailureProvenance(input)) return false;
   return (
+    input.message.replace(WRAPPED_CODEX_CLI_FAILURE_PREFIX, "") ===
+      "Selected model is at capacity. Please try a different model." ||
     /Reconnecting\.\.\. \d+\/\d+ \(stream disconnected before completion:\s*Internal server error\)$/i.test(
       input.message,
     ) ||
@@ -444,7 +446,7 @@ export function classifyAgentRuntimeFailure(
   if (isCodexReconnectRequestTimeout(input)) {
     return { kind: "provider", retryable: true };
   }
-  if (isCodexProviderReconnectFailure(input)) {
+  if (isCodexProviderResponseFailure(input)) {
     return { kind: "provider", retryable: true };
   }
   if (
