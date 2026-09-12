@@ -1,17 +1,35 @@
 ---
-status: done
+status: open
+priority: p1
 ---
 # Make recovery evidence collection proportional to relevant work
 
 ## Current Contract
 
-Run `ddrk4y` published `feed4edbe73` and succeeded on September 11 with no
-resources or sandbox allocation remaining (September 12 read-only inspection).
-Reopened to finish the scoped investigator-content requirement above and any
-remaining measured-history/control-responsiveness checks. Under the owner's
-waiver, observing this writer's future deployment is not a completion gate.
-Reuse valid run evidence; do not infer deployed behavior from publication or
-grant investigators raw host authority. Host activation follow-up stays runtime-owned.
+Reopened September 12 after the deployed export failed on ordinary log growth.
+The previous implementation and its validated reductions remain useful; fix the
+remaining shared diagnostic reader, not the original historical backlog again.
+
+At 14:10 UTC improver `2026-09-12T11-13-54-600Z-improver-07bsjj` exported
+only unavailable receipts for Telegram logs and spent 90 agent-seconds deciding
+to observe the same unresolved incident. Its retained `issue-evidence.json`
+shows the failure for both whole-file and `#L` references. The log was 135316
+bytes at inspection. `issue-evidence-files.ts` requests a 128 KiB anchored
+whole-file read before selecting records; the helper rejects the file by size.
+Thus even one small cited record becomes unreadable as normal history grows.
+
+Bound selected records/output rather than rejecting an entire growing log.
+Use the existing module-log and anchored filesystem owners, retain scope and
+secret protection, batch references and keep I/O off the daemon event loop.
+Do not merely raise the limit, delete history or fall back to an unsafe raw
+read. Account for module-log pruning: a reused line number must not silently
+attribute a different event. Reuse existing identity/timestamp information or
+explicitly report an expired reference; do not add another log store.
+
+Extend the existing diagnostic-export check with a larger valid log, selected
+records and pruning/absence behavior. A live improver must receive meaningful
+scoped error/recovery content afterward; the monitor owns activation and that
+post-publication observation. Do not require the builder to restart its parent.
 
 This contract supersedes historical blocking and operational-capture requirements.
 
