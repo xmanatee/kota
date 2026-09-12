@@ -148,6 +148,7 @@ export async function runHarnessParity(
       harnesses,
       callOptions: {
         model,
+        scopeRoot: deps.scopeRoot,
         ...(options?.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {}),
       },
       outBaseDir,

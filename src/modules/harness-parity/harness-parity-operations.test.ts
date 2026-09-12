@@ -10,6 +10,7 @@ import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type AgentHarness,
+  type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
   UNKNOWN_AGENT_USAGE,
@@ -168,5 +169,29 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
     const result = await runHarnessParity(deps, { scenarios: ["demo"] });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("no_harnesses");
+  });
+
+  it("resolves provider configuration in the selected scope while editing an isolated scenario", async () => {
+    writeScenario(scenariosRoot, "demo");
+    const calls: AgentHarnessRunOptions[] = [];
+    const harness = createNoopHarness();
+    registerAgentHarness({
+      ...harness,
+      async run(options, writer) {
+        calls.push(options);
+        return harness.run(options, writer);
+      },
+    });
+    const result = await runHarnessParity(deps, {
+      scenarios: ["demo"],
+      model: "openai/example-model",
+      outDir: join(outRoot, "artifacts"),
+    });
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].scopeRoot).toBe(deps.scopeRoot);
+    expect(calls[0].model).toBe("openai/example-model");
+    expect(calls[0].cwd).not.toBe(deps.scopeRoot);
+    expect(calls[0].cwd).not.toBe(join(scenariosRoot, "demo", "initial"));
   });
 });

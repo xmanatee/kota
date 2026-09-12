@@ -105,6 +105,21 @@ exists to measure.
   register themselves through their own modules; this module resolves them
   by name.
 - Live execution without an operator authorization step. The autonomous
-  builder ships infrastructure under this directory but does not itself
-  capture paired artifacts — live runs consume real API budget and should
-  be invoked by an operator via `kota harness-parity run`.
+  builder may capture artifacts when the owner has authorized live validation,
+  using the runtime's permitted execution boundary. Authorization does not
+  grant candidate code host credentials or broader filesystem/network access.
+
+## Running a supported route
+
+From the selected scope, use `pnpm kota harness-parity run --scenario
+fix-arithmetic-bug --harness <name> --model <model> --out <artifact-directory>`.
+The ordinary command passes the model verbatim: native adapters require their
+native model id; ModelClient adapters require `provider/model`. Provider config
+and credential resolution stay in the selected scope while edits happen in the
+materialized scenario. Use separate output directories for separate invocations
+so paired evidence is not overwritten. Use `harness-parity matrix --help` for
+compatible model/provider selection across a harness pool.
+
+Record unavailable routes explicitly. A worker's denied credential access or
+offline network does not establish missing host login, provider outage, or model
+incapability. Partial captures do not establish all-adapter parity.

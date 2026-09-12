@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Validate end-to-end coding-task parity across registered agent harnesses
@@ -158,3 +158,95 @@ auth contract. Authorized runtime collection is allowed; no human must type each
 command. Preserve paired prompt/trace/diff/verifier artifacts, missing-auth rows
 and explicit text-only capability gaps. Do not reclassify absent credentials as
 an incapable model or an unfinished row as passed.
+
+
+## Repair evidence (2026-09-12)
+
+Run `2026-09-12T06-41-33-284Z-builder-69znjo` fixed the ordinary parity
+command's provider scope: `runHarnessParity` now passes the selected scope
+through to `runAgentHarness`, matching the matrix path. Previously credential
+and configuration resolution fell back to the artifact directory. Candidate
+edits still happen in a fresh scenario copy. The focused regression observes
+both scope propagation and the separate candidate working directory. Module
+guidance now honors the owner's authorization for autonomous live collection
+and documents native versus provider-qualified model selection and separate
+output directories.
+
+Evidence is under the runtime-returned directory
+`.kota/runtime/2026-09-12t06-41-33-284z-builder-005410a5f7cb140240f38e15b37d7e82bda3a15d323f319e55d45a03ea87cf7f/agent/harness-parity/`:
+
+- `gemini-route/fix-arithmetic-bug/gemini/` contains runner-generated prompt,
+  trace summary, empty diff, verifier failure, run metadata and trajectory
+  diagnostics. `gemini-route/fix-arithmetic-bug/parity.json` records the result.
+  The actual CLI invocation used `--harness gemini --model gemini-2.5-pro
+  --scenario fix-arithmetic-bug --max-turns 4`. It returned zero turns and no
+  changed files. The failure was an `EPERM` creating the selected scope's
+  protected conversation-store lock, before adapter/provider execution.
+  This is execution-boundary evidence, not a failed model solution or auth test.
+- `shipped-adapter-contracts.json` records the nine bundled module contributions
+  without invoking credential probes. It is a source-contract inventory, not
+  an assertion about a different host's loaded registry or readiness.
+- `assessment.md` records the operator commands, local endpoint probes,
+  dispositions and validation. The `thin` matrix probe rejects with
+  `invalid_harness_pair` because that adapter has no matrix routing declaration;
+  ordinary `run` remains the available interface for that adapter.
+
+| Adapter | Current capture / remaining route requirement |
+| --- | --- |
+| `codex` | Unrun. Native model ids and adapter-owned Codex login; original and invocation login files are explicitly denied to this worker. Host login and entitlement are unknown. |
+| `claude-agent-sdk` | Unrun. Native Claude model ids and SDK-owned auth. `ANTHROPIC_API_KEY` is absent from this worker environment; host SDK login/key availability is unknown. |
+| `openai-tools` | Unrun. Declared ModelClient matrix routing accepts compatible `provider/model` ids; selected-scope secret resolution requires the trusted runtime. No API key is exposed to this worker. Local model discovery could not reach its configured proxy. |
+| `openai-tools-scaffold` | Unrun. Same ModelClient execution prerequisite; compound tools remain a distinct adapter row. |
+| `gemini` | Attempted through the real runner with `gemini-2.5-pro`; rejected at shared session ownership before inference. `GEMINI_API_KEY` and `GOOGLE_API_KEY` are absent from this worker environment; host auth is unknown. |
+| `gemini-cli` | Unrun. Adapter intentionally rejects credential-bearing native execution until provider-only authentication exists; its scoped guidance explicitly limits it to credential-free diagnostics. Deferred capability row under the waiver. |
+| `antigravity-cli` | Unrun. Requires adapter-owned `agy models` authentication/catalog verification and isolated native launch with host-managed login. Neither was established in this worker; no inference or host auth absence is claimed. |
+| `vercel` | Unrun. Own SDK provider registry accepts `openai/model`; `OPENAI_API_KEY` is absent from this worker environment. Host availability is unknown. Ordinary `run` does not require a matrix declaration. |
+| `thin` | Text-only by contract; no editing tool loop. Matrix admission rejects its missing routing declaration. Use ordinary `run` with a provider-qualified model for a future text-only comparison; it cannot satisfy code-edit parity and is a non-blocking capability exception. |
+
+The same shared `prepareSessionContinuity` boundary precedes all adapter runs;
+repeating launches against its denied lock would not test another provider.
+No credential files were opened or copied, no proxy bypass was attempted, and
+no parent daemon was controlled. A local provider discovery request to each of
+LM Studio and Ollama failed connecting to the worker-configured proxy at
+127.0.0.1:62387. This does not establish that either inference service is down.
+The exposed tools contain no KOTA host-action/evaluation adapter. The existing
+native authorization request/reply service only validates active-writer identity;
+it is not an execution or credential export service.
+
+Validation: `pnpm check:fast` passed; the focused operations and matrix-request
+owner tests passed (11 tests). The regression protects scope propagation without
+moving candidate edits into the source scope; the existing request tests cover
+provider-qualified model encoding, output-token limits and rejected local effort.
+The real CLI list, matrix rejection and Gemini failure artifacts establish the
+available operator journey and its present limit. These are not live coding
+successes. No all-adapter or native-versus-KOTA parity claim is made.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Attributable task-linked evidence of a callable trusted parity invocation with owned session state and provider access, or current paired supported-route results.
+
+This evidence-review kind records an execution-access prerequisite, not a
+manual capture requirement. The path is a discovery hint; equivalent scoped
+runtime exports are accepted. Reopen when a permitted invocation is available,
+without waiting for the coding measurement itself to be completed.
+
+A trusted runtime invocation of the existing harness-parity surface, or
+attributable current exported supported-route results, is required to complete
+the live coding outcome. The invocation must own its conversation state and
+provider access while keeping candidate execution isolated. This worker cannot
+acquire the protected conversation lock, has no exposed host-evaluation action,
+and its configured network proxy is unreachable. This is a limit of this
+invocation's callable execution boundary, not a claim of absent host credentials.
+The existing runtime-mediated contained-evaluation task owns related mediation;
+its writer and task contract were not changed. No new execution bridge is added
+here, and manual human capture is not required.
+
+Resume this same task when a scoped runtime action is callable or current paired
+results are exported. Execute supported routes, compare the same scenario/model,
+retain prompt/trace/diff/verifier outcomes and account for the unavailable rows
+under the September 12 waiver. Unavailable individual adapters do not gate
+supported-route work; the currently unfulfilled requirement is any current
+successful supported coding run. The scope-routing fix is independently
+validated and safe to retain; it does not complete live parity acceptance.
