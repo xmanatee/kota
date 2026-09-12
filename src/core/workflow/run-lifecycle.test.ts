@@ -405,12 +405,14 @@ describe("RunLifecycle", () => {
     const outcome = await lifecycle(value, async (context) => {
       workspace = context.sandbox.workspaceDir;
       write(context.sandbox.workspaceDir, "feature.txt", "delivered\n");
+      write(workspace, ".kota/openai-tools-agent-harness/sessions/private.json", "private\n");
       return { kind: "completed", commitMessage: "deliver feature" };
     }).execute(value.run, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
     expect(readFileSync(join(value.root, "feature.txt"), "utf8")).toBe("delivered\n");
     expect(git(value.root, "log", "-1", "--format=%s")).toBe("deliver feature");
+    expect(git(value.root, "ls-files", ".kota/openai-tools-agent-harness/sessions")).toBe("");
     expect(value.store.getRun(value.run.id)?.sandbox).toBeUndefined();
     expect(existsSync(workspace)).toBe(false);
     expect(

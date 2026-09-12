@@ -122,6 +122,19 @@ function runGit(cwd: string, args: readonly string[]): { ok: boolean; output: st
   };
 }
 
+function stageChanges(cwd: string): void {
+  // Resolve exclusions before add: Git rejects explicitly ignored pathspecs even
+  // when they are exclusions. NUL-delimited literal paths also preserve filenames.
+  const paths = execFileSync("git", [
+    "ls-files", "-z", "--modified", "--deleted", "--others", "--exclude-standard",
+    "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`,
+  ], { cwd, env: gitEnvironment, maxBuffer: 10 * 1024 * 1024 });
+  if (paths.length === 0) return;
+  execFileSync("git", [
+    "--literal-pathspecs", "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul",
+  ], { cwd, env: gitEnvironment, input: paths, stdio: ["pipe", "pipe", "pipe"] });
+}
+
 function isCommitAncestor(cwd: string, ancestor: string | undefined, descendant: string): boolean {
   if (ancestor === undefined) return false;
   return runGit(cwd, ["merge-base", "--is-ancestor", ancestor, descendant]).ok;
@@ -599,7 +612,7 @@ export class RunLifecycle {
       if (workspaceFingerprint(workspaceDir) === fingerprint) {
         return this.attention("integration-no-progress", [fingerprint]);
       }
-      git(workspaceDir, ["add", "-A", "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`]);
+      stageChanges(workspaceDir);
       const continued = runGit(workspaceDir, ["rebase", "--continue"]);
       if (!continued.ok && conflictPaths(workspaceDir).length === 0) {
         throw new Error(continued.output);
@@ -615,7 +628,7 @@ export class RunLifecycle {
   }
 
   private commitChanges(workspaceDir: string, message: string): string {
-    git(workspaceDir, ["add", "-A", "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`]);
+    stageChanges(workspaceDir);
     if (runGit(workspaceDir, ["diff", "--cached", "--quiet"]).ok) {
       return git(workspaceDir, ["rev-parse", "HEAD"]);
     }
