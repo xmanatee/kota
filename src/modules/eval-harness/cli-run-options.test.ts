@@ -112,7 +112,7 @@ describe("kota eval run CLI options", () => {
     });
   });
 
-  it("accepts OpenRouter as a provider-egress catalog provider", async () => {
+  it.each(["openrouter", "ollama", "lmstudio"])("accepts %s as a provider-egress catalog provider", async (provider) => {
     const calls: EvalRunOptions[] = [];
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
@@ -135,7 +135,7 @@ describe("kota eval run CLI options", () => {
         "--provider-egress-proxy",
         "http://provider-proxy:8080",
         "--provider-egress-provider",
-        "openrouter",
+        provider,
       ],
       { from: "user" },
     );
@@ -144,9 +144,21 @@ describe("kota eval run CLI options", () => {
     expect(calls[0].isolationBackend).toMatchObject({
       networkPolicy: {
         kind: "provider-egress",
-        provider: "openrouter",
+        provider,
       },
     });
+  });
+
+  it.each(["unsupported", "constructor"])("rejects unknown provider %s before dispatch", async (provider) => {
+    const calls: EvalRunOptions[] = [];
+    const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
+    await expect(cmd.parseAsync([
+      "run", "--isolation", "container", "--container-executable", "docker",
+      "--container-image", "node:22-bookworm", "--container-kota-binary-path", "/opt/kota/bin/kota.mjs",
+      "--container-network-policy", "provider-egress", "--provider-egress-network", "kota-provider-egress",
+      "--provider-egress-proxy", "http://provider-proxy:8080", "--provider-egress-provider", provider,
+    ], { from: "user" })).rejects.toThrow(/--provider-egress-provider must be/);
+    expect(calls).toHaveLength(0);
   });
 
   it("rejects container fields unless the operator selects container isolation", async () => {

@@ -10,6 +10,7 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
+import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
@@ -23,14 +24,11 @@ import {
 import { SessionRecoveryError } from "#core/agent-harness/session-continuity.js";
 import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
+import { CODEX_PROVIDER_EGRESS_ENDPOINTS } from "./provider-egress.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
 const CODEX_ABORT_FORCE_KILL_MS = 5_000;
-const CODEX_PROVIDER_EGRESS_HOSTS = [
-  "api.openai.com",
-  "auth.openai.com",
-  "chatgpt.com",
-] as const;
+
 
 type CodexCliUsage = {
   input_tokens?: number;
@@ -67,7 +65,7 @@ function buildCodexEnvironment(
 ): NodeJS.ProcessEnv {
   return buildNativeCliEnvironment({
     overrides,
-    projectedEnvKeys: ["CODEX_HOME"],
+    projectedEnvKeys: ["CODEX_HOME", NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV],
     blockedEnvKeys: ["OPENAI_API_KEY"],
   });
 }
@@ -430,7 +428,7 @@ export async function collectTextFromCodexCli(
       writableRoots: args.writableRoots,
       readOnlyHostRoots: args.readOnlyHostRoots,
       env: buildCodexEnvironment(args.env),
-      allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
+      allowedEgressHosts: CODEX_PROVIDER_EGRESS_ENDPOINTS.map((endpoint) => endpoint.host),
       prepareEnvironment: (context, env) => prepareCodexRuntimeEnvironment(context, env, args.persistSession === false ? undefined : args.sessionStorageDir),
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),

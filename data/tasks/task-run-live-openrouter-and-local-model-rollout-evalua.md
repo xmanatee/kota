@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 ---
@@ -242,3 +242,129 @@ launch, sequential repeats, offline scorer, missing-isolation, and schema reject
 cases still pass. These establish containment and retained behavior, not live
 routing or model quality. Repair-specific static checks and operator preflight
 results are recorded in the run summary and repair2 artifacts.
+
+## Result — 2026-09-12 contained routing and preflight skip
+
+Added the native login handoff and local endpoint selection through the existing
+adapter, eval subprocess, and model-client owners. The Codex adapter declares a
+single login-file locator. The executor checks readability before inference,
+snapshots only that file outside the candidate workspace, supplies a read-only
+container mount, and removes the snapshot after execution. Host homes, sessions,
+configuration, and original writable credentials are not mounted. The existing
+native permission profile denies the source credential and runtime home to tools.
+
+Ollama and LM Studio now have provider-egress policies using the existing internal
+proxy boundary. The model-client owner supplies their contained endpoints and
+rejects mismatched providers or explicit endpoint overrides before client creation.
+Matrix admission requires matching egress and the adapter's contained auth contract.
+Scorers remain offline. These are routing changes, not demonstrated live login,
+model inference, or a supported image/proxy deployment. Existing egress evidence
+remains non-gating; network labels do not establish denied unintended access.
+
+The persisted probe again observed Docker socket permission denial and EPERM from
+both local model-list endpoints in this execution context. No scope/deployment
+secret or native login file was read. No host credential absence, empty host model
+inventory, unavailable host Docker service, or missing model entitlement is inferred.
+No exposed tool provides an alternative owner-mediated evaluation execution/export
+capability here. The deployment credential has not been rebound through the scope
+secret owner; the historical authentication success remains valid historical evidence.
+
+No live inference ran. `rollout-preflight.json` retains the exact Codex/GPT-5.5
+baseline, the complete shipped OpenRouter candidate set (including every required
+model), and unresolved local raw/scaffold routes. It records ten scenario and four
+fixture manifest hashes with three planned sequential repeats. The provisional
+Qwen2.5-Coder 3B install target is not an installed/discovered model or a measured
+capacity recommendation. All requested quality, usage, cost, latency, activity,
+retrieval, trajectory and verifier measurements remain unavailable, as do support
+tiers. No model is promoted or rejected; production presets and recommendations
+are unchanged. KOTA's ability to replace Codex/Claude remains unestablished.
+
+Verification: `pnpm check:fast` passed; the production build passed. Twenty focused
+routing/matrix tests passed, covering login snapshot permissions and cleanup,
+candidate-controlled/absent login rejection, native/local launch propagation,
+endpoint mismatch rejection, and existing pre-inference matrix failures. A broader
+nine-file owner selection passed 188 tests for subprocess execution, provider
+configuration, native credential denials, and module registration. Three launch
+cases overlap those selections; counts are not independent quality samples. These
+use controlled subprocess/provider ports, not live Docker or authentication.
+The CLI help transcript and timestamped readiness transcript are retained. A
+resumed invocation initially lost its temporary test cache; rerunning with a
+run-owned temporary directory passed. No failed check is counted as a live row.
+
+Critic repair corrected the execution owner to accept an explicitly empty provider
+credential list while rejecting missing or malformed metadata. Shell, process and
+REPL share that boundary; inherited proxy filtering remains active after caller
+and session overlays. A real shell launch and environment assertions exercise the
+credential-free path. CLI and JSON provider validation now use the same endpoint
+registry, so standalone eval accepts Ollama and LM Studio and rejects unknown
+providers before dispatch. The repair selection passed 93 tests across seven files,
+covering these outcomes and existing shell, process, REPL and provider behavior;
+`pnpm check:fast` passed after import ordering was corrected. These are deterministic
+checks, not live local inference or proof of network isolation. The live rollout
+prerequisite and all unavailable measurements below remain unchanged.
+
+The second critic repair aligned contained OpenAI egress with Codex login renewal.
+The adapter now owns one endpoint declaration consumed by its native launcher and
+the eval policy, including `auth.openai.com`; eval declares the module dependency.
+A controlled container launch verifies the refresh endpoint in the observed profile
+and child environment, and a network declaration omitting renewal is rejected
+before launch. Existing adapter verification retains the native endpoint contract.
+The selected five-file owner suite passed 158 tests, and the provider-egress launch
+regression passed one test. `pnpm check:fast` passed. Production TypeScript emission
+passed into the run-owned `repair2-compiled` directory. The full `pnpm build` attempt
+failed while removing existing `dist` directories with filesystem permission denials;
+asset packaging was not rerun successfully in this repair. No live token refresh,
+inference, or confinement claim follows from these deterministic checks.
+
+The third critic repair preserves the trusted inherited upstream-proxy setting in
+Codex's explicit native environment projection. A cross-module integration test
+now passes the production eval container environment through the real Codex adapter
+with ordinary workflow overrides and checks the native-launch boundary. The proxy
+and login locator survive; unrelated credentials and ordinary proxy variables do
+not. The controlled launcher rejects before execution, so this proves the missing
+handoff without simulating authentication or sandbox transport. That integration
+case passed, as did 24 adapter/container tests, static checks, and production
+TypeScript emission to `repair3-compiled`. The broader owner selection had 20
+failures caused by this invocation's restrictions: four proxy/sandbox cases could
+not listen on loopback (EPERM), and sixteen native configuration-authority cases
+could not read the canonical package manifest (EPERM). They are not counted as
+passes; live proxy chaining, refresh, inference and confinement remain unverified.
+The shared native sandbox still owns upstream validation, chaining and removal of
+the control marker before CLI launch; no host credential or network grant changed.
+
+Evidence is in builder run `2026-09-12T06-41-11-663Z-builder-drp743`, runtime
+`agent/`: `rollout-preflight.mjs`, `rollout-preflight.json`, `rollout-preflight.txt`,
+`rollout-decision.md`, `routing-tests.txt`, `owner-regression-tests.txt`,
+`check-fast.txt`, `build.txt`, `matrix-cli-help.txt`, `validate-tasks.txt`,
+`repair-routing-tests.txt`, `repair-check-fast.txt`, `repair2-egress-tests.txt`,
+`repair2-egress-regression.txt`, `repair2-check-fast.txt`, `repair2-build.txt`,
+`repair2-compile.txt`, `repair2-validate-tasks.txt`, `repair3-handoff-tests.txt`,
+`repair3-owner-tests.txt`, `repair3-check-fast.txt`, `repair3-compile.txt`, and
+`repair3-validate-tasks.txt`.
+
+## Blocked on
+
+```text
+kind: operator-capture
+path: .kota/runs
+description: Task-linked evidence of runtime-authorized contained native/OpenRouter/local evaluation capability, or equivalent attributable execution exports.
+```
+
+This path is a discovery hint for semantic review, not a requirement for manual
+collection or a particular capture directory. Equivalent scoped evidence can
+satisfy the prerequisite.
+
+An available runtime-authorized evaluation context or attributable scoped execution
+export that can use the existing host-managed credentials and Docker/local-runtime
+capabilities while keeping candidate code contained. This agent's policy denies
+those connections and credential paths and exposes no applicable mediation tool;
+a new credential purchase or blanket grant of host authority is not requested.
+
+Resume by binding the existing OpenRouter credential through its scope secret
+owner, validating a compatible image and provider proxy (including native nested
+sandboxing and environment-proxy transport), and discovering/installing the local
+model within measured capacity. Establish actual native/local inference and denied
+unintended credential/network access through those owners, then execute the full
+paired cohort with equal repeats and inspect all required metrics and verifiers.
+Resolve non-gating execution/capability evidence before any promotion. The original
+90% of exact Codex pass^k/no-P0 gate and narrower-tier requirements remain intact.

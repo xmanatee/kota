@@ -43,6 +43,8 @@ export function matrixEvalExecutor(args: {
     kotaBinaryPath: args.deps.kotaBinaryPath,
     isolationBackend,
     extraEnv: matrixExecutorAuthEnv(args.harness, args.spec, args.deps.scopeRoot, isolationBackend ?? { kind: "host-subprocess" }),
+    ...(isolationBackend?.kind === "container" && args.harness.modelRouting?.kind === "native"
+      ? { containerAuth: args.harness.resolveIsolatedContainerAuth?.(process.env) } : {}),
     providerEgressTaskBoundary: {
       agentHarness: args.harness.name,
       toolControl: args.harness.toolControl,
@@ -60,18 +62,18 @@ export function preflightMatrixEval(args: {
   harness: AgentHarness;
 }): string | null {
   const profile = args.executor.preflight(args.profile);
-  // Resource readiness cannot establish a credential or endpoint route. The
-  // shared container owner currently supplies neither native login mediation
-  // nor connectivity to the host's local model servers.
+  // Resource readiness cannot establish a credential or endpoint route.
+  // Native login is adapter-owned; local endpoints require provider egress.
   let routingIssue: string | null = null;
   if (profile.backendKind === "container") {
-    if (args.harness.modelRouting?.kind === "native") {
+    if (args.harness.modelRouting?.kind === "native" && args.harness.resolveIsolatedContainerAuth === undefined) {
       routingIssue = `Unsupported contained native authentication for harness "${args.harness.name}": implement owner-mediated container login routing before inference; host login locators and provider API keys do not establish this route.`;
-    } else if (args.spec.executionProvider === "ollama" || args.spec.executionProvider === "lmstudio") {
-      routingIssue = `Unsupported contained local endpoint for provider "${args.spec.executionProvider}": implement a contained local-runtime route through the eval isolation and model-client owners before inference; container localhost cannot reach the host model server, and installing a host model does not resolve this gap.`;
-    } else if (args.spec.executionProvider === "openrouter" &&
-      (profile.networkPolicy.kind !== "provider-egress" || profile.networkPolicy.provider !== "openrouter")) {
-      routingIssue = "OpenRouter container inference requires matching provider-egress networking; omitted or offline network policies cannot reach the provider. Configure enforced OpenRouter egress before inference.";
+    } else if ((args.spec.executionProvider === "ollama" || args.spec.executionProvider === "lmstudio") &&
+      (profile.networkPolicy.kind !== "provider-egress" || profile.networkPolicy.provider !== args.spec.executionProvider)) {
+      routingIssue = `Provider "${args.spec.executionProvider}" requires a contained local-runtime route with matching provider-egress networking; configure its internal proxy before inference.`;
+    } else if ((args.spec.executionProvider === "openrouter" || args.harness.modelRouting?.kind === "native") &&
+      (profile.networkPolicy.kind !== "provider-egress" || profile.networkPolicy.provider !== args.spec.executionProvider)) {
+      routingIssue = `Provider "${args.spec.executionProvider}" container inference requires matching provider-egress networking; configure its internal proxy before inference.`;
     }
   }
   const verifier = args.executor.predicateContext?.executableVerifierSandbox;

@@ -13,8 +13,10 @@ route a run through this adapter.
 
 Models are passed to `codex exec --model` verbatim. The shipped Codex preset
 maps fast, balanced, and capable work to GPT-5.6 Luna, Terra, and Sol. The
-adapter projects only shared native executable/locale state and the Codex
-login locator. `OPENAI_API_KEY` and unrelated daemon credentials do not enter
+adapter projects shared native executable/locale state, the Codex login locator,
+and the trusted native upstream-proxy setting. The shared native sandbox consumes
+that setting to chain provider egress and removes it before launching the CLI.
+`OPENAI_API_KEY` and unrelated daemon credentials do not enter
 the child, so exported keys cannot take priority over local Codex login.
 
 KOTA supports Codex CLI `0.144.1` or newer for this GPT-5.6 integration.
@@ -89,7 +91,13 @@ Tool permissions deny both the original login credential and the runtime home,
 preserving lexical and resolved identities over overlapping grants.
 Trusted host isolation may replace `HOME`; the adapter projects only the
 resolved `CODEX_HOME` locator so local login remains available without
-restoring the operator home environment.
+restoring the operator home environment. Contained eval launches use the adapter's
+single-file login declaration; the eval owner snapshots it outside the candidate
+workspace and supplies a read-only container login directory. The same native
+permission profile denies the mounted credential and disposable runtime home to
+tools. Credential readability is not proof of a valid login or model entitlement.
+Native and contained provider policies share the adapter-owned endpoint declaration
+so login renewal and inference require the same allowlist.
 
 ## Session storage
 

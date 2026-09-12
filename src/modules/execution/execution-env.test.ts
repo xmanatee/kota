@@ -6,6 +6,7 @@ import {
   unregisterSessionEnvironment,
 } from "#core/tools/session-environment.js";
 import { buildExecutionEnv } from "./execution-env.js";
+import { runShell } from "./shell.js";
 
 const SAVED_ENV: Record<string, string | undefined> = {};
 const TOUCHED_KEYS = [
@@ -152,6 +153,37 @@ describe("buildExecutionEnv", () => {
     expect(env.KOTA_TOOL_USE_ID).toBe("tool-1");
   });
 
+  it("launches credential-free execution while stripping inherited and overlaid proxies", async () => {
+    clearTouchedEnv();
+    process.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE = "1";
+    process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS = "";
+    const proxyKeys = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy", NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV];
+    for (const key of proxyKeys) process.env[key] = "http://provider-proxy:8080";
+    registerSessionEnvironment(SESSION_A_PROJECT_A);
+    injectSessionEnvironmentVariable(SESSION_A_PROJECT_A, "HTTPS_PROXY", "http://session-proxy:8080");
+    const context = {
+      ...SESSION_A_PROJECT_A,
+      env: {
+        HTTP_PROXY: "http://caller-proxy:8080",
+        KOTA_EVAL_PROVIDER_EGRESS_ACTIVE: "0",
+        KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS: "MALFORMED-KEY",
+      },
+    };
+    const env = buildExecutionEnv(context);
+    for (const key of proxyKeys) expect(env[key]).toBeUndefined();
+    expect(env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBeUndefined();
+    expect(env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS).toBeUndefined();
+    const result = await runShell({ command: "printf 'local-tool-ok'", stream_output: false }, context);
+    expect(result.is_error).toBeFalsy();
+    expect(result.content).toContain("local-tool-ok");
+  });
+
+  it("rejects missing credential metadata even if a caller supplies an empty list", () => {
+    clearTouchedEnv();
+    process.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE = "1";
+    expect(() => buildExecutionEnv({ env: { KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS: "" } })).toThrow(/AUTH_ENV_KEYS is required/);
+  });
+
   it("keeps ordinary operator proxy env when provider-egress mode is not active", () => {
     clearTouchedEnv();
     process.env.HTTPS_PROXY = "http://operator-proxy:8080";
@@ -161,10 +193,10 @@ describe("buildExecutionEnv", () => {
     expect(env.HTTPS_PROXY).toBe("http://operator-proxy:8080");
   });
 
-  it("fails loudly when provider-egress auth env metadata is malformed", () => {
+  it.each(["OPENAI-API-KEY", " ", ",", "OPENAI_API_KEY,"])("rejects malformed provider-egress auth metadata %j", (raw) => {
     clearTouchedEnv();
     process.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE = "1";
-    process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS = "OPENAI-API-KEY";
+    process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS = raw;
 
     expect(() => buildExecutionEnv()).toThrow(
       /KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS contains invalid env key/,

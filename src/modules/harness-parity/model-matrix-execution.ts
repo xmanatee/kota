@@ -27,7 +27,7 @@ export function matrixExecutorAuthEnv(
   isolationBackend: EvalRunIsolationBackend,
 ): Record<string, string> {
   // Native adapters own login authentication; an API key is not a replacement
-  // for the host locator. Container routes are rejected by matrix preflight.
+  // for the host locator. Contained login uses the adapter file handoff instead.
   if (harness.modelRouting?.kind === "native") {
     return isolationBackend.kind === "host-subprocess"
       ? { ...harness.resolveIsolatedHostAuthEnv?.(process.env) } : {};

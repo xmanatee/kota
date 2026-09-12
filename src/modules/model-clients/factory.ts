@@ -13,6 +13,7 @@ import { getScopeSecretStore } from "#core/config/secrets.js";
 import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#core/model/model-client.js";
 import { AnthropicModelClient } from "./anthropic.js";
 import { FailoverModelClient } from "./failover-client.js";
+import { containedLocalProviderBaseUrl } from "./local-container-routing.js";
 import { OpenAIModelClient } from "./openai/client.js";
 import { resolveOpenAIModelCapabilities } from "./openrouter-capabilities.js";
 import {
@@ -147,7 +148,7 @@ function createClientForProvider(
 	}
 
 	const preset = PROVIDER_PRESETS[providerName];
-	const resolvedBaseUrl = baseUrl || preset?.baseUrl;
+	const resolvedBaseUrl = containedLocalProviderBaseUrl(providerName, baseUrl) || preset?.baseUrl;
 	if (!resolvedBaseUrl) {
 		throw new Error(
 			`Unknown provider "${providerName}" and no --base-url specified.\n\n` +

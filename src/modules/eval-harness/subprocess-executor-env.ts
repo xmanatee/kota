@@ -11,6 +11,7 @@ import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import { envWithoutSourceConditionNodeOption } from "#core/util/node-options.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { localContainerBaseUrl } from "#modules/model-clients/local-container-routing.js";
 import {
   type ExecutionNetworkPolicy,
   providerEgressAuthEnvKeysFor,
@@ -140,7 +141,9 @@ function containerNetworkEnv(
   const endpoints = providerEgressEndpointLabelValue(
     networkPolicy.allowedProviderEndpoints,
   );
+  const localBaseUrl = localContainerBaseUrl(networkPolicy.provider);
   return {
+    ...(localBaseUrl === undefined ? {} : { KOTA_EVAL_LOCAL_MODEL_BASE_URL: localBaseUrl }),
     KOTA_EVAL_PROVIDER_EGRESS_ACTIVE: "1",
     KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS:
       providerEgressAuthEnvKeysFor(networkPolicy.provider).join(","),

@@ -74,6 +74,14 @@ Cadence requires its container settings and
 `KOTA_EVAL_HARNESS_CADENCE_NETWORK_POLICY`, a JSON provider-egress policy in the
 same shape accepted by the eval run API. It uses the provider's declared auth
 environment and rejects offline configuration. Scoring remains offline.
+Contained native login locators come only from the registered adapter, never
+request bodies. The subprocess owner snapshots the declared login file outside
+the candidate tree, mounts it read-only, and removes the snapshot after execution.
+Local model endpoint selection belongs to model-clients; eval supplies the matching
+internal proxy policy. Images must support the native adapter's nested sandbox
+and Node's environment-proxy transport. Positive inference and denied unintended
+network/credential access require live verification before rollout claims.
+
 CLI runs do not persist cadence baselines. Resource and provider preflight
 still determine whether evidence can gate; configuration is not proof of isolation.
 

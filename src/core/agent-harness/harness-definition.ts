@@ -104,6 +104,19 @@ export type AgentHarness = {
   readonly resolveIsolatedHostAuthEnv?: (
     env: NodeJS.ProcessEnv,
   ) => Readonly<Record<string, string>>;
+  /** Adapter-owned login file locator for a trusted container launcher.
+   * The launcher snapshots only this file outside the candidate tree, mounts
+   * it read-only, and supplies the declared locator. Never caller-authored.
+   * The adapter must deny both source and runtime credentials to native tools.
+   */
+  readonly resolveIsolatedContainerAuth?: (
+    env: NodeJS.ProcessEnv,
+  ) => {
+    sourceFile: string;
+    containerDirectory: string;
+    fileName: string;
+    locatorEnvKey: string;
+  };
   /**
    * Static declaration of neutral run options this adapter cannot honor.
    * `runAgentHarness` checks these before hooks or adapter spawn so a caller
@@ -164,6 +177,7 @@ const AGENT_HARNESS_DEFINITION_FIELDS = {
   nativeAbortQuarantine: true,
   readiness: true,
   resolveIsolatedHostAuthEnv: true,
+  resolveIsolatedContainerAuth: true,
   unsupportedRunOptions: true,
   validateStepOptions: true,
   validateModelId: true,
@@ -304,6 +318,7 @@ export function assertAgentHarnessDefinitions(
       record.resolveIsolatedHostAuthEnv,
       `${label}.resolveIsolatedHostAuthEnv`,
     );
+    assertOptionalFunction(record.resolveIsolatedContainerAuth, `${label}.resolveIsolatedContainerAuth`);
     assertUnsupportedRunOptions(record.unsupportedRunOptions, `${label}.unsupportedRunOptions`);
     assertOptionalFunction(record.validateStepOptions, `${label}.validateStepOptions`);
     assertOptionalFunction(record.validateModelId, `${label}.validateModelId`);

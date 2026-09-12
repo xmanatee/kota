@@ -47,6 +47,8 @@ const evalHarnessModule: KotaModule = {
   dependencies: [
     "antigravity-cli-agent-harness",
     "autonomy",
+    "codex-agent-harness",
+    "model-clients",
     "rendering",
     "repo-tasks",
   ],

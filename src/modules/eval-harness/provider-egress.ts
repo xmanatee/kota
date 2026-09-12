@@ -3,14 +3,16 @@ import {
   ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS,
   ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
 } from "#modules/antigravity-cli-agent-harness/provider-egress.js";
+import { CODEX_PROVIDER_EGRESS_ENDPOINTS } from "#modules/codex-agent-harness/provider-egress.js";
+import { LOCAL_CONTAINER_ENDPOINTS } from "#modules/model-clients/local-container-routing.js";
 
-export type ProviderEgressProvider = "anthropic" | "openai" | "openrouter" | "google";
+export type ProviderEgressProvider = "anthropic" | "openai" | "openrouter" | "google" | "ollama" | "lmstudio";
 
 export type ProviderEgressEndpoint = {
   id: string;
-  protocol: "https";
+  protocol: "https" | "http";
   host: string;
-  port: 443;
+  port: 443 | 11434 | 1234;
 };
 
 export type ProviderEgressNetworkEnforcement = {
@@ -102,6 +104,8 @@ export const OFFLINE_CONTAINER_NETWORK_POLICY = {
 } as const satisfies ExecutionNetworkPolicy;
 
 const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly ProviderEgressEndpoint[]>> = {
+  ollama: [{ id: "ollama-local", ...LOCAL_CONTAINER_ENDPOINTS.ollama }],
+  lmstudio: [{ id: "lmstudio-local", ...LOCAL_CONTAINER_ENDPOINTS.lmstudio }],
   anthropic: [
     {
       id: "anthropic-api",
@@ -110,20 +114,7 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly Provi
       port: 443,
     },
   ],
-  openai: [
-    {
-      id: "openai-api",
-      protocol: "https",
-      host: "api.openai.com",
-      port: 443,
-    },
-    {
-      id: "openai-chatgpt",
-      protocol: "https",
-      host: "chatgpt.com",
-      port: 443,
-    },
-  ],
+  openai: CODEX_PROVIDER_EGRESS_ENDPOINTS,
   openrouter: [
     {
       id: "openrouter-api",
@@ -141,6 +132,8 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly Provi
 };
 
 const PROVIDER_AUTH_ENV_KEYS: Readonly<Record<ProviderEgressProvider, readonly string[]>> = {
+  ollama: [],
+  lmstudio: [],
   anthropic: ["ANTHROPIC_API_KEY"],
   openai: ["OPENAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
@@ -161,6 +154,10 @@ export const PROVIDER_EGRESS_NETWORK_LABELS = {
   provider: "kota.egress.provider",
   endpoints: "kota.egress.endpoints",
 } as const;
+
+export function isProviderEgressProvider(value: string): value is ProviderEgressProvider {
+  return Object.hasOwn(PROVIDER_ENDPOINTS, value);
+}
 
 export function providerEgressEndpointsFor(
   provider: ProviderEgressProvider,

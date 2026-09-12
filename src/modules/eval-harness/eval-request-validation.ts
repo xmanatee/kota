@@ -12,6 +12,7 @@ import {
 } from "./eval-route-http.js";
 import {
   type ContainerNetworkPolicyRequest,
+  isProviderEgressProvider,
   type ProviderEgressProvider,
   validateProviderEgressProxyUrl,
 } from "./provider-egress.js";
@@ -154,16 +155,11 @@ export function validateIsolationBackend(
 }
 
 function validateProvider(raw: string): ProviderEgressProvider {
-  if (
-    raw === "anthropic" ||
-    raw === "openai" ||
-    raw === "openrouter" ||
-    raw === "google"
-  ) {
+  if (isProviderEgressProvider(raw)) {
     return raw;
   }
   throw new Error(
-    "isolationBackend.networkPolicy.provider must be anthropic, openai, openrouter, or google.",
+    "isolationBackend.networkPolicy.provider must be anthropic, openai, openrouter, google, ollama, or lmstudio.",
   );
 }
 

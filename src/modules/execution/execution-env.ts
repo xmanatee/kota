@@ -19,11 +19,14 @@ const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function providerEgressAuthEnvKeys(env: NodeJS.ProcessEnv): string[] {
   if (env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE !== "1") return [];
   const raw = env[PROVIDER_EGRESS_AUTH_ENV_KEYS];
-  if (raw === undefined || raw.trim().length === 0) {
+  if (raw === undefined) {
     throw new Error(
       `${PROVIDER_EGRESS_AUTH_ENV_KEYS} is required when eval-harness provider-egress is active.`,
     );
   }
+  // An explicit empty list declares a credential-free provider. Missing metadata
+  // still fails closed, and whitespace or empty list entries remain malformed.
+  if (raw === "") return [];
   return raw.split(",").map((key) => {
     const trimmed = key.trim();
     if (!ENV_KEY_PATTERN.test(trimmed)) {

@@ -1,3 +1,4 @@
+import type { AgentHarness } from "#core/agent-harness/index.js";
 import type {
   ContainerNetworkPolicyRequest,
   ProviderEgressTaskSubprocessBoundaryRequest,
@@ -21,6 +22,8 @@ export type SubprocessExecutorOptions = {
   providerEgressTaskBoundary?: ProviderEgressTaskSubprocessBoundaryRequest;
   /** Abort the active workflow subprocess when its owning execution ends. */
   signal?: AbortSignal;
+  /** Trusted adapter declaration, never accepted through CLI/HTTP request data. */
+  containerAuth?: ReturnType<NonNullable<AgentHarness["resolveIsolatedContainerAuth"]>>;
   /**
    * Optional isolation backend request. Host subprocess execution is the
    * default and is explicitly non-gating because it cannot enforce CPU or

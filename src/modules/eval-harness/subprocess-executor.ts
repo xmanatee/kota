@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { writeStderr } from "#modules/rendering/transport.js";
+import { containerAuthIssue, snapshotContainerAuth } from "./container-auth.js";
 import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import type { WorkflowExecutionOutcome, WorkflowExecutor } from "./runner.js";
 import { resolveScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
@@ -64,11 +65,21 @@ export function createSubprocessExecutor(
         resolveScientificClaimAnalyzerSandbox(isolationBackend),
     },
     preflight(requestedProfile) {
-      return preflightExecutionProfile(
+      const profile = preflightExecutionProfile(
         isolationBackend,
         requestedProfile,
         options.providerEgressTaskBoundary,
       );
+      const issue = containerExecutionProfileCanRun(profile) && options.containerAuth !== undefined
+        ? containerAuthIssue(options.containerAuth) : null;
+      if (issue !== null) {
+        return {
+          ...profile, status: "non-gating", verification: "unverified", gateEligible: false,
+          nonGatingReason: "isolation-backend-config-invalid",
+          diagnostics: [...profile.diagnostics, { severity: "warning", message: issue }],
+        };
+      }
+      return profile;
     },
     async execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome> {
       options.signal?.throwIfAborted();
@@ -139,28 +150,35 @@ function buildChildSpec(params: {
     return null;
   }
 
-  const containerEnv = containerExecutionEnv(
-    params.options,
-    params.request,
-    containerKotaDistDir(backend),
-    params.request.executionProfile.networkPolicy,
-  );
-  const containerEnvFile = writeContainerEnvFile(containerEnv);
-  return {
-    command: backend.executable,
-    args: containerRunArgs({
-      backend,
-      executionProfile: params.request.executionProfile,
-      workingDir: params.request.workingDir,
-      envFilePath: containerEnvFile.path,
-      command: "node",
-      commandArgs: workflowExecArgs(backend.kotaBinaryPath, params.request),
-    }),
-    cwd: params.request.workingDir,
-    env: dockerCliEnv(params.request.executionProfile.networkPolicy),
-    label: `container isolation backend "${backend.executable}"`,
-    cleanup: containerEnvFile.cleanup,
-  };
+  const login = params.options.containerAuth === undefined ? undefined
+    : snapshotContainerAuth(params.options.containerAuth, params.request.workingDir);
+  let envFile: ReturnType<typeof writeContainerEnvFile> | undefined;
+  try {
+    const containerEnv = containerExecutionEnv(
+      params.options,
+      params.request,
+      containerKotaDistDir(backend),
+      params.request.executionProfile.networkPolicy,
+    );
+    const containerEnvFile = writeContainerEnvFile({ ...containerEnv, ...login?.env });
+    envFile = containerEnvFile;
+    return {
+      command: backend.executable,
+      args: containerRunArgs({
+        backend,
+        executionProfile: params.request.executionProfile,
+        workingDir: params.request.workingDir,
+        envFilePath: containerEnvFile.path,
+        authMount: login?.mount,
+        command: "node",
+        commandArgs: workflowExecArgs(backend.kotaBinaryPath, params.request),
+      }),
+      cwd: params.request.workingDir,
+      env: dockerCliEnv(params.request.executionProfile.networkPolicy),
+      label: `container isolation backend "${backend.executable}"`,
+      cleanup: () => { containerEnvFile.cleanup(); login?.cleanup(); },
+    };
+  } catch (error) { envFile?.cleanup(); login?.cleanup(); throw error; }
 }
 
 async function runChildAndReadOutcome(

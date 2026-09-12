@@ -31,6 +31,7 @@ import type {
 } from "./client.js";
 import { mineFixtureCandidates } from "./fixture-candidates.js";
 import {
+  isProviderEgressProvider,
   type ProviderEgressProvider,
   providerEgressProviderForPreset,
   validateProviderEgressProxyUrl,
@@ -123,16 +124,11 @@ function resolveProviderEgressProvider(
   workspaceRoot: string,
 ): ProviderEgressProvider {
   if (rawProvider !== undefined) {
-    if (
-      rawProvider === "anthropic" ||
-      rawProvider === "openai" ||
-      rawProvider === "openrouter" ||
-      rawProvider === "google"
-    ) {
+    if (isProviderEgressProvider(rawProvider)) {
       return rawProvider;
     }
     throw new Error(
-      `--provider-egress-provider must be anthropic, openai, openrouter, or google, got "${rawProvider}".`,
+      `--provider-egress-provider must be anthropic, openai, openrouter, google, ollama, or lmstudio, got "${rawProvider}".`,
     );
   }
   return providerEgressProviderForPreset(
@@ -267,7 +263,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--container-network-policy <kind>", "Container network policy: offline or provider-egress")
     .option("--provider-egress-network <name>", "Docker internal network with provider-egress allowlist labels")
     .option("--provider-egress-proxy <url>", "HTTP proxy URL reachable from the provider-egress Docker network")
-    .option("--provider-egress-provider <provider>", "Provider endpoint catalog: anthropic, openai, openrouter, or google")
+    .option("--provider-egress-provider <provider>", "Provider endpoint catalog: anthropic, openai, openrouter, google, ollama, or lmstudio")
     .option("--keep", "Keep fixture working directories for post-mortem")
     .action(async (opts: {
       fixture: string[];

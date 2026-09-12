@@ -140,6 +140,10 @@ export function createEvalRunExecution(
       isolationBackend,
       extraEnv: executorEnv,
       signal,
+      ...(isolationBackend.kind === "container" ? {
+        containerAuth: resolveAgentHarness(resolveActivePresetFromConfig(loadConfig(workspaceRoot), env).harness)
+          .resolveIsolatedContainerAuth?.(env),
+      } : {}),
       providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
         workspaceRoot,
         isolationBackend,

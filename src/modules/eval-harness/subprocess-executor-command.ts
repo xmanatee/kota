@@ -57,6 +57,7 @@ export function containerRunArgs(params: {
   executionProfile: ExecutionProfilePreflightResult;
   workingDir: string;
   envFilePath: string;
+  authMount?: string;
   command: string;
   commandArgs: string[];
 }): string[] {
@@ -77,6 +78,7 @@ export function containerRunArgs(params: {
     "--memory",
     memoryArg(profile.memoryKillThresholdMB),
     ...mountArgs,
+    ...(params.authMount === undefined ? [] : ["--mount", params.authMount]),
     "--workdir",
     params.workingDir,
     "--env-file",

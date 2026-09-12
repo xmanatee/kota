@@ -216,6 +216,12 @@ export const codexAgentHarness: AgentHarness = {
   readiness: codexReadiness,
   readWeeklyQuota: readCodexWeeklyQuota,
   resolveIsolatedHostAuthEnv: resolveCodexIsolatedHostAuthEnv,
+  resolveIsolatedContainerAuth: (env) => ({
+    sourceFile: `${resolveCodexHome(env)}/auth.json`,
+    containerDirectory: "/run/kota-codex-login",
+    fileName: "auth.json",
+    locatorEnvKey: "CODEX_HOME",
+  }),
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

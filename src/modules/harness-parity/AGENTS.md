@@ -47,11 +47,15 @@ preflight evidence. Provider policies must match their row's resolved provider.
 OpenRouter container candidates require provider egress; omitted or offline
 network policies reject before inference.
 Candidates use the shared subprocess executor and scoring stays offline. Native
-auth locators remain host-only. Native container login and local-provider
-container endpoint routing are unsupported and reject before any matrix inference,
-even when Docker is ready. Resuming these routes requires implementation through
-the adapter credential, eval isolation, and model-client owners; host login or a
-host model installation alone is insufficient. Runnable non-gating egress remains non-gating.
+container login uses an adapter-declared credential file locator: the executor
+snapshots only that file outside the candidate tree and mounts the snapshot
+read-only. Host homes, configuration and session stores do not cross this boundary.
+Missing login access rejects before matrix inference; file readability does not
+establish authentication or entitlement. Local providers require their matching
+internal proxy policy and the model-client owner's contained endpoint. Proxy
+readiness, positive inference, and denied unintended access still need live proof;
+network labels and launch arguments alone do not establish those outcomes.
+Runnable non-gating egress remains non-gating.
 Cost prefers complete runtime usage; otherwise complete tokens with shipped flat
 rates yield an uncached-token estimate. Unknown pricing and tiered aggregate
 usage remain unavailable rather than becoming zero-cost evidence.
