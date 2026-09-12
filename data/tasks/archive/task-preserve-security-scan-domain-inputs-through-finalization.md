@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Preserve security scan domain inputs through finalization and recovery
 
@@ -58,6 +57,41 @@ remaining candidate-input defect, not a repeat of its completed repair.
   Report actual recovery separately from a local replay; never claim unperformed
   live checks passed. Ordinary builder routing must remain available.
 
-Continue retained builder `2026-09-11T15-54-54-471Z-builder-q50y5g` with its useful
-changes under this revised contract. Complete available validation and publish;
-do not wait for access to the launching daemon or duplicate its recovery owner.
+## Completion
+
+Candidate scans persist a decoded artifact bound to the refreshed Git-input
+reference. Dependent steps, ordinary finalization, refusal finalization and retry
+reload that authoritative packet. Agent summaries remain scrubbed diagnostics.
+The boundary rejects changed bytes, malformed identities/surfaces/counts,
+candidates outside pinned input and substituted refreshed-input references.
+
+Retained pre-reference scans recover through the existing runtime finalizer only
+when the original run path, complete diagnostic projection and hash-pinned input
+agree with the source candidates. Investigation and independent revalidation keep
+their integrity and consistency checks. Unverifiable inputs fail atomically,
+without publishing coverage or rerunning successful agents. A local persisted
+legacy replay exercises this path with the original read-only repository contract
+under today's workflow definition, including source, input, projection,
+provenance and missing-revalidation rejection. It is not a live recovery.
+
+Verification: 50 persistence, refusal and dispatcher owner tests passed, covering
+exact secret-handling identities and token-path digests, current-head retry,
+atomic rejection, legacy finalization replay and ordinary routing. The security
+workflow suite passed 42 of 43 tests. The remaining case passes its scan/finding
+identity, diagnostic-redaction and production-finalization assertions, then fails
+publication process startup because this worker denies `/bin/ps` (EPERM).
+Shared lifecycle/coordinator evidence from this run also records 42 passing tests.
+The static gate (`pnpm check:fast`) passed. Production TypeScript emission passed
+with an isolated output directory under the run. The standard `pnpm build` could
+not remove existing `dist` directories (EPERM), so full packaging was not verified
+in this completion attempt. Results are retained in the run's completion logs.
+No model or prompt judgment changed; this correction replaces diagnostic inputs
+with verified domain inputs, as demonstrated by the persistence outcomes.
+
+Live finalization and resource release remain post-activation operational follow-up.
+The earlier runtime-provided issue export records the original review retained
+with completed investigation and revalidation. Direct collection of its four source
+artifacts was denied in this worker; that does not establish host capability or
+credential absence. No live run, daemon, resource, agent result or other task
+contract was changed. Unverifiable old evidence remains retained and does not
+prevent publication of this correction.

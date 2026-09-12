@@ -17,9 +17,9 @@ afterEach(() => fixture?.cleanup());
 
 it.each(["investigate-candidates", "revalidate-findings"])("persists %s refusal without coverage or timed readmission, then reviews an explicit retry", async (failedStep) => {
   fixture = new SecurityReviewProjectFixture();
-  const path = "src/modules/example.ts";
+  const path = "src/modules/token-store.ts";
   const cappedPath = "src/service/pending.ts";
-  fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+  fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\nconst value = process.env.API_KEY;\n");
   fixture.writeProjectFile(cappedPath, "export const pending = true;\n");
   fixture.commitProjectState();
   const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
@@ -52,6 +52,9 @@ it.each(["investigate-candidates", "revalidate-findings"])("persists %s refusal 
   // Each state read opens and closes the real SQLite owner; the next scenario
   // constructs a fresh coordinator/lifecycle over the same persisted database.
   const held = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
+  const input = JSON.parse(readFileSync(join(blocked.runDirPath, "security-review-input.json"), "utf8"));
+  expect(held.unavailable[path]?.digest).toBe(input.contentDigests[path]);
+  expect(held.unreviewedSurfaces[path]).toContain("secret-handling");
   expect(held.reviewed).toEqual({});
   expect(held.lastReview).toBeNull();
   expect(held.pending).toEqual(initial.pending);

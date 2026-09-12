@@ -3,8 +3,8 @@ import { z } from "zod";
 import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import { classifyAgentPolicyRefusal } from "#core/workflow/steps/step-executor-retry.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
-import { refreshReviewInput } from "./candidate-steps.js";
-import { type ReviewInputReference, refreshedReviewInputArtifact, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
+import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
+import { type ReviewInputReference, readSecurityReviewCandidates, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable, validateSecurityReviewState } from "./review-state.js";
 import { writeJsonArtifact } from "./security-review.js";
 
@@ -48,7 +48,7 @@ export function finalizeSecurityReviewRefusal(ctx: WorkflowFinalizationContext):
   if (!reference) return false;
   const runDirPath = join(ctx.stateDir, "runs", ctx.runId);
   const refusal = refusalArtifact.read(runDirPath, reference);
-  const input = refreshedReviewInputArtifact.read(runDirPath, refreshReviewInput.outputRequired(ctx));
+  const { reviewInput: input } = readSecurityReviewCandidates(runDirPath, ctx.stepOutputs[scanCandidates.id], refreshReviewInput.outputRequired(ctx));
   const snapshot = ctx.state.read(SECURITY_REVIEW_STATE_KEY);
   const state = decodeSecurityReviewState(snapshot.value);
   // The provider refused the review request. Retain capped inputs as unknown

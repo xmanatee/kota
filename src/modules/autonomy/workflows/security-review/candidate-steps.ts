@@ -1,9 +1,10 @@
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import {
   securityReviewCandidateScanOperation,
 } from "./blocking-operations.js";
 import { collectSecurityReviewGitEvidence } from "./due-check.js";
-import { type ReviewInputReference, refreshedReviewInputArtifact, retainedReviewInputArtifact, reviewInputReferenceSchema } from "./review-input-artifact.js";
+import { candidateReviewInputArtifact, type ReviewInputReference, readSecurityReviewCandidates, refreshedReviewInputArtifact, retainedReviewInputArtifact, reviewInputReferenceSchema } from "./review-input-artifact.js";
 import { decodeSecurityReviewState, evidenceRequestSchema, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable } from "./review-state.js";
 import {
   type SecurityReviewCandidate,
@@ -17,8 +18,6 @@ type AgentCandidatePacket = Pick<
   "artifactPath" | "candidateCount" | "truncated"
 > & {
   candidates: AgentCandidate[];
-  head: string;
-  contentDigests: Record<string, string>;
 };
 
 // This ordinary code-step output is replayed by the runtime on retry. Only
@@ -76,14 +75,10 @@ export const refreshReviewInput = typedCodeStep<ReviewInputReference>({
   },
 });
 
-export const scanCandidates = typedCodeStep<AgentCandidatePacket>({
+export const scanCandidates = typedCodeStep<ReviewInputReference>({
   id: "scan-candidates",
   type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) => expectStructuredOutput<AgentCandidatePacket>(raw, [
-    "candidates", "candidateCount", "artifactPath", "truncated",
-    "head", "contentDigests",
-  ]),
+  validate: (raw) => reviewInputReferenceSchema.parse(raw),
   run: async (ctx) => {
     const { workspaceRoot, trigger, workflow, runBlocking } = ctx;
     const git = refreshedReviewInputArtifact.read(ctx.workflow.runDirPath, refreshReviewInput.outputRequired(ctx));
@@ -97,9 +92,8 @@ export const scanCandidates = typedCodeStep<AgentCandidatePacket>({
       trigger: { event: trigger.event, payload: trigger.payload },
     });
     if (packet.candidates.some((candidate) => git.contentDigests[candidate.path] === undefined)) throw new Error("Security candidate is outside the pinned Git input");
-    return {
-      head: git.currentHead.sha,
-      contentDigests: Object.fromEntries(packet.candidates.map((candidate) => [candidate.path, git.contentDigests[candidate.path]!])),
+    return candidateReviewInputArtifact.write(workflow.runDirPath, {
+      input: refreshReviewInput.outputRequired(ctx),
       candidates: packet.candidates.map(
         ({ id, surface, path, line, matcher }) => ({
           id,
@@ -112,7 +106,22 @@ export const scanCandidates = typedCodeStep<AgentCandidatePacket>({
       candidateCount: packet.candidateCount,
       artifactPath: packet.artifactPath,
       truncated: packet.truncated,
-    };
+    });
+  },
+});
+
+export function scannedCandidates(ctx: Pick<WorkflowStepContext, "stepOutputs" | "workflow">) {
+  return readSecurityReviewCandidates(ctx.workflow.runDirPath, scanCandidates.outputRequired(ctx), refreshReviewInput.outputRequired(ctx));
+}
+
+// Scrubbed summaries are for agent discovery only. Domain consumers reload the
+// scan reference and its pinned input, including after persisted finalization.
+export const describeCandidates = typedCodeStep<AgentCandidatePacket>({
+  id: "describe-candidates", type: "code", exposeOutputToAgent: true,
+  validate: (raw) => expectStructuredOutput<AgentCandidatePacket>(raw, ["candidates", "candidateCount", "artifactPath", "truncated"]),
+  run: (ctx) => {
+    const { candidates, candidateCount, artifactPath, truncated } = scannedCandidates(ctx);
+    return { candidates, candidateCount, artifactPath, truncated };
   },
 });
 
@@ -122,7 +131,7 @@ export const recordEmptyScan = typedCodeStep<{
 }>({
   id: "record-empty-scan",
   type: "code",
-  when: (ctx) => scanCandidates.output(ctx)?.candidateCount === 0,
+  when: (ctx) => scannedCandidates(ctx).candidateCount === 0,
   validate: (raw) =>
     expectStructuredOutput<{ written: true; artifactPath: string }>(raw, [
       "written",

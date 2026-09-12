@@ -24,6 +24,11 @@ artifacts, with schema and integrity checks on reload. Ordinary durable step
 outputs carry bounded references that runtime retries replay before refreshing
 the execution-head scan; request histories and coverage maps never travel in the
 agent candidate packet.
+Selected candidate identities and surfaces also reload through integrity-bound
+references to the refreshed input. Agent-facing summaries are diagnostic only;
+dependent steps and finalization must never consume their scrubbed projections.
+Retained runs without these references require verified source provenance before
+recovery; masked metadata cannot reconstruct authoritative review input.
 This preserves first-attempt boundaries and explicit requests across failure;
 editing or deleting a keyword-free guard cannot erase its review eligibility. Failed, capped,
 uncertain, or unchecked evidence remains eligible. A settled unavailable review

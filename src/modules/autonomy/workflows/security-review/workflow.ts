@@ -7,10 +7,12 @@ import {
 } from "#modules/autonomy/shared.js";
 import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
+  describeCandidates,
   recordEmptyScan,
   refreshReviewInput,
   retainReviewInput,
   scanCandidates,
+  scannedCandidates,
 } from "./candidate-steps.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
@@ -63,6 +65,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
     retainReviewInput,
     refreshReviewInput,
     scanCandidates,
+    describeCandidates,
     recordEmptyScan,
     {
       id: "investigate-candidates",
@@ -77,7 +80,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: securityInvestigationOutputSchema,
       validate: decodeSecurityInvestigationOutput,
-      when: (ctx) => (scanCandidates.output(ctx)?.candidateCount ?? 0) > 0,
+      when: (ctx) => scannedCandidates(ctx).candidateCount > 0,
     },
     recordInvestigationFailure,
     recordInvestigationFindings,

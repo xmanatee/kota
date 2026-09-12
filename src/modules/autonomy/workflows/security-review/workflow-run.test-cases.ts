@@ -123,7 +123,7 @@ export function describeSecurityReviewRunTests(
       const result = await harness.run();
 
       expect(result.status, result.error).toBe("success");
-      expect(result.steps["scan-candidates"].output).toEqual(
+      expect(result.steps["describe-candidates"].output).toEqual(
         expect.objectContaining({
           candidates: expect.any(Array),
           candidateCount: expect.any(Number),
@@ -131,11 +131,11 @@ export function describeSecurityReviewRunTests(
           truncated: expect.any(Boolean),
         }),
       );
-      expect(result.steps["scan-candidates"].output).not.toHaveProperty("dueTargets");
-      expect(result.steps["scan-candidates"].output).not.toHaveProperty(
+      expect(result.steps["describe-candidates"].output).not.toHaveProperty("dueTargets");
+      expect(result.steps["describe-candidates"].output).not.toHaveProperty(
         "totalMatchedCandidates",
       );
-      const agentPacket = result.steps["scan-candidates"].output as {
+      const agentPacket = result.steps["describe-candidates"].output as {
         candidates: Array<Omit<SecurityReviewCandidate, "excerpt">>;
       };
       expect(agentPacket.candidates).not.toHaveLength(0);

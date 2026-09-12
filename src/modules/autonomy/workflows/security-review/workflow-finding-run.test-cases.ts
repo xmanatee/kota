@@ -21,12 +21,15 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
     afterEach(() => fixture.cleanup());
     const path = "src/modules/example.ts";
 
-    it("preserves credential terminology through domain finalization and publication while redacting diagnostics", async () => {
-      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+    it("preserves scan and finding identities through domain finalization and publication while redacting diagnostics", async () => {
+      const path = "src/modules/token-store.ts";
+      fixture.writeProjectFile(path, "const value = process.env.API_KEY;\nwriteFileSync(taskPath, body);\n");
       fixture.commitProjectState();
       const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
       const { verdict: _verdict, rationale: _rationale, ...finding } = fixture.confirmedFindingForClaim("Task writes lack authority");
-      finding.candidateId = `task-workflow-mutation:${path}:1`;
+      finding.candidateId = `secret-handling:${path}:1`;
+      finding.affectedPath = path;
+      finding.evidence = [{ path, line: 2, excerpt: "writeFileSync(taskPath, body);" }];
       finding.id = "standalone-instance-lock-credential-disclosure";
       finding.violatedInvariant = "runtime-credentials-must-not-enter-agent-context";
       const investigation = { coverage: [{ path, disposition: "reviewed", rationale: "Inspected writer entry point and callers" }], findings: [finding, { ...finding, id: "rejected", evidenceIdentity: "hypothetical" }] };
@@ -45,7 +48,14 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       expect(metadata.steps.find((step: { id: string }) => step.id === "investigate-candidates").output.findings[0]).toMatchObject({
         id: "[redacted]", violatedInvariant: "[redacted]",
       });
-      expect(after.reviewed[path]).toBeTruthy();
+      const input = JSON.parse(readFileSync(join(result.runDirPath, "security-review-input.json"), "utf8"));
+      expect(after.reviewed[path]).toMatchObject({ digest: input.contentDigests[path], surfaces: expect.arrayContaining(["secret-handling", "task-workflow-mutation"]) });
+      expect(after.pending[0]?.finding.candidateId).toBe(finding.candidateId);
+      const diagnostics = metadata.steps.find((step: { id: string }) => step.id === "describe-candidates").output;
+      expect(diagnostics.candidates).toContainEqual(expect.objectContaining({ surface: "[redacted]" }));
+      expect(diagnostics.contentDigests).toBeUndefined();
+      const scan = JSON.parse(readFileSync(join(result.runDirPath, "security-review-scan-input.json"), "utf8"));
+      expect(scan.candidates).toContainEqual(expect.objectContaining({ path, surface: "secret-handling" }));
       expect(readFileSync(join(result.runDirPath, "security-review-revalidation.json"), "utf8")).toContain("No second reachable sink");
       const taskId = resolveSecurityFindingTaskTarget(fixture.workspaceRoot, after.pending[0]!.finding).id;
       const published = await new WorkflowScenarioDriver(publication, {
@@ -321,7 +331,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       const initial = { evidence: { id: "reported-precondition", paths: [path], critical: false, reason: "Caller can reach this boundary" } };
       const reviewed = await run(initial);
       expect(reviewed.status, reviewed.error).toBe("success");
-      expect(reviewed.steps["scan-candidates"].output).toMatchObject({
+      expect(reviewed.steps["describe-candidates"].output).toMatchObject({
         candidates: [{ path, matcher: "explicit-evidence" }], candidateCount: 1,
       });
       expect((await run(initial)).steps["investigate-candidates"].status).toBe("skipped");
@@ -368,7 +378,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         // A consumed report may be replayed, but the changed content must still be reviewed.
         const reviewed = await run(change === "edit" ? { evidence } : {});
         expect(reviewed.status, reviewed.error).toBe("success");
-        expect(reviewed.steps["scan-candidates"].output).toMatchObject({
+        expect(reviewed.steps["describe-candidates"].output).toMatchObject({
           candidateCount: 1, candidates: [{ path, surface: "reported-boundary", matcher: "changed-boundary" }],
         });
         expect((await due()).due).toBe(false);
@@ -408,7 +418,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       }).run();
       expect(failed.status).toBe("failed");
       expect(failed.error).toContain("Provider unavailable");
-      expect(failed.steps["scan-candidates"].output).toMatchObject({ candidates: [{ path: paths[0] }, { path: paths[35] }] });
+      expect(failed.steps["describe-candidates"].output).toMatchObject({ candidates: [{ path: paths[0] }, { path: paths[35] }] });
       expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value)).toEqual(partial);
       fixture.writeProjectFile(paths[1]!, "export const mayRead = () => false;\n");
       fixture.commitProjectState("change an already covered request path");
@@ -418,7 +428,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         stepOutputs: { "investigate-candidates": { findings: [], coverage: [paths[0], paths[1], paths[35]].map((path) => ({ path, disposition: "reviewed", rationale: "Inspected remaining gate and changed content" })) } },
       }).run();
       expect(resumed.status, resumed.error).toBe("success");
-      expect(resumed.steps["scan-candidates"].output).toMatchObject({ candidates: [{ path: paths[0] }, { path: paths[1] }, { path: paths[35] }] });
+      expect(resumed.steps["describe-candidates"].output).toMatchObject({ candidates: [{ path: paths[0] }, { path: paths[1] }, { path: paths[35] }] });
       const complete = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
       expect(complete.evidenceRequests).toEqual([]);
       expect(complete.reviewedEvidenceIds).toEqual([evidence.id]);
@@ -459,7 +469,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       const oldInput = JSON.parse(readFileSync(join(failed.runDirPath, "security-review-input.json"), "utf8"));
       expect(input.currentHead.sha).not.toBe(oldInput.currentHead.sha);
       expect(input.contentDigests[path]).not.toBe(oldInput.contentDigests[path]);
-      expect(retry.steps["scan-candidates"].output).toMatchObject({ candidateCount: 2 });
+      expect(retry.steps["describe-candidates"].output).toMatchObject({ candidateCount: 2 });
       expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).reviewed).toMatchObject({
         [path]: { digest: input.contentDigests[path] }, [other]: { digest: input.contentDigests[other] },
       });
@@ -497,7 +507,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         stepOutputs: { "investigate-candidates": { findings: [], coverage: [{ path, disposition: "reviewed", rationale: "Inspected removed check and callers" }] } },
       }).run();
       expect(retry.status, retry.error).toBe("success");
-      expect(retry.steps["scan-candidates"].output).toMatchObject({ candidates: [{ path, surface: "auth-approval-boundary" }] });
+      expect(retry.steps["describe-candidates"].output).toMatchObject({ candidates: [{ path, surface: "auth-approval-boundary" }] });
     });
 
     it.each([false, true])("pins a new deleted explicit path, including critical=%s and failed first-review retries", async (critical) => {
@@ -531,7 +541,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         stepOutputs: { "investigate-candidates": { findings: [], coverage: [{ path, disposition: "reviewed", rationale: "Inspected deleted gate and remaining callers" }] } },
       }).run();
       expect(retry.status, retry.error).toBe("success");
-      expect(retry.steps["scan-candidates"].output).toMatchObject({ candidates: [{ path, matcher: "explicit-evidence" }], contentDigests: { [path]: "deleted" } });
+      expect(retry.steps["describe-candidates"].output).toMatchObject({ candidates: [{ path, matcher: "explicit-evidence" }] });
       expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).reviewedEvidenceIds).toEqual([evidence.id]);
     });
 

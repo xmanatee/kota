@@ -4,9 +4,9 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
-import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
+import { refreshReviewInput, scanCandidates, scannedCandidates } from "./candidate-steps.js";
 import { finalizeSecurityReviewRefusal } from "./refusal-steps.js";
-import { type ReviewInputReference, refreshedReviewInputArtifact, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
+import { type ReviewInputReference, readSecurityReviewCandidates, reviewInputReferenceSchema, securityReviewArtifact } from "./review-input-artifact.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable, validateSecurityReviewState } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
@@ -43,7 +43,13 @@ export const recordInvestigationFindings = typedCodeStep<ReviewInputReference>({
   run: (ctx) => {
     const output = investigationOutput(ctx);
     if (!output) throw new Error("Security investigation is missing");
-    const packet = scanCandidates.outputRequired(ctx);
+    const packet = scannedCandidates(ctx);
+    validateInvestigationCandidates(output, packet);
+    return investigationArtifact.write(ctx.workflow.runDirPath, output);
+  },
+});
+
+function validateInvestigationCandidates(output: SecurityInvestigationOutput, packet: ReturnType<typeof readSecurityReviewCandidates>): void {
     const selectedPaths = new Set(packet.candidates.map((candidate) => candidate.path));
     const covered = new Set<string>();
     for (const coverage of output.coverage) {
@@ -54,9 +60,7 @@ export const recordInvestigationFindings = typedCodeStep<ReviewInputReference>({
     for (const finding of output.findings) {
       if (!packet.candidates.some((candidate) => candidate.id === finding.candidateId)) throw new Error("Security finding cites an unknown candidate");
     }
-    return investigationArtifact.write(ctx.workflow.runDirPath, output);
-  },
-});
+}
 
 function revalidationOutput(
   ctx: WorkflowStepContext,
@@ -93,7 +97,8 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
   if (!reference) return;
   const runDirPath = join(ctx.stateDir, "runs", ctx.runId);
   const investigation = investigationArtifact.read(runDirPath, reference);
-  const packet = scanCandidates.outputRequired(ctx);
+  const packet = readSecurityReviewCandidates(runDirPath, ctx.stepOutputs[scanCandidates.id], refreshReviewInput.outputRequired(ctx));
+  validateInvestigationCandidates(investigation, packet);
   const revalidationReference = recordRevalidation.output(ctx);
   const revalidation = revalidationReference && revalidationArtifact.read(runDirPath, revalidationReference);
   if (revalidation) {
@@ -106,7 +111,7 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
   const unresolved = new Set(revalidation?.findings.filter((finding) => finding.verdict === "follow-up-needed").map((finding) => finding.candidateId) ?? []);
   const reviewedPaths = investigation.coverage.filter((entry) => entry.disposition === "reviewed" &&
     !packet.candidates.some((candidate) => candidate.path === entry.path && unresolved.has(candidate.id))).map((entry) => entry.path);
-  const input = refreshedReviewInputArtifact.read(runDirPath, refreshReviewInput.outputRequired(ctx));
+  const input = packet.reviewInput;
   const selectedPaths = [...new Set(packet.candidates.map((candidate) => candidate.path))];
   const revisitedUnavailablePaths = selectedPaths.filter((path) => state.unavailable[path]?.digest === packet.contentDigests[path]);
   const deferredUnavailablePaths = Object.keys(state.unavailable).filter((path) => securityReviewPathUnavailable(state, path, input.contentDigests, input.evidenceRequest?.paths.includes(path) ? input.evidenceRequest.id : null));
