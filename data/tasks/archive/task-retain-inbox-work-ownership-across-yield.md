@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Retain inbox work ownership across yield and resume
 
@@ -126,3 +125,50 @@ one existing inbox scenario cannot launch its validator because `/bin/ps` is
 denied; two process-tree restart cases report `spawn-failed`. These proofs need
 an execution environment supporting the existing subprocess inspection contract;
 no production guard or test expectation was weakened to conceal the failures.
+
+
+## Completion
+
+The retained inbox resource, shared observation coalescing, priority recovery,
+and publication paths satisfy the implementation contract. No inbox scheduler,
+priority exception, or additional work owner was introduced. The September 12
+change closes a cleanup safety gap in `RunLifecycle`: when a persisted checkout,
+branch, and runtime directory have all disappeared, absence no longer authorizes
+cancellation or terminal recovery failure with resource release. Such a run stays
+at attention with its original sandbox identity and resources. The existing
+runtime publication journal can still recover completed publication, and Git
+reconciliation still permits cleanup of an integrated branch whose checkout was
+safely removed. Dirty, unintegrated, and registered-but-missing work stays retained.
+
+The owning lifecycle test now exercises cancellation through the real coordinator
+and SQLite after restart, distinguishes settled work from four unsafe/ambiguous
+states, retains historical artifacts, and checks durable disposition/resource
+ownership after reopening storage. Existing lifecycle coverage also verifies
+retained checkout adoption, source-intent reconciliation, single publication,
+and recovery after completed cleanup. Queue/database/coordinator coverage checks
+coalescing through yield/restart, real prerequisite clearance, independent
+capacity, and successor admission after completion/cancellation.
+
+Validation for builder `2026-09-12T06-41-07-741Z-builder-mpt5pp`:
+
+- Ownership suites: 112 passed; one existing inbox validator scenario failed
+  because process inspection returned `spawnSync /bin/ps EPERM`.
+- Recovery/publication suites: 40 passed; two existing process-tree restart
+  scenarios could not start their subprocess (`spawn-failed`).
+- The work-supply integration journey passed, rendering the retained-owner
+  dashboard and exercising slot refill, pause/resume, and retained inbox/task
+  ownership through the shared dispatcher and runtime.
+- Final `pnpm check:fast` passed, including typechecking, lint, task validation,
+  and generated bindings. Production TypeScript emission passed using the same
+  build configuration with a fresh run-owned output directory. `pnpm build`
+  could not remove existing `dist` files under sandbox permissions; full asset
+  packaging was not established. Logs remain under this run's agent directory.
+
+The three subprocess-dependent failures reproduce the restrictions already
+recorded above; no process safety contract or test expectation was relaxed.
+The passing Git/SQLite lifecycle proofs directly exercise this change's cleanup,
+ownership, and publication boundaries. Live activation, legacy jkdwsr disposition,
+and udfvtw's eventual publication remain runtime-owned operational follow-up.
+The twelve completed cancellations above remain the attributable historical
+reconciliation evidence; no live cancellation, daemon control, canonical database
+write, original capture edit, or unrelated task edit was performed by this builder.

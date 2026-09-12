@@ -58,6 +58,9 @@ and publication.
 - Discovery-based resource resolvers select work at admission and reuse that
   admitted snapshot on restoration. Queue changes, including the writer's own
   publication, cannot strand publication or cleanup recovery.
+- A persisted sandbox that disappears keeps its ownership until Git-backed
+  cleanup reconciliation or the runtime publication journal establishes its
+  disposition. Missing files and empty historical diffs are not cleanup evidence.
 - `ctx.runEvidence` provides immutable, scope-filtered observations. Investigators
   receive redacted exports and unavailable diagnostics; database handles and
   host control authority stay in runtime.

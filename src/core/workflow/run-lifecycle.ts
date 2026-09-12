@@ -215,8 +215,11 @@ export class RunLifecycle {
     } catch (adoptionError) {
       try {
         const reconciled = manager.reconcile(run.id, run.repository);
-        if (reconciled.status === "absent" || reconciled.status === "removed") {
+        if (reconciled.status === "removed") {
           return { ready: true };
+        }
+        if (reconciled.status === "absent") {
+          return { ready: false, blockers: ["sandbox-disappeared-without-cleanup-evidence"] };
         }
         sandbox = reconciled.sandbox;
       } catch (reconciliationError) {
@@ -268,6 +271,11 @@ export class RunLifecycle {
           if (reconciled.status === "removed" || reconciled.status === "absent") {
             const recovered = this.finishIntegratedWithoutSandbox(run, repoRoot);
             if (recovered) return recovered;
+            if (reconciled.status === "absent") {
+              return this.attention("sandbox-recovery-ambiguous", [
+                "sandbox-disappeared-without-cleanup-evidence",
+              ]);
+            }
             this.options.store.clearSandbox(run.id, this.options.daemonEpoch);
             return {
               kind: "terminal",
