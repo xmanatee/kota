@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres, task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
@@ -201,3 +201,99 @@ task-only blocked commit while implementation or setup can still advance. A
 verified unavailable account credential, entitlement or quota is distinct from
 an unperformed observation. Runtime artifacts must remain inspectable without
 committing copied code, binaries or whole evidence packets into the repository.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Provide an authorized matching Linux AGY setup/probe environment, or equivalent vendor documentation/source, establishing the subscription login-file location, refresh behavior and native-tool credential exclusion; this enables safe adapter implementation without inventing credential formats or exposing tokens.
+
+The outstanding external input is the vendor authentication/isolation contract,
+not evidence that an account lacks credentials. The existing contained host grant
+is absent (receipt below), so this builder cannot run the matching Linux setup
+probe. The official installation page was also unreachable through the configured
+scoped proxy (`curl` exited 7); no direct network workaround was attempted.
+An equivalent vendor contract can advance implementation without waiting for
+host activation. No specific capture path or manual benchmark execution is required.
+
+### Authentication investigation and safe changes
+
+The installed vendor binary's bundled 1.1.3 changelog says the CLI bypasses the
+keyring when no D-Bus session is present on headless Linux/containers. Its shipped
+file-storage diagnostic and `NewCLITokenStorage` symbol corroborate a file route.
+This disproves the previous keyring-only setup assumption, but a macOS binary
+inspection does not establish the selected Linux release's storage or security
+contract. The bounded excerpt and binary hash are retained in this run's
+`agent/agy-model-routing/auth-contract-research/vendor-observation.json`.
+The relevant vendor release-note text is quoted here for review:
+
+> Fixed repeated sign-in prompts on Linux caused by the OS keyring: the CLI now bypasses the keyring when no D-Bus session bus is present (headless hosts and containers), skips it for an hour after a timeout, and uses longer keyring timeouts so a slow-but-successful credential read is no longer cut short and forced into a fresh login.
+
+Installed executable SHA-256: `f3671863b53ecef2c45a41673677fe603fbe5d73df33d744feec3e88d5af0199`.
+This is static vendor-source evidence, not an executed Linux login result.
+
+The shared `AgentHarness.resolveIsolatedContainerAuth` contract requires the
+adapter to deny both source and runtime credentials to native tools.
+`snapshotContainerAuth` provides a read-only copy, which protects integrity but
+not confidentiality. AGY cannot route native file/terminal tools through KOTA's
+`canUseTool`; the maintained launcher and its tests deliberately omit AGY's
+optional `--sandbox` flag. Neither that flag's help text nor a file-storage
+symbol establishes exclusion of credentials from all native tools. Guessing a
+plaintext login mount would violate the existing harness contract.
+
+Corrected the adapter's error and its scoped/deployment guidance to identify
+this unresolved file-storage/credential-exclusion contract. Removed stale claims
+that the maintained adapter enables a nested AGY terminal sandbox. No login
+projection, token format, keyring service or wider access grant was invented.
+Source work now needs the concrete vendor contract above to choose a safe
+projection; positive login and negative file/terminal credential probes then
+validate it in the authorized Linux environment. The current unconditional
+rejection remains an implementation gap, not a completed authentication feature.
+
+## Current assessment (2026-09-12, builder mtxsm3)
+
+Routing: **needs more data**. Zero of 27 planned scenario runs executed across
+current 3.7 Flash and historical 3.6 Flash / 3.1 Pro. Actual model/effort, quota,
+traces, changed paths, rubric verdicts, `pass@3` and `pass^3` remain unobserved.
+No production routing changed.
+
+### Current host receipt available for review
+
+The following is the exact 565-byte response retained from this run's resumed
+`pnpm kota eval contained '{"operation":"inspect"}'` (exit 1). It was collected
+after the setup dependency was complete, with the writer at revision
+`538a5487fca0f0fb124179c269d27aa684128727`. This narrow verbatim receipt is
+included here because the critic cannot access the runtime packet; no evidence
+packet, source tree or binary payload is added to the repository.
+
+```json
+{"tool_use_id":"tool-25dca4b145d6fad8c55a2a6e9b463aff","content":"Tool error: Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment. Profiles declare scopeRoots, timeoutMs, cpuCores, memoryMB and a container isolationBackend with image. Deterministic probes declare probes with command and sourcePaths and use offline networking; model profiles declare preset, fixtureIds/candidates, maxRepeats and restricted provider-egress. See src/modules/eval-harness/contained-evaluation.md for setup; worker requests cannot configure host access.","is_error":true}
+```
+
+SHA-256 of the original JSON bytes (no trailing newline; exclude the Markdown
+fence separator newline):
+`c78e42d8340c7e4335edd63230040a7112c46f7c086f552a795b90feb4cd1cda`.
+Runtime origin: this run's
+`native-authorizations/123f4b43a70825d03cc355ef4be071c1/responses/tool-25dca4b145d6fad8c55a2a6e9b463aff`.
+The byte-identical retained copy is `agent/agy-model-routing/resumed-contained-inspect-response.json`.
+The critic's separate `Native writer authorization denied or unavailable`
+response does not establish a missing host grant; the receipt above is the
+observation supporting this disposition. Exposing it does not constitute a new
+host observation or another benchmark attempt.
+
+The remaining preparation stays in runtime-owned `agent/agy-model-routing/` for
+run `2026-09-12T19-11-34-165Z-builder-mtxsm3`: scenario specifications, validated
+request, execution plan, 58 source hashes, adapter-auth resolver observations
+and routing assessment. The production fixture/instruction-source validators
+accepted all three scenarios. Thirteen existing scenario/rubric, model-readiness
+and container-availability tests passed; final task validation passed. These
+checks establish preparation behavior, not live quality, containment or account
+availability. Image, restricted Google egress and isolated login remain unverified.
+
+Repair validation: `pnpm check:fast` passed. All 13 selected runtime-home,
+adapter-execution and container-auth owner tests passed, covering existing login
+projection, model/effort propagation, native launch and snapshot exclusion from
+the candidate workspace. Two direct production auth-resolver probes rejected
+empty and synthetic API-key environments with the corrected implementation
+diagnostic. These establish the safety of the retained correction; no Linux
+login, credential-confidentiality or benchmark pass is claimed.

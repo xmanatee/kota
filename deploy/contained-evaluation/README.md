@@ -167,15 +167,26 @@ model tokens are spent. Requests cannot widen a profile.
 
 ## AGY subscription limitation and live follow-up
 
-AGY stores subscription login in an OS keyring. KOTA's file-only container auth
-contract cannot transfer that login or complete isolated Linux remote OAuth.
-The adapter now rejects contained discovery and execution with that precise
-limitation, even if a Gemini API key exists. Image preparation and a Google
-proxy do not make the subscription route authenticated. The smallest operator
-step is to establish the vendor's supported login in the isolated Linux runtime;
-a supported adapter/keyring contract must then integrate it without exposing
-host keychains or inventing portable tokens. Do not keep retrying benchmark
-calls against the current unsupported route.
+The current AGY contained login projection is unimplemented. AGY's bundled
+1.1.3 release notes describe bypassing the OS keyring on headless Linux when no
+D-Bus session is present; the CLI has file-based token storage. Do not provision
+a keyring service merely to satisfy KOTA's former keyring-only diagnostic.
+
+Before implementing projection, use the selected Linux image in an authorized
+isolated setup environment to establish the vendor login-file location and
+refresh behavior, and verify that AGY native file and terminal tools cannot read
+either the source login or its runtime copy. Equivalent vendor documentation or
+source establishing that contract can guide implementation before live validation.
+The existing shared owner snapshots one adapter-selected file read-only; it does
+not provide credential exclusion inside the native tool loop. A plaintext token
+mount without that exclusion would violate the harness auth contract.
+
+The native AGY adapter does not support KOTA per-tool callbacks, and its current
+launch does not enable AGY's optional terminal sandbox. Neither a profile grant
+nor successful model discovery proves credential exclusion. Keep contained auth
+fail-closed while this contract is unresolved. A denied setup probe identifies
+an execution prerequisite, not missing account credentials. Do not invent a
+portable token or export the host keychain.
 
 Paid API mode additionally requires AGY `modelProvider: gemini`. It is a
 separate comparison route and is not silently enabled by environment keys.

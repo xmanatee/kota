@@ -16,7 +16,7 @@ Each run creates an invocation-local AGY project bound to the requested working
 directory and consumes `stream-json`. KOTA's machine-authority sandbox is the
 outer filesystem, process, and egress boundary. Because headless AGY cannot
 service permission prompts, the adapter auto-approves AGY-native tools inside
-that boundary and also enables AGY's terminal sandbox. Edit-capable runs use
+that boundary without adding a second AGY terminal sandbox. Edit-capable runs use
 `accept-edits`; read-only projections use `plan` with no writable scope.
 Translate native events into
 `KotaAgentMessage` frames here; preserve unknown frames as `raw` messages.
@@ -62,13 +62,20 @@ Daemon runs use an invocation-local home and ordinarily inherit no provider,
 GitHub, notification, or cloud credentials. On macOS, project only the host's
 encrypted `login.keychain-db` file read-only at the standard path inside that
 home; never expose the whole Keychains directory or inspect the token. AGY owns
-credential lookup and refresh. Its nested terminal sandbox prevents
-auto-approved terminal tools from querying the host credential service, while
-KOTA's outer sandbox remains authoritative for filesystem and egress access.
-Contained subscription evaluation is explicitly unsupported until a vendor-supported
-isolated Linux keyring/remote OAuth contract is implemented. The adapter rejects
-auth resolution before discovery and execution; Google API environment keys do
-not imply subscription login or select AGY's paid `modelProvider: gemini` route.
+credential lookup and refresh. KOTA's outer sandbox owns the filesystem and
+egress boundary; do not infer a native-tool credential exclusion from an outer
+read grant needed by the provider process.
+
+Contained subscription login projection remains unimplemented. AGY's published
+1.1.3 changelog describes file-based token storage on headless Linux without a
+D-Bus session; an OS keyring is therefore not an unconditional prerequisite.
+Before projecting that login, establish the selected Linux release's file
+location, refresh behavior and native-tool credential exclusion through an
+authorized isolated probe or equivalent vendor contract evidence. The shared
+container-auth owner can snapshot a single file, but a read-only mount alone
+does not prevent native tools from reading its contents. Do not invent a token
+format, export the host keychain, or substitute API credentials. Auth resolution
+rejects before discovery and execution until that contract is implemented.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
 still goes only through KOTA's host-owned allowlisted proxy. In provider-egress

@@ -44,14 +44,16 @@ export function prepareAntigravityCliRuntimeEnvironment(
   return prepared;
 }
 
-/** Subscription auth is OS-keyring backed. The file-only container launcher
- * cannot project an isolated vendor keyring or complete remote OAuth. */
+/** Contained login must satisfy the harness contract's native-tool credential
+ * exclusion. AGY's headless file-storage fallback alone does not establish it. */
 export function resolveAntigravityCliContainerAuth(_env: NodeJS.ProcessEnv): never {
   throw new Error(
-    "Antigravity subscription container authentication is unsupported: AGY uses an OS keyring, " +
-    "and KOTA has no vendor-supported isolated keyring/remote OAuth transfer contract. " +
-    "The operator must establish vendor-supported login in the isolated Linux runtime before this route can be enabled. " +
-    "Do not export the host keychain. GEMINI_API_KEY/GOOGLE_API_KEY cannot substitute for subscription login; " +
+    "Antigravity contained subscription login projection is not implemented. " +
+    "AGY supports headless file-based token storage, but KOTA has not established " +
+    "the selected Linux release's login-file location, refresh behavior, and native-tool credential exclusion. " +
+    "Use an authorized isolated Linux setup probe or equivalent vendor contract evidence to establish these before implementing the projection. " +
+    "A host keychain export or plaintext token mount is not a substitute for that contract. " +
+    "GEMINI_API_KEY/GOOGLE_API_KEY do not select subscription login; " +
     "paid API inference additionally requires AGY modelProvider: gemini and is a separate comparison route.",
   );
 }
