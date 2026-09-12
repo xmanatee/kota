@@ -1,0 +1,89 @@
+[
+  {
+    "kind": "planning",
+    "fixtureId": "builder-unfamiliar-language-strategy-construction",
+    "description": "Learn a fixture-owned language and construct a verified implementation strategy.",
+    "instructionTraceRules": [
+      {
+        "kind": "required-command",
+        "command": "node scripts/check-strategy.mjs --visible-only --no-strategy",
+        "sourceRoot": "fixture-initial-state",
+        "sourcePath": "AGENTS.md"
+      },
+      {
+        "kind": "required-command",
+        "command": "node scripts/check-strategy.mjs",
+        "sourceRoot": "fixture-initial-state",
+        "sourcePath": "AGENTS.md"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git add",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git commit",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      }
+    ]
+  },
+  {
+    "kind": "scoped-coding",
+    "fixtureId": "builder-targeted-test-writing",
+    "description": "Add focused coverage without changing product code or fixture-owned scorers.",
+    "instructionTraceRules": [
+      {
+        "kind": "required-command",
+        "command": "node scripts/check-targeted-tests.mjs",
+        "sourceRoot": "fixture-initial-state",
+        "sourcePath": "data/tasks/task-cover-cart-pricing-rules.md"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git add",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git commit",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      }
+    ]
+  },
+  {
+    "kind": "repair",
+    "fixtureId": "builder-cross-hierarchy-debugging",
+    "description": "Trace a downstream failure to its upstream cause and land the narrow repair.",
+    "instructionTraceRules": [
+      {
+        "kind": "required-command",
+        "command": "node scripts/check-debug-trace.mjs",
+        "sourceRoot": "fixture-initial-state",
+        "sourcePath": "data/tasks/task-fix-cross-hierarchy-signal-routing.md"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git add",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      },
+      {
+        "kind": "forbidden-command",
+        "command": "git commit",
+        "sourceRoot": "evaluation-project",
+        "sourcePath": "src/core/agent-harness/native-cli-workflow-rails.ts",
+        "sourceNeedle": "do not run `git add`, `git commit`"
+      }
+    ]
+  }
+]

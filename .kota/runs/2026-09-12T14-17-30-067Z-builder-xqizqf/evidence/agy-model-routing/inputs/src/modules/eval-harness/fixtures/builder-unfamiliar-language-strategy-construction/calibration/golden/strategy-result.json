@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "helperCommand": null,
+  "programPath": "programs/solution.spool",
+  "validationCommands": [
+    "node scripts/check-strategy.mjs --visible-only --no-strategy",
+    "node scripts/check-strategy.mjs"
+  ],
+  "discoveredRules": {
+    "alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "shiftIndexBase": 1,
+    "railOrder": [
+      2,
+      0,
+      1
+    ],
+    "checksumModulus": 1296
+  },
+  "provenance": {
+    "strategyKind": "target-language-program",
+    "visibleExampleIds": [
+      "visible-harbor",
+      "visible-lunar",
+      "visible-digits",
+      "visible-edge"
+    ],
+    "localFeedbackCommands": [
+      "node scripts/check-strategy.mjs --visible-only --no-strategy",
+      "node scripts/check-strategy.mjs"
+    ],
+    "hardcodedVisibleExamples": false
+  },
+  "visibleCasePassCount": 4,
+  "hiddenCasePassCount": 6,
+  "totalCasePassCount": 10,
+  "programInstructionCount": 7
+}

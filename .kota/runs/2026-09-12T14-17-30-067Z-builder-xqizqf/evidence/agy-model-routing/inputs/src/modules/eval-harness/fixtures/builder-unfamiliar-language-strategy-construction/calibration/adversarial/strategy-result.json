@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "helperCommand": null,
+  "programPath": "programs/solution.spool",
+  "validationCommands": [
+    "node scripts/check-strategy.mjs"
+  ],
+  "discoveredRules": {
+    "alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "shiftIndexBase": 0,
+    "railOrder": [
+      0,
+      1,
+      2
+    ],
+    "checksumModulus": 36
+  },
+  "provenance": {
+    "strategyKind": "target-language-program",
+    "visibleExampleIds": [
+      "visible-harbor"
+    ],
+    "localFeedbackCommands": [
+      "node scripts/check-strategy.mjs"
+    ],
+    "hardcodedVisibleExamples": true
+  },
+  "visibleCasePassCount": 0,
+  "hiddenCasePassCount": 0,
+  "totalCasePassCount": 0,
+  "programInstructionCount": 5
+}

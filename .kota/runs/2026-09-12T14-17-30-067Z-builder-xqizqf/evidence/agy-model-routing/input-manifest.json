@@ -1,0 +1,257 @@
+[
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/accepted-alternatives/helper-generated-route/programs/solution.spool",
+    "sha256": "68ba06db86a99adcd8a8f754276463d077aaf1149b9c80360d58ac98a196bd9a",
+    "bytes": 156
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/accepted-alternatives/helper-generated-route/scripts/generate-solution.mjs",
+    "sha256": "bab20959ae5667b6e804d5ecfd1789ed227e2f60106cda12859b9a32234d4160",
+    "bytes": 384
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/accepted-alternatives/helper-generated-route/strategy-result.json",
+    "sha256": "34da62394e910c147b609e1a1a265e9f41dece726047009f09834f8fb35d8844",
+    "bytes": 880
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/adversarial/programs/solution.spool",
+    "sha256": "6ecf165c259bdfabd6613b737f382ddaaf1080c9d20620f89b9b24e056390fb0",
+    "bytes": 50
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/adversarial/strategy-result.json",
+    "sha256": "18180a22e792907c115bac13fa73eac4aa9f332fe58b37fd2426d1a9e7f6ae35",
+    "bytes": 708
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/golden/programs/solution.spool",
+    "sha256": "7e051f4c93a43ab587a8d4536f720605967698832f47865e18d53bb9aa8c17b6",
+    "bytes": 140
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/calibration/golden/strategy-result.json",
+    "sha256": "19001aeb4c168b651cf4ca4eddc5808b1c95ff6bd8bb34aa62b8338811357c0d",
+    "bytes": 919
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/fixture.json",
+    "sha256": "ba211b3b049aeba5782fd4ef08a76ec787d3c6cf71b0f7fb29779a4c7a55b942",
+    "bytes": 4314
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/AGENTS.md",
+    "sha256": "7ecdf907e8556aa69f9013f54ebeefed81ffde91f8f468ac59c2bfc795ddc123",
+    "bytes": 782
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/data/tasks/task-write-spool-route-strategy.md",
+    "sha256": "6743435654e4f70d03273390f9c01e608c09aec6fa93256d04e0c7a2dd05d9b0",
+    "bytes": 3415
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/docs/route-key.md",
+    "sha256": "8188f7152b3c3e7c8ede335a8c28fc21234a8fc96330eaa26c2dda03206bff7f",
+    "bytes": 535
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/docs/spool-language.md",
+    "sha256": "4fd2106f7a7b5772c92bd61fe5787e0397fd54f65c9e925d2af500d0ea353cd5",
+    "bytes": 1346
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/examples/visible-cases.json",
+    "sha256": "b84886c869f5f4984dfc05858d2207570125a4a574367c0fa6a5267836b2c2b7",
+    "bytes": 449
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/fixture.gitignore",
+    "sha256": "9ecd3ad9153a71a8303065b64cd22a5967616e7f751b4fa60cbeff8e176cc3a3",
+    "bytes": 209
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/package.json",
+    "sha256": "7319d57c0087ff836d245d3332026ed9af5745615125c883faa687b7657d9aa5",
+    "bytes": 410
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/programs/solution.spool",
+    "sha256": "ae2c1c1cc50b29d207e568044a6ce589f52929771f5dd5a468f4a104a5bf8f85",
+    "bytes": 173
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/scripts/check-strategy.mjs",
+    "sha256": "859d097a12d0361d182e0d42cf5fd8608306ace7eca3eb4765b87d7e0f889b09",
+    "bytes": 19677
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/notes.md",
+    "sha256": "f894fbf4493ee6903fecaffd7e1e73db87d850a0ec9361e236b3e38bd452de5f",
+    "bytes": 762
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/calibration/adversarial/test/pricing.test.mjs",
+    "sha256": "c65e110c318dbd1acb64696553e8507c103b79a479d7d15b3527c4a5858fde6a",
+    "bytes": 1051
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/calibration/golden/test/pricing.test.mjs",
+    "sha256": "7b0d6c8e43928e193f14714cd6ebe3d33be20eb6f00cdd0798bf3bdcad6dfef5",
+    "bytes": 1715
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/fixture.json",
+    "sha256": "d86ce656ae60b86ee560d72b1319d50b0929b8f4027b619abdd4376de25bc48b",
+    "bytes": 3055
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/AGENTS.md",
+    "sha256": "2f7d053d54c2f998e839d4a151420e18bf1527eb4c5ff1f5da78c4cd4fd21c72",
+    "bytes": 556
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/data/tasks/task-cover-cart-pricing-rules.md",
+    "sha256": "7208069168c34b4c9cd0f5667c6b8159ac6aeba5d161668b1a71747a41aeb3c2",
+    "bytes": 670
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/fixture.gitignore",
+    "sha256": "4902ac4cae044ed1b2642f7b7be1aa6823fe0dfa1686270ee6e9d08ef8ebde5f",
+    "bytes": 21
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/package.json",
+    "sha256": "e8e9884a06a596a08843a7cfb84caac8792805586746a69c3b3c33d64534e33a",
+    "bytes": 324
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/scripts/check-targeted-tests.mjs",
+    "sha256": "c97bc10e468256baf376b46aa2e28ea3ed848fba0096a32b28f3b07b91692c56",
+    "bytes": 2346
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/src/cart-pricing.mjs",
+    "sha256": "1a4aaf6c8836b5dd0bc78e57162a23e9b818a706df0d55d24ffd720756915a1d",
+    "bytes": 665
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/test/helpers/pricing-helpers.mjs",
+    "sha256": "6cc714f35753aa257a3f852969897fca05fe54c5c26de33dc146a489408111c9",
+    "bytes": 206
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/initial/test/pricing.test.mjs",
+    "sha256": "af48df5072016233bd946945b6772e2e7e64b6400f5dcaf14f6b8fc9350bfbd3",
+    "bytes": 564
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-targeted-test-writing/notes.md",
+    "sha256": "e1bc1b5cf068e7623f4fabfbb9dd5a5f16639669df6cfc039121557e69132ee9",
+    "bytes": 723
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/adversarial/src/channel-registry.mjs",
+    "sha256": "d96c2ccdc6572f3781908cee49a66be0ce7b0a3e73f489895b83226de0444feb",
+    "bytes": 1298
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/golden/src/channel-registry.mjs",
+    "sha256": "bba890d99f7d6a4c299b76b3551c6732d822e6ed002b21cbd159775300d99e58",
+    "bytes": 1154
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/fixture.json",
+    "sha256": "a74158e30aa78e373ddc9299ec10d2aa2b080994dc17aadb5d667fe0018cfbcc",
+    "bytes": 3294
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/AGENTS.md",
+    "sha256": "1b3f199f4d207afa146f7035e0485d869bf55c5b0d315dae64b33d8cf98cda16",
+    "bytes": 380
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/data/tasks/task-fix-cross-hierarchy-signal-routing.md",
+    "sha256": "843ede5399eec81e828faadff673b8f15742b13be55fece7df9973dca9d2c8c6",
+    "bytes": 690
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/fixture.gitignore",
+    "sha256": "e9e9bc0dfa5fb6b20e9d611a1d0f94b28e438d3e8c5d0ff495e5c2ce79741559",
+    "bytes": 192
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/package.json",
+    "sha256": "8ce6701da86ee7804f44239ea73e58e2ee17b8364cc56bd5d891c68abb870f85",
+    "bytes": 370
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/scripts/check-debug-trace.mjs",
+    "sha256": "79a933d4f335a750e6334418f5565c2b9ed4959464983c255ec5774c622495b9",
+    "bytes": 954
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/scripts/debug-trace-contract.mjs",
+    "sha256": "a26935fb2911c7cf349f2ab8541efbf2e37d62a146d795365f2735be9913051e",
+    "bytes": 1832
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/src/channel-registry.mjs",
+    "sha256": "d939ea1a186fd36e03b8be9c277e8d71d7ba9bcab234b3e3d3baca0d64b8ec14",
+    "bytes": 1084
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/src/gateway.mjs",
+    "sha256": "bde6534d307c97ea0ff8a61647363618ac2c1d0f1df752db4826c9614baf6b73",
+    "bytes": 399
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/src/signal-flow.mjs",
+    "sha256": "14ac32575f7c9d0e1852d548a137010139c0389a61c9f8bb77d39666274e4d16",
+    "bytes": 373
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/test/signal-flow.test.mjs",
+    "sha256": "72c9ebc122f5236d930e3bd34bff57f7eb172faf619e1d3ce992e0e2b00c34bc",
+    "bytes": 1648
+  },
+  {
+    "path": "src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/notes.md",
+    "sha256": "d000457ebaf4141cec8b6045236660c63101322f6ec568ac8561a3c759aaa336",
+    "bytes": 732
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "f9d038c9b5ec1d1d427fa20e4c8333d66191ffab1b40d207769728173f96f11f",
+    "bytes": 903
+  },
+  {
+    "path": "docs/STANDARDS.md",
+    "sha256": "99072a742ab0b4b2dc04c3c84098ff78a3531e79da84c5234301ea8a33a5ca21",
+    "bytes": 8449
+  },
+  {
+    "path": "src/core/agent-harness/native-cli-workflow-rails.ts",
+    "sha256": "59bb8c6b9ee9a362a1cc6b864bf4b044638ae4453147f94d893b05f746558a27",
+    "bytes": 900
+  },
+  {
+    "path": "src/modules/eval-harness/AGENTS.md",
+    "sha256": "502f030ed2161f952e5e6303a946698eaa0cdb83e09011cf8ba3fa6cb49f79dd",
+    "bytes": 6968
+  },
+  {
+    "path": "src/modules/antigravity-cli-agent-harness/AGENTS.md",
+    "sha256": "c32351f28a46e31ee88fae79c3906284ac36d94a3b5ce4413fec3f405540489e",
+    "bytes": 5491
+  },
+  {
+    "path": "src/modules/antigravity-cli-agent-harness/provider-egress.ts",
+    "sha256": "bb027eca43363db223ef1ba970bc01bd2e5cc321638fac69c1f0ad2ee1ed9742",
+    "bytes": 1905
+  },
+  {
+    "path": "src/core/model/preset.ts",
+    "sha256": "5f43398e30cd0fbdd218e25514fca4bd050c6683d161cf2ae2b8c541dcfbbd7b",
+    "bytes": 10935
+  }
+]

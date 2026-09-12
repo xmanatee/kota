@@ -1,0 +1,69 @@
+{
+  "observedAt": "2026-09-12T14:23:01.736Z",
+  "fixtureCount": 3,
+  "snapshotCount": 51,
+  "fixtureLoader": "passed",
+  "instructionSources": "passed",
+  "hostProfileDecoder": "passed",
+  "requestDecoder": "passed",
+  "networkCatalog": [
+    {
+      "id": "accounts.google.com",
+      "protocol": "https",
+      "host": "accounts.google.com",
+      "port": 443
+    },
+    {
+      "id": "aiplatform.googleapis.com",
+      "protocol": "https",
+      "host": "aiplatform.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "businessaicode.googleapis.com",
+      "protocol": "https",
+      "host": "businessaicode.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "cloudcode-pa.googleapis.com",
+      "protocol": "https",
+      "host": "cloudcode-pa.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "daily-cloudcode-pa.googleapis.com",
+      "protocol": "https",
+      "host": "daily-cloudcode-pa.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "generativelanguage.googleapis.com",
+      "protocol": "https",
+      "host": "generativelanguage.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "lh3.googleusercontent.com",
+      "protocol": "https",
+      "host": "lh3.googleusercontent.com",
+      "port": 443
+    },
+    {
+      "id": "oauth2.googleapis.com",
+      "protocol": "https",
+      "host": "oauth2.googleapis.com",
+      "port": 443
+    },
+    {
+      "id": "www.googleapis.com",
+      "protocol": "https",
+      "host": "www.googleapis.com",
+      "port": 443
+    }
+  ],
+  "liveContainerBuild": "not-run",
+  "proxyEnforcement": "not-tested",
+  "inference": "not-run",
+  "credentialAvailability": "unobserved"
+}

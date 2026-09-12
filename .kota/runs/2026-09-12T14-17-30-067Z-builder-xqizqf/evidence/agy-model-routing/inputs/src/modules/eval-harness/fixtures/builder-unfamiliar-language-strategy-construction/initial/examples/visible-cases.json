@@ -1,0 +1,26 @@
+[
+  {
+    "id": "visible-harbor",
+    "phrase": "Harbor Gate 7",
+    "seed": 4,
+    "expected": "K728.4DOO.R5CW.B"
+  },
+  {
+    "id": "visible-lunar",
+    "phrase": "lunar relay",
+    "seed": 11,
+    "expected": "ZXA3.BHK7.KCJ5"
+  },
+  {
+    "id": "visible-digits",
+    "phrase": "box-19 zed",
+    "seed": 2,
+    "expected": "GF1W.Q38J.KV"
+  },
+  {
+    "id": "visible-edge",
+    "phrase": "  A_z 0  ",
+    "seed": 35,
+    "expected": "C485.J"
+  }
+]

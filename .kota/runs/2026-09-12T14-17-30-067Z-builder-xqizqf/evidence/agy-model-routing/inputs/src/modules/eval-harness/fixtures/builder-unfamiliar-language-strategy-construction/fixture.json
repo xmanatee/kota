@@ -1,0 +1,139 @@
+{
+  "id": "builder-unfamiliar-language-strategy-construction",
+  "description": "Builder learns a tiny fixture-owned target language, produces a checked Spool program, and leaves machine-readable strategy provenance instead of hardcoding visible examples.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 3600000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-strategy.mjs",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-exists",
+      "path": "strategy-result.json"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/task-write-spool-route-strategy.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/archive/task-write-spool-route-strategy.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/archive/task-write-spool-route-strategy.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "programs/solution.spool",
+        "scripts/generate-solution.mjs",
+        "strategy-result.json",
+        "data/tasks/task-write-spool-route-strategy.md",
+        "data/tasks/archive/task-write-spool-route-strategy.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "hidden_case_pass_count",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "strategy-result.json",
+        "pointer": "/hiddenCasePassCount"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/programs/solution.spool",
+          "targetPath": "programs/solution.spool"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/strategy-result.json",
+          "targetPath": "strategy-result.json"
+        }
+      ]
+    },
+    "acceptedAlternatives": [
+      {
+        "id": "helper-generated-route",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/programs/solution.spool",
+            "targetPath": "programs/solution.spool"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/scripts/generate-solution.mjs",
+            "targetPath": "scripts/generate-solution.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/strategy-result.json",
+            "targetPath": "strategy-result.json"
+          }
+        ]
+      }
+    ],
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/programs/solution.spool",
+          "targetPath": "programs/solution.spool"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/strategy-result.json",
+          "targetPath": "strategy-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "unfamiliar-language",
+    "strategy-construction",
+    "live-llm",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "A model fails to learn local language semantics and construct a strategy that passes unseen routes. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose planning models/prompts for unfamiliar languages and toolchains. No historical KOTA regression is claimed."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-strategy.mjs",
+        "timeoutMs": 15000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/task-write-spool-route-strategy.md"
+      },
+      "expected": "pass"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ],
+  "builderTaskId": "task-write-spool-route-strategy"
+}

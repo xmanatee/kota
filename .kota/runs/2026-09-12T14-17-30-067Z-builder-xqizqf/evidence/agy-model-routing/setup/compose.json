@@ -1,0 +1,45 @@
+{
+  "name": "kota-agy-benchmark",
+  "services": {
+    "google-proxy": {
+      "build": {
+        "context": ".",
+        "dockerfile": "Proxy.Dockerfile"
+      },
+      "image": "kota-agy-benchmark-proxy:922e062b692e",
+      "networks": [
+        "candidate",
+        "outgoing"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp",
+        "/run",
+        "/var/log/squid",
+        "/var/spool/squid"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "cpus": 0.5,
+      "mem_limit": "256m"
+    }
+  },
+  "networks": {
+    "candidate": {
+      "name": "kota-agy-benchmark-google-internal",
+      "internal": true,
+      "labels": {
+        "kota.egress.policy": "provider-egress",
+        "kota.egress.provider": "google",
+        "kota.egress.endpoints": "https://accounts.google.com:443,https://aiplatform.googleapis.com:443,https://businessaicode.googleapis.com:443,https://cloudcode-pa.googleapis.com:443,https://daily-cloudcode-pa.googleapis.com:443,https://generativelanguage.googleapis.com:443,https://lh3.googleusercontent.com:443,https://oauth2.googleapis.com:443,https://www.googleapis.com:443"
+      }
+    },
+    "outgoing": {
+      "name": "kota-agy-benchmark-proxy-outgoing"
+    }
+  }
+}

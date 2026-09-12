@@ -1,0 +1,37 @@
+{
+  "agy": {
+    "scopeRoots": [
+      "/Users/xmanatee/Desktop/mono/apps/kota"
+    ],
+    "preset": "antigravity-cli",
+    "fixtureIds": [
+      "builder-unfamiliar-language-strategy-construction",
+      "builder-targeted-test-writing",
+      "builder-cross-hierarchy-debugging"
+    ],
+    "candidates": [
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.1-pro"
+    ],
+    "maxRepeats": 3,
+    "timeoutMs": 21600000,
+    "cpuCores": 2,
+    "memoryMB": 4096,
+    "isolationBackend": {
+      "kind": "container",
+      "executable": "docker",
+      "image": "kota-agy-benchmark:922e062b692e",
+      "kotaBinaryPath": "/opt/kota/bin/kota.mjs",
+      "networkPolicy": {
+        "kind": "provider-egress",
+        "provider": "google",
+        "enforcement": {
+          "kind": "docker-internal-proxy",
+          "networkName": "kota-agy-benchmark-google-internal",
+          "proxyUrl": "http://google-proxy:3128"
+        }
+      }
+    }
+  }
+}

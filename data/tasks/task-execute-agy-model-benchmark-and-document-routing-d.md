@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres, task-enable-runtime-mediated-contained-evaluation]
 ---
@@ -129,3 +129,78 @@ Routing disposition: **needs more data**. Zero scenario repeats ran; model/effor
 propagation, quota, rubric verdicts, changed paths, `pass@3` and `pass^3` remain
 unmeasured. No production routing change or favorable benchmark claim is justified.
 The full three-repeat comparison and image/egress/auth validation remain unmet.
+
+## Current disposition (2026-09-12, runtime-mediated attempt)
+
+Run `2026-09-12T14-17-30-067Z-builder-xqizqf` reached the deployed trusted
+eval tool through `pnpm kota eval contained '{"operation":"inspect"}'`.
+The host returned tool error `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted
+host environment` (tool use `tool-5ddb748d77321d5038316453cb7ec867`).
+The shared mediation implementation is available; the missing prerequisite is
+its host-owned scope/profile grant. Worker arguments cannot create that grant.
+No Docker socket probe, provider credential inference, parent restart, or
+production preset change was used to work around this boundary.
+
+Prepared evidence is reviewable in this workspace under
+[`.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/agy-model-routing/`](../../.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/agy-model-routing/).
+The original runtime-owned `agent/agy-model-routing/` packet is preserved.
+
+- [`contained-inspect-response.json`](../../.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/agy-model-routing/contained-inspect-response.json)
+  preserves the actual host response.
+- `setup/` contains a current Linux KOTA/AGY image recipe, a Google-only
+  CONNECT proxy recipe and internal-network Compose input generated from the
+  adapter endpoint catalog, the proposed host profile and invocation, and
+  setup/verification guidance. The production profile and request decoders pass.
+  These are build/deployment inputs, not a built image or enforced egress proof.
+- `kota-build.tar.gz` and its SHA-256 retain the successful production build,
+  package manifest, lockfile and dependency policy at source revision
+  `922e062b692e63b792ff48d53809b1b72fe4bb66`. Linux dependencies are installed
+  by the recipe rather than copying host dependencies. Host AGY reports 1.2.0
+  and is Mach-O arm64; a vendor Linux binary and its provenance remain to be
+  supplied to the checksum-checked recipe.
+- `scenarios.json`, `inputs/` and `input-manifest.json` retain all three
+  canonical scenarios and 51 hashed input/source files. The production fixture
+  loader and instruction-source validation pass.
+- `execution-plan.json` retains current 3.7 Flash and historical 3.6 Flash /
+  3.1 Pro, three repeats per scenario, KOTA max and expected Gemini high.
+  Actual model/effort, provider availability, quota, traces, changed paths,
+  rubric verdicts, pass@3 and pass^3 remain unobserved.
+
+The selected four deterministic eval-owner suites report 15 passes and one
+process-boundary failure. A diagnostic through the same production availability
+owner identifies `spawnSync /bin/ps EPERM`; no process supervision was bypassed.
+The passing scenario/rubric/CLI checks and build validate the prepared inputs,
+not live model quality. No production code or shared routing was changed.
+
+Routing remains **needs more data** with zero completed scenario repeats.
+Resume through the existing host lifecycle with a scope-authorized contained
+profile, then finish image, restricted proxy and adapter-auth verification and
+run the comparison. Preserve unavailable historical rows using actual catalog
+evidence; evaluate available candidates with equal resources/repeats.
+No particular capture path or manual benchmark execution is required.
+
+The first critic could not access the runtime-local packet and its independent
+inspect returned `Native writer authorization denied or unavailable`. That
+separate denial does not establish the host-profile blocker. Repair exposes the
+existing response, preparation, payload and validation logs within the review
+workspace: 71 copied files were verified byte-for-byte against the retained
+originals. The response SHA-256 is
+`55e761b622967781b37ed3cf7cdef80953e6717be18eab3bcfbf79a34648e174`.
+This is an accessibility repair, not a new capability observation or benchmark
+execution. The [review guide](../../.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/REVIEW.md)
+links the substantive evidence and explains the remaining limits.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: The trusted host must configure a scope-authorized KOTA_EVAL_CONTAINED_PROFILES grant for the existing AGY eval surface; a successful attributed inspect exposing the allowed candidates and three repeats, or equivalent host capability evidence, permits resumption.
+```
+
+This discovery hint is not an existence test or a request for another benchmark
+capture. The concrete prerequisite is the host-owned execution grant, verified
+absent by this invocation's mediated response. The prepared profile makes that
+configuration reviewable. After the grant exists, image/proxy/auth setup and
+candidate measurements remain builder work; credential and quota availability
+cannot yet be assessed.

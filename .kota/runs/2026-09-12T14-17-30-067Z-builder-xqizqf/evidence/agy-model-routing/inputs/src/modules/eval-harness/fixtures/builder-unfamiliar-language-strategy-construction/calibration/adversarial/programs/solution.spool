@@ -1,0 +1,5 @@
+READ phrase
+CLEAN36
+SHIFT36 seed 3
+GROUP 4 .
+EMIT

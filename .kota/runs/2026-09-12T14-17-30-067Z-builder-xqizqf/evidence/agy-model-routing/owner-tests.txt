@@ -1,0 +1,43 @@
+
+> kota@0.1.0 test:owner /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-30-067z-builder-50f7918e4d1e03f5366cb52d7ece9316d5a93c0b4feca3ed78e5e9b8edacb711
+> TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner src/modules/eval-harness/agy-model-evaluation.test.ts src/modules/eval-harness/agy-model-evaluation-scenarios.test.ts src/modules/eval-harness/agy-model-availability-container.test.ts src/modules/eval-harness/cli-agy-models.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-09-12t14-17-30-067z-builder-50f7918e4d1e03f5366cb52d7ece9316d5a93c0b4feca3ed78e5e9b8edacb711
+
+ ❯ |owner| src/modules/eval-harness/agy-model-availability-container.test.ts (1 test | 1 failed) 391ms
+     × probes models through the production candidate container execution 390ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |owner| src/modules/eval-harness/agy-model-availability-container.test.ts > AGY model availability container > probes models through the production candidate container execution
+AssertionError: expected { status: null, stdout: '', …(3) } to match object { status: +0, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "status": 0,
+-   "stdout": StringContaining "gemini-3.7-flash-high",
++   "status": null,
++   "stdout": "",
+  }
+
+ ❯ src/modules/eval-harness/agy-model-availability-container.test.ts:31:50
+     29|     });
+     30|
+     31|     expect(await runAgyModelsCommand(execution)).toMatchObject({
+       |                                                  ^
+     32|       status: 0,
+     33|       stdout: expect.stringContaining(`${AGY_OPTIONS.candidates[0]}-hi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 15 passed (16)
+   Start at  15:23:24
+   Duration  1.55s (transform 3.45s, setup 27ms, import 4.67s, tests 418ms, environment 0ms)
+
+ ELIFECYCLE  Command failed with exit code 1.
