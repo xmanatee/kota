@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Add algorithmic resource-budget canaries to the eval harness
@@ -15,6 +15,63 @@ execution authority warrants an external block after useful work is exhausted.
 Do not report a calibration or readiness pass as a live-builder result.
 
 This contract supersedes historical blocking and operational-capture requirements.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Attributable runtime evidence of an authorized contained-eval invocation with image/setup discovery and restricted provider egress for this task.
+
+The existing evidence-review kind records execution authority, not a manual
+capture request. The path is only a discovery hint; equivalent task-linked
+capability exports or execution evidence are acceptable. Reopen when permitted
+invocation is established, without waiting for the live canary to finish.
+
+An available runtime-authorized invocation of the contained eval owner from this
+native worker, or an equivalent automatically collected execution with attributable
+results. The owner has already authorized Docker validation; no new owner approval
+or manual capture is requested. The missing prerequisite is execution authority
+at this worker boundary, not an assertion that the host lacks Docker or credentials.
+
+## Execution assessment (2026-09-12 repair)
+
+Run `2026-09-12T06-41-31-325Z-builder-uoz28l`:
+
+- `docker info --format '{{json .ServerVersion}} {{json .MemTotal}}'` exits 1
+  with `permission denied while trying to connect to the docker API at
+  unix:///var/run/docker.sock`. This context therefore cannot inspect or build
+  the actual image or configure its restricted egress network.
+- The exposed agent tools contain no KOTA eval invocation. The current eval
+  module exposes CLI/client/HTTP execution, but no native-worker tool or image
+  setup operation. Its daemon client requires the shared transport; that
+  transport discovers its address through `daemon-control.json`, which this
+  invocation's permission profile explicitly denies reading. No denied control
+  or credential file was opened to construct another route.
+- The available native authorization request/reply channel in
+  `src/core/workflow/native-run-authorization.ts` only returns repository-writer
+  authorization. It cannot dispatch evaluations or Docker setup.
+- `pnpm kota eval run --help` confirms container execution requires an actual
+  image, image-local executable and provider-egress configuration. No image or
+  proxy identity was invented, and candidate containment was not relaxed.
+- `pnpm kota eval list --json` exits 0 and includes this fixture.
+  `pnpm test:owner src/modules/eval-harness/scorer-self-tests.test.ts -t
+  algorithmic-resource-budget-canary` passes its one selected shortcut-rejection
+  test (six unrelated cases skipped). These establish discovery and scorer
+  rejection only; no live nested-builder pass or fresh objective metric exists.
+
+The existing `task-enable-runtime-mediated-contained-evaluation` owns the missing
+mediation implementation; its task and retained writer were not changed here.
+Completion of that code alone is not live acceptance for this task. Resume when
+the authorized eval invocation is available to this run (or equivalent attributed
+execution evidence is exported), then perform current-source image/egress setup
+and the required one-repeat live canary. Retain the generated budget result,
+predicate details, objective metrics and nested-builder provenance before marking
+done. Image/proxy setup remains work after that boundary becomes available.
+
+No fixture or runtime implementation changed in this repair. The safe retained
+change is this explicit incomplete disposition; all original acceptance criteria
+remain in force. The earlier prose-only preserve-yield response did not resolve
+the builder step and is superseded by this assessment.
 
 
 ## Problem
