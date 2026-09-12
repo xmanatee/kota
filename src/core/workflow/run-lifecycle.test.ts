@@ -64,7 +64,7 @@ function commit(root: string, message: string): string {
   return git(root, "rev-parse", "HEAD");
 }
 
-function fixture(label: string, repository: RepositoryAccess): Fixture {
+function fixture(label: string, repository: RepositoryAccess, resources: string[] = []): Fixture {
   const root = mkdtempSync(join(tmpdir(), `kota-lifecycle-${label}-`));
   git(root, "init", "-q", "-b", "main");
   git(root, "config", "user.name", "KOTA Test");
@@ -87,7 +87,7 @@ function fixture(label: string, repository: RepositoryAccess): Fixture {
     workflow: "example",
     repository,
     trigger: { event: "example.ready", schemaRef: null, payload: { label } },
-    resources: [],
+    resources,
     admittedAt: "2026-08-25T10:00:01.000Z",
   });
   store.startRun(`run-${label}`, epoch, "2026-08-25T10:00:02.000Z");
@@ -128,15 +128,19 @@ afterEach(() => {
 });
 
 describe("RunLifecycle", () => {
-  test("resumes yielded work after restart and reconciles newer intent before publishing once", async () => {
-    const value = fixture("yield-resume", "write");
+  test("runs urgent work after restart, then resumes the preserved writer and publishes once", async () => {
+    const value = fixture("yield-resume", "write", ["task:current"]);
     write(value.root, "captures/AGENTS.md", "Keep rough captures here.\n");
     write(value.root, "captures/first.md", "Original intent\n");
     write(value.root, "tasks/owner.md", "Owner wording\n");
     commit(value.root, "capture baseline");
     let workspace = "";
+    let agentDir = "";
+    const nextAction = "Validate the retained capture against current owner intent.";
     const suspended = await lifecycle(value, async (context) => {
       workspace = context.sandbox.workspaceDir;
+      agentDir = context.resources.agentDir;
+      write(agentDir, "next-action.txt", nextAction);
       write(workspace, "tasks/first.md", readFileSync(join(workspace, "captures/first.md"), "utf8"));
       rmSync(join(workspace, "captures/first.md"));
       return {
@@ -158,19 +162,15 @@ describe("RunLifecycle", () => {
       trigger: { event: "manual", schemaRef: null, payload: {} }, resources: ["task:urgent"],
       admittedAt: "2026-08-25T11:00:01.000Z" });
     expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:01.500Z")).toEqual([]);
-    value.store.startRun("urgent", value.epoch, "2026-08-25T11:00:02.000Z");
-    write(value.root, "captures/new.md", "New capture\n");
-    write(value.root, "tasks/owner.md", "Owner correction\n");
-    commit(value.root, "new inbox and owner intent while yielded");
-    value.store.finishRun("urgent", value.epoch, "succeeded", "2026-08-25T11:00:03.000Z");
-    expect(value.store.resumeSatisfiedContinuationRuns("2026-08-25T11:00:04.000Z")).toEqual([value.run.id]);
-    value.store.startRun(value.run.id, value.epoch, "2026-08-25T11:00:05.000Z");
     const validations: string[] = [];
     const runtime = new RunLifecycle({
       store: value.store, daemonEpoch: value.epoch, createResourceAllocator,
       continueIntegration: async (_context, issue) => { throw new Error(JSON.stringify(issue)); },
       executeWorkflow: async (context) => {
         expect(context.sandbox.workspaceDir).toBe(workspace);
+        expect(context.resources.agentDir).toBe(agentDir);
+        expect(readFileSync(join(agentDir, "next-action.txt"), "utf8")).toBe(nextAction);
+        expect(value.store.getRun(value.run.id)?.resources).toContain("task:current");
         expect(readFileSync(join(workspace, "tasks/first.md"), "utf8")).toBe("Original intent\n");
         expect(existsSync(join(workspace, "captures/first.md"))).toBe(false);
         return { kind: "completed", commitMessage: "sort retained capture" };
@@ -182,9 +182,39 @@ describe("RunLifecycle", () => {
         return { status: "passed", evidence: ["current intent preserved"] };
       },
     });
-    const outcome = await runtime.execute(value.store.getRun(value.run.id)!, new AbortController().signal);
-    expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
-    value.store.finishRun(value.run.id, value.epoch, "succeeded", "2026-08-25T11:00:06.000Z");
+    const order: string[] = [];
+    const coordinator = new RunCoordinator({
+      store: value.store,
+      daemonEpoch: value.epoch,
+      concurrency: 1,
+      execute: async (run, signal) => {
+        order.push(run.id);
+        expect(coordinator.occupiedCapacity).toBe(1);
+        if (run.id === "urgent") {
+          expect(value.store.getRun(value.run.id)).toMatchObject({
+            state: "waiting", resources: ["task:current"],
+            wait: { kind: "continuation", decision: "preserve-yield" },
+          });
+          expect(readFileSync(join(workspace, "tasks/first.md"), "utf8")).toBe("Original intent\n");
+          expect(readFileSync(join(agentDir, "next-action.txt"), "utf8")).toBe(nextAction);
+          write(value.root, "captures/new.md", "New capture\n");
+          write(value.root, "tasks/owner.md", "Owner correction\n");
+          commit(value.root, "urgent repair and owner intent while yielded");
+          return { kind: "terminal", state: "succeeded" };
+        }
+        return runtime.execute(run, signal);
+      },
+    });
+    try {
+      coordinator.refill();
+      await coordinator.whenIdle();
+      expect(order).toEqual(["urgent", value.run.id]);
+      expect(value.store.getRun(value.run.id), JSON.stringify(value.store.getRun(value.run.id))).toMatchObject({
+        state: "succeeded", attempt: 2, resources: [],
+      });
+    } finally {
+      await coordinator.dispose();
+    }
     expect(validations.length).toBeGreaterThan(0);
     expect(readFileSync(join(value.root, "tasks/first.md"), "utf8")).toBe("Original intent\n");
     expect(existsSync(join(value.root, "captures/first.md"))).toBe(false);

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make automation continuation evidence driven and priority aware
 
@@ -169,3 +168,33 @@ access outcomes; `baseline-lifecycle-validation.txt` records the unchanged-code
 comparison; `verification.md` records proof selection and remaining limitations.
 The controlled inspection fixture is not a live canonical-runtime calibration;
 the current contract distinguishes usable proof from unobserved history.
+
+
+## Completion, September 12
+
+Completed under the Current Contract waiver. The implementation was already
+integrated; this changeset strengthens its restart fixture to use the real
+coordinator for urgent work and continuation. It proves one-slot execution,
+retained task resource, workspace, diff and next-action evidence, same-run resume,
+reconciliation with newer intent and exactly one publication.
+
+The supplied scope-8nrg1m cohort contains qj0mm4, 2e94l1 and 59xofb with 1, 5 and
+7 recorded repairs. Replaying their failed checks through the production policy
+finds the first new review at attempt 2 in the latter two runs; unchanged evidence
+is a no-op. Offline continue assessments retain the exact next action and reopen
+at material worsening. Missing diffs and queue snapshots prevent claims about
+historical decision correctness or counterfactual savings. Build wall hours are
+0.414, 1.831 and 1.388, not active agent-hours. The August 9.0-, 9.6- and 6.5-hour
+snapshots remain unavailable non-gating calibration targets.
+
+All 20 lifecycle and 13 integration-queue cases pass, alongside focused decision,
+executor/recovery, decomposition-action and CLI log checks. A controlled production
+integration-policy/run-store/CLI probe records active and cancelled repair evidence,
+verification, usage and redaction. Five subprocess-dependent cases encounter this
+sandbox's `/bin/ps EPERM`; no host-capability absence or passing result is inferred.
+No live-model correctness or full subprocess-backed decomposition publication is
+claimed. Final static/task validation is recorded with the proof.
+
+Reproducible replay, pinned provenance, rendered integration transcript, test logs
+and limitations are in this run's `agent/verification.md` and adjacent artifacts:
+`.kota/runtime/2026-09-12t06-41-01-812z-builder-e4269395583d9cc56785796b62b70098ea005d9d2f9ebbbfce42f8c6fa33b728/agent/`.
