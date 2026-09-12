@@ -12,7 +12,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
   registerAgyModelsCommand(command, ctx);
   command.command("contained")
     .description("Request a contained evaluation from this native workflow's trusted runtime")
-    .argument("<request>", 'JSON: {"operation":"inspect"}, or {"operation":"run","profile":"name","fixtureIds":["id"],"repeatCount":1}, or agy-models with candidates')
+    .argument("<request>", 'JSON: {"operation":"inspect"}, {"operation":"probe","profile":"name","probeId":"id"}, {"operation":"run","profile":"name","fixtureIds":["id"],"repeatCount":1}, or agy-models with candidates')
     .action(async (raw: string) => {
       const request = parseContainedEvaluationRequest(JSON.parse(raw));
       const result = await withProcessSignalAbort((abort) => invokeNativeRunTool(ctx.cwd, "contained_evaluation", request, abort.signal));

@@ -35,7 +35,7 @@ export type TaskProbeResult = {
   isolation?:
     | {
         status: "enforced";
-        kind: "linux-bubblewrap";
+        kind: "linux-bubblewrap" | "linux-oci-container";
         processBoundary: "pid-namespace";
         evidence: string;
       }

@@ -54,6 +54,9 @@ Core owns protocol, registry and continuity; modules own adapters.
   the shared native workflow rails. Keep Git metadata read-only for agents and
   leave staging, rebase continuation, commits, and publication runtime-owned.
 - Runtime Probes and production proofs use the fail-closed contained-workspace sandbox; never add an unsandboxed launcher.
+  The eval module can supply a host-resolved offline OCI boundary to the shared
+  task-probe runner for native workers; it owns source transfer and image setup,
+  while the workflow runtime owns its process/resource lifetime.
 
 ## Capability admission
 

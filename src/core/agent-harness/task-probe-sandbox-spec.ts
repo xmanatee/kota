@@ -9,7 +9,7 @@ const MAX_PROBE_ADDRESS_SPACE_BYTES = 8 * 1024 * 1024 * 1024;
 
 export type AvailableTaskProbeSandbox = {
   status: "available";
-  kind: "linux-bubblewrap";
+  kind: "linux-bubblewrap" | "linux-oci-container";
   processBoundary: "pid-namespace";
   command: string;
   prefixArgs: readonly string[];

@@ -27,7 +27,8 @@ export async function runTaskProbe(
   );
 }
 
-async function runTaskProbeInSandbox(
+/** A trusted runtime owner may supply an already resolved container boundary. */
+export async function runTaskProbeInSandbox(
   probe: TaskProbe,
   workspaceRoot: string,
   sandbox: TaskProbeSandbox,
@@ -108,7 +109,7 @@ function taskProbeResult(args: {
   };
 }
 
-function buildTaskProbeEnv(runtimeHome: string): NodeJS.ProcessEnv {
+export function buildTaskProbeEnv(runtimeHome: string): NodeJS.ProcessEnv {
   return {
     ...buildRequiredInheritedSubprocessEnv(),
     HOME: runtimeHome,

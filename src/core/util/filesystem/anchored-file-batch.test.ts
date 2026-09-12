@@ -4,10 +4,31 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { readAnchoredTextFiles } from "./anchored-files.js";
+import { readAnchoredTextFile, readAnchoredTextFiles } from "./anchored-files.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+
+it.each(["single", "batch"])("preserves valid UTF-8 bytes and rejects malformed bytes in %s reads", async (mode) => {
+  const root = mkdtempSync(join(tmpdir(), "anchored-utf8-"));
+  roots.push(root);
+  const filePath = join(root, "source");
+  const access = { rootPath: root, boundaryDir: root, filePath };
+  const read = async () => {
+    if (mode === "single") return readAnchoredTextFile(access)?.content;
+    const [entry] = await readAnchoredTextFiles([{ ...access, maxBytes: 128 }]);
+    if (!entry?.ok) throw new Error(entry?.reason);
+    return entry.file?.content;
+  };
+  // Preserve the BOM and a literal replacement character, not just ASCII.
+  const valid = "\ufeffcafé \ufffd 🐙";
+  writeFileSync(filePath, valid);
+  expect(await read()).toBe(valid);
+  for (const bytes of [[0xc3], [0xc0, 0xaf], [0x80]]) {
+    writeFileSync(filePath, Buffer.from(bytes));
+    await expect(read()).rejects.toThrow("UTF-8");
+  }
+});
 
 it("isolates per-leaf failures and resets directory anchoring between bounded reads", async () => {
   const root = mkdtempSync(join(tmpdir(), "anchored-batch-"));

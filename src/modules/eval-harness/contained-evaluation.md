@@ -4,6 +4,7 @@ From an admitted native writer, inspect the host's available profiles:
 
 ```sh
 pnpm kota eval contained '{"operation":"inspect"}'
+pnpm kota eval contained '{"operation":"probe","profile":"linux","probeId":"browser"}'
 pnpm kota eval contained '{"operation":"run","profile":"routing","fixtureIds":["fixture-id"],"repeatCount":1}'
 pnpm kota eval contained '{"operation":"agy-models","profile":"agy","candidates":["catalog-model-id"],"repeatCount":1}'
 ```
@@ -22,7 +23,78 @@ the existing eval API's container backend. The decoder in
 [contained-evaluation.ts](contained-evaluation.ts) is the configuration reference.
 Request bodies select among these grants and cannot alter them.
 
-Prepare the image with the selected adapter and KOTA's package layout, including
+For deterministic checks, use a separate offline profile. Its `probes` map names
+commands accepted by the existing Runtime Probe parser and the source paths each
+command needs. For example, a host profile can authorize:
+
+```json
+{
+  "linux": {
+    "scopeRoots": ["/absolute/canonical/scope"],
+    "timeoutMs": 120000,
+    "cpuCores": 2,
+    "memoryMB": 2048,
+    "isolationBackend": {
+      "kind": "container",
+      "executable": "docker",
+      "image": "kota-probes:current",
+      "kotaBinaryPath": "/opt/kota/bin/kota.mjs",
+      "networkPolicy": { "kind": "offline" }
+    },
+    "probes": {
+      "browser": {
+        "command": "pnpm run test:owner src/modules/browser",
+        "sourcePaths": ["src", "test", "package.json", "vitest.config.ts", "tsconfig.json"]
+      }
+    }
+  }
+}
+```
+
+The runtime reads these paths from the invoking writer's working directory.
+Directory selections recurse; reads reject symbolic links and hard links, skip
+hidden/runtime entries, and accept UTF-8 source files up to 128 KiB each, with a
+32 MiB total limit. Dependencies and built output come from the trusted image.
+The resulting source digest and per-file hashes identify the exact transferred
+cohort, including uncommitted corrections. A failed or changing read fails the
+invocation instead of falling back to canonical source.
+The image decodes stdin across byte-chunk boundaries and checks the received
+source digest before materializing files or starting the probe.
+
+Prepare a clean Linux image containing the current KOTA production build and a
+self-contained `node_modules` tree under `/opt/kota`, plus Node, the pinned pnpm,
+and `ps` (procps). Include tools required by the selected checks, such as
+Bubblewrap/prlimit or Ruby. Do not bake credentials into this image. Its files
+must be readable by uid 1000. The launcher copies image dependencies and source
+into a bounded private tmpfs with `exec` for native addons and copied executables,
+and `nosuid,nodev` retained; no host bind mount or Docker socket enters it.
+It runs with no network, no capabilities, a read-only image, and no privilege
+escalation. Unprivileged user namespaces are allowed so OS-boundary tests can
+exercise Bubblewrap; this does not grant host namespaces or devices. Linux with
+a non-piped `core_pattern` is required before candidate code starts.
+
+Browser persistence can select its positive and relocation-adversarial owner
+checks through this profile. Those checks still own the persistence acceptance;
+the transport does not certify a writer implementation. Package installation and
+image preparation are host setup, never worker-supplied commands. An unavailable
+image returns the existing launcher's image-inspection diagnostic.
+
+On the host, verify the actual native transport, Linux confinement, returned
+writer-source result and cancellation cleanup with the maintained integration
+case, using that prepared image. The smoke also queries the copied `better-sqlite3`
+native addon, executes a Node binary copied into the workspace, and hashes a
+large Unicode source payload after materialization:
+
+```sh
+KOTA_TEST_CONTAINED_PROBE_IMAGE=kota-probes:current pnpm test:integration src/contained-evaluation.integration.test.ts
+```
+
+Without the explicit image this one Docker case is skipped; the authorization
+and failure-return integration case remains deterministic and runs normally.
+Publication and host activation precede this deployment check; a builder does
+not restart its parent daemon to activate changed tools.
+
+For model evaluations, prepare the image with the selected adapter and KOTA's package layout, including
 its image-local `bin/kota.mjs` and `dist`. Use an image that supports that adapter's
 nested sandbox. Configure the backend's `networkPolicy` as `provider-egress`,
 with the provider and `docker-internal-proxy` enforcement. The candidate joins

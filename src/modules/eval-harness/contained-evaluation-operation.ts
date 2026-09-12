@@ -7,23 +7,26 @@ import { requireAgyModelEvaluationIsolation } from "./agy-model-evaluation-isola
 import type { AgyModelEvaluationResult } from "./agy-model-evaluation-types.js";
 import type { EvalRunOptions, EvalRunResult } from "./client.js";
 import type { ContainedEvaluationRequest } from "./contained-evaluation.js";
+import { type ContainedProbeResult, runContainedProbe } from "./contained-probe.js";
 import { runEvalHarness } from "./eval-operations.js";
 import type { PreparedEvalRunExecution } from "./eval-run-execution.js";
 
 type Input = {
+  kind: "evaluation";
   workspaceRoot: string;
-  request: Exclude<ContainedEvaluationRequest, { operation: "inspect" }>;
+  request: Exclude<ContainedEvaluationRequest, { operation: "inspect" | "probe" }>;
   options: EvalRunOptions;
   artifactDir: string;
   env?: NodeJS.ProcessEnv;
   prepared: PreparedEvalRunExecution;
-};
-type Output = EvalRunResult | AgyModelEvaluationResult;
+} | { kind: "probe"; input: Parameters<typeof runContainedProbe>[0] };
+type Output = EvalRunResult | AgyModelEvaluationResult | ContainedProbeResult;
 export async function runContainedEvaluation(
   input: Input,
   context: WorkflowBlockingOperationContext,
 ): Promise<Output> {
   context.signal.throwIfAborted();
+  if (input.kind === "probe") return runContainedProbe(input.input, context);
   const execution = {
     ...context,
     artifactDir: input.artifactDir,

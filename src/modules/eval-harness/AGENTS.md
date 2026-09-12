@@ -114,3 +114,11 @@ Register independent container resources before launch, including verifier and
 availability containers. Availability uses the same asynchronous process supervisor
 and cancellation signal as candidate execution. Temporary auth snapshots also belong to that cleanup
 lifetime. Results remain under the originating run's runtime-owned artifacts.
+
+Deterministic native probes use the same tool and blocking operation, with
+host-selected offline profiles. The eval owner collects authorized current-writer
+source through anchored reads and sends it over stdin to the existing container
+launcher. The task-probe owner retains result semantics; shared runtime cleanup
+owns container removal on cancellation and recovery. Candidate code never runs
+on the module host or receives host mounts. Source hashes identify the measured
+cohort; browser persistence and other consumers retain their own acceptance.

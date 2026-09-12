@@ -58,15 +58,24 @@ export function containerRunArgs(params: {
   backend: ContainerIsolationBackend;
   executionProfile: ExecutionProfilePreflightResult;
   workingDir: string;
-  envFilePath: string;
-  authMount?: string;
   containerName?: string;
   command: string;
   commandArgs: string[];
-}): string[] {
+} & ({ transport?: "bind"; envFilePath: string; authMount?: string } | { transport: "stdin-source" })): string[] {
   const profile = params.executionProfile.observedOrEnforcedProfile;
   const networkPolicy = params.executionProfile.networkPolicy;
-  const mountArgs = containerMountArgs({
+  const copiedSource = params.transport === "stdin-source";
+  // Unprivileged user namespaces let the scoped checks exercise Bubblewrap.
+  // The outer OCI boundary keeps all capabilities dropped and host surfaces absent.
+  // Copied native addons and executables require an executable workspace tmpfs.
+  const mountArgs = copiedSource ? [
+    "--interactive", "--pull", "never", "--read-only", "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges", "--security-opt", "seccomp=unconfined",
+    "--user", "1000:1000", "--pids-limit", "256", "--ulimit", "core=0:0",
+    "--memory-swap", memoryArg(profile.memoryKillThresholdMB),
+    "--tmpfs", "/tmp:rw,nosuid,nodev,size=256m,mode=1777",
+    "--tmpfs", `${params.workingDir}:rw,exec,nosuid,nodev,size=${profile.memoryKillThresholdMB}m,uid=1000,gid=1000,mode=0700`,
+  ] : containerMountArgs({
     workingDir: params.workingDir,
   });
   const containerName = params.containerName ?? `kota-eval-${randomUUID()}`;
@@ -75,7 +84,7 @@ export function containerRunArgs(params: {
     "run", "--name", containerName,
     "--rm",
     "--init",
-    ...containerNetworkArgs(networkPolicy),
+    ...(copiedSource ? ["--network", "none"] : containerNetworkArgs(networkPolicy)),
     "--cpus",
     cpuArg(profile.cpuKillThresholdCores),
     "--memory-reservation",
@@ -83,13 +92,12 @@ export function containerRunArgs(params: {
     "--memory",
     memoryArg(profile.memoryKillThresholdMB),
     ...mountArgs,
-    ...(params.authMount === undefined ? [] : ["--mount", params.authMount]),
+    ...(params.transport !== "stdin-source" && params.authMount !== undefined ? ["--mount", params.authMount] : []),
     "--workdir",
     params.workingDir,
-    "--env-file",
-    params.envFilePath,
+    ...(params.transport === "stdin-source" ? ["--entrypoint", params.command] : ["--env-file", params.envFilePath]),
     params.backend.image,
-    params.command,
+    ...(copiedSource ? [] : [params.command]),
     ...params.commandArgs,
   ];
 }

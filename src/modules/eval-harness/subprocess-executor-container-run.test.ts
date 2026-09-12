@@ -4,8 +4,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { withOwnedProcessResources } from "#core/execution/owned-process-resources.js";
+import type { OwnedProcessIdentity } from "#core/execution/process-supervisor.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
+import { containerRunArgs } from "./subprocess-executor-command.js";
 import {
   cleanupSubprocessTestDirs,
   createSubprocessTestDirs,
@@ -26,6 +29,36 @@ describe("createSubprocessExecutor container execution", () => {
     delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE;
     delete process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH;
     cleanupSubprocessTestDirs(dirs);
+  });
+
+  it("launches copied source offline without host grants and registers removal before launch", () => {
+    const backend = containerBackend("docker", "/opt/kota/bin/kota.mjs");
+    const resources: OwnedProcessIdentity[] = [];
+    const profile = containerProfile();
+    const args = withOwnedProcessResources((resource) => resources.push(resource), () => containerRunArgs({
+      backend, transport: "stdin-source", workingDir: "/opt/kota/probe-workspace", command: "node", commandArgs: ["entry.js", "pnpm", "test"],
+      executionProfile: {
+        status: "verified", backendKind: "container", requestedProfile: profile, observedOrEnforcedProfile: profile,
+        verification: "enforced", gateEligible: true, eligibilityReason: "verified-profile", diagnostics: [],
+        networkPolicy: { kind: "offline", enforcementMode: "docker-network-none", allowedProviderEndpoints: [], gateEligible: true },
+      },
+    }));
+    const value = (key: string) => args[args.indexOf(key) + 1];
+    expect(value("--network")).toBe("none");
+    expect(value("--user")).toBe("1000:1000");
+    expect(value("--cap-drop")).toBe("ALL");
+    expect(value("--memory")).toBe("2048m");
+    expect(value("--cpus")).toBe("2");
+    expect(args).toContain("--read-only");
+    expect(args).toContain("--interactive");
+    const workspaceMount = args.find((arg) => arg.startsWith("/opt/kota/probe-workspace:"));
+    const workspaceOptions = workspaceMount?.split(":")[1]?.split(",");
+    expect(workspaceOptions).toEqual(expect.arrayContaining(["exec", "nosuid", "nodev"]));
+    expect(workspaceOptions).not.toContain("noexec");
+    for (const grant of ["--mount", "--volume", "--env", "--env-file", "--privileged", "--device", "--pid"])
+      expect(args).not.toContain(grant);
+    expect(args.slice(args.indexOf(backend.image) + 1)).toEqual(["entry.js", "pnpm", "test"]);
+    expect(resources).toMatchObject([{ kind: "resource", cleanup: { command: "docker", args: ["rm", "--force", value("--name")] } }]);
   });
 
   it("refuses to run a container when provider-egress enforcement is unavailable", async () => {

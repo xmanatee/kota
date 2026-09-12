@@ -32,6 +32,14 @@ function listTextFiles(request, parentIdentity) {
   return entries;
 }
 
+function decodeText(bytes) {
+  const content = bytes.toString("utf8");
+  if (!Buffer.from(content, "utf8").equals(bytes)) {
+    refuse("file content is not lossless UTF-8");
+  }
+  return content;
+}
+
 function readTextFile(request, parentIdentity) {
   inspectAnchoredParent(request, parentIdentity);
   const opened = inspectTextFileEntry(request.fileName, undefined);
@@ -50,9 +58,9 @@ function readTextFile(request, parentIdentity) {
         length += count;
       }
       if (length > request.maxBytes) refuse("file exceeds read limit");
-      content = bytes.subarray(0, length).toString("utf8");
+      content = decodeText(bytes.subarray(0, length));
     } else {
-      content = readFileSync(opened.fd, "utf8");
+      content = decodeText(readFileSync(opened.fd));
     }
     const after = snapshot(fstatSync(opened.fd));
     if (!sameSnapshot(after, opened.snapshot)) {
