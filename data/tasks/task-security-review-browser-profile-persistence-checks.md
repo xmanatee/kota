@@ -262,3 +262,5 @@ The task validator was run after this task-body correction. Browser lifecycle,
 configuration/setup, and reporting changes remain safe containment only.
 Restoring functional persistence still requires implementation and positive and
 adversarial boundary proof on an authorized contained execution surface.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T19:14:11.234Z -->

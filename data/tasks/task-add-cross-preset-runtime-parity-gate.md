@@ -296,3 +296,5 @@ any observed composition defects before marking done. Equivalent attributable
 execution evidence is acceptable; no manual operator run or fixed artifact path
 is required. Live acceptance remains unmet, not silently waived by passing static
 checks or explicit skips.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-12T19:14:11.234Z -->
