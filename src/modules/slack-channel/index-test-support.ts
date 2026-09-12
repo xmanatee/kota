@@ -1,4 +1,7 @@
-import { vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { onTestFinished, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
@@ -38,6 +41,8 @@ export function makeSlackChannelModuleTestContext(
   kotaConfig?: SlackChannelContext["config"],
 ): SlackChannelContext {
 	const eventBus = bus ?? new EventBus();
+  const root = mkdtempSync(join(tmpdir(), "kota-slack-channel-"));
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }));
 	const approvals = {
 		list: vi.fn(async () => ({
 			approvals: [{
@@ -62,7 +67,7 @@ export function makeSlackChannelModuleTestContext(
 	};
 	return {
     config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as SlackChannelContext["config"]),
-    storage: new ModuleStorage("/tmp/test", "slack-channel"),
+    storage: new ModuleStorage(root, "slack-channel"),
     getModuleConfig: () => moduleConfig as never,
     log: Object.assign(() => {}, {
       info: () => {},

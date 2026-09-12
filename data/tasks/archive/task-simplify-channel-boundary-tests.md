@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-simplify-module-composition-tests, task-simplify-agent-loop-contract-tests]
+status: done
 ---
 
 # Keep channel tests at delivery, routing and transport boundaries
@@ -32,3 +30,25 @@ Follow `task-verify-fifty-percent-test-reduction` rules. Publish channel-local
 simplification, focused delivery/failure observations and test/support deltas.
 No live message spam, channel protocol redesign or repeated full-daemon lifecycle
 suite.
+
+## Completion
+
+Telegram and Slack bot fixtures now use real sessions, module loaders, scoped
+stores and transports with controlled model/HTTP responses. Retained cases
+observe delivered replies, authenticated routing, scope choice and switching,
+voice input, busy replies, segmentation, polling ownership and failures.
+The existing continuity and operation-health journeys remain authoritative for
+restart/reset and repeated retry/recovery episodes. Webhook source cases were
+consolidated around precedence, continuity, events and rejection. A2A's distinct
+protocol/backend boundary cases were reviewed and retained unchanged.
+
+Local frozen-recipe counts: test LOC 9,512 → 8,558 (-954); authored support
+1,298 → 1,340 (+42). Production and exclusions unchanged. These are candidate
+counts, not the parent's published aggregate result.
+
+Validation passed `pnpm check:fast`, 235 channel owner tests, 13 scope/continuity
+integration tests and eight operation-health integration tests. Twenty-two
+unchanged A2A HTTP cases could not bind loopback in this sandbox (EPERM).
+No live polling consumer or production message traffic was used. Run
+`2026-09-12T14-17-42-055Z-builder-loqf76` retains the logs, behavior-family rationale
+and counts in its agent summary. Runtime owns publication.

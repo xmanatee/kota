@@ -1,10 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { outboundHttp } from "#core/outbound-http/index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { channelSessionFixture } from "#root/channel-session-test-support.js";
 import { makeTelegramInteractiveChannel } from "./channels.js";
 import { callTelegramApi } from "./client.js";
 import { createTelegramRuntimeState } from "./runtime-state.js";
@@ -14,7 +17,6 @@ import {
   makeStatusInfo,
 } from "./telegram-scope-client-test-support.integration.js";
 import {
-  makeScopeRuntime,
   SCOPE_A,
   SCOPE_B,
 } from "./telegram-scope-daemon-test-support.integration.js";
@@ -36,32 +38,9 @@ vi.mock("./callback-poll.js", () => ({
   startCallbackPoll: vi.fn(() => () => {}),
 }));
 
-import type { LoopOptions } from "#core/loop/loop.js";
-
-const agentSendMock = vi.fn(async () => undefined);
-const agentCloseMock = vi.fn();
-const agentSessionOptions: LoopOptions[] = [];
-
-vi.mock("#core/loop/loop.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
-    "#core/loop/loop.js",
-  );
-  class FakeAgentSession {
-    constructor(options?: LoopOptions) {
-      if (options) agentSessionOptions.push(options);
-    }
-    send = agentSendMock;
-    close = agentCloseMock;
-    getCostSummary = vi.fn().mockReturnValue("$0.00");
-    get isClosed(): boolean {
-      return false;
-    }
-  }
-  return {
-    ...actual,
-    AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
-  };
-});
+let sessions: ReturnType<typeof channelSessionFixture>;
+beforeEach(() => { sessions = channelSessionFixture(); });
+afterEach(async () => { await sessions.close(); vi.restoreAllMocks(); });
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
@@ -74,9 +53,6 @@ describe("telegram scope integration", () => {
 
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    agentSessionOptions.length = 0;
-    agentSendMock.mockClear();
-    agentCloseMock.mockClear();
     mockedCallTelegramApi.mockReset();
     resetProviderRegistry();
   });
@@ -84,6 +60,11 @@ describe("telegram scope integration", () => {
   it("routes interactive slash commands with a pre-daemon local client and the daemon scope provider", async () => {
     dir = mkdtempSync(join(tmpdir(), "kota-telegram-local-client-scope-"));
     registerDaemonScopeProvider();
+    const replies: string[] = [];
+    vi.spyOn(outboundHttp, "request").mockImplementation(outboundHttpRequestPort((request) => {
+      if (String(request.url).endsWith("/sendMessage")) replies.push(JSON.parse(String(request.body)).text);
+      return Response.json({ ok: true, result: { message_id: 100 } });
+    }).request);
     process.env.TELEGRAM_BOT_TOKEN = "daemon-token";
     process.env.TELEGRAM_ALERT_CHAT_ID = "99";
 
@@ -107,6 +88,7 @@ describe("telegram scope integration", () => {
         return [
           makeUpdate(1, "/scope scope-b"),
           makeUpdate(2, "/memory alpha"),
+          makeUpdate(3, "Reply in the selected scope"),
         ];
       }
       return { message_id: 100 };
@@ -116,9 +98,10 @@ describe("telegram scope integration", () => {
     ctx.getModuleConfig = () =>
       ({ defaultAutonomyMode: "supervised" }) as never;
     const interactive = makeTelegramInteractiveChannel(ctx, [], createTelegramRuntimeState());
-    const runtimeA = makeScopeRuntime(SCOPE_A);
-    const runtimeB = makeScopeRuntime(SCOPE_B);
+    const runtimeA = sessions.runtime(SCOPE_A.scopeId);
+    const runtimeB = sessions.runtime(SCOPE_B.scopeId);
     const started = interactive.create({
+      moduleLoader: sessions.loader,
       getDefaultScopeRuntime: () => runtimeA,
       getScopeRuntime: (scopeId: string) => {
         if (scopeId === SCOPE_A.scopeId) return runtimeA;
@@ -135,7 +118,10 @@ describe("telegram scope integration", () => {
 
     await started.adapter.start();
     try {
-      await waitFor(() => sendBodies().length >= 2);
+      await waitFor(() => replies.includes("Delivered model reply"));
+      expect(started.adapter.listScopeSessionIds(SCOPE_B.scopeId)).toHaveLength(1);
+      expect(started.adapter.listScopeSessionIds(SCOPE_A.scopeId)).toEqual([]);
+      expect(JSON.stringify(sessions.modelRequests.at(-1)?.messages)).toContain("Reply in the selected scope");
     } finally {
       await started.adapter.stop();
     }

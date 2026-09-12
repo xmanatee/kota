@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { channelSessionFixture } from "#root/channel-session-test-support.js";
 import { TelegramBot } from "./bot.js";
 import { callTelegramApi } from "./client.js";
 import { loadTelegramModule } from "./notification-subscriptions.js";
@@ -17,7 +19,6 @@ import {
   makeStatusInfo,
 } from "./telegram-scope-client-test-support.integration.js";
 import {
-  makeScopeRuntime,
   SCOPE_A,
   SCOPE_B,
 } from "./telegram-scope-daemon-test-support.integration.js";
@@ -35,32 +36,15 @@ vi.mock("./client.js", async () => {
   return { ...actual, callTelegramApi: vi.fn() };
 });
 
-import type { LoopOptions } from "#core/loop/loop.js";
-
-const agentSendMock = vi.fn(async () => undefined);
-const agentCloseMock = vi.fn();
-const agentSessionOptions: LoopOptions[] = [];
-
-vi.mock("#core/loop/loop.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
-    "#core/loop/loop.js",
-  );
-  class FakeAgentSession {
-    constructor(options?: LoopOptions) {
-      if (options) agentSessionOptions.push(options);
-    }
-    send = agentSendMock;
-    close = agentCloseMock;
-    getCostSummary = vi.fn().mockReturnValue("$0.00");
-    get isClosed(): boolean {
-      return false;
-    }
-  }
-  return {
-    ...actual,
-    AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
-  };
+const deliveredReplies: string[] = [];
+const http = outboundHttpRequestPort((request) => {
+  if (String(request.url).endsWith("/sendMessage")) deliveredReplies.push(JSON.parse(String(request.body)).text);
+  return Response.json({ ok: true, result: { message_id: 200 } });
 });
+
+let sessions: ReturnType<typeof channelSessionFixture>;
+beforeEach(() => { sessions = channelSessionFixture(); deliveredReplies.length = 0; });
+afterEach(async () => { await sessions.close(); });
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
@@ -73,9 +57,6 @@ describe("telegram scope integration", () => {
 
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    agentSessionOptions.length = 0;
-    agentSendMock.mockClear();
-    agentCloseMock.mockClear();
     mockedCallTelegramApi.mockReset();
     resetProviderRegistry();
   });
@@ -172,8 +153,8 @@ describe("telegram scope integration", () => {
 
     mockedCallTelegramApi.mockClear();
     let bot: TelegramBot;
-    const runtimeA = makeScopeRuntime(SCOPE_A);
-    const runtimeB = makeScopeRuntime(SCOPE_B);
+    const runtimeA = sessions.runtime(SCOPE_A.scopeId);
+    const runtimeB = sessions.runtime(SCOPE_B.scopeId);
     let getUpdatesCount = 0;
     mockedCallTelegramApi.mockImplementation(async (_token, method) => {
       if (method === "getMe") {
@@ -185,14 +166,14 @@ describe("telegram scope integration", () => {
           return [makeUpdate(10, "hello from selected scope")];
         }
         if (getUpdatesCount === 2) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          await waitFor(() => deliveredReplies.includes("Delivered model reply"));
           return [makeUpdate(11, "/scope scope-a")];
         }
         if (getUpdatesCount === 3) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          await waitFor(() => sendBodies().some((body) => body.text.includes("Telegram chat is now using Scope A")));
           return [makeUpdate(12, "hello from scope a")];
         }
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitFor(() => deliveredReplies.filter((text) => text === "Delivered model reply").length === 2);
         bot.stop();
         return [];
       }
@@ -201,6 +182,8 @@ describe("telegram scope integration", () => {
 
     bot = new TelegramBot({
       token: "token",
+      http,
+      moduleLoader: sessions.loader,
       autonomyMode: "supervised",
       config: { modelProvider: { type: "openai" } },
       defaultScopeRuntime: runtimeA,
@@ -213,13 +196,11 @@ describe("telegram scope integration", () => {
     });
     await bot.start();
 
-    expect(agentSessionOptions.map((options) => options.scopeRoot)).toEqual([
-      SCOPE_B.scopeRoot,
-      SCOPE_A.scopeRoot,
-    ]);
-    expect(agentSendMock).toHaveBeenCalledWith("hello from selected scope");
-    expect(agentSendMock).toHaveBeenCalledWith("hello from scope a");
-    expect(agentCloseMock).toHaveBeenCalled();
+    expect(sessions.modelRequests).toHaveLength(2);
+    expect(JSON.stringify(sessions.modelRequests[0].messages)).toContain("hello from selected scope");
+    expect(JSON.stringify(sessions.modelRequests[1].messages)).toContain("hello from scope a");
+    expect(JSON.stringify(sessions.modelRequests[1].messages)).not.toContain("hello from selected scope");
+    expect(bot.sessionCount).toBe(0);
   });
 
   it("rechecks admission when a selected scope drains before session creation", async () => {
@@ -230,7 +211,7 @@ describe("telegram scope integration", () => {
       storage,
       [{ chatId: 99, scopeId: SCOPE_B.scopeId }],
     );
-    const runtimeB = makeScopeRuntime(SCOPE_B);
+    const runtimeB = sessions.runtime(SCOPE_B.scopeId);
     let bot: TelegramBot;
     let updateDelivered = false;
     mockedCallTelegramApi.mockImplementation(async (_token, method) => {
@@ -253,9 +234,11 @@ describe("telegram scope integration", () => {
     });
     bot = new TelegramBot({
       token: "token",
+      http,
+      moduleLoader: sessions.loader,
       autonomyMode: "supervised",
       config: { modelProvider: { type: "openai" } },
-      defaultScopeRuntime: makeScopeRuntime(SCOPE_A),
+      defaultScopeRuntime: sessions.runtime(SCOPE_A.scopeId),
       getScopeRuntime,
       scopeSelection: selection,
     });
@@ -263,7 +246,7 @@ describe("telegram scope integration", () => {
     await bot.start();
 
     expect(getScopeRuntime).toHaveBeenCalledTimes(2);
-    expect(agentSessionOptions).toEqual([]);
-    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(sessions.modelRequests).toEqual([]);
+    expect(sendBodies().some((body) => body.text.includes("Something went wrong"))).toBe(true);
   });
 });

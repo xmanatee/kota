@@ -1,19 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgentSession, approvalProjection, MockWebSocket, makeBot, makeStubClients, mockedCallSlackApi, setupSlackBotTestHooks } from "./bot-test-support.js";
+import { approvalProjection, httpRequests, MockWebSocket, makeBot, makeStubClients, mockedCallSlackApi, sessions, setupSlackBotTestHooks } from "./bot-test-support.js";
 
 setupSlackBotTestHooks();
 
 describe("SlackBot", () => {
   describe("message handling", () => {
     it("sends busy message when user already has an in-flight request", async () => {
-      // Make agent.send block to simulate a long-running request
-      const sendBlocker = new Promise<string>(() => {}); // never resolves
-      vi.mocked(AgentSession).mockImplementation(
-        function (this: Record<string, unknown>) {
-          this.send = vi.fn().mockReturnValue(sendBlocker);
-          this.close = vi.fn();
-        } as never,
-      );
+      let release!: () => void;
+      const waiting = new Promise<void>((resolve) => { release = resolve; });
+      const respond = sessions.respond.getMockImplementation()!;
+      sessions.respond.mockImplementation(async () => { await waiting; return respond(); });
 
       const bot = makeBot();
       const startPromise = bot.start();
@@ -30,8 +26,7 @@ describe("SlackBot", () => {
         },
       });
 
-      // Let the first message start processing
-      await new Promise((r) => setTimeout(r, 50));
+      await vi.waitFor(() => expect(sessions.modelRequests).toHaveLength(1));
 
       // Second message from same user — should get busy response
       ws.simulateMessage({
@@ -51,8 +46,10 @@ describe("SlackBot", () => {
         ),
       );
 
+      release();
+      await vi.waitFor(() => expect(httpRequests.some(({ body }) => body.text === "Delivered model reply")).toBe(true));
       bot.stop();
-      await startPromise.catch(() => {});
+      await startPromise;
     });
   });
 

@@ -1,65 +1,26 @@
 import { afterEach, beforeEach, type Mock, vi } from "vitest";
-import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
+import { outboundHttp } from "#core/outbound-http/index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
+import { channelSessionFixture } from "#root/channel-session-test-support.js";
 import { SlackBot } from "./bot.js";
 import type { SlackCommandClients } from "./commands.js";
 
-type SlackTransportMockInstance = {
-  emit: Mock;
-  flush: Mock;
-  getBuffer: Mock;
-};
-
-type AgentSessionMockInstance = {
-  send: Mock;
-  close: Mock;
-};
-
-type NullTransportMockInstance = { emit: Mock };
-type ProxyTransportMockInstance = { target: null; emit: Mock };
-
-// Mock external dependencies at module level
-vi.mock("./client.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("./client.js")>("./client.js");
-  const SlackTransport = vi.fn(function (this: SlackTransportMockInstance) {
-    this.emit = vi.fn();
-    this.flush = vi.fn().mockResolvedValue(undefined);
-    this.getBuffer = vi.fn().mockReturnValue("");
-  });
-  return {
-    ...actual,
-    callSlackApi: vi.fn().mockResolvedValue({ channel: "C1", ts: "1234.5678" }),
-    openSocketModeUrl: vi.fn().mockResolvedValue("wss://fake.slack.com/ws"),
-    SlackTransport,
-    RECONNECT_DELAY_MS: 0,
-  };
+vi.mock("./client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./client.js")>();
+  return { ...actual, callSlackApi: vi.fn(actual.callSlackApi), openSocketModeUrl: vi.fn(actual.openSocketModeUrl), RECONNECT_DELAY_MS: 0 };
 });
 
-const agentSessionMock = vi.hoisted(() =>
-  vi.fn(function (this: AgentSessionMockInstance) {
-    this.send = vi.fn().mockResolvedValue("");
-    this.close = vi.fn();
-  }),
-);
-
-vi.mock("#core/loop/loop.js", () => ({ AgentSession: agentSessionMock }));
-
-vi.mock("#core/loop/transport.js", () => {
-  const NullTransport = vi.fn(function (this: NullTransportMockInstance) {
-    this.emit = vi.fn();
-  });
-  const ProxyTransport = vi.fn(function (this: ProxyTransportMockInstance) {
-    this.target = null;
-    this.emit = vi.fn();
-  });
-  return { NullTransport, ProxyTransport };
-});
+export let sessions: ReturnType<typeof channelSessionFixture>;
+const bots: SlackBot[] = [];
+export const httpRequests: Array<{ method: string; body: Record<string, unknown> }> = [];
 
 import { callSlackApi, openSocketModeUrl } from "./client.js";
 
 export const mockedCallSlackApi = vi.mocked(callSlackApi);
 export const mockedOpenSocketModeUrl = vi.mocked(openSocketModeUrl);
+const productionCall = mockedCallSlackApi.getMockImplementation()!;
+const productionOpen = mockedOpenSocketModeUrl.getMockImplementation()!;
 
 export function approvalProjection(id = "abc123") {
   return {
@@ -117,25 +78,23 @@ export function makeStubClients(): SlackCommandClients & { approvals: ApprovalsC
 export function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBot>[0]>) {
   const { approvals, ...clients } = makeStubClients();
   const { getApprovals, ...optionOverrides } = overrides ?? {};
-  const runtime = {
-    scope: {
-      scopeId: "test-scope",
-      scopeRoot: "/tmp/test-scope",
-      displayName: "Test Project",
-    },
-  } as ScopeRuntime;
-  return new SlackBot({
+  const runtime = sessions.runtime();
+  const bot = new SlackBot({
     botToken: "xoxb-test",
     appToken: "xapp-test",
     workspaceId: "T-TEST",
     allowedUserIds: ["U1", "U2", "U-SLASH", "U-FREE"],
     notifyChannel: "C-NOTIFY",
     autonomyMode: "supervised",
+    model: "openai/controlled",
+    moduleLoader: sessions.loader,
     getDefaultScopeRuntime: () => runtime,
     ...clients,
     getApprovals: getApprovals ?? (() => approvals),
     ...optionOverrides,
   });
+  bots.push(bot);
+  return bot;
 }
 
 // --- WebSocket mock ---
@@ -179,20 +138,28 @@ export class MockWebSocket {
 }
 
 
-export { agentSessionMock as AgentSession, SlackBot };
+export { SlackBot };
 
 export function setupSlackBotTestHooks(): void {
   beforeEach(() => {
+    sessions = channelSessionFixture();
+    httpRequests.length = 0;
+    vi.spyOn(outboundHttp, "request").mockImplementation(outboundHttpRequestPort((request) => {
+      httpRequests.push({ method: String(request.url).split("/").at(-1)!, body: JSON.parse(String(request.body ?? "{}")) });
+      return Response.json({ ok: true, channel: "C1", ts: "1234.5678", url: "wss://fake.slack.com/ws" });
+    }).request);
     MockWebSocket.reset();
     vi.stubGlobal("WebSocket", MockWebSocket);
     mockedCallSlackApi.mockReset();
-    mockedCallSlackApi.mockResolvedValue({ channel: "C1", ts: "1234.5678" } as never);
+    mockedCallSlackApi.mockImplementation(productionCall);
     mockedOpenSocketModeUrl.mockReset();
-    mockedOpenSocketModeUrl.mockResolvedValue("wss://fake.slack.com/ws");
-    agentSessionMock.mockClear();
+    mockedOpenSocketModeUrl.mockImplementation(productionOpen);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    for (const bot of bots.splice(0)) bot.stop();
+    await sessions.close();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 }

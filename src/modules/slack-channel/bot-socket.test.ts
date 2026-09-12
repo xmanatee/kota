@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
-import { AgentSession, approvalProjection, MockWebSocket, makeBot, makeStubClients, setupSlackBotTestHooks } from "./bot-test-support.js";
+import { approvalProjection, MockWebSocket, makeBot, makeStubClients, setupSlackBotTestHooks } from "./bot-test-support.js";
 
 setupSlackBotTestHooks();
 
@@ -28,7 +28,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-123",
-        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U1", channel: "D1", channel_type: "im" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "/unknown", user: "U1", channel: "D1", channel_type: "im" } },
       });
 
       expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ envelope_id: "env-123" }));
@@ -61,25 +61,6 @@ describe("SlackBot", () => {
       ws.simulateMessage({ type: "disconnect", reason: "server_restart" });
 
       expect(ws.close).toHaveBeenCalled();
-
-      bot.stop();
-      await startPromise.catch(() => {});
-    });
-
-    it("routes events_api message to handleMessage (creates session)", async () => {
-      const bot = makeBot();
-      const startPromise = bot.start();
-      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
-      const ws = MockWebSocket.instances[0];
-
-      ws.simulateMessage({
-        type: "events_api",
-        envelope_id: "env-1",
-        payload: { team_id: "T-TEST", event: { type: "message", text: "hello bot", user: "U1", channel: "D1", channel_type: "im" } },
-      });
-
-      // Give async handleMessage time to run
-      await vi.waitFor(() => expect(AgentSession).toHaveBeenCalled());
 
       bot.stop();
       await startPromise.catch(() => {});
@@ -130,7 +111,7 @@ describe("SlackBot", () => {
           }),
         }),
       );
-      expect(AgentSession).not.toHaveBeenCalled();
+      expect(bot.listScopeSessionIds("test-scope")).toEqual([]);
 
       bot.stop();
       await startPromise.catch(() => {});
@@ -152,7 +133,7 @@ describe("SlackBot", () => {
 
       // AgentSession should NOT be created for bot messages
       await new Promise((r) => setTimeout(r, 50));
-      expect(AgentSession).not.toHaveBeenCalled();
+      expect(bot.listScopeSessionIds("test-scope")).toEqual([]);
 
       bot.stop();
       await startPromise.catch(() => {});
@@ -173,7 +154,7 @@ describe("SlackBot", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
-      expect(AgentSession).not.toHaveBeenCalled();
+      expect(bot.listScopeSessionIds("test-scope")).toEqual([]);
 
       bot.stop();
       await startPromise.catch(() => {});

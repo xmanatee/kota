@@ -2,16 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
   type AgentHarnessResult,
-  resolveAgentHarness,
-  runAgentHarness,
+  registerAgentHarness,
 } from "#core/agent-harness/index.js";
-import { Scheduler } from "#core/daemon/scheduler.js";
-import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
 import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import {
   type InboundSignalReceivedPayload,
   type InboundSignalRoutedPayload,
@@ -22,6 +21,7 @@ import {
   TRANSCRIPTION_PROVIDER_TYPE,
   type TranscriptionProvider,
 } from "#modules/transcription/index.js";
+import { channelSessionFixture } from "#root/channel-session-test-support.js";
 import {
   callTelegramApi as callProductionTelegramApi,
   TelegramTransport as ProductionTelegramTransport,
@@ -37,10 +37,12 @@ import {
 } from "./client.js";
 import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
-import type { TelegramScopeSelection } from "./scope-selection.js";
+import { TelegramScopeSelection } from "./scope-selection.js";
 
-const agentSendMock = vi.fn(async () => undefined);
-const agentSessionOptions: unknown[] = [];
+let sessions: ReturnType<typeof channelSessionFixture>;
+beforeEach(() => { sessions = channelSessionFixture(); });
+afterEach(async () => { await sessions.close(); });
+
 const harnessResult: AgentHarnessResult = {
   text: "harness response",
   streamedText: "harness response",
@@ -60,7 +62,7 @@ function makeTestHarness(name: string): AgentHarness {
     supportedHookKinds: ["preRun", "postRun"],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
-    toolControl: name === "codex" ? "native" : "kota",
+    toolControl: "kota",
     unsupportedRunOptions: [],
     async run() {
       return harnessResult;
@@ -68,14 +70,8 @@ function makeTestHarness(name: string): AgentHarness {
   };
 }
 
-function makeScopeRuntime(
-  scopeId = "scope-a",
-  scopeRoot = `/tmp/${scopeId}`,
-): ScopeRuntime {
-  return {
-    scope: { scopeId, scopeRoot, displayName: scopeId },
-    scheduler: new Scheduler(),
-  } as ScopeRuntime;
+function makeScopeRuntime(scopeId = "scope-a") {
+  return sessions.runtime(scopeId);
 }
 
 function botOptions(
@@ -93,47 +89,10 @@ function botOptions(
         ? defaultScopeRuntime
         : makeScopeRuntime(scopeId),
     http: telegramHttp,
+    moduleLoader: sessions.loader,
     ...overrides,
   };
 }
-
-vi.mock("#core/agent-harness/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("#core/agent-harness/index.js")>();
-  return {
-    ...actual,
-    resolveAgentHarness: vi.fn((name: string) => makeTestHarness(name)),
-    runAgentHarness: vi.fn(async (_harness, _options, writer) => {
-      writer?.write(harnessResult.streamedText);
-      return harnessResult;
-    }),
-  };
-});
-
-vi.mock("#core/loop/loop.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
-    "#core/loop/loop.js",
-  );
-  class FakeAgentSession {
-    constructor(options?: unknown) {
-      agentSessionOptions.push(options);
-    }
-    send = agentSendMock;
-    close = vi.fn();
-    dispose = vi.fn(async () => {});
-    getCostSummary = vi.fn().mockReturnValue("$0.00");
-    get isClosed(): boolean {
-      return false;
-    }
-  }
-  return {
-    ...actual,
-    AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
-  };
-});
-
-const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
-const mockedRunAgentHarness = vi.mocked(runAgentHarness);
 
 // --- splitMessage ---
 
@@ -382,7 +341,6 @@ describe("callTelegramApi", () => {
   beforeEach(() => {
     resetTelegramPollingOwnersForTests();
     fetchMock = installFetchMock();
-    agentSessionOptions.length = 0;
   });
 
   it("calls correct URL with token and method", async () => {
@@ -473,17 +431,6 @@ describe("TelegramBot", () => {
     origPreset = process.env.KOTA_PRESET;
     delete process.env.KOTA_PRESET;
     fetchMock = installFetchMock();
-    agentSessionOptions.length = 0;
-    agentSendMock.mockClear();
-    mockedResolveAgentHarness.mockReset();
-    mockedResolveAgentHarness.mockImplementation((name: string) =>
-      makeTestHarness(name),
-    );
-    mockedRunAgentHarness.mockReset();
-    mockedRunAgentHarness.mockImplementation((_harness, _options, writer) => {
-      writer?.write(harnessResult.streamedText);
-      return Object.assign(Promise.resolve(harnessResult), { settled: Promise.resolve() });
-    });
   });
 
   afterEach(() => {
@@ -657,499 +604,88 @@ describe("TelegramBot", () => {
     await firstStart;
   });
 
-  it("broadcastToChats delivers a message to every active session", async () => {
-    const bot = new TelegramBot(botOptions());
-    // Drive a text message through the poll loop to create a session, then stop.
+  it.each([true, false])("routes tracked replies without opening a session, and delivers untracked replies (%s)", async (tracked) => {
+    const onChatReply = vi.fn(async () => tracked);
+    const bot = new TelegramBot(botOptions({ onChatReply }));
     let delivered = false;
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
+      if (url.endsWith("/getMe")) return Response.json({ ok: true, result: { id: 1, first_name: "Bot" } });
+      if (!url.endsWith("/getUpdates")) return Response.json({ ok: true, result: true });
+      if (!delivered) {
+        delivered = true;
+        return Response.json({ ok: true, result: [{ update_id: 1, message: {
+          message_id: 2, chat: { id: 9, type: "private" }, date: 0,
+          text: "what about edge case X?", reply_to_message: { message_id: 1 },
+        } }] });
       }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 1,
-                      chat: { id: 77, type: "private", first_name: "Op" },
-                      text: "hi",
-                      date: 0,
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 50),
-            ),
-        };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return Response.json({ ok: true, result: [] });
+    });
+    const running = bot.start();
+    try {
+      await vi.waitFor(() => expect(onChatReply).toHaveBeenCalledWith(9, 1, "what about edge case X?"));
+      if (tracked) expect(bot.sessionCount).toBe(0);
+      else {
+        await vi.waitFor(() => expect(sentTexts()).toContain("Delivered model reply"));
+        expect(JSON.stringify(sessions.modelRequests.at(-1)?.messages)).toContain("what about edge case X?");
       }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-    const deadline = Date.now() + 1_500;
-    while (Date.now() < deadline && bot.sessionCount === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-    bot.broadcastToChats("ping");
-    await startPromise;
-
-    const sentToChat77 = fetchMock.mock.calls.some((call) => {
-      const url = call[0] as string;
-      if (!url.endsWith("/sendMessage")) return false;
-      const init = call[1] as { body: string };
-      const body = JSON.parse(init.body) as { chat_id: number; text: string };
-      return body.chat_id === 77 && body.text === "ping";
-    });
-    expect(sentToChat77).toBe(true);
+    } finally { bot.stop(); await running; }
   });
 
-  it("creates scoped sessions and scopes broadcasts by scope", async () => {
-    agentSendMock.mockClear();
-    const scopeSelection = {
-      resolveChat: vi.fn(async () => ({
-        ok: true as const,
-        scope: {
-          scopeId: "scope-b",
-          scopeRoot: "/tmp/scope-b",
-          displayName: "Scope B",
-        },
-        showScopeLabels: true,
-      })),
-      switchChat: vi.fn(),
-      renderScopeLabelPrefix: vi.fn(),
-    } as unknown as TelegramScopeSelection;
-    const scopeBRuntime = makeScopeRuntime("scope-b", "/tmp/scope-b");
-    const bot = new TelegramBot({
-      ...botOptions(),
-      getScopeRuntime: (scopeId) => {
-        if (scopeId !== "scope-b") throw new Error(`unexpected scope ${scopeId}`);
-        return scopeBRuntime;
-      },
+  it.each(["model", "harness"] as const)("delivers %s replies and broadcasts only to the selected scope", async (backend) => {
+    const runtime = makeScopeRuntime("scope-b");
+    const run = vi.fn<AgentHarness["run"]>(async () => harnessResult);
+    const unregister = registerAgentHarness({ ...makeTestHarness("codex"), run });
+    const scopeSelection = new TelegramScopeSelection(createKotaClientTestDouble({ scopes: {
+      list: async () => ({ ok: true, defaultScopeId: "scope-a", activeScopeId: null, scopes: [makeScopeRuntime().scope, runtime.scope] }),
+    } }), new ModuleStorage(runtime.scope.scopeRoot, "telegram"), [{ chatId: 77, scopeId: "scope-b" }]);
+    const bot = new TelegramBot(botOptions({
       scopeSelection,
-    });
+      config: backend === "harness" ? { defaultPreset: "codex" } : {
+        defaultAgentHarness: "codex", model: "openai/controlled",
+      },
+    }));
     let delivered = false;
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
+      if (url.endsWith("/getMe")) return Response.json({ ok: true, result: { id: 1, first_name: "Bot" } });
       if (url.endsWith("/getUpdates")) {
         if (!delivered) {
           delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 1,
-                      chat: { id: 77, type: "private", first_name: "Op" },
-                      text: "hi",
-                      date: 0,
-                    },
-                  },
-                ],
-              }),
-          };
+          return Response.json({ ok: true, result: [{ update_id: 1, message: {
+            message_id: 1, chat: { id: 77, type: "private" }, text: "ping", date: 0,
+          } }] });
         }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 50),
-            ),
-        };
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return Response.json({ ok: true, result: [] });
       }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
+      return Response.json({ ok: true, result: true });
     });
-
-    const startPromise = bot.start();
-    const deadline = Date.now() + 1_500;
-    while (Date.now() < deadline && bot.sessionCount === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-    bot.broadcastToChats("scope-b ping", "scope-b");
-    bot.broadcastToChats("scope-a ping", "scope-a");
-    await startPromise;
-
-    expect(agentSessionOptions).toHaveLength(1);
-    expect(agentSessionOptions[0]).toEqual(
-      expect.objectContaining({
-        scopeRoot: "/tmp/scope-b",
-        scopeRuntime: scopeBRuntime,
-      }),
-    );
-    const sentBodies = fetchMock.mock.calls
-      .filter((call) => String(call[0]).endsWith("/sendMessage"))
-      .map((call) => JSON.parse(String((call[1] as { body: string }).body)) as { text: string });
-    expect(sentBodies.some((body) => body.text === "scope-b ping")).toBe(true);
-    expect(sentBodies.some((body) => body.text === "scope-a ping")).toBe(false);
+    const running = bot.start();
+    try {
+      await vi.waitFor(() => expect(sentTexts()).toContain(backend === "harness" ? "harness response" : "Delivered model reply"));
+      expect(bot.listScopeSessionIds("scope-b")).toHaveLength(1);
+      expect(bot.listScopeSessionIds("scope-a")).toEqual([]);
+      bot.broadcastToChats("scope-b ping", "scope-b");
+      bot.broadcastToChats("scope-a ping", "scope-a");
+      await vi.waitFor(() => expect(sentTexts()).toContain("scope-b ping"));
+      expect(sentTexts()).not.toContain("scope-a ping");
+      if (backend === "model") {
+        expect(JSON.stringify(sessions.modelRequests.at(-1)?.messages)).toContain("ping");
+        expect(run).not.toHaveBeenCalled();
+      } else {
+        expect(run).toHaveBeenCalledWith(expect.objectContaining({ prompt: "ping", cwd: runtime.scope.scopeRoot }), expect.anything());
+        expect(sessions.modelRequests).toEqual([]);
+      }
+    } finally { bot.stop(); await running; unregister(); }
+    expect(bot.sessionCount).toBe(0);
   });
 
-  it("routes a reply_to_message text update through the onChatReply hook and skips agent.send when the hook returns true", async () => {
-    agentSendMock.mockClear();
-    const onChatReply = vi.fn(async () => true);
-    const bot = new TelegramBot({
-      ...botOptions(),
-      onChatReply,
-    });
-    let delivered = false;
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 7,
-                      chat: { id: 99, type: "private", first_name: "Op" },
-                      text: "variant-a please",
-                      date: 0,
-                      reply_to_message: {
-                        message_id: 30,
-                        chat: { id: 99, type: "private", first_name: "Op" },
-                        date: 0,
-                      },
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 100),
-            ),
-        };
-      }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline && onChatReply.mock.calls.length === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-    await startPromise;
-
-    expect(onChatReply).toHaveBeenCalledWith(99, 30, "variant-a please");
-    expect(agentSendMock).not.toHaveBeenCalled();
-  });
-
-  it("falls through to AgentSession.send when reply_to_message hook returns false (untracked reply still routes through interactive session)", async () => {
-    agentSendMock.mockClear();
-    const onChatReply = vi.fn(async () => false);
-    const bot = new TelegramBot({
-      ...botOptions(),
-      onChatReply,
-    });
-    let delivered = false;
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 8,
-                      chat: { id: 99, type: "private", first_name: "Op" },
-                      text: "what about edge case X?",
-                      date: 0,
-                      reply_to_message: {
-                        message_id: 99999,
-                        chat: { id: 99, type: "private", first_name: "Op" },
-                        date: 0,
-                      },
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 100),
-            ),
-        };
-      }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-    await startPromise;
-
-    expect(onChatReply).toHaveBeenCalledWith(99, 99999, "what about edge case X?");
-    expect(agentSendMock).toHaveBeenCalledWith("what about edge case X?");
-  });
-
-  it("routes inbound text messages into AgentSession.send (session loop)", async () => {
-    agentSendMock.mockClear();
-    const bot = new TelegramBot(botOptions());
-    let delivered = false;
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 1,
-                      chat: { id: 9, type: "private", first_name: "Op" },
-                      text: "ping",
-                      date: 0,
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 100),
-            ),
-        };
-      }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-
-    await startPromise;
-
-    expect(agentSendMock).toHaveBeenCalledWith("ping");
-  });
-
-  it("routes bare Codex-preset messages through the configured harness instead of AgentSession", async () => {
-    agentSendMock.mockClear();
-    const bot = new TelegramBot(
-      botOptions({
-        autonomyMode: "passive",
-        config: { defaultPreset: "codex" },
-      }),
-    );
-    let delivered = false;
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () =>
-            Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 1,
-                      chat: { id: 9, type: "private", first_name: "Op" },
-                      text: "ping",
-                      date: 0,
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 100),
-            ),
-        };
-      }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline && mockedRunAgentHarness.mock.calls.length === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-
-    await startPromise;
-
-    expect(agentSendMock).not.toHaveBeenCalled();
-    expect(mockedResolveAgentHarness).toHaveBeenCalledWith("codex");
-    expect(mockedRunAgentHarness).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "codex" }),
-      expect.objectContaining({
-        prompt: "ping",
-        model: "gpt-5.6-sol",
-        cwd: "/tmp/scope-a",
-        autonomyMode: "passive",
-      }),
-      expect.objectContaining({ write: expect.any(Function) }),
-    );
-    const sentBodies = fetchMock.mock.calls
-      .filter((call) => String(call[0]).endsWith("/sendMessage"))
-      .map(
-        (call) =>
-          JSON.parse(String((call[1] as { body: string }).body)) as {
-            text: string;
-          },
-      );
-    expect(sentBodies.some((body) => body.text === "harness response")).toBe(
-      true,
-    );
-  });
-
-  it("routes provider/model Telegram messages through AgentSession even when a default harness is configured", async () => {
-    agentSendMock.mockClear();
-    const bot = new TelegramBot(
-      botOptions({
-        autonomyMode: "supervised",
-        config: {
-          defaultAgentHarness: "openai-tools",
-          model: "openrouter/openrouter/auto",
-        },
-      }),
-    );
-    let delivered = false;
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/getMe")) {
-        return {
-          json: () =>
-            Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
-        };
-      }
-      if (url.endsWith("/getUpdates")) {
-        if (!delivered) {
-          delivered = true;
-          return {
-            json: () =>
-              Promise.resolve({
-                ok: true,
-                result: [
-                  {
-                    update_id: 1,
-                    message: {
-                      message_id: 1,
-                      chat: { id: 9, type: "private", first_name: "Op" },
-                      text: "ping",
-                      date: 0,
-                    },
-                  },
-                ],
-              }),
-          };
-        }
-        return {
-          json: () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                bot.stop();
-                resolve({ ok: true, result: [] });
-              }, 100),
-            ),
-        };
-      }
-      return { json: () => Promise.resolve({ ok: true, result: true }) };
-    });
-
-    const startPromise = bot.start();
-
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-
-    await startPromise;
-
-    expect(agentSendMock).toHaveBeenCalledWith("ping");
-    expect(mockedRunAgentHarness).not.toHaveBeenCalled();
-    expect(agentSessionOptions).toHaveLength(1);
-    expect(agentSessionOptions[0]).toEqual(
-      expect.objectContaining({
-        autonomyMode: "supervised",
-        model: "openrouter/openrouter/auto",
-      }),
-    );
-  });
+  function sentTexts(): string[] {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/sendMessage"))
+      .map(([, init]) => JSON.parse(init.body).text);
+  }
 
   it("emits configured automation messages as inbound signals and skips the session loop", async () => {
-    agentSendMock.mockClear();
     const events = { emit: vi.fn() };
     const bot = new TelegramBot(
       botOptions({
@@ -1241,7 +777,7 @@ describe("TelegramBot", () => {
     });
     expect(getUpdatesRequest.limits.timeoutMs).toBe(POLL_REQUEST_TIMEOUT_MS);
     expect(getUpdatesRequest.limits.timeoutMs).toBeGreaterThan(POLL_TIMEOUT_S * 1000);
-    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(sessions.modelRequests).toEqual([]);
   });
 
   it("dispatches callbacks only when their message belongs to an allowed chat", async () => {
@@ -1326,7 +862,6 @@ describe("TelegramBot", () => {
   });
 
   it("emits blocked and archived text/caption updates outside allowed chats through the polling path", async () => {
-    agentSendMock.mockClear();
     const routed: InboundSignalRoutedPayload[] = [];
     const routePromises: Promise<InboundSignalRoutedPayload>[] = [];
     const triggerWorkflow = vi.fn(async () => ({
@@ -1477,11 +1012,10 @@ describe("TelegramBot", () => {
     expect(routed.map((entry) => entry.decision)).toEqual(["blocked", "archived"]);
     expect(routed.map((entry) => entry.sourceStatus)).toEqual(["blocked", "archived"]);
     expect(triggerWorkflow).not.toHaveBeenCalled();
-    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(sessions.modelRequests).toEqual([]);
   });
 
   it("emits non-text Telegram updates as inbound signals without entering chat sessions", async () => {
-    agentSendMock.mockClear();
     const events = { emit: vi.fn() };
     const bot = new TelegramBot(
       botOptions({
@@ -1593,7 +1127,7 @@ describe("TelegramBot", () => {
       "telegram.chat_member",
       "telegram.callback",
     ]);
-    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(sessions.modelRequests).toEqual([]);
   });
 });
 
@@ -1705,6 +1239,8 @@ describe("TelegramBot voice messages", () => {
 
     const transcribedEcho = await waitForSendMessage((m) => m.text.includes("Transcribed"));
     expect(transcribedEcho.text).toContain("hello from voice");
+    await waitForSendMessage((m) => m.text === "Delivered model reply");
+    expect(JSON.stringify(sessions.modelRequests.at(-1)?.messages)).toContain("hello from voice");
 
     await startPromise;
   });
@@ -1729,7 +1265,6 @@ describe("TelegramBot voice messages", () => {
   });
 
   it("emits blocked voice transcripts outside allowed chats through the polling path", async () => {
-    agentSendMock.mockClear();
     const registry = initProviderRegistry();
     const provider: TranscriptionProvider = {
       name: "stub",
@@ -1780,6 +1315,6 @@ describe("TelegramBot voice messages", () => {
       }),
     );
     expect(collectSendMessageBodies()).toEqual([]);
-    expect(agentSendMock).not.toHaveBeenCalled();
+    expect(sessions.modelRequests).toEqual([]);
   });
 });

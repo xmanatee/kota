@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import {
-  AgentSession,
   MockWebSocket,
   makeBot,
   makeStubClients,
@@ -73,7 +72,7 @@ describe("SlackBot interactive admission", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(clients.tasks.search).not.toHaveBeenCalled();
     expect(events.emit).not.toHaveBeenCalled();
-    expect(AgentSession).not.toHaveBeenCalled();
+    expect(bot.listScopeSessionIds("test-scope")).toEqual([]);
 
     bot.stop();
     await startPromise.catch(() => {});
@@ -113,7 +112,7 @@ describe("SlackBot interactive admission", () => {
         actor: expect.objectContaining({ trust: "untrusted" }),
       }),
     ));
-    expect(AgentSession).not.toHaveBeenCalled();
+    expect(bot.listScopeSessionIds("test-scope")).toEqual([]);
 
     bot.stop();
     await startPromise.catch(() => {});

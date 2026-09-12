@@ -106,6 +106,11 @@ allowlist applies to replies as it does to ordinary messages.
 
 ## Verification ownership
 
+Bot delivery fixtures use real sessions, module loaders and scoped stores with
+controlled model and HTTP responses. Assert incoming identity, scoped delivery
+and denied routing; shared session continuity journeys own restart persistence.
+Do not replace AgentSession or its transports with constructor spies.
+
 Notification tests use the adapter's credential, event, scope and client ports;
 provider-shaped Bot API messages prove delivery and callback binding. Keep
 command checks for parsing, chat/scope admission and Telegram output limits.

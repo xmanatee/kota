@@ -63,6 +63,11 @@ secret store through `$SLACK_BOT_TOKEN` and `$SLACK_APP_TOKEN` config references
 
 ## Verification ownership
 
+Bot delivery fixtures use real sessions, module loaders and scoped stores with
+controlled model and HTTP responses. Assert incoming identity, scoped delivery
+and denied routing; shared session continuity journeys own restart persistence.
+Do not replace AgentSession or its transports with constructor spies.
+
 Command tests exercise the production dispatcher through its narrow client ports.
 Keep Socket Mode scenarios for workspace/user admission, callback binding, session
 routing and connection behavior. Result variants and plain-text domain rendering

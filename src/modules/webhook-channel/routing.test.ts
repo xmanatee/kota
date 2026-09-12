@@ -1,280 +1,108 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { clearSessions } from "./handler.js";
-import { type CreatedWebhookSession, invokeHandler, makeSessionFactory, makeStubCtx } from "./handler-test-support.integration.js";
+import {
+	type CreatedWebhookSession,
+	invokeHandler,
+	makeSessionFactory,
+	makeStubCtx,
+} from "./handler-test-support.integration.js";
 
-const SOURCES_CONFIG = {
-  sources: {
-    github: { agent: "builder" },
-    ci: { agent: "reviewer" },
-    monitoring: { agent: "ops" },
-  },
-};
+const config = { sources: { github: { agent: "builder" }, ci: { agent: "reviewer" } } };
+beforeEach(clearSessions);
 
-beforeEach(() => {
-  clearSessions();
+it.each([
+	{ path: "/api/channels/webhook/github", header: "ci", source: "ci", expected: "github" },
+	{ path: undefined, header: "ci", source: "github", expected: "ci" },
+	{ path: undefined, header: undefined, source: "github", expected: "github" },
+])("routes source inputs with path/header/payload precedence: $expected", async ({
+	path,
+	header,
+	source,
+	expected,
+}) => {
+	const created: CreatedWebhookSession[] = [];
+	const res = await invokeHandler(
+		makeStubCtx(undefined, config),
+		JSON.stringify({ message: "Build passed", source }),
+		header ? { "x-webhook-source": header } : {},
+		path,
+		makeSessionFactory(created),
+	);
+	expect(res.statusCode).toBe(201);
+	expect(JSON.parse(res.body!)).toMatchObject({
+		source: expected,
+		response: "agent response text",
+	});
+	expect(created[0]).toMatchObject({
+		label: `webhook:${expected}:${config.sources[expected as keyof typeof config.sources].agent}`,
+		autonomyMode: "supervised",
+	});
+	expect(created[0].send).toHaveBeenCalledWith(expect.stringContaining("Build passed"));
 });
 
-// ─── Source routing via path suffix ─────────────────────────────────────────
-
-describe("source routing — path suffix", () => {
-  it("routes to configured source (HTTP 201)", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "PR merged" });
-    const res = await invokeHandler(ctx, body, {}, "/api/channels/webhook/github");
-
-    expect(res.statusCode).toBe(201);
-    const parsed = JSON.parse(res.body!);
-    expect(parsed.source).toBe("github");
-    expect(parsed.sessionId).toBeTruthy();
-    expect(parsed.response).toBe("agent response text");
-  });
-
-  it("includes source agent in session label", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const created: CreatedWebhookSession[] = [];
-    const body = JSON.stringify({ message: "Build passed" });
-    await invokeHandler(
-      ctx,
-      body,
-      {},
-      "/api/channels/webhook/ci",
-      makeSessionFactory(created),
-    );
-
-    expect(created[0].label).toBe("webhook:ci:reviewer");
-    expect(created[0].autonomyMode).toBe("supervised");
-  });
+it("reuses a source across input forms, isolates another source, and reports the resulting sessions", async () => {
+	const bus = new EventBus();
+	const events: Record<string, unknown>[] = [];
+	bus.on("webhook-channel.session", (payload) => events.push(payload));
+	const ctx = makeStubCtx(bus, config);
+	const first = await invokeHandler(
+		ctx,
+		JSON.stringify({ message: "First" }),
+		{},
+		"/api/channels/webhook/github",
+	);
+	const next = await invokeHandler(ctx, JSON.stringify({ message: "Second" }), {
+		"x-webhook-source": "github",
+	});
+	const other = await invokeHandler(
+		ctx,
+		JSON.stringify({ message: "Another source", source: "ci" }),
+	);
+	expect([first.statusCode, next.statusCode, other.statusCode]).toEqual([201, 200, 201]);
+	const firstId = JSON.parse(first.body!).sessionId;
+	expect(firstId).toBeTruthy();
+	expect(JSON.parse(next.body!).sessionId).toBe(firstId);
+	expect(JSON.parse(other.body!).sessionId).not.toBe(firstId);
+	expect(events).toMatchObject([
+		{ source: "github", resumed: false },
+		{ source: "github", resumed: true },
+		{ source: "ci", resumed: false },
+	]);
 });
 
-// ─── Source routing via header ──────────────────────────────────────────────
-
-describe("source routing — X-Webhook-Source header", () => {
-  it("routes via header value", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Alert fired" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-source": "monitoring",
-    });
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBe("monitoring");
-  });
+it.each([
+	{ path: "/api/channels/webhook/unknown", header: undefined, source: "github" },
+	{ path: undefined, header: "unknown", source: "github" },
+	{ path: undefined, header: undefined, source: "unknown" },
+])("rejects an unknown selected source without opening a session: $path $source", async ({
+	path,
+	header,
+	source,
+}) => {
+	const created: CreatedWebhookSession[] = [];
+	const res = await invokeHandler(
+		makeStubCtx(undefined, config),
+		JSON.stringify({ message: "Unknown", source }),
+		header ? { "x-webhook-source": header } : {},
+		path,
+		makeSessionFactory(created),
+	);
+	expect(res.statusCode).toBe(404);
+	expect(JSON.parse(res.body!).error).toContain("Unknown source");
+	expect(created).toEqual([]);
 });
 
-// ─── Source routing via payload field ────────────────────────────────────────
-
-describe("source routing — payload source field", () => {
-  it("routes via source payload field", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Deployed", source: "github" });
-    const res = await invokeHandler(ctx, body);
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBe("github");
-  });
-});
-
-// ─── Source identification priority ─────────────────────────────────────────
-
-describe("source identification priority", () => {
-  it("path takes precedence over header and payload", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Mixed", source: "ci" });
-    const res = await invokeHandler(
-      ctx,
-      body,
-      { "x-webhook-source": "monitoring" },
-      "/api/channels/webhook/github",
-    );
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBe("github");
-  });
-
-  it("header takes precedence over payload field", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Mixed", source: "github" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-source": "ci",
-    });
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBe("ci");
-  });
-});
-
-// ─── Session continuity per source ──────────────────────────────────────────
-
-describe("source session continuity", () => {
-  it("resumes session for same source (HTTP 200)", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-
-    const res1 = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "First" }),
-      { "x-webhook-source": "github" },
-    );
-    expect(res1.statusCode).toBe(201);
-    const sessionId = JSON.parse(res1.body!).sessionId;
-
-    const res2 = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "Second" }),
-      { "x-webhook-source": "github" },
-    );
-    expect(res2.statusCode).toBe(200);
-    expect(JSON.parse(res2.body!).sessionId).toBe(sessionId);
-  });
-
-  it("creates separate sessions for different sources", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-
-    const res1 = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "From GH" }),
-      { "x-webhook-source": "github" },
-    );
-    const res2 = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "From CI" }),
-      { "x-webhook-source": "ci" },
-    );
-
-    expect(res1.statusCode).toBe(201);
-    expect(res2.statusCode).toBe(201);
-    expect(JSON.parse(res1.body!).sessionId).not.toBe(
-      JSON.parse(res2.body!).sessionId,
-    );
-  });
-
-  it("does not require explicit sessionId for continuity", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-
-    await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "First" }),
-      {},
-      "/api/channels/webhook/monitoring",
-    );
-    const res2 = await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "Second" }),
-      { "x-webhook-source": "monitoring" },
-    );
-
-    expect(res2.statusCode).toBe(200);
-  });
-});
-
-// ─── Misconfigured source rejection ─────────────────────────────────────────
-
-describe("misconfigured source rejection", () => {
-  it("rejects unknown source via path (HTTP 404)", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Unknown" });
-    const res = await invokeHandler(ctx, body, {}, "/api/channels/webhook/unknown");
-
-    expect(res.statusCode).toBe(404);
-    expect(JSON.parse(res.body!).error).toContain("Unknown source");
-    expect(JSON.parse(res.body!).error).toContain("unknown");
-  });
-
-  it("rejects unknown source via header (HTTP 404)", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Unknown" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-source": "nonexistent",
-    });
-
-    expect(res.statusCode).toBe(404);
-    expect(JSON.parse(res.body!).error).toContain("Unknown source");
-  });
-
-  it("rejects unknown source via payload (HTTP 404)", async () => {
-    const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Unknown", source: "bad" });
-    const res = await invokeHandler(ctx, body);
-
-    expect(res.statusCode).toBe(404);
-  });
-});
-
-// ─── Direct requests without source routing ─────────────────────────────────
-
-describe("direct requests — no sources configured", () => {
-  it("works without sources config", async () => {
-    const ctx = makeStubCtx();
-    const body = JSON.stringify({ message: "Normal request" });
-    const res = await invokeHandler(ctx, body);
-
-    expect(res.statusCode).toBe(201);
-    const parsed = JSON.parse(res.body!);
-    expect(parsed.sessionId).toBeTruthy();
-    expect(parsed.source).toBeUndefined();
-  });
-
-  it("ignores source header when sources not configured", async () => {
-    const ctx = makeStubCtx();
-    const body = JSON.stringify({ message: "With header" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-source": "github",
-    });
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBeUndefined();
-  });
-
-  it("ignores source payload field when sources not configured", async () => {
-    const ctx = makeStubCtx();
-    const body = JSON.stringify({ message: "With field", source: "github" });
-    const res = await invokeHandler(ctx, body);
-
-    expect(res.statusCode).toBe(201);
-    expect(JSON.parse(res.body!).source).toBeUndefined();
-  });
-});
-
-// ─── Source routing events ──────────────────────────────────────────────────
-
-describe("source routing — events", () => {
-  it("emits event with source field for source-routed sessions", async () => {
-    const bus = new EventBus();
-    const received: Record<string, unknown>[] = [];
-    bus.on("webhook-channel.session", (p) =>
-      received.push(p as Record<string, unknown>),
-    );
-
-    const ctx = makeStubCtx(bus, SOURCES_CONFIG);
-    const body = JSON.stringify({ message: "Event test" });
-    await invokeHandler(ctx, body, { "x-webhook-source": "github" });
-
-    expect(received).toHaveLength(1);
-    expect(received[0].source).toBe("github");
-    expect(received[0].resumed).toBe(false);
-  });
-
-  it("marks event as resumed for follow-up source requests", async () => {
-    const bus = new EventBus();
-    const received: Record<string, unknown>[] = [];
-    bus.on("webhook-channel.session", (p) =>
-      received.push(p as Record<string, unknown>),
-    );
-
-    const ctx = makeStubCtx(bus, SOURCES_CONFIG);
-    await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "First" }),
-      { "x-webhook-source": "github" },
-    );
-    await invokeHandler(
-      ctx,
-      JSON.stringify({ message: "Second" }),
-      { "x-webhook-source": "github" },
-    );
-
-    expect(received).toHaveLength(2);
-    expect(received[0].resumed).toBe(false);
-    expect(received[1].resumed).toBe(true);
-  });
+it.each([
+	false,
+	true,
+])("accepts direct requests without source configuration (source hints: %s)", async (withHints) => {
+	const res = await invokeHandler(
+		makeStubCtx(),
+		JSON.stringify({ message: "Direct request", ...(withHints ? { source: "github" } : {}) }),
+		withHints ? { "x-webhook-source": "ci" } : {},
+	);
+	expect(res.statusCode).toBe(201);
+	expect(JSON.parse(res.body!).sessionId).toBeTruthy();
+	expect(JSON.parse(res.body!).source).toBeUndefined();
 });
