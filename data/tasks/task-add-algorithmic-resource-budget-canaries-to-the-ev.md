@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 depends_on: [task-enable-runtime-mediated-contained-evaluation, task-complete-contained-evaluation-host-setup]
 ---
@@ -19,11 +19,12 @@ This contract supersedes historical blocking and operational-capture requirement
 
 ## Implementation Prerequisite
 
-The native worker cannot call the host Docker socket. Host Docker is available;
-this is the shared contained-evaluation implementation dependency above, not an
-owner-capture block. Once that capability integrates, resume setup and evaluation
-through its scoped tool. Do not require a separate readiness artifact to admit
-the task, or treat the dependency's completion as a successful benchmark.
+Both implementation dependencies are archived as done. Their scoped native tool
+and deployment recipe are available; the host-setup completion explicitly leaves
+service activation and live measurements to host follow-up and these benchmarks.
+The native worker cannot call the host Docker socket. Use the scoped tool once
+the trusted host activates its grant. Do not require a separate readiness artifact
+to admit the task, or treat dependency completion as a successful benchmark.
 The fixture/scorer already has focused local coverage; the live nested-agent
 result remains to be obtained and inspected by this task.
 
@@ -251,10 +252,11 @@ Production fixture loading succeeds. Docker 29.3.1 and host Codex login are read
 
 ## Host setup dependency
 
-The 17:25 UTC attempt found the same missing grant as the scientific-claim and
-model comparisons. This task remains open behind the shared
-`task-complete-contained-evaluation-host-setup` dependency. Do not spend another
-builder rediscovering the absent profile or ask for a human-captured artifact.
+The historical 17:25 UTC attempt found the same missing grant as the scientific-claim
+and model comparisons. The shared `task-complete-contained-evaluation-host-setup`
+implementation has since completed; its completion does not establish host
+activation. Do not repeat inspection without changed host-grant evidence or ask
+for a human-captured artifact.
 The implemented fixture and its calibration remain available; the actual live
 result is still outstanding and belongs here after host activation.
 
@@ -294,3 +296,43 @@ no live nested agent ran and no live resource-budget metric is claimed. Only
 this task's blocked disposition changed; the fixture and execution owners remain
 unchanged. The prior yield-only assessment is superseded by this observed
 execution prerequisite.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/
+description: Trusted-host activation of a scope-bound algorithmic canary evaluation profile, observable through native contained inspection; equivalent attributable host readiness permits resuming without manual captures.
+```
+
+The path is an evidence-discovery hint in the existing task vocabulary, not a
+required capture destination. A native inspection returning the authorized
+fixture profile is sufficient to resume execution.
+
+The trusted host must activate a scope-bound contained-evaluation profile that
+authorizes `builder-algorithmic-resource-budget-canary`, its current-source image
+and image-local executable, restricted provider egress, and one live repeat.
+In resumed builder `2026-09-12T19-11-42-673Z-builder-f4378r`, the production
+`pnpm kota eval contained '{"operation":"inspect"}'` invocation returned
+`is_error: true`: `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment.`
+Tool use `tool-ebf449deb25668f74fad66969fd21243` identifies the current response,
+retained verbatim as `contained-inspect-response.json` in this run's agent directory.
+This is observed missing execution authority, not a conclusion about host Docker,
+credentials, image availability or proxy readiness from sandbox restrictions.
+
+Resume this task after the host lifecycle owner installs/activates the reviewed
+grant using the existing service/setup owners and it is visible to a native
+invocation. Then inspect the grant, resolve any permitted image/egress setup,
+run one live repeat and inspect actual nested-builder provenance, predicates,
+generated canaries and objective metrics. No human capture or manual benchmark
+execution is required. This builder cannot configure host grants through the
+request schema or restart its parent daemon.
+
+Only this task's disposition and stale prerequisite wording changed. The existing
+fixture, scorer and execution owners are intact. Current `pnpm kota eval list`
+passes and loads the fixture; the focused owner scorer test passes (one passed,
+six unrelated cases skipped), exercising known shortcut rejection in a disposable
+tree. These establish fixture loading and scorer rejection, not model quality.
+Logs are `eval-list.log` and `scorer-test.log` in this run's agent directory.
+No live nested agent ran, and no live resource-budget result, aggregate metric,
+containment pass or completed benchmark is claimed.
