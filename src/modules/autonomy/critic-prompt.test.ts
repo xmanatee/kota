@@ -1,5 +1,3 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck } from "./critic.js";
 import {
@@ -56,39 +54,4 @@ describe("critic prompt context", () => {
     expect(options.canUseTool).toEqual(expect.any(Function));
   });
 
-  it("passes Product tasks with a rendered transcript artifact through to the critic", async () => {
-    const dir = makeTmpDir();
-    writeOpenTask(
-      dir,
-      "task-product-transcript.md",
-      [
-        "---",
-        "status: open",
-        "priority: p1",
-        "---",
-        "",
-        "# Ship product surface",
-        "",
-        "## Done When",
-        "",
-        "- Transcript shows the operator path.",
-      ].join("\n"),
-    );
-    const runDir = makeRunDir(dir);
-    writeFileSync(join(runDir, "transcript.txt"), "kota report\nProduct: 1\n");
-    setApiResponse({
-      verdict: "pass",
-      critical_issues: [],
-      warnings: [],
-      summary: "Transcript proves the journey.",
-    });
-
-    const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-
-    expect(result).toMatch(/pass/);
-
-    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
-    expect(userMessage).toContain("run:transcript.txt");
-  });
 });

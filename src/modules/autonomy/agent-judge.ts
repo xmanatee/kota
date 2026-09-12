@@ -33,6 +33,7 @@ export type AgentJudgeConfig = {
    */
   harness: string;
   agentWriteScope?: WorkflowAgentRunContractSpec["agentWriteScope"];
+  evidence?: NonNullable<Parameters<WorkflowAgentHarnessRunner>[2]>["evidence"];
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -191,6 +192,7 @@ async function invokeJudge<T>(
         {
           signal,
           workspaceKey: cwd,
+          evidence: config.evidence ?? {},
           writer: { write: () => true },
         },
       );

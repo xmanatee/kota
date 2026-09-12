@@ -123,6 +123,15 @@ function runGit(cwd: string, args: readonly string[]): { ok: boolean; output: st
 }
 
 function stageChanges(cwd: string): void {
+  const runtimePackets = execFileSync("git", ["ls-files", "-z", "--modified", "--others", "--exclude-standard", "--", ".kota/runs/"],
+    { cwd, env: gitEnvironment, maxBuffer: 10 * 1024 * 1024 }).toString("utf8").split("\0").filter(Boolean);
+  // Verified historical retirements may delete tracked proof. New or changed
+  // packets must go through runtime retention, even in scopes with an allowlist.
+  const deletedPackets = new Set(execFileSync("git", ["ls-files", "-z", "--deleted", "--", ".kota/runs/"], { cwd, env: gitEnvironment }).toString("utf8").split("\0"));
+  if (runtimePackets.some(path => !deletedPackets.has(path))) {
+    throw new Error("Runtime evidence cannot be published as repository content; write proof under KOTA_RUN_DIR or KOTA_RUN_ARTIFACT_DIR");
+  }
+
   // Resolve exclusions before add: Git rejects explicitly ignored pathspecs even
   // when they are exclusions. NUL-delimited literal paths also preserve filenames.
   const paths = execFileSync("git", [
@@ -262,7 +271,7 @@ export class RunLifecycle {
         const reconciled = manager.reconcile(run.id, run.repository);
         if (reconciled.status === "active") {
           sandbox = reconciled.sandbox;
-          const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
+          const cleanup = await this.cleanupSandbox(manager, sandbox, run.id);
           if (cleanup) return cleanup;
         } else {
           this.options.store.clearSandbox(run.id, this.options.daemonEpoch);
@@ -348,7 +357,7 @@ export class RunLifecycle {
       signal.throwIfAborted();
       if (outcome.kind !== "completed") {
         if (outcome.kind === "terminal") {
-          const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
+          const cleanup = await this.cleanupSandbox(manager, sandbox, run.id);
           if (cleanup) {
             const cause = outcome.error ?? `workflow finished with state ${outcome.state}`;
             const evidence = Array.isArray(cleanup.wait?.evidence)
@@ -372,7 +381,7 @@ export class RunLifecycle {
           this.now(),
         );
         return (
-          this.cleanupSandbox(manager, sandbox, run.id) ??
+          await this.cleanupSandbox(manager, sandbox, run.id) ??
           { kind: "terminal", state: "succeeded" }
         );
       }
@@ -398,7 +407,7 @@ export class RunLifecycle {
         ]);
       }
       if (sandbox) {
-        const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
+        const cleanup = await this.cleanupSandbox(manager, sandbox, run.id);
         if (cleanup) {
           const cause = errorMessage(error);
           const evidence = Array.isArray(cleanup.wait?.evidence)
@@ -651,11 +660,11 @@ export class RunLifecycle {
     };
   }
 
-  private cleanupMerged(
+  private async cleanupMerged(
     context: RunContext,
     manager: RunSandboxManager,
     sandbox: Extract<RunSandbox, { repository: "write" }>,
-  ): RunExecutionOutcome {
+  ): Promise<RunExecutionOutcome> {
     const run = this.options.store.getRun(context.run.id);
     const journal = readJournal(run?.integration);
     if (!run || !journal) {
@@ -667,7 +676,7 @@ export class RunLifecycle {
       journal,
     );
     if (evidence) return evidence;
-    const cleanup = manager.cleanup(sandbox);
+    const cleanup = await manager.cleanupAsync(sandbox, { signal: context.signal, onProcessSpawn: context.processes.register });
     if (!cleanup.cleaned) {
       return this.attention("integrated-sandbox-cleanup-blocked", cleanup.blockers);
     }
@@ -675,12 +684,12 @@ export class RunLifecycle {
     return { kind: "terminal", state: "succeeded" };
   }
 
-  private cleanupSandbox(
+  private async cleanupSandbox(
     manager: RunSandboxManager,
     sandbox: RunSandbox,
     runId: string,
-  ): Extract<RunExecutionOutcome, { kind: "suspended" }> | null {
-    const cleanup = manager.cleanup(sandbox);
+  ): Promise<Extract<RunExecutionOutcome, { kind: "suspended" }> | null> {
+    const cleanup = await manager.cleanupAsync(sandbox);
     if (!cleanup.cleaned) return this.attention("sandbox-cleanup-blocked", cleanup.blockers);
     this.options.store.clearSandbox(runId, this.options.daemonEpoch);
     return null;

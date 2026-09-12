@@ -52,7 +52,7 @@ function readTextFile(request, parentIdentity) {
       if (!Number.isSafeInteger(request.maxBytes) || request.maxBytes < 0 || opened.snapshot.size > request.maxBytes) {
         refuse("file exceeds read limit");
       }
-      const bytes = Buffer.alloc(request.maxBytes + 1);
+      const bytes = Buffer.alloc(Math.min(request.maxBytes, opened.snapshot.size) + 1);
       let length = 0;
       while (length < bytes.length) {
         const count = readSync(opened.fd, bytes, length, bytes.length - length, length);
@@ -60,7 +60,7 @@ function readTextFile(request, parentIdentity) {
         length += count;
       }
       if (length > request.maxBytes) refuse("file exceeds read limit");
-      content = decodeText(bytes.subarray(0, length));
+      content = request.encoding === "base64" ? bytes.subarray(0, length).toString("base64") : decodeText(bytes.subarray(0, length));
     } else {
       content = decodeText(readFileSync(opened.fd));
     }
@@ -218,7 +218,7 @@ function writeTextFile(request, parentIdentity, directoryFd) {
     }
     temporaryIdentity = identity(temporaryStats);
     if (initialMode !== undefined) fchmodSync(temporaryFd, initialMode);
-    writeFileSync(temporaryFd, request.content, "utf8");
+    writeFileSync(temporaryFd, request.content, request.encoding === "base64" ? "base64" : "utf8");
     fsyncSync(temporaryFd);
 
     inspectAnchoredParent(request, parentIdentity);

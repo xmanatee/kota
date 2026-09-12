@@ -249,6 +249,7 @@ export const geminiCliAgentHarness: AgentHarness = {
       approvalMode: geminiApprovalMode(scope.executionMode),
       writableRoots: scope.writableRoots,
       runtimeWritableRoots,
+      readOnlyHostRoots: options.readOnlyHostRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

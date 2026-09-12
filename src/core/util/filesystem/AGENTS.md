@@ -1,6 +1,6 @@
 # Anchored Filesystem I/O
 
-This boundary owns shared root-scoped UTF-8 file access, snapshot checks, and
+This boundary owns shared root-scoped UTF-8 and bounded exact-byte file access, snapshot checks, and
 physical mutation rollback. Callers own authorization, allowed directories,
 filename selection, content formats, and domain transitions.
 

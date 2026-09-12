@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -940,4 +940,48 @@ describe("RunLifecycle", () => {
     expect(adoptedWorkspace).toBe(firstWorkspace);
     expect(existsSync(firstWorkspace)).toBe(true);
   });
+});
+
+
+test("publication rejects a copied runtime packet even when a scope still allows it in Git", async () => {
+  const value = fixture("copied-evidence", "write");
+  const base = git(value.root, "rev-parse", "HEAD");
+  let retained = "";
+  const outcome = await lifecycle(value, async context => {
+    retained = context.sandbox.workspaceDir;
+    write(retained, ".gitignore", ".kota/*\n!.kota/runs/\n");
+    write(retained, ".kota/runs/copied/evidence/transcript.txt", "copied proof\n");
+    write(context.resources.agentDir, "transcript.txt", "original proof\n");
+    return { kind: "completed", commitMessage: "must not publish packet" };
+  }).execute(value.run, new AbortController().signal);
+  expect(outcome).toMatchObject({ kind: "suspended", state: "needs_attention" });
+  expect(JSON.stringify(outcome)).toContain("Runtime evidence cannot be published");
+  expect(git(value.root, "rev-parse", "HEAD")).toBe(base);
+  expect(readFileSync(join(retained, ".kota/runs/copied/evidence/transcript.txt"), "utf8")).toBe("copied proof\n");
+});
+
+
+test("export failure cannot complete a run and restart finishes retention without repeating execution", async () => {
+  const value = fixture("export-restart", "none");
+  let artifact = "";
+  let invalid = "";
+  const failed = await lifecycle(value, async context => {
+    artifact = join(context.sandbox.artifactDir, "proof.txt");
+    invalid = join(context.sandbox.artifactDir, "linked-proof");
+    writeFileSync(artifact, "completed execution proof");
+    symlinkSync(artifact, invalid);
+    return { kind: "completed" };
+  }).execute(value.run, new AbortController().signal);
+  expect(failed).toMatchObject({ kind: "suspended", state: "needs_attention" });
+  expect(readFileSync(artifact, "utf8")).toBe("completed execution proof");
+  expect(value.store.getRun(value.run.id)?.executionCompletedAt).toBeDefined();
+  rmSync(invalid);
+  const stateDir = dirname(value.store.path);
+  value.store.close();
+  value.store = RunStateDatabase.openExisting(stateDir);
+  const resumed = await lifecycle(value, async () => { throw new Error("Must not repeat completed execution"); })
+    .execute(value.store.getRun(value.run.id)!, new AbortController().signal);
+  expect(resumed).toEqual({ kind: "terminal", state: "succeeded" });
+  expect(existsSync(artifact)).toBe(false);
+  expect(readFileSync(join(value.root, ".kota/runs", value.run.id, "evidence-references.md"), "utf8")).toContain("originalSha256");
 });

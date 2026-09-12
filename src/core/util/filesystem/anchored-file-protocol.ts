@@ -44,9 +44,9 @@ export type HelperRequest = PreparedDirectory &
   (
     | { operation: "list"; nameSuffix: string | null }
     | { operation: "list-entries" }
-    | { operation: "read"; fileName: string; maxBytes?: number; lines?: TextLineSelection }
+    | { operation: "read"; fileName: string; encoding?: "base64"; maxBytes?: number; lines?: TextLineSelection }
     | { operation: "append"; fileName: string; content: string }
-    | ({ operation: "write"; fileName: string; content: string } & MutationExpectation)
+    | ({ operation: "write"; fileName: string; content: string; encoding?: "base64" } & MutationExpectation)
     | { operation: "remove"; fileName: string; expectedSnapshot: FileSnapshot }
   );
 

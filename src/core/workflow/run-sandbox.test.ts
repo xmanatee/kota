@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
+import { resolveRunArtifactHandoff } from "./run-artifact-handoff.js";
 import {
   type RunSandbox,
   RunSandboxManager,
@@ -227,4 +228,30 @@ describe("RunSandboxManager", () => {
     expect(() => manager.cleanup(sandbox as RunSandbox)).toThrow(/outside run-owned root/);
     expect(readFileSync(join(externalRoot, "keep.txt"), "utf8")).toBe("preserve\n");
   });
+});
+
+
+test("retention failure preserves the sandbox and a restarted cleanup verifies exact originals", () => {
+  const root = createRepository();
+  const manager = new RunSandboxManager(root);
+  const sandbox = manager.create({ runId: "retain-proof", repository: "none" });
+  const source = join(sandbox.artifactDir, "packet.bin");
+  const bytes = Buffer.from([0, 255, 17, 42]);
+  writeFileSync(source, bytes);
+  const linked = join(sandbox.artifactDir, "unsafe-link");
+  symlinkSync(source, linked);
+  const failed = manager.cleanup(sandbox);
+  expect(failed.cleaned).toBe(false);
+  expect(failed.blockers.join(" ")).toContain("retention failed");
+  expect(readFileSync(source)).toEqual(bytes);
+  expect(existsSync(sandbox.rootDir)).toBe(true);
+  rmSync(linked);
+  expect(new RunSandboxManager(root).cleanup(sandbox)).toEqual({ cleaned: true, blockers: [] });
+  const receipt = readFileSync(join(root, ".kota/runs/retain-proof/evidence-references.md"), "utf8");
+  const manifestSha256 = receipt.match(/SHA-256: ([a-f0-9]{64})/)![1]!;
+  const handoff = resolveRunArtifactHandoff(root, { runId: "retain-proof", manifestSha256 });
+  const asset = handoff.manifest.entries.find(entry => entry.source.endsWith("packet.bin"));
+  if (asset?.status !== "retained") throw new Error("Missing retained packet");
+  expect(readFileSync(join(root, asset.originalRef))).toEqual(bytes);
+  expect(existsSync(sandbox.rootDir)).toBe(false);
 });

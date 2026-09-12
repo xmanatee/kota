@@ -46,6 +46,14 @@ and publication.
   deferred or unadmitted work does not become a hard completion dependency.
 - Nested critic, semantic-gate, and continuation judges are filesystem
   read-only; they inspect unpublished work without becoming mutation owners.
+  The step context snapshots runtime-selected artifact roots into the existing
+  run store and grants individual verified projections. Linked snapshots require
+  explicit selection and a same-scope run observation. Originals keep exact
+  hashes; redacted or unavailable projections never stand in for original bytes.
+  Cleanup verifies retention first and preserves the sandbox on export failure.
+  Repository publication rejects new or changed run packets; artifacts belong
+  under the runtime-provided agent and artifact directories. Historical copies
+  may be retired only after their retained replacement has been verified.
 - Decomposition terminally classifies the writer through its failed-run
   consumer. The domain module reviews and changes work; core never creates
   child tasks from free-form text.

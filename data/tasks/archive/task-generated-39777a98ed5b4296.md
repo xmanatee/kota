@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make runtime evidence reviewable without publishing copied packets to Git
 
@@ -79,3 +78,23 @@ Exercise the real builder-to-critic composition with a controlled harness that a
 Show an attributable builder review and publication where evidence remains readable before and after cleanup while the Git changeset contains only intended repository content. Trace maintained callers through the shared handoff and show the replaced critic path convention and manual packet-copy requirement are retired. Compare the resulting ownership and consumer paths, rather than claiming benefit from file counts alone. Report exactly which historical copies were retired, their verified replacement references and which were intentionally preserved. Replace redundant prompt-only evidence-access assertions with the owning behavioral proof while retaining distinct export-security and lifecycle checks. Do not merge unrelated code/test reduction work into this task.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+
+## Completion
+
+Implemented in builder run `2026-09-12T20-51-14-195Z-builder-pt4wn0`. Core workflow retention now stores exact originals and separately hashed, bounded, redacted review projections in the existing run store. Current-run and explicitly cited same-scope snapshots reach read-only judges through step context; linked runs are authorized independently of task text. Integrity failures and unavailable projections remain visible. Cleanup retains proof first and preserves failed exports for recovery; normal cleanup runs through the shared worker boundary. Publication rejects new or changed runtime packets, while maintained fixture exceptions remain.
+
+Migrated `builderRepairChecks` → `createCriticCheck` → shared `invokeAgentJudge` → step context. Gemini and Antigravity native adapters now propagate the explicit file grants; Codex already did. Removed critic compatibility path remapping, glob discovery and redundant prompt-only access tests. Existing diagnostic exporters retain their domain selectors and redaction policy. Workflow-ops inspection exposes retained references. This replaces the maintained manual-copy transport with one runtime-owned handoff.
+
+Proof is recorded in this run's `verification-summary.md` and cited logs. `pnpm check:fast` passed. The real builder review with a controlled process harness read unpublished transcript, response, packet input and earlier same-scope evidence, then published only intended repository content and resolved the reviewed references after cleanup. The native counterpart could not bootstrap: nested `sandbox-exec` returned `sandbox_apply: Operation not permitted`; native denial enforcement is therefore unverified here. Final lifecycle/sandbox checks passed 35 tests; owner/filesystem, security and broader runtime regression suites passed 49, 48 and 124 respectively (overlapping counts). They distinguish integrity/redaction/link attacks, unavailable and bounded projections, export failure, restart, retry, publication and inspection regressions. An earlier broad owner run retained one environmental failure in the existing process-registration test (`/bin/ps EPERM`). Production TypeScript emission and runtime asset generation completed with exit 0; a full `pnpm build` rerun could not remove some generated `dist` directories. No live model or deployed-daemon result is claimed.
+
+Historical inventory at `03d3a10f4c640824240269d631c27b989ea3b0f0` confirmed 1,697 tracked `.kota` files totaling 12,236,833 bytes. The real importer byte-verified 69 xqizqf packet assets, including all 51 input hashes, response hash and 5,539,584-byte archive hash. Its isolated-worktree reference is `.kota/runs/2026-09-12T14-17-30-067Z-builder-xqizqf/evidence/manifests/6b5be1d32e2882770b42331193d76e84b1d801f6e7aca0ed22ff9afe77b6368b.json`; `historical-evidence-verification.json` records the full inventory and provenance. Tool use remains `tool-5ddb748d77321d5038316453cb7ec867`, with zero benchmark runs.
+
+Historical copies retired: **zero**. All 72 tracked packet files remain intact because canonical durable replacement and original-runtime equivalence were not established. The isolated import is not a deletion authorization. The benchmark task and other retained writers remain unchanged. Reduced copying and repair effort are expected consequences, not measured improvements. Runtime-owned integration and subsequent deployment observation follow this builder step.
+
+
+## Critic repair
+
+The critic reproduced filename-classified private reasoning leaking through JSON projections. The owning handoff now preserves source classification around JSON, JSONL and text before applying the shared evidence policy. JSON parser failures use a content-free diagnostic so malformed private source cannot leak through error messages. Exact original retention is unchanged.
+
+The added regression reproduced two failures before the fix (JSON and JSONL; text passed). After repair, all eight handoff tests and the real process builder review/publication journey passed: nine passed, one native bootstrap skip. The regression checks private content absence across every delivered file, public outcome availability, malformed structured input unavailability and exact private original retention without a read grant. `pnpm check:fast` passed again, as did production TypeScript emission and runtime asset generation (`evidence-repair-build.log`). Logs: `evidence-repair-before.log`, `evidence-repair-tests.log`, `evidence-repair-static.log`. Native enforcement remains unverified in this sandbox; no historical copies were removed.

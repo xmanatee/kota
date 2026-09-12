@@ -12,6 +12,9 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
+import { defineWorkflowBlockingOperation, runWorkflowBlockingOperation, type WorkflowBlockingOperationRunOptions } from "./blocking-operation.js";
+import { requireRetainedRunArtifacts } from "./run-artifact-handoff.js";
+
 export type RepositoryAccess = "none" | "read" | "write";
 
 type RunSandboxBase = {
@@ -362,6 +365,7 @@ export class RunSandboxManager {
       ) {
         throw new Error(`Cannot reconcile run "${runId}": writer branch is not integrated`);
       }
+      if (completeRuntime) this.retainArtifacts(runId, { ...paths, baseCommit: branchHead });
       git(this.repoRoot, ["branch", "-d", branch]);
       if (completeRuntime) rmSync(paths.rootDir, { recursive: true });
       return { status: "removed" };
@@ -404,9 +408,16 @@ export class RunSandboxManager {
     return true;
   }
 
+  async cleanupAsync(sandbox: RunSandbox, options?: WorkflowBlockingOperationRunOptions): Promise<RunSandboxCleanup> {
+    this.assertOwnedPaths(sandbox);
+    return runWorkflowBlockingOperation(cleanupRunSandboxOperation, { repoRoot: this.repoRoot, sandbox }, options);
+  }
+
   cleanup(sandbox: RunSandbox): RunSandboxCleanup {
     this.assertOwnedPaths(sandbox);
     if (sandbox.repository === "none") {
+      try { this.retainArtifacts(sandbox.runId, sandbox); }
+      catch (error) { return { cleaned: false, blockers: [error instanceof Error ? error.message : "evidence-retention-failed"] }; }
       rmSync(sandbox.rootDir, { recursive: true });
       return { cleaned: true, blockers: [] };
     }
@@ -450,6 +461,9 @@ export class RunSandboxManager {
       }
     }
 
+    try { this.retainArtifacts(sandbox.runId, sandbox); }
+    catch (error) { return { cleaned: false, blockers: [error instanceof Error ? error.message : "evidence-retention-failed"] }; }
+
     // Git performs a final dirtiness and ownership check while removing the worktree.
     git(this.repoRoot, ["worktree", "remove", sandbox.workspaceDir]);
     if (sandbox.repository === "write") {
@@ -457,6 +471,13 @@ export class RunSandboxManager {
     }
     rmSync(sandbox.rootDir, { recursive: true });
     return { cleaned: true, blockers: [] };
+  }
+
+  private retainArtifacts(runId: string, paths: SandboxPaths & { baseCommit?: string }): void {
+    requireRetainedRunArtifacts({ scopeRoot: this.repoRoot, runId, sourceRevision: paths.baseCommit, roots: [
+      { name: "agent", path: join(paths.rootDir, "agent") },
+      { name: "artifacts", path: paths.artifactDir },
+    ] });
   }
 
   private requireScopeRepository(): string {
@@ -599,4 +620,10 @@ export class RunSandboxManager {
     );
     assertExactPath(sandbox.workspaceDir, expected.workspaceDir, "Run workspace");
   }
+}
+
+
+const cleanupRunSandboxOperation = defineWorkflowBlockingOperation<{ repoRoot: string; sandbox: RunSandbox }, RunSandboxCleanup>(import.meta.url, "cleanupRunSandboxInWorker");
+export function cleanupRunSandboxInWorker(input: { repoRoot: string; sandbox: RunSandbox }): RunSandboxCleanup {
+  return new RunSandboxManager(input.repoRoot).cleanup(input.sandbox);
 }

@@ -19,6 +19,7 @@ import type {
   WorkflowContinuationPacket,
   WorkflowContinuationRecord,
 } from "./continuation.js";
+import type { LinkedRunArtifact } from "./run-artifact-handoff.js";
 import type { RunEvidenceReader, RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
@@ -239,6 +240,8 @@ export type WorkflowAgentHarnessRunner = (
     signal?: AbortSignal;
     workspaceKey?: string;
     writer?: AgentHarnessWriter;
+    /** Runtime handoff for a read-only reviewer; linked runs require scope authorization. */
+    evidence?: { linked?: readonly LinkedRunArtifact[] };
   },
 ) => Promise<AgentHarnessResult>;
 

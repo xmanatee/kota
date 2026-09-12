@@ -67,6 +67,7 @@ type CollectTextFromGeminiCliArgs = {
   approvalMode: GeminiCliApprovalMode;
   writableRoots: readonly string[];
   runtimeWritableRoots?: readonly string[];
+  readOnlyHostRoots?: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
@@ -237,6 +238,7 @@ export async function collectTextFromGeminiCli(
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
+      readOnlyHostRoots: args.readOnlyHostRoots,
       ...(args.runtimeWritableRoots === undefined
         ? {}
         : { runtimeWritableRoots: args.runtimeWritableRoots }),

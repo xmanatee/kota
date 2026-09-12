@@ -12,10 +12,6 @@ import {
   clearCriticOutcomeArtifact,
   handleVerdict,
 } from "./critic-verdict.js";
-import {
-  collectOperatorEvidenceRefs,
-  resolveDurableOperatorEvidenceDir,
-} from "./product-evidence.js";
 import { criticReviewInspectionOperation } from "./review-input-operations.js";
 import { formatProbeBlock } from "./task-probe.js";
 import {
@@ -135,9 +131,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
       clearCriticOutcomeArtifact(runDir);
-      const durableEvidenceDir = options?.runDirPath !== undefined
-        ? runDir
-        : resolveDurableOperatorEvidenceDir(reviewDir, runDir);
       const inspectionInput = options?.resolveTaskReviewContract === undefined
         ? {
             reviewDir,
@@ -165,6 +158,11 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         changedFiles,
       } = inspection;
       const taskContent = target.content;
+      // A task citation selects a pinned snapshot; core independently checks the
+      // run belongs to this scope before delivering any host read grant.
+      resolvedConfig.evidence = { linked: [...taskContent.matchAll(
+        /\.kota\/runs\/([A-Za-z0-9][A-Za-z0-9._-]*)\/evidence\/manifests\/([a-f0-9]{64})\.json/g,
+      )].map(match => ({ runId: match[1]!, manifestSha256: match[2]! })) };
       const probeResult = await runProbeIfDeclared(
         taskContent,
         target.path,
@@ -175,12 +173,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
           ? reviewDir
           : undefined,
       );
-      const operatorEvidenceRefs = collectOperatorEvidenceRefs({
-        evidenceDirPath: durableEvidenceDir,
-        changedFiles,
-        hasRuntimeProbeResult: probeResult !== null,
-      });
-
       const builderSummary = ctx.stepResults.build?.output;
       const builderSummaryText =
         typeof builderSummary === "object" && builderSummary !== null &&
@@ -205,19 +197,10 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         "",
         "## Review context",
         `Workspace root: ${reviewDir}`,
-        `Run directory: ${runDir}`,
+        "Runtime supplies selected evidence through the read-only handoff below.",
         "Start from the task, final task state, changed files, and diff below.",
-        "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.json (structured step outputs), steps/*.input.md, steps/*.tool-telemetry.json, and related repo files.",
+        "Inspect the handoff projections and their provenance, integrity and unavailable states. Related maintained files remain in the review workspace.",
         "Do not require a specific evidence artifact. Use judgment, but do not accept claims that are unsupported by the task, diff, repo state, or run trace.",
-        operatorEvidenceRefs.length > 0
-          ? `Available operator evidence refs: ${operatorEvidenceRefs.join(", ")}`
-          : "Available operator evidence refs: none found. Decide whether the actual outcome needs operator-visible proof; do not infer that from metadata or keywords.",
-        "",
-        "## Useful run artifact globs",
-        `${runDir}/metadata.json`,
-        `${runDir}/steps/*.json`,
-        `${runDir}/steps/*.input.md`,
-        `${runDir}/steps/*.tool-telemetry.json`,
         ...(probeResult ? ["", formatProbeBlock(probeResult)] : []),
         "",
         "## Diff summary",

@@ -97,6 +97,11 @@ function execute(request) {
     refuse("anchored file append request is invalid");
   }
 
+  if (request.encoding !== undefined && (request.encoding !== "base64" ||
+    !["read", "write"].includes(request.operation) ||
+    (request.operation === "read" && (!Number.isSafeInteger(request.maxBytes) || request.maxBytes < 0 || request.maxBytes > 33554432 || request.lines !== undefined)))) {
+    refuse("invalid binary file request");
+  }
   const parentIdentity = enterParent(request);
   if (parentIdentity === undefined) {
     return (

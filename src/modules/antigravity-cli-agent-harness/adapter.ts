@@ -255,6 +255,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
         readOnly: scope.executionMode === "plan",
         writableRoots: scope.writableRoots,
         runtimeWritableRoots,
+      readOnlyHostRoots: options.readOnlyHostRoots,
         authorityConfigPath: options.authorityConfigPath,
         env: options.env,
         abortController: options.abortController,

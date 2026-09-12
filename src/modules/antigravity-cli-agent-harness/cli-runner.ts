@@ -86,6 +86,7 @@ type CollectTextFromAntigravityCliArgs = {
   readOnly: boolean;
   writableRoots: readonly string[];
   runtimeWritableRoots?: readonly string[];
+  readOnlyHostRoots?: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController?: AbortController;
@@ -300,7 +301,7 @@ export async function collectTextFromAntigravityCli(
         overrides: args.env,
         keychainPath,
       }),
-      readOnlyHostRoots: keychainPath === undefined ? [] : [keychainPath],
+      readOnlyHostRoots: [...(args.readOnlyHostRoots ?? []), ...(keychainPath === undefined ? [] : [keychainPath])],
       allowedEgressHosts: ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
       prepareEnvironment: prepareAntigravityCliRuntimeEnvironment,
     },

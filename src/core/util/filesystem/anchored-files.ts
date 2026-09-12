@@ -255,3 +255,16 @@ export function listAnchoredDirectory(args: {
   if (response.directoryEntries === undefined) throw unsafeFilesystemPath(args.directoryPath, "helper omitted directory entries");
   return response.directoryEntries;
 }
+
+/** Exact bytes for retained assets; the same no-follow and single-link boundary as text. */
+export function readAnchoredBytes(args: FileAccess & { maxBytes: number }): Buffer | null {
+  const response = runHelper({ operation: "read", ...prepareFile(args, false), encoding: "base64", maxBytes: args.maxBytes }, args.filePath);
+  if (response.snapshot === undefined) throw unsafeFilesystemPath(args.filePath, "helper omitted snapshot");
+  return response.snapshot.exists ? Buffer.from(response.snapshot.content, "base64") : null;
+}
+
+export function writeAnchoredBytes(args: FileAccess & { content: Uint8Array } & MutationExpectation): void {
+  runHelper({ operation: "write", ...prepareFile(args, true), encoding: "base64", content: Buffer.from(args.content).toString("base64"),
+    ...(args.expectation === "existing" ? { expectation: args.expectation, expectedSnapshot: args.expectedSnapshot } : { expectation: args.expectation }),
+  }, args.filePath);
+}
