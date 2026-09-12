@@ -315,7 +315,7 @@ describe("blocked-promoter workflow", () => {
           "kind: owner-decision",
           "slot: pick-variant",
           "question: Which variant should we pick?",
-          "context: Variants A, B, hybrid sketched in body.",
+          "context: Recommended: variant-a. Rationale: x.",
           "proposed_answers: variant-a, variant-b, hybrid, unblock",
           "```",
         ].join("\n"),
@@ -323,10 +323,13 @@ describe("blocked-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const { requestRun, resolutionRun: result } =
+    const { requestRun, resolutionRun: result, questions } =
       await runOwnerDecisionCycle({ workspaceRoot, answer: "unblock" });
 
     expect(requestRun.status).toBe("success");
+    expect(questions).toHaveLength(1);
+    expect(questions[0].proposedAnswers?.[0]).toBe("variant-a");
+    expect(questions[0].context).toContain("Recommended option: variant-a");
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     const followups = (
       result.steps["promote-after-approval"].output as {
@@ -521,33 +524,6 @@ describe("blocked-promoter workflow", () => {
     };
     expect(artifact.actions[0].kind).toBe("operator-capture-recent");
     expect(artifact.operatorCaptureInstructionsEmitted).toHaveLength(0);
-  });
-
-  it("surfaces the recommended option in the owner-ask question", async () => {
-    const workspaceRoot = makeScopeRoot();
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
-      TASK_TEMPLATE(
-        "task-pick-variant",
-        [
-          "## Blocked on",
-          "",
-          "```",
-          "kind: owner-decision",
-          "slot: pick-variant",
-          "question: Which variant?",
-          "context: Recommended: variant-a. Rationale: x.",
-          "proposed_answers: variant-a, variant-b, hybrid, unblock",
-          "```",
-        ].join("\n"),
-      ),
-    );
-    commitInitial(workspaceRoot);
-
-    const { questions } = await runOwnerDecisionCycle({ workspaceRoot, answer: "variant-a" });
-    expect(questions).toHaveLength(1);
-    expect(questions[0].proposedAnswers?.[0]).toBe("variant-a");
-    expect(questions[0].context).toContain("Recommended option: variant-a");
   });
 
   it("promotes already-resolved owner-decision tasks deterministically", async () => {

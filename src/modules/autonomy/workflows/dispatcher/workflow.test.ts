@@ -408,7 +408,7 @@ describe("dispatcher workflow", () => {
   });
 
 
-  it("does not treat open work with unfinished hard dependencies as actionable", async () => {
+  it("dispatches the enabler first and releases its dependent after completion", async () => {
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-dependent.md"),
       taskFixture("task-dependent", "open", { dependsOn: ["task-enabler"] }),
@@ -431,24 +431,19 @@ describe("dispatcher workflow", () => {
       },
     ]);
     expect(output.builderTaskIds).toEqual(["task-enabler"]);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
-  });
+    expect(result.emitted.filter((e) => e.event === "autonomy.queue.available")).toMatchObject([
+      { payload: { taskId: "task-enabler" } },
+    ]);
 
-  it("treats open work as actionable once hard dependencies are done", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-dependent.md"),
-      taskFixture("task-dependent", "open", { dependsOn: ["task-enabler"] }),
-    );
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "archive", "task-enabler.md"),
-      taskFixture("task-enabler", "done"),
-    );
-    const result = await runDispatcherScenario();
-
-    const output = dispatcherDecision(result) as Record<string, unknown>;
-    expect(output.actionableCount).toBe(1);
-    expect(output.dependencyBlockedTasks).toEqual([]);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
+    moveTaskById(workspaceRoot, "task-enabler", "done");
+    const released = await runDispatcherScenario();
+    expect(released.status, released.error).toBe("success");
+    expect(dispatcherDecision(released)).toMatchObject({
+      actionableCount: 1, dependencyBlockedTasks: [], builderTaskIds: ["task-dependent"],
+    });
+    expect(released.emitted.filter((e) => e.event === "autonomy.queue.available")).toMatchObject([
+      { payload: { taskId: "task-dependent" } },
+    ]);
   });
 
   it("emits autonomy.inbox.available when inbox has items", async () => {
@@ -714,6 +709,10 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
     expect(output.quiescent).toBe(false);
     expect(output.emitted).toContain("autonomy.queue.thin");
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
+    expect(result.emitted.filter((e) => e.event === "autonomy.queue.available")).toMatchObject([
+      { payload: { taskId: "task-foo" } },
+    ]);
   });
 
   it("does not emit autonomy.queue.thin above the capacity reserve", async () => {
@@ -734,19 +733,6 @@ describe("dispatcher workflow", () => {
     const result = await runDispatcherScenario();
 
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
-  });
-
-  it("does not emit autonomy.queue.empty when active work still exists", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-foo.md"),
-      taskFixture("task-foo", "open"),
-    );
-    const result = await runDispatcherScenario();
-
-    const output = dispatcherDecision(result) as Record<string, unknown>;
-    expect(output.actionableCount).toBe(1);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
   });
 
   it("emits both queue.available and inbox.available when both have items", async () => {

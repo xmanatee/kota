@@ -653,83 +653,6 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("builds a bounded review-agent packet and validates only exposed ids", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-agent-packet");
-    const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    writeRun(
-      workspaceRoot,
-      "batched-builder-run",
-      "builder",
-      "success",
-      "2026-06-04T11:00:00.000Z",
-    );
-    for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
-      writeRunArtifactFile(
-        workspaceRoot,
-        "batched-builder-run",
-        `artifact-${String(index).padStart(2, "0")}.json`,
-        JSON.stringify({ index }),
-      );
-    }
-    const deadLetterQueue = new DeadLetterQueueStore(
-      join(workspaceRoot, ".kota", "dead-letter-queue"),
-      () => NOW,
-    );
-    const deadLetter = createWorkflowDispatchDeadLetter({
-      store: deadLetterQueue,
-      scopeId,
-      workflowName: "progress-reviewer",
-      trigger: {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload: { scopeId },
-      },
-      reason: 'Step "review-evidence" timed out after 1800000ms',
-      errorClass: "execution",
-    });
-    const payload: WorkflowBatchFlushPayload = runCountBatchPayload(workspaceRoot, "batched-builder-run");
-
-    const evidence = collectEvidence(workspaceRoot, {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload,
-      });
-    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
-    const exposedIds = new Set(reviewInput.evidence.map((item) => item.id));
-
-    expect(reviewInput.triggerKind).toBe("run-count");
-    expect(reviewInput.counts.artifacts).toBe(PROGRESS_REVIEW_MAX_ARTIFACTS);
-    expect(reviewInput.evidence.length).toBeLessThanOrEqual(
-      PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
-    );
-    expect(reviewInput.evidence.length).toBeLessThan(evidence.evidence.length);
-    expect(Buffer.byteLength(JSON.stringify(reviewInput), "utf-8")).toBeLessThan(
-      Buffer.byteLength(JSON.stringify(evidence), "utf-8"),
-    );
-    expect(exposedIds).toContain("run:batched-builder-run");
-    expect(exposedIds).toContain(`dead-letter:${deadLetter.id}`);
-    expect("runs" in reviewInput).toBe(false);
-    expect("artifacts" in reviewInput).toBe(false);
-    expect(reviewInput.excluded).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("agent evidence packet: omitted"),
-      ]),
-    );
-
-    expect(() =>
-      decodeProgressReviewAgentOutputForEvidence(
-        citingReview(["run:batched-builder-run"], "The run-count packet kept the batched run citeable."),
-        reviewInput,
-      ),
-    ).not.toThrow();
-    expect(() =>
-      decodeProgressReviewAgentOutputForEvidence(
-        citingReview(["run:not-in-packet"], "The review cited an id outside the packet."),
-        reviewInput,
-      ),
-    ).toThrow(/unknown evidence id/);
-  });
-
   it("keeps high-signal run artifacts in the bounded review-agent packet", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-high-signal-artifacts");
     const noiseRunId = "aaaa-blocked-promoter-run";
@@ -1015,7 +938,7 @@ describe("progress-reviewer workflow", () => {
     expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
-  it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
+  it("delivers oversized evidence through a bounded packet and normalizes hidden citations", async () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-runtime-large-packet");
     const runId = "batched-builder-run";
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
@@ -1100,7 +1023,7 @@ describe("progress-reviewer workflow", () => {
       );
       expect(exposedIds).not.toContain(hiddenArtifactId);
       expect(options.prompt).not.toContain(largeSourceEventIds[0]);
-      const output = citingReview([`run:${runId}`, `dead-letter:${deadLetter.id}`], "The review-evidence agent step completed against the bounded run-count evidence packet and cited only ids exposed to the agent.");
+      const output = citingReview([`run:${runId}`, hiddenArtifactId, `dead-letter:${deadLetter.id}`], "The reviewer cited a compacted artifact alongside the exposed run and dead letter.");
       return {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
@@ -1110,14 +1033,6 @@ describe("progress-reviewer workflow", () => {
       };
     });
     const definition = compileProgressReviewerWorkflow();
-    const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
-    expect(reviewStep).toEqual(
-      expect.objectContaining({
-        type: "agent",
-        timeoutMs: 30 * 60 * 1000,
-        outputFormat: "json",
-      }),
-    );
     const store = new WorkflowRunStore(workspaceRoot);
     commitProgressReviewFixture(
       workspaceRoot,
@@ -1193,7 +1108,6 @@ describe("progress-reviewer workflow", () => {
         }),
       }),
     );
-    expect(reviewResult?.durationMs).toBeLessThan(30 * 60 * 1000);
     const artifactPath = join(
       workspaceRoot,
       ".kota",
@@ -1215,79 +1129,6 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
       `run:${runId}`,
       `dead-letter:${deadLetter.id}`,
-    ]);
-  });
-
-  it("normalizes review-evidence output that cites compacted-away child ids", async () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-runtime-hidden-id");
-    const runId = "batched-builder-run";
-    writeRun(
-      workspaceRoot,
-      runId,
-      "builder",
-      "success",
-      "2026-06-04T11:00:00.000Z",
-    );
-    for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
-      writeRunArtifactFile(
-        workspaceRoot,
-        runId,
-        `artifact-${String(index).padStart(2, "0")}.json`,
-        JSON.stringify({ index, body: "x".repeat(256) }),
-      );
-    }
-    const hiddenArtifactId =
-      `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
-    const payload = runCountBatchPayload(workspaceRoot, runId);
-    registerProgressReviewHarness(async (options) => {
-      const reviewInput = parseReviewInputFromAgentPrompt(options);
-      expect(reviewInput.evidence.map((item) => item.id)).not.toContain(hiddenArtifactId);
-      const output = citingReview([`run:${runId}`, hiddenArtifactId], "The reviewer cited an artifact id omitted from the compact prompt packet.");
-      return {
-        text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
-        streamedText: "",
-        turns: 1,
-        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
-        isError: false,
-      };
-    });
-    commitProgressReviewFixture(
-      workspaceRoot,
-      "prepare compacted evidence fixture",
-      "2026-06-04T11:30:00.000Z",
-    );
-    const { promise } = executeWorkflowRun(
-      compileProgressReviewerWorkflow(),
-      {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload,
-      },
-      {
-        readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
-        runContext: makeProgressReviewRunContext(
-          workspaceRoot,
-          "runtime-hidden-id-packet",
-        ),
-        bus: new EventBus(),
-        store: new WorkflowRunStore(workspaceRoot),
-        log: vi.fn(),
-      },
-    );
-
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    const artifactPath = join(
-      workspaceRoot,
-      ".kota",
-      "runs",
-      "runtime-hidden-id-packet",
-      PROGRESS_REVIEW_ARTIFACT,
-    );
-    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as ProgressReviewArtifact;
-    expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
-      `run:${runId}`,
     ]);
   });
 

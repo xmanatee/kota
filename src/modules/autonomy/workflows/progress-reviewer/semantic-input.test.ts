@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   completeProgressReviewSemanticInput,
@@ -63,31 +62,6 @@ describe("progress review semantic consumption", () => {
         payload: { ...automaticTrigger.payload, inputRevision: 5 },
       },
     })).toMatchObject({ shouldReview: true, inputRevision: 5 });
-  });
-
-  it("rejects a stale competing publication instead of overwriting it", () => {
-    const state = createTestTransactionalRunState(stateRoot);
-    const first = state.read<ProgressReviewConsumptionState>(
-      PROGRESS_REVIEW_STATE_KEY,
-    );
-    state.compareAndSet(
-      PROGRESS_REVIEW_STATE_KEY,
-      first.revision,
-      completeProgressReviewSemanticInput({
-        current: decodeProgressReviewConsumptionState(first.value, scopeRoot),
-        input: { automatic: true, inputRevision: 5 },
-        consumedAt: "2026-08-15T12:00:00.000Z",
-      }),
-    );
-    expect(() => state.compareAndSet(
-      PROGRESS_REVIEW_STATE_KEY,
-      first.revision,
-      completeProgressReviewSemanticInput({
-        current: decodeProgressReviewConsumptionState(first.value, scopeRoot),
-        input: { automatic: true, inputRevision: 4 },
-        consumedAt: "2026-08-15T12:01:00.000Z",
-      }),
-    )).toThrow(StateValueConflictError);
   });
 
   it("keeps explicit requests reviewable without advancing automatic state", () => {

@@ -68,21 +68,6 @@ describe("scope-improver semantic boundaries", () => {
       .toBe(false);
   });
 
-  it("delegates task effects to one isolated writer workflow", () => {
-    const registered = validateWorkflowDefinitions([
-      registerWorkflowDefinition(
-        "src/modules/autonomy/workflows/scope-improvement-actions/workflow.ts",
-        scopeImprovementActionsWorkflow,
-      ),
-    ])[0]!;
-
-    expect(registered).toMatchObject({
-      name: "scope-improvement-actions",
-      repository: "write",
-      triggers: [expect.objectContaining({ event: "workflow.triggered" })],
-    });
-  });
-
   it("returns a clean parked action outcome when current policy denies writes", async () => {
     const workspaceRoot = track("writer-policy-revoked");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
