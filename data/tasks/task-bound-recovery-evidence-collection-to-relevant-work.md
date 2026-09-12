@@ -85,6 +85,17 @@ Keep one filesystem-safety boundary and one runtime-owned execution lifecycle.
 
 ## Acceptance
 
+- Evidence-backed investigators must actually receive the selected scoped
+  content, not just paths that their sandbox cannot read. September 11 improver
+  runs `2026-09-11T15-53-01-802Z-improver-o70z6z` and
+  `2026-09-11T16-53-01-112Z-improver-zeg6xk` both returned `observe` because
+  issue summaries were empty and referenced Telegram logs / control-monitor
+  artifacts were absent in the checkout and denied in canonical state. Their
+  `steps/apply-disposition.json` records this explicitly. Reuse the existing
+  scoped export owner for these maintained consumers; do not grant raw host
+  reads, copy all history, or treat an inaccessible reference as sufficient
+  investigation evidence. Prove a scoped incident reaches its investigator with
+  attributable relevant content and that unrelated/secret state remains denied.
 - With a representative large history, a new builder reaches agent preflight
   promptly; adding unrelated historical runs does not multiply expensive leaf
   reads, exports, or subprocess launches for that task. Record measured counts
