@@ -1,10 +1,6 @@
-import type { RetractResult } from "./client.js";
+import type { RetractResult, RetractTarget } from "./client.js";
 
-export type RetractSlashCommand =
-  | "/retract-memory"
-  | "/retract-knowledge"
-  | "/retract-tasks"
-  | "/retract-inbox";
+export type RetractSlashCommand = `/retract-${RetractTarget}`;
 
 export function retractUsageBody(command: RetractSlashCommand): string {
   return `Usage: ${command} <${command === "/retract-knowledge" ? "slug" : command === "/retract-inbox" ? "path" : "id"}>`;

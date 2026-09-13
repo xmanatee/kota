@@ -21,11 +21,13 @@ it("preserves target and identifier when parsing explicit Telegram write command
     getStatusInfo: () => { throw new Error("write commands do not read workflow status"); },
   };
   for (const target of ["memory", "knowledge", "tasks", "inbox"]) {
-    await handleResolvedTelegramStatusCommand({ text: `/capture-to-${target}  body with spaces `, scope, sendPlain, sendMarkdown });
-    expect(capture).toHaveBeenLastCalledWith("body with spaces", { target });
+    await handleResolvedTelegramStatusCommand({ text: `/capture-to-${target}  body with spaces\n  multiline detail `, scope, sendPlain, sendMarkdown });
+    expect(capture).toHaveBeenLastCalledWith("body with spaces\n  multiline detail", { target });
     await handleResolvedTelegramStatusCommand({ text: `/retract-${target}  record-1 `, scope, sendPlain, sendMarkdown });
     expect(retract).toHaveBeenLastCalledWith({ target, identifier: "record-1" });
   }
-  expect(sendPlain).toHaveBeenCalledTimes(8);
+  await handleResolvedTelegramStatusCommand({ text: "/capture unpinned", scope, sendPlain, sendMarkdown });
+  expect(capture).toHaveBeenLastCalledWith("unpinned", undefined);
+  expect(sendPlain).toHaveBeenCalledTimes(9);
   expect(sendMarkdown).not.toHaveBeenCalled();
 });

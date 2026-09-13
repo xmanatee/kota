@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Share capture and retract command policy across Telegram and Slack
@@ -57,3 +56,34 @@ quota and does not claim to close the 100,324-line gap. Preserve useful behavior
 and checks; no reclassification, minification or disabled tests. Judge local
 completion by removed duplication and preserved consumer outcomes; aggregate
 goal achievement remains unestablished.
+
+## Completion
+
+Capture and retract now own shared chat command replies, empty-input rejection
+and typed request construction. Telegram and Slack retain parsing, target
+mapping, scope/admission and delivery. Store transforms and mutation authority
+are unchanged; retract slash-command types derive from the existing target union.
+
+Owner policy and channel checks passed, including multiline content, all four
+targets, untargeted capture, exact identifiers, rejection/failure replies and
+archive wording. The dispatcher integration journey uses real providers, scope
+selection, task mutation, writer publication and task queue validation; controlled
+HTTP, port probes and an in-process validator replace external ports. Its
+transcript confirms selected-scope effects and no writes for unbound/empty input.
+The existing Telegram routing/drain journey also passed.
+
+`pnpm check:fast` passed. The broader owner selection had 70 passes and one
+existing repo-task workflow test unable to allocate ports in this sandbox;
+process supervision also encounters `/bin/ps` EPERM. The new journey supplies
+controlled ports and runs the actual task validator in process, without changing
+production rails. A broader cross-store route test failed in unmodified recall
+setup because its temporary `.kota/runtime` directory was absent; its unknown-scope
+case passed. These are not claimed as passing checks. No live chat or deployment
+exchange was performed. Execution details and dispatcher transcript are retained
+in this builder run's artifacts.
+
+Local physical source-line deltas (including comments/imports and fixture setup
+inside test files): production -69; executable test files +217 (14 owner cases
+and one integration journey added); separate support files 0; exclusions 0;
+scoped guidance +1. No existing tests were disabled or deleted. These local
+figures do not establish the preserved aggregate reduction goal.

@@ -23,13 +23,8 @@ import {
   answerLogCommandReply,
   answerShowCommandReply,
 } from "#modules/answer/commands.js";
-import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
-import type {
-  CaptureClient,
-  CaptureFilter,
-  CaptureTarget,
-} from "#modules/capture/client.js";
-import { renderCaptureReplyPlain } from "#modules/capture/render.js";
+import type { CaptureClient, CaptureTarget } from "#modules/capture/client.js";
+import { captureCommandReply } from "#modules/capture/commands.js";
 import type { HistoryClient } from "#modules/history/client.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
@@ -40,15 +35,8 @@ import type { RecallClient } from "#modules/recall/client.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
-import type {
-  RetractClient,
-  RetractRequest,
-} from "#modules/retract/client.js";
-import {
-  type RetractSlashCommand,
-  renderRetractResultPlain,
-  retractUsageBody,
-} from "#modules/retract/render.js";
+import type { RetractClient, RetractTarget } from "#modules/retract/client.js";
+import { retractCommandReply } from "#modules/retract/commands.js";
 import { callSlackApi, splitText } from "./client.js";
 
 /**
@@ -99,19 +87,12 @@ const CAPTURE_TO_COMMAND: Record<string, CaptureTarget> = {
   "/capture-to-inbox": "inbox",
 };
 
-const RETRACT_COMMANDS: Record<string, RetractSlashCommand> = {
-  "/retract-memory": "/retract-memory",
-  "/retract-knowledge": "/retract-knowledge",
-  "/retract-tasks": "/retract-tasks",
-  "/retract-inbox": "/retract-inbox",
+const RETRACT_COMMANDS: Record<string, RetractTarget> = {
+  "/retract-memory": "memory",
+  "/retract-knowledge": "knowledge",
+  "/retract-tasks": "tasks",
+  "/retract-inbox": "inbox",
 };
-
-function buildRetractRequest(
-  command: RetractSlashCommand,
-  identifier: string,
-): RetractRequest {
-  return { target: command.slice("/retract-".length) as RetractRequest["target"], identifier };
-}
 
 /** Default page size for the per-store semantic-search seams. Matches Telegram. */
 const SEARCH_DEFAULT_LIMIT = 10;
@@ -167,31 +148,6 @@ async function handleRecall(
     return;
   }
   await postReply(token, channelId, renderRecallHitsPlain(result.hits));
-}
-
-async function handleCapture(
-  token: string,
-  channelId: string,
-  body: string,
-  target: CaptureTarget | undefined,
-  capture: CaptureClient,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(
-      token,
-      channelId,
-      renderCaptureReplyPlain({
-        ok: false,
-        reason: "ambiguous",
-        suggestions: CAPTURE_TARGET_ORDER,
-      }),
-    );
-    return;
-  }
-  const filter: CaptureFilter | undefined =
-    target === undefined ? undefined : { target };
-  const result = await capture.capture(body, filter);
-  await postReply(token, channelId, renderCaptureReplyPlain(result));
 }
 
 async function handleMemory(
@@ -314,21 +270,6 @@ async function handleTasks(
   await postReply(token, channelId, renderRepoTaskSearchPlain(result.tasks));
 }
 
-async function handleRetract(
-  token: string,
-  channelId: string,
-  command: RetractSlashCommand,
-  body: string,
-  retract: RetractClient,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, retractUsageBody(command));
-    return;
-  }
-  const result = await retract.retract(buildRetractRequest(command, body));
-  await postReply(token, channelId, renderRetractResultPlain(result));
-}
-
 async function handleAttention(
   token: string,
   channelId: string,
@@ -377,13 +318,7 @@ export async function dispatchSlackSlashCommand(args: {
       await postReply(token, channelId, await answerShowCommandReply(clients.answer, parsed.body));
       return true;
     case "/capture":
-      await handleCapture(
-        token,
-        channelId,
-        parsed.body,
-        undefined,
-        clients.capture,
-      );
+      await postReply(token, channelId, await captureCommandReply(clients.capture, parsed.body));
       return true;
     case "/memory":
       await handleMemory(token, channelId, parsed.body, clients.memory);
@@ -406,24 +341,12 @@ export async function dispatchSlackSlashCommand(args: {
   }
   const captureTarget = CAPTURE_TO_COMMAND[parsed.command];
   if (captureTarget !== undefined) {
-    await handleCapture(
-      token,
-      channelId,
-      parsed.body,
-      captureTarget,
-      clients.capture,
-    );
+    await postReply(token, channelId, await captureCommandReply(clients.capture, parsed.body, captureTarget));
     return true;
   }
-  const retractCommand = RETRACT_COMMANDS[parsed.command];
-  if (retractCommand !== undefined) {
-    await handleRetract(
-      token,
-      channelId,
-      retractCommand,
-      parsed.body,
-      clients.retract,
-    );
+  const retractTarget = RETRACT_COMMANDS[parsed.command];
+  if (retractTarget !== undefined) {
+    await postReply(token, channelId, await retractCommandReply(clients.retract, retractTarget, parsed.body));
     return true;
   }
   return false;

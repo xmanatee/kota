@@ -6,19 +6,15 @@ import {
 } from "#modules/answer/commands.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
-import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
-import type { CaptureFilter, CaptureTarget } from "#modules/capture/client.js";
-import { renderCaptureReplyPlain } from "#modules/capture/render.js";
+import type { CaptureTarget } from "#modules/capture/client.js";
+import { captureCommandReply } from "#modules/capture/commands.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
-import {
-  type RetractSlashCommand,
-  renderRetractResultPlain,
-  retractUsageBody,
-} from "#modules/retract/render.js";
+import type { RetractTarget } from "#modules/retract/client.js";
+import { retractCommandReply } from "#modules/retract/commands.js";
 import { callTelegramApi, splitMessage } from "./client.js";
 import {
   buildStatusText,
@@ -276,19 +272,8 @@ export async function handleResolvedTelegramStatusCommand(
     target: CaptureTarget | undefined,
   ): Promise<void> {
     const body = commandBody(text, command).trim();
-    if (!body) {
-      await sendPlain(
-        renderCaptureReplyPlain({
-          ok: false,
-          reason: "ambiguous",
-          suggestions: CAPTURE_TARGET_ORDER,
-        }),
-      );
-      return;
-    }
-    const filter: CaptureFilter | undefined = target === undefined ? undefined : { target };
     await sendPlain(
-      truncateForTelegram(renderCaptureReplyPlain(await scope.capture.capture(body, filter))),
+      truncateForTelegram(await captureCommandReply(scope.capture, body, target)),
     );
   }
 
@@ -313,33 +298,25 @@ export async function handleResolvedTelegramStatusCommand(
     return true;
   }
 
-  async function handleRetractCommand(command: RetractSlashCommand): Promise<void> {
-    const body = commandBody(text, command).trim();
-    if (!body) {
-      await sendPlain(retractUsageBody(command));
-      return;
-    }
-    const result = await scope.retract.retract({
-      target: command.slice("/retract-".length) as "memory" | "knowledge" | "tasks" | "inbox",
-      identifier: body,
-    });
-    await sendPlain(truncateForTelegram(renderRetractResultPlain(result)));
+  async function handleRetractCommand(target: RetractTarget): Promise<void> {
+    const body = commandBody(text, `/retract-${target}`).trim();
+    await sendPlain(truncateForTelegram(await retractCommandReply(scope.retract, target, body)));
   }
 
   if (commandMatches(text, "/retract-memory")) {
-    await handleRetractCommand("/retract-memory");
+    await handleRetractCommand("memory");
     return true;
   }
   if (commandMatches(text, "/retract-knowledge")) {
-    await handleRetractCommand("/retract-knowledge");
+    await handleRetractCommand("knowledge");
     return true;
   }
   if (commandMatches(text, "/retract-tasks")) {
-    await handleRetractCommand("/retract-tasks");
+    await handleRetractCommand("tasks");
     return true;
   }
   if (commandMatches(text, "/retract-inbox")) {
-    await handleRetractCommand("/retract-inbox");
+    await handleRetractCommand("inbox");
     return true;
   }
   if (commandMatches(text, "/retract")) {

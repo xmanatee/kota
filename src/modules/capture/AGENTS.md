@@ -5,6 +5,9 @@ The selected store remains the write owner.
 
 ## Ownership
 
+- `commands.ts` owns chat empty-input handling, request construction and plain-text
+  replies. Channels supply the selected scope client, parsed input and target.
+
 - `CaptureProviderImpl` owns classification and explicit-target selection.
 - `store-writer.ts` is the only cross-store persistence transform. It maps the
   selected target to `MemoryProvider.save`, `KnowledgeProvider.create`, or the

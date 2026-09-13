@@ -5,6 +5,9 @@ The selected store remains the removal owner.
 
 ## Ownership
 
+- `commands.ts` owns chat empty-input handling, request construction and plain-text
+  replies. Channels supply the selected scope client, parsed input and target.
+
 - `RetractProviderImpl` owns dispatch by the closed `RetractTarget` union.
 - `store-retractor.ts` is the only cross-store persistence transform. It maps a
   uniform `target` plus `identifier` request to `MemoryProvider.delete`,

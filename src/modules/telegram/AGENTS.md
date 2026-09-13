@@ -34,16 +34,9 @@ notification forwarding.
 - Answer commands use the answer owner's shared command replies with the selected
   scope client. Telegram owns command parsing, truncation and detail segmentation.
   The seam owns retrieval, synthesis, citation parsing and retries; Telegram adds no prompt, parser or budget.
-- `/capture` plus `/capture-to-{memory,knowledge,tasks,inbox}` and the
-  four `/retract-{memory,knowledge,tasks,inbox}` are the cross-store
-  write-side and correction-side surfaces. Each family shares one handler
-  that resolves the target, dispatches to the capture/retract client seam,
-  and renders `CaptureResult` / `RetractResult` exhaustively through the
-  plain-text helpers. Telegram adds no second classifier, parallel routing,
-  or per-store fan-out. The retract tasks arm keeps the seam's
-  `previousPath -> path (dropped)` "moved to dropped" wording; the umbrella
-  `/retract` only prints help. Empty bodies short-circuit locally and never
-  call the seam.
+- Capture and retract commands delegate empty-input handling, request construction
+  and replies to their capability owners. Telegram retains target mapping,
+  parsing and output limits; the umbrella `/retract` only prints help.
 - Contributes notification subscriptions for workflow events.
   Optional event filters must not suppress urgent owner/approval
   escalation notifications.
