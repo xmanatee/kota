@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Restore authorized tool checkpoint and credential-overlay consumer proofs

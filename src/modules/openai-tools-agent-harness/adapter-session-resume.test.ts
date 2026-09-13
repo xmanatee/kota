@@ -1,8 +1,12 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import {
+  clearCustomTools,
+  registerTool,
+} from "#core/tools/tool-registry.js";
 import {
   createModelClientMock,
   executeToolMock,
@@ -11,6 +15,7 @@ import {
   openaiToolsAgentHarness,
   queueEnd,
   queueToolUse,
+  READ_EFFECT,
   streamCallSnapshots,
   tool,
 } from "./adapter-shared-runner-test-support.js";
@@ -18,6 +23,20 @@ import {
 function createScopeRoot(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
+
+function registerEchoTool(declaration = tool("echo_tool")): void {
+  getAllToolsMock.mockReturnValue([declaration]);
+  registerTool(
+    declaration,
+    executeToolMock.bind(undefined, declaration.name),
+    undefined,
+    { effect: READ_EFFECT },
+  );
+}
+
+afterEach(() => {
+  clearCustomTools();
+});
 
 describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("establishes a resumable local session before a quiescent progress checkpoint", async () => {
@@ -70,7 +89,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("persists a neutral transcript and replays it before the resumed prompt", async () => {
     const scopeRoot = createScopeRoot("openai-tools-resume-");
     try {
-      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      registerEchoTool();
       queueToolUse("call_persist", "echo_tool", { text: "hello" });
       queueEnd("saved");
       executeToolMock.mockResolvedValue({ content: "echo: hello" });
@@ -139,7 +158,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("checkpoints a completed tool result before exposing continuation progress", async () => {
     const scopeRoot = createScopeRoot("openai-tools-tool-result-checkpoint-");
     try {
-      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      registerEchoTool();
       queueToolUse("call_checkpoint", "echo_tool", { text: "once" });
       executeToolMock.mockResolvedValue({ content: "echo: once" });
       let checkpointSessionId: string | undefined;
@@ -306,7 +325,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("rejects resumes when a previously exposed local tool is missing or changed", async () => {
     const scopeRoot = createScopeRoot("openai-tools-tool-resume-");
     try {
-      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      registerEchoTool();
       queueEnd("saved");
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "save",
@@ -316,6 +335,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         persistSession: true,
       });
 
+      clearCustomTools();
       getAllToolsMock.mockReturnValue([]);
       await expect(
         openaiToolsAgentHarness.run({
@@ -327,9 +347,10 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         }),
       ).rejects.toThrow(/references unavailable tool "echo_tool"/);
 
-      getAllToolsMock.mockReturnValue([
-        { ...tool("echo_tool"), description: "Changed echo declaration" },
-      ]);
+      registerEchoTool({
+        ...tool("echo_tool"),
+        description: "Changed echo declaration",
+      });
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",

@@ -70,7 +70,7 @@ function registerGetSecret(scopeRoot: string): ToolDef {
 async function runGetSecret(
   autonomyMode: "passive" | "supervised",
   approvalQueue: ApprovalQueue,
-  sessionContext: TestSessionContext,
+  sessionContext: TestSessionContext & { cwd: string },
 ) {
   return executeToolCalls(
     [{
@@ -86,6 +86,7 @@ async function runGetSecret(
       approvalQueue,
       sessionId: sessionContext.sessionId,
       scopeId: sessionContext.scopeId,
+      cwd: sessionContext.cwd,
       guardrailsConfig: supervisedGuardrailsConfig(getDefaultConfig()),
     },
   );
@@ -95,14 +96,14 @@ describe("secrets module get_secret tool gating", () => {
   let scopeRoot: string;
   let originalSecretValue: string | undefined;
   let approvalQueue: ApprovalQueue;
-  let sessionContext: TestSessionContext;
+  let sessionContext: TestSessionContext & { cwd: string };
   let otherSessionContext: TestSessionContext;
   let otherScopeContext: TestSessionContext;
 
   beforeEach(() => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-secrets-tool-"));
     const scopeId = deriveDirectoryScopeId(scopeRoot);
-    sessionContext = { sessionId: "secrets-session-a", scopeId };
+    sessionContext = { sessionId: "secrets-session-a", scopeId, cwd: scopeRoot };
     otherSessionContext = { sessionId: "secrets-session-b", scopeId };
     otherScopeContext = {
       sessionId: "secrets-session-a",
@@ -198,7 +199,7 @@ describe("secrets module get_secret tool gating", () => {
       [selection.snapshot],
       executionContext,
     );
-    if (!preflight.ok) throw new Error("get_secret approval preflight failed");
+    if (!preflight.ok) throw new Error(preflight.body.reason);
     const approved = approvalQueue.approveForExecution(selection.snapshot.descriptor);
     if (!approved.ok) throw new Error("get_secret approval input was unavailable");
     const lease = preflight.leases.get(approved.approval.id);
