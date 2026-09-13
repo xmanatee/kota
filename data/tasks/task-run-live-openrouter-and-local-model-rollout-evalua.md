@@ -12,12 +12,12 @@ The owner wants practical alternatives to Codex/Claude, not a favorable
 leaderboard or a predetermined replacement verdict. No default changes follow
 from readiness, synthetic runs or missing measurements.
 
-## Preparation Repair And Remaining Owner
+## Preparation Repair And Live Qualification
 
 The existing contained matrix, native/local routing, raw/scaffold adapters and
 integer admission repair have integrated. Before this repair,
 `prepareContainedMatrix` in
-`src/modules/harness-parity/contained-matrix.ts` eagerly resolves every native
+`src/modules/harness-parity/contained-matrix.ts` eagerly resolved every native
 auth locator before returning any executions. A September 13 source-level
 probe with a synthetic unavailable Codex locator and a local candidate threw
 `synthetic native credential unavailable` for the entire preparation.
@@ -30,11 +30,13 @@ preparing independently authorized compatible rows. Do not silently omit the
 baseline, substitute API auth for native login, or turn invalid grants,
 malformed profiles, isolation failures or unexpected errors into successful
 skips. Reuse existing row/result types where suitable; no new benchmark runner
-or host execution bridge. Follow-up review found public matrix preflight gaps
-and unresolved deterministic routing checks. Their independent implementation
-owner is `task-complete-partial-matrix-preflight-at-public-boundaries`; do not
-hide them behind this task's external live-qualification block or duplicate
-them in the coding parity task. The full preparation contract is not complete.
+or host execution bridge. The public matrix preflight follow-up is now complete
+in [task-complete-partial-matrix-preflight-at-public-boundaries](archive/task-complete-partial-matrix-preflight-at-public-boundaries.md).
+Its retained completion evidence covers partial cohorts and strict typed failures;
+the four real-launch checks exposed a separately reproduced `spawnSync /bin/ps EPERM`
+sandbox restriction. This is preparation and diagnosis evidence, not live model
+or container qualification. Continue the live outcome here without duplicating
+the completed repair or the coding parity task.
 
 ## Acceptance
 
@@ -133,8 +135,9 @@ normal invocation temporary directory. Four unmocked subprocess cases remain
 failed in the broader routing checks (three missing launch logs, one error-row
 result); they are not claimed as passes. Details and logs are in this run's
 `agent/summary.md`. No production routing or isolation policy was relaxed.
-These synthetic subprocess failures do not establish a live credential or
-Docker prerequisite. The open public-preflight follow-up above owns diagnosis
-and correction; do not call them environmental without identifying the cause.
+These synthetic subprocess failures did not establish a live credential or
+Docker prerequisite. The completed public-preflight follow-up linked above
+subsequently identified and independently reproduced the process-inspection
+restriction; its completion record supersedes this earlier unresolved diagnosis.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-13T00:32:05.276Z -->

@@ -33,9 +33,9 @@ resources:
     refresh: weekly
     notes: "ClawBench is OpenClaw's trace/reliability-focused benchmark. Monitor as an eval-methodology signal for KOTA's eval-harness reliability diagnostics, low-signal fixture detection, and trace-based scoring; do not import it as a benchmark runner."
     snapshot:
-      fingerprint: sha256:29ae5de4201ccf1d9aba6e8566ee9244
-      summary: "ClawBench Core v1 reinforces KOTA's eval-harness fixture reliability diagnostics and adds a nonduplicative baseline-comparability signal: record strict eval-run configuration fingerprints before cadence compares scores."
-      last_seen_at: "2026-05-28T03:23:21.763Z"
+      fingerprint: sha256:624693afb3595ef309dbc0c6e3324f11
+      summary: "The README describes Core v1's 19-task suite, repeated-run reliability and variance diagnostics, execution-trace scoring, configuration comparisons, per-container state isolation, and provider-routing and platform-version drift caveats."
+      last_seen_at: "2026-09-13T07:24:56.430Z"
   - url: https://github.com/InternLM/WildClawBench
     added: "2026-05-29"
     refresh: weekly
@@ -306,9 +306,9 @@ resources:
     refresh: weekly
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Revisit when project development changes the relevant KOTA capability or decision."
     snapshot:
-      fingerprint: sha256:9d2a528340e2f412b95f77f1afa4a963
-      summary: "LiveKit Agents reinforces config-update observability through OTLP session logs; KOTA's daemon config reload events now flow through typed event and tracing surfaces."
-      last_seen_at: "2026-05-17T03:06:13.269Z"
+      fingerprint: sha256:68aec15ba612e4772912a54c42d3e11a
+      summary: "The README describes realtime multimodal agent sessions, interchangeable STT/LLM/TTS integrations, WebRTC clients, telephony, semantic turn detection, MCP tools, agent handoffs, and a built-in testing framework."
+      last_seen_at: "2026-09-13T07:25:05.710Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     refresh: weekly
