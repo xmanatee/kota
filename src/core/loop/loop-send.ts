@@ -59,7 +59,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
     const analysis = analyzeRequest(
       prompt,
-      state.scopeRoot,
+      state,
       state.moduleLoader.getProviderRegistry(),
     );
     const taskRoute = routeTask(prompt);

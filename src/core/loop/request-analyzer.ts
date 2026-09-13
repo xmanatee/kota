@@ -1,8 +1,17 @@
-import { statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { lstatSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { getHistoryProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { ConversationRecord, Memory } from "#core/modules/provider-types.js";
+import { type GuardrailsConfig, resolvePolicy } from "#core/tools/guardrails.js";
+import { resolveContainedPath } from "#core/tools/path-containment.js";
+import { isProtectedScopePath } from "#core/tools/protected-scope-paths.js";
+
+export type RequestPathContext = {
+  scopeRoot: string;
+  guardrailsConfig: GuardrailsConfig;
+  authorityConfigPath?: string;
+};
 
 export type PathInfo = {
   path: string;
@@ -83,17 +92,25 @@ export function extractPaths(message: string): string[] {
 
 /**
  * Check which extracted paths actually exist on disk, resolving relative to cwd.
- * Only returns paths that fall within cwd (security boundary).
+ * Only returns authorized metadata within the session scope, including after
+ * symlink resolution. Automatic hints cannot obtain interactive read approval.
  */
-export function resolveExistingPaths(paths: string[], cwd: string): PathInfo[] {
+export function resolveExistingPaths(paths: string[], context: RequestPathContext): PathInfo[] {
   const results: PathInfo[] = [];
+  if (paths.length === 0 || resolvePolicy("file_read", "safe", context.guardrailsConfig) !== "allow") {
+    return results;
+  }
+  const cwd = resolve(context.scopeRoot);
   for (const p of paths) {
     if (results.length >= MAX_PATHS) break;
-    const resolved = isAbsolute(p) ? p : resolve(cwd, p);
-    // Security: reject paths outside the working directory
-    if (!resolved.startsWith(cwd)) continue;
+    const requested = resolve(cwd, p);
+    const child = relative(cwd, requested);
+    if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) continue;
     try {
-      const stat = statSync(resolved);
+      const resolved = resolveContainedPath(requested, cwd, cwd);
+      if (!resolved.ok || isProtectedScopePath(requested, { ...context, cwd })) continue;
+      // Stat the authorized canonical target, never the original symlink alias.
+      const stat = lstatSync(resolved.path);
       const sizeKB = Math.round(stat.size / 1024);
       if (stat.isFile()) {
         results.push({
@@ -137,13 +154,13 @@ export function extractSearchTerms(message: string): string[] {
  */
 export function analyzeRequest(
   message: string,
-  cwd: string,
+  context: RequestPathContext,
   providerRegistry?: ProviderRegistry,
 ): RequestAnalysis | null {
   if (message.length < MIN_MESSAGE_LENGTH) return null;
 
   const rawPaths = extractPaths(message);
-  const paths = resolveExistingPaths(rawPaths, cwd);
+  const paths = resolveExistingPaths(rawPaths, context);
 
   const terms = extractSearchTerms(message);
   let memories: Memory[] = [];

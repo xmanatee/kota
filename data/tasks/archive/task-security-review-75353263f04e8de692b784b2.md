@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p3
+status: done
 ---
 # Security review: The request analyzer treats a string prefix as filesystem containment and follows symlinks with statSync. Crafted prompt paths can therefore disclose outside-scope file existence, type, and approximate size through automatically loaded model context. Synthetic probes confirmed both a similarly prefixed sibling and an in-scope symlink escape. This finding concerns metadata disclosure, not file-content access.
 
@@ -128,3 +127,30 @@ excerpt:
 
 
 > if (analysis) augmentedPrompt += formatContextHint(analysis);
+
+
+## Resolution and verification
+
+The request-analyzer lookup now checks lexical path components and the shared
+canonical containment boundary before returning metadata. It inspects the
+canonical target with lstat instead of following the submitted symlink alias.
+Both the similarly prefixed sibling and the escaping link are omitted, while
+ordinary scoped files, directories and internal symlinks retain their hints.
+The same lookup excludes protected scope paths and requires the current session's
+file-read guardrail policy to allow automatic reads; deny, confirm and queue
+produce no metadata hints. runSend supplies the current session policy on every
+request.
+
+Verification: pnpm check:fast completed typechecking, lint, task validation,
+generated client binding checks and admission of 90 bundled modules. Focused
+request-analyzer, AgentSession, MCP send and protected-path suites passed. These
+exercise both reported escapes through analyzeRequest/formatContextHint, positive
+in-scope metadata, protected aliases, read-policy denial, and policy refresh at
+the model-input boundary. The combined five-suite run reported 58 passing tests
+and three failures in unchanged path-containment tests, all EPERM during fixture
+cleanup under .kota/test-tmp after their assertions. The analyzer's isolated
+temporary-tree regressions passed without that restriction. Full pnpm check,
+live model evaluation and deployment observation were not run.
+
+Run evidence: boundary-tests.log and check-fast.log in the builder run directory.
+Original finding, exploit preconditions and evidence above remain preserved.

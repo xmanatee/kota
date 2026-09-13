@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -163,6 +163,25 @@ describe("AgentSession", () => {
         apiKey: "$OPENROUTER_API_KEY",
       }),
     );
+  });
+
+  it("applies refreshed session read restrictions to preloaded model context", async () => {
+    writeFileSync(join(scopeRoot, "hint.ts"), "a".repeat(2048));
+    session = new AgentSession({ scopeRoot, autonomyMode: "autonomous" });
+    const prompts: string[] = [];
+    mockStreamMessage.mockImplementation(async ({ messages }) => {
+      prompts.push(JSON.stringify(messages.at(-1)));
+      return textResponse("done");
+    });
+    const prompt = "Please examine ./hint.ts for this request";
+    await session.send(prompt);
+    session.replaceGuardrailsConfig({
+      policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
+      toolOverrides: { file_read: "deny" },
+    });
+    await session.send(prompt);
+    expect(prompts[0]).toContain("./hint.ts (~46 lines, 2KB)");
+    expect(prompts[1]).not.toContain("Referenced files:");
   });
 
   describe("text-only response", () => {

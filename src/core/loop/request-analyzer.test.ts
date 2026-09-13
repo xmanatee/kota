@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
+import { getDefaultConfig } from "#core/tools/guardrails.js";
 import {
+  analyzeRequest,
   extractPaths,
   extractSearchTerms,
   formatContextHint,
   type RequestAnalysis,
+  type RequestPathContext,
   resolveExistingPaths,
 } from "./request-analyzer.js";
 
@@ -70,47 +77,74 @@ describe("extractPaths", () => {
   });
 });
 
-describe("resolveExistingPaths", () => {
-  it("finds files that exist in cwd", () => {
-    // package.json should exist in the scope root
-    const cwd = process.cwd();
-    const result = resolveExistingPaths(["package.json"], cwd);
-    expect(result.length).toBe(1);
-    expect(result[0].path).toBe("package.json");
-    expect(result[0].type).toBe("file");
-    expect(result[0].sizeKB).toBeGreaterThanOrEqual(0);
-    expect(result[0].estimatedLines).toBeGreaterThan(0);
+describe("request metadata boundary", () => {
+  let root: string;
+  let context: RequestPathContext;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "request-boundary-"));
+    const scopeRoot = join(root, "scope");
+    mkdirSync(scopeRoot);
+    mkdirSync(join(root, "scope-sibling"));
+    mkdirSync(join(scopeRoot, "src"));
+    writeFileSync(join(scopeRoot, "src", "allowed.ts"), "a".repeat(2048));
+    writeFileSync(join(root, "scope-sibling", "outside.ts"), "x".repeat(2048));
+    symlinkSync(join(root, "scope-sibling"), join(scopeRoot, "escape"));
+    symlinkSync(join(scopeRoot, "src"), join(scopeRoot, "alias"));
+    context = { scopeRoot, guardrailsConfig: getDefaultConfig() };
   });
 
-  it("finds directories that exist in cwd", () => {
-    const cwd = process.cwd();
-    const result = resolveExistingPaths(["src"], cwd);
-    expect(result.length).toBe(1);
-    expect(result[0].type).toBe("dir");
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it("retains authorized file, directory, and internal symlink hints", () => {
+    expect(resolveExistingPaths(["src/allowed.ts", "src", "alias/allowed.ts"], context))
+      .toEqual([
+        { path: "src/allowed.ts", type: "file", sizeKB: 2, estimatedLines: 46 },
+        { path: "src", type: "dir", sizeKB: expect.any(Number) },
+        { path: "alias/allowed.ts", type: "file", sizeKB: 2, estimatedLines: 46 },
+      ]);
+    symlinkSync(context.scopeRoot, join(root, "scope-alias"));
+    expect(resolveExistingPaths(["src/allowed.ts"], { ...context, scopeRoot: join(root, "scope-alias") }))
+      .toHaveLength(1);
   });
 
-  it("skips paths that do not exist", () => {
-    const cwd = process.cwd();
-    const result = resolveExistingPaths(
-      ["nonexistent-file-xyz.ts"],
-      cwd,
+  it("omits sibling-prefix and symlink escapes from automatically formatted context", () => {
+    const analysis = analyzeRequest(
+      "Please inspect ../scope-sibling/outside.ts ./escape/outside.ts and ./src/allowed.ts",
+      context,
+      new ProviderRegistry(),
     );
-    expect(result).toEqual([]);
+    expect(analysis?.paths).toEqual([
+      { path: "./src/allowed.ts", type: "file", sizeKB: 2, estimatedLines: 46 },
+    ]);
+    const hint = formatContextHint(analysis!);
+    expect(hint).toContain("./src/allowed.ts (~46 lines, 2KB)");
+    expect(hint).not.toContain("outside.ts");
+    expect(resolveExistingPaths([
+      join(root, "scope-sibling", "outside.ts"),
+      join(context.scopeRoot, "..", "scope-sibling", "outside.ts"),
+      "./escape",
+    ], context)).toEqual([]);
   });
 
-  it("rejects paths outside cwd", () => {
-    const cwd = process.cwd();
-    const result = resolveExistingPaths(["../../etc/passwd"], cwd);
-    expect(result).toEqual([]);
+  it("omits protected paths and their in-scope aliases", () => {
+    mkdirSync(join(context.scopeRoot, ".kota"));
+    writeFileSync(join(context.scopeRoot, ".kota", "secrets.json"), "synthetic");
+    symlinkSync(join(context.scopeRoot, ".kota", "secrets.json"), join(context.scopeRoot, "alias.json"));
+    expect(resolveExistingPaths([".kota/secrets.json", "alias.json"], context)).toEqual([]);
   });
 
-  it("caps results at MAX_PATHS", () => {
-    const cwd = process.cwd();
-    // Create many valid paths (they all resolve to package.json)
-    const many = Array.from({ length: 10 }, () => "package.json");
-    const result = resolveExistingPaths(many, cwd);
-    // Dedup happens at extraction level, but cap still applies
-    expect(result.length).toBeLessThanOrEqual(5);
+  it.each(["deny", "confirm", "queue"] as const)("does not preload reads requiring %s", (policy) => {
+    context.guardrailsConfig.toolOverrides = { file_read: policy };
+    expect(resolveExistingPaths(["src/allowed.ts"], context)).toEqual([]);
+    context.guardrailsConfig = { policies: { safe: policy, moderate: "allow", dangerous: "confirm" } };
+    expect(resolveExistingPaths(["src/allowed.ts"], context)).toEqual([]);
+  });
+
+  it("skips missing and broken links and caps authorized results", () => {
+    symlinkSync(join(root, "missing"), join(context.scopeRoot, "broken"));
+    expect(resolveExistingPaths(["missing.ts", "broken"], context)).toEqual([]);
+    expect(resolveExistingPaths(Array.from({ length: 10 }, () => "src/allowed.ts"), context)).toHaveLength(5);
   });
 });
 
