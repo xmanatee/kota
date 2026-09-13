@@ -1,5 +1,6 @@
 ---
-status: done
+status: open
+priority: p2
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -971,3 +972,158 @@ Repair verification:
 
 These probes use synthetic credentials and controlled network responses through
 the production client. No live service, credential or model evaluation was needed.
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/mcp/client-base.ts
+claim:
+
+> MCP diagnostic redaction runs before terminal-control removal. A peer can insert CSI, OSC or bidi controls inside a known credential, defeating literal matching; the renderer then removes those controls and publishes the complete credential. Public-client probes reproduced disclosure through stdio stderr and HTTP JSON-RPC connection errors in both renderer modes, while literal credential controls remained redacted.
+
+## Desired Outcome
+
+> Compose terminal normalization and credential redaction at the existing diagnostic owner so removal of controls cannot reconstruct an unredacted credential. Cover streamed stderr and errors subsequently rendered by the manager, preserve bounded stream handling and private protocol originals, and retain the existing terminal-control sanitizer.
+
+> Independently revalidate this new evidence against the existing credential-diagnostic task, preserving its prior resolutions. The run directory retains mcp-redaction-sanitizer-probe.mjs, mcp-redaction-sanitizer-result.json and investigation-summary.md. Require regression proof for controls embedded inside credentials through stderr and manager-rendered errors, including provider/fallback and fragmented-stream behavior. Eight disclosure observations reproduced despite all 44 existing focused tests passing.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-13T22-42-22-351Z-security-review-pp8fc3.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-13T22-42-22-351Z-security-review-pp8fc3
+
+security evidence: 17231b9ea2d497e3554ec398d0e259dbb3d41228c9017729b0c0e590e5f1378a
+evidence identity: mcp-terminal-control-removal-reconstructs-credential-v1
+Evidence lineage (new-variant): 664dd1e9783811cdd37ea9ef3a0248fd6c19b7ad5fb7637e4deec1f134123036
+> The nominated task retains this evidence for credential disclosure across stderr chunks. That repair remains effective. This variant inserts removable terminal controls inside a credential; downstream sanitization reconstructs the complete secret after redaction. It also affects HTTP connection diagnostics through the same credential-redaction owner.
+production owner: src/core/mcp/client-base
+violated invariant: mcp-credentials-redacted-from-diagnostics
+Common repair:
+> Compose terminal normalization and credential redaction at the existing diagnostic owner so removal of controls cannot reconstruct an unredacted credential. Cover streamed stderr and errors subsequently rendered by the manager, preserve bounded stream handling and private protocol originals, and retain the existing terminal-control sanitizer.
+Exploit preconditions:
+> A configured MCP peer receives a credential through stdio transport.env or an HTTP authorization header and echoes it with terminal controls inserted inside the credential. An observer can read KOTA terminal output or its capture. Real subprocess and controlled HTTP-response probes confirmed these preconditions with synthetic credentials in provider and fallback modes.
+finding id: mcp-terminal-sanitization-reconstructs-credential
+candidate id: mcp-transport:src/core/mcp/client-base.ts:1
+verdict: confirmed
+rationale:
+
+> At HEAD 5028cb1404796b38bc56b63e5d0d93841fa8f446, client-base performs literal credential redaction before terminal-renderer removes controls. Independently inspected and reran the probe with a different synthetic credential: CSI, OSC and bidi insertion disclosed the complete credential through real subprocess stderr; CSI insertion also disclosed it through manager-rendered HTTP errors using a controlled network port. Both renderer modes reproduced disclosure: eight disclosures, while four literal-echo controls remained redacted. Exploitation requires a configured peer that receives the credential and an observer of terminal output or its capture. The nominated archived task retains evidence key 664dd1e9783811cdd37ea9ef3a0248fd6c19b7ad5fb7637e4deec1f134123036 under the same production owner and confidentiality invariant. Its streaming repair remains present; control-removal reconstruction is a supported new variant. Composing normalization and credential redaction at that owner addresses both publication paths, provided streamed matching remains bounded and terminal-control protection is preserved.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 448
+
+excerpt:
+
+
+
+> protected redactSensitiveErrorMessage(message: string): string {
+>     let redacted = message;
+>     for (const value of this.sensitiveValuesForRedaction()) {
+>       redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
+>     }
+>     return redacted;
+>   }
+
+Evidence 2:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 483
+
+excerpt:
+
+
+
+> protected writeDiagnostic(message: string, destination: "warn" | "stderr"): void {
+>     const redacted = this.redactSensitiveErrorMessage(message);
+>     if (destination === "stderr") {
+>       writeTerminalStderr(redacted);
+>     } else {
+>       printTerminalDiagnostic(redacted, destination);
+>     }
+>   }
+
+Evidence 3:
+
+
+
+path: src/core/modules/terminal-renderer.ts
+
+line: 115
+
+excerpt:
+
+
+
+> const safe = stripTerminalDiagnosticControls(text);
+>   const provider = getRenderingProvider();
+>   if (provider) {
+>     provider.writeStderr(safe);
+>     return;
+>   }
+>   process.stderr.write(safe);
+
+Evidence 4:
+
+
+
+path: src/core/mcp/client-http-runtime.ts
+
+line: 217
+
+excerpt:
+
+
+
+> if (message.error) {
+>       throw this.requestErrorForMethod(
+>         method,
+>         `HTTP ${response.status}: MCP error ${message.error.code}: ${message.error.message}`,
+>       );
+>     }
+
+Evidence 5:
+
+
+
+path: src/core/mcp/manager.ts
+
+line: 208
+
+excerpt:
+
+
+
+> printTerminalDiagnostic(
+>             `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
+>             "error",
+>           );
