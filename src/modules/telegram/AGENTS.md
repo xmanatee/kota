@@ -31,9 +31,9 @@ notification forwarding.
   owns merge, normalize, and ranking; the Telegram handler does not
   fan out to per-store search seams. Distinguish empty hits from missing
   contributors in the reply.
-- `/answer` uses the cited-answer client and renders its result exhaustively
-  through the owner's plain-text helper. The seam owns retrieval, synthesis,
-  citation parsing and retries; Telegram adds no prompt, parser or budget.
+- Answer commands use the answer owner's shared command replies with the selected
+  scope client. Telegram owns command parsing, truncation and detail segmentation.
+  The seam owns retrieval, synthesis, citation parsing and retries; Telegram adds no prompt, parser or budget.
 - `/capture` plus `/capture-to-{memory,knowledge,tasks,inbox}` and the
   four `/retract-{memory,knowledge,tasks,inbox}` are the cross-store
   write-side and correction-side surfaces. Each family shares one handler

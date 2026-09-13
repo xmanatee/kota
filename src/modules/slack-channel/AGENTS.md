@@ -25,6 +25,8 @@ This directory owns the bidirectional Slack bot channel for KOTA.
   `KotaClient` namespace (or attention/digest snapshot), and reuse the
   same module-owned plain-text renderers Telegram uses, so a Slack reply
   matches the Telegram reply byte-for-byte for the same envelope.
+- Answer commands delegate request validation, defaults and reply text to the
+  answer owner, using the selected client; Slack retains parsing and delivery.
 - Slash-command parsing tolerates leading whitespace, a leading bot-mention
   prefix, and matches the command head case-insensitively.
 - Approval requests are posted as plain-text Block Kit messages with the reviewed

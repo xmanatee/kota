@@ -4,9 +4,6 @@ import type { StatusInfo } from "./status-types.js";
 /** Telegram sendMessage hard limit; longer bodies must be truncated client-side. */
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 
-/** Default page size for the chat-side `/answer-log` projection. */
-export const ANSWER_LOG_DEFAULT_LIMIT = 5;
-
 /**
  * Fixed help body for the umbrella `/retract` command. The retract seam
  * intentionally has no classifier, so the umbrella exists only to point

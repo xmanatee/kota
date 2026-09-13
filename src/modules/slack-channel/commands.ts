@@ -19,9 +19,10 @@
 
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
-  renderAnswerHistoryEntriesPlain,
-  renderAnswerReplyPlain,
-} from "#modules/answer/render.js";
+  answerCommandReply,
+  answerLogCommandReply,
+  answerShowCommandReply,
+} from "#modules/answer/commands.js";
 import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
 import type {
   CaptureClient,
@@ -115,9 +116,6 @@ function buildRetractRequest(
 /** Default page size for the per-store semantic-search seams. Matches Telegram. */
 const SEARCH_DEFAULT_LIMIT = 10;
 
-/** Default page size for the `/answer-log` projection. Matches Telegram. */
-const ANSWER_LOG_DEFAULT_LIMIT = 5;
-
 /**
  * Parse a Slack DM into a slash command. Tolerates leading whitespace, a
  * leading bot mention prefix (e.g. `<@U12345> /recall foo`), and matches
@@ -169,61 +167,6 @@ async function handleRecall(
     return;
   }
   await postReply(token, channelId, renderRecallHitsPlain(result.hits));
-}
-
-async function handleAnswer(
-  token: string,
-  channelId: string,
-  body: string,
-  answer: AnswerClient,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /answer <query>");
-    return;
-  }
-  const result = await answer.answer(body);
-  await postReply(token, channelId, renderAnswerReplyPlain(result));
-}
-
-async function handleAnswerLog(
-  token: string,
-  channelId: string,
-  body: string,
-  answer: AnswerClient,
-): Promise<void> {
-  let limit = ANSWER_LOG_DEFAULT_LIMIT;
-  if (body.length > 0) {
-    const parsed = Number.parseInt(body, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== body) {
-      await postReply(token, channelId, "Usage: /answer-log [N]");
-      return;
-    }
-    limit = parsed;
-  }
-  const result = await answer.log({ limit });
-  if (result.entries.length === 0) {
-    await postReply(token, channelId, "No past answer records yet.");
-    return;
-  }
-  await postReply(token, channelId, renderAnswerHistoryEntriesPlain(result.entries));
-}
-
-async function handleAnswerShow(
-  token: string,
-  channelId: string,
-  body: string,
-  answer: AnswerClient,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /answer-show <id>");
-    return;
-  }
-  const result = await answer.show(body);
-  if (!result.ok) {
-    await postReply(token, channelId, `No answer record found for id "${body}".`);
-    return;
-  }
-  await postReply(token, channelId, renderAnswerReplyPlain(result.record.result));
 }
 
 async function handleCapture(
@@ -425,13 +368,13 @@ export async function dispatchSlackSlashCommand(args: {
       await handleRecall(token, channelId, parsed.body, clients.recall);
       return true;
     case "/answer":
-      await handleAnswer(token, channelId, parsed.body, clients.answer);
+      await postReply(token, channelId, await answerCommandReply(clients.answer, parsed.body));
       return true;
     case "/answer-log":
-      await handleAnswerLog(token, channelId, parsed.body, clients.answer);
+      await postReply(token, channelId, await answerLogCommandReply(clients.answer, parsed.body));
       return true;
     case "/answer-show":
-      await handleAnswerShow(token, channelId, parsed.body, clients.answer);
+      await postReply(token, channelId, await answerShowCommandReply(clients.answer, parsed.body));
       return true;
     case "/capture":
       await handleCapture(

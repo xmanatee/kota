@@ -1,8 +1,9 @@
 import { join } from "node:path";
 import {
-  renderAnswerHistoryEntriesPlain,
-  renderAnswerReplyPlain,
-} from "#modules/answer/render.js";
+  answerCommandReply,
+  answerLogCommandReply,
+  answerShowCommandReply,
+} from "#modules/answer/commands.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
@@ -20,7 +21,6 @@ import {
 } from "#modules/retract/render.js";
 import { callTelegramApi, splitMessage } from "./client.js";
 import {
-  ANSWER_LOG_DEFAULT_LIMIT,
   buildStatusText,
   RETRACT_UMBRELLA_HELP_BODY,
   truncateForTelegram,
@@ -255,46 +255,19 @@ export async function handleResolvedTelegramStatusCommand(
   }
   if (commandMatches(text, "/answer-log")) {
     const arg = text === "/answer-log" ? "" : text.slice("/answer-log ".length).trim();
-    let limit = ANSWER_LOG_DEFAULT_LIMIT;
-    if (arg.length > 0) {
-      const parsed = Number.parseInt(arg, 10);
-      if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== arg) {
-        await sendPlain("Usage: /answer-log [N]");
-        return true;
-      }
-      limit = parsed;
-    }
-    const result = await scope.answer.log({ limit });
-    await sendPlain(
-      result.entries.length === 0
-        ? "No past answer records yet."
-        : truncateForTelegram(renderAnswerHistoryEntriesPlain(result.entries)),
-    );
+    await sendPlain(truncateForTelegram(await answerLogCommandReply(scope.answer, arg)));
     return true;
   }
   if (commandMatches(text, "/answer-show")) {
     const id = text === "/answer-show" ? "" : text.slice("/answer-show ".length).trim();
-    if (!id) {
-      await sendPlain("Usage: /answer-show <id>");
-      return true;
-    }
-    const result = await scope.answer.show(id);
-    if (!result.ok) {
-      await sendPlain(`No answer record found for id "${id}".`);
-      return true;
-    }
-    for (const chunk of splitMessage(renderAnswerReplyPlain(result.record.result))) {
+    for (const chunk of splitMessage(await answerShowCommandReply(scope.answer, id))) {
       await sendPlain(chunk);
     }
     return true;
   }
   if (commandMatches(text, "/answer")) {
     const query = text === "/answer" ? "" : text.slice("/answer ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /answer <query>");
-      return true;
-    }
-    await sendPlain(truncateForTelegram(renderAnswerReplyPlain(await scope.answer.answer(query))));
+    await sendPlain(truncateForTelegram(await answerCommandReply(scope.answer, query)));
     return true;
   }
 

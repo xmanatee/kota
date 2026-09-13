@@ -62,24 +62,18 @@ describe("Slack command parsing and delivery", () => {
     expect(ports.answer.answer).toHaveBeenCalledWith("explain this");
     await dispatch("/answer-show record-1", ports);
     expect(ports.answer.show).toHaveBeenCalledWith("record-1");
+    await dispatch("  <@U123> /AnSwEr-LoG   3  ", ports);
+    expect(ports.answer.log).toHaveBeenCalledWith({ limit: 3 });
   });
 
-  it("rejects empty input before domain calls and parses positive answer-log limits", async () => {
+  it("rejects empty capture, recall and retract input before domain calls", async () => {
     const ports = clients();
-    for (const command of ["/recall", "/answer", "/answer-show", "/capture", "/retract-memory"]) {
+    for (const command of ["/recall", "/capture", "/retract-memory"]) {
       await dispatch(`${command}  `, ports);
     }
     expect(ports.recall.recall).not.toHaveBeenCalled();
-    expect(ports.answer.answer).not.toHaveBeenCalled();
-    expect(ports.answer.show).not.toHaveBeenCalled();
     expect(ports.capture.capture).not.toHaveBeenCalled();
     expect(ports.retract.retract).not.toHaveBeenCalled();
-    for (const body of ["0", "-1", "2oops", "1.5"]) await dispatch(`/answer-log ${body}`, ports);
-    expect(ports.answer.log).not.toHaveBeenCalled();
-    await dispatch("/answer-log 3", ports);
-    expect(ports.answer.log).toHaveBeenCalledWith({ limit: 3 });
-    await dispatch("/answer-log", ports);
-    expect(ports.answer.log).toHaveBeenLastCalledWith({ limit: 5 });
   });
 
   it("passes capture and retract targets without interpreting mutation results", async () => {

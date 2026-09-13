@@ -12,6 +12,9 @@ returns a short composed answer plus typed citations resolving to the exact
 - Routes decode requests, delegate, and map the typed unknown-scope error to
   HTTP. Generated routine bindings own daemon transport; the local client
   late-binds the same registered domain provider.
+- Chat command request policy and plain-text outcomes live in `commands.ts`.
+  Channels supply a scope-selected client and parsed body, then own output limits
+  and delivery. Client errors propagate to their existing error paths.
 - The CLI and tool validate their public inputs and render the direct domain
   result. Failure wording is owned by `render.ts`, not copied per surface.
 - The answer module registers its answer-history recall contributor through

@@ -83,7 +83,7 @@ describe("Telegram status command delivery", () => {
     // Unconfigured client methods throw, so an accidental namespace call fails.
     for (const text of [
       "/knowledge", "/memory  ", "/history", "/tasks ", "/recall ",
-      "/answer ", "/answer-show", "/capture ", "/capture-to-memory ",
+      "/capture ", "/capture-to-memory ",
       "/retract-memory ", "/retract",
     ]) {
       vi.mocked(callTelegramApi).mockClear();
@@ -94,18 +94,32 @@ describe("Telegram status command delivery", () => {
     }
   });
 
-  it("parses an answer-log limit and rejects malformed numeric arguments", async () => {
-    const answer = { ...scope().answer, log: vi.fn(async () => ({ entries: [] })) };
-    await command("/answer-log 7", { ...scope(), answer });
+  it("parses answer bodies and keeps Telegram truncation and detail segmentation", async () => {
+    const text = "x".repeat(9000);
+    const result = { ok: true as const, answer: text, citations: [], hits: [] };
+    const answer = {
+      ...scope().answer,
+      answer: vi.fn(async () => result),
+      log: vi.fn(async () => ({ entries: [] })),
+      show: vi.fn(async () => ({ ok: true as const, record: {
+        id: "record-1", createdAt: "2026-09-13T00:00:00Z", query: "query", filter: {}, recallHits: [], result,
+      } })),
+    };
+    await command("/answer   two words  ", { ...scope(), answer });
+    expect(answer.answer).toHaveBeenCalledExactlyOnceWith("two words");
+    expect(callTelegramApi).toHaveBeenCalledExactlyOnceWith("token", "sendMessage", {
+      chat_id: 99, text: expect.stringContaining("xxx"),
+    });
+    expect(String(vi.mocked(callTelegramApi).mock.calls[0]?.[2]?.text).length).toBeLessThanOrEqual(4096);
+    vi.mocked(callTelegramApi).mockClear();
+    await command("/answer-show   record-1  ", { ...scope(), answer });
+    expect(answer.show).toHaveBeenCalledExactlyOnceWith("record-1");
+    const chunks = vi.mocked(callTelegramApi).mock.calls.map(([, , body]) => body);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every(body => body?.chat_id === 99 && String(body.text).length <= 4096)).toBe(true);
+    expect(chunks.map(body => body?.text).join("")).toBe(text);
+    await command("/answer-log   7  ", { ...scope(), answer });
     expect(answer.log).toHaveBeenCalledExactlyOnceWith({ limit: 7 });
-    answer.log.mockClear();
-    for (const arg of ["nope", "0", "-1", "1.5", "7tail"]) {
-      await command(`/answer-log ${arg}`, { ...scope(), answer });
-      expect(callTelegramApi).toHaveBeenLastCalledWith("token", "sendMessage", {
-        chat_id: 99, text: "Usage: /answer-log [N]",
-      });
-    }
-    expect(answer.log).not.toHaveBeenCalled();
   });
 
   it("preserves an untargeted capture body without selecting a domain target", async () => {
