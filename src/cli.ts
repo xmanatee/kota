@@ -259,6 +259,11 @@ program
     const providerName = opts.provider || config.modelProvider?.type;
     const explicitHarness = opts.harness as string | undefined;
     const presetResolution = resolveActivePreset(opts.preset, config.defaultPreset);
+    const autonomyMode = resolveChannelAutonomyMode(
+      config.cli?.defaultAutonomyMode,
+      config,
+      "cli run",
+    );
 
     // Take the harness path whenever the operator did not name a non-agent-sdk
     // model provider. The active preset drives harness, default model, and
@@ -294,6 +299,7 @@ program
         runScopeRoot,
       );
       const runOverrides = {
+        autonomyMode,
         verbose: opts.verbose || config.verbose || false,
         effort: preset.defaultEffort,
         systemPrompt,
@@ -301,11 +307,7 @@ program
       };
       const conversationOptions = resumeSelection
         ? {
-            autonomyMode: resolveChannelAutonomyMode(
-              config.cli?.defaultAutonomyMode,
-              config,
-              "cli run",
-            ),
+            autonomyMode,
             model,
             verbose: opts.verbose || config.verbose || false,
             config,
@@ -403,11 +405,7 @@ program
     if (skipConfirm) setSkipConfirmations(true);
 
     const options = {
-      autonomyMode: resolveChannelAutonomyMode(
-        config.cli?.defaultAutonomyMode,
-        config,
-        "cli run",
-      ),
+      autonomyMode,
       model,
       editorModel,
       maxTokens,
@@ -450,6 +448,11 @@ async function checkPipeMode() {
     const piped = chunks.join("").trim();
     if (piped) {
       const config = loadConfig();
+      const autonomyMode = resolveChannelAutonomyMode(
+        config.cli?.defaultAutonomyMode,
+        config,
+        "cli pipe",
+      );
 
       const presetResolution = resolveActivePreset(undefined, config.defaultPreset);
       const { preset } = presetResolution;
@@ -475,6 +478,7 @@ async function checkPipeMode() {
         const harness = resolveAgentHarness(harnessName);
         const result = await withProcessSignalAbort((abortController) =>
           runAgentHarness(harness, {
+            autonomyMode,
             prompt: expandUserPromptReferences(piped, process.cwd()).text,
             model,
             ...(modelProvider !== undefined ? { modelProvider } : {}),

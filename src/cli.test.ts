@@ -1,6 +1,5 @@
 import {
   execFileSync,
-  type SpawnSyncReturns,
   spawnSync,
 } from "node:child_process";
 import {
@@ -39,27 +38,6 @@ function run(...args: string[]): string {
     timeout: CLI_TIMEOUT,
     cwd: root,
   });
-}
-
-/** Run CLI expecting it to fail, return stderr. */
-function runExpectFail(...args: string[]): { stderr: string; exitCode: number } {
-  try {
-    execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
-      encoding: "utf-8",
-      timeout: CLI_TIMEOUT,
-      cwd: root,
-      env: {
-        NODE_OPTIONS: "--conditions=source",
-        ...process.env,
-        KOTA_PRESET: "claude",
-        ANTHROPIC_API_KEY: "",
-      },
-    });
-    return { stderr: "", exitCode: 0 };
-  } catch (err) {
-    const e = err as SpawnSyncReturns<string>;
-    return { stderr: e.stderr || "", exitCode: e.status ?? 1 };
-  }
 }
 
 /** Run CLI with full control: custom env, stdin, cwd. */
@@ -170,7 +148,13 @@ describe("cli", () => {
 
 describe("API key validation", () => {
   it("exits with clear message when ANTHROPIC_API_KEY is unset (claude preset preflight)", () => {
-    const { stderr, exitCode } = runExpectFail("run", "hello");
+    const scopeRoot = realpathSync(mkdtempForCli("kota-cli-preset-auth"));
+    onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+    seedScopeConfig(scopeRoot);
+    const { stderr, exitCode } = runFull(["run", "hello"], {
+      cwd: scopeRoot,
+      env: { HOME: scopeRoot, KOTA_SCOPE_ROOT: scopeRoot, KOTA_PRESET: "claude", ANTHROPIC_API_KEY: "" },
+    });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("ANTHROPIC_API_KEY");
     expect(stderr).toMatch(/preset "claude"/);
@@ -619,6 +603,7 @@ describe("one-shot harness output", () => {
     mkdirSync(join(fixtureHome, ".kota"), { recursive: true });
     writeFileSync(join(fixtureHome, ".kota", "config.json"), JSON.stringify({
       trustedScopes: [scopeRoot], defaultAgentHarness: "cli-output-fixture",
+      cli: { defaultAutonomyMode: "passive" },
     }));
     const moduleRoot = join(scopeRoot, ".kota", "modules", "cli-output-fixture");
     mkdirSync(moduleRoot, { recursive: true });
@@ -675,4 +660,95 @@ it("recovers a fenced native conversation through the operator CLI without disca
   const continuation = prepareSessionContinuity(harness, options);
   try { expect(continuation.options.resumeSessionId).toBe("native-operator-conversation"); }
   finally { continuation.release(); }
+});
+
+
+describe("CLI harness autonomy", () => {
+  // Real command parsing, config, resume storage, REPL and neutral runner.
+  // Only the model adapter and subprocess-launch port are controlled.
+  // Detects authority loss when any CLI handoff omits resolved supervision.
+  it.each(["prompt", "pipe", "repl", "resume-prompt", "resume-repl"] as const)(
+    "%s preserves configured autonomy and rejects unsupported native execution",
+    (entry) => {
+      const scopeRoot = realpathSync(mkdtempForCli("kota-cli-autonomy"));
+      onTestFinished(() => rmSync(scopeRoot, { recursive: true, force: true }));
+      const fixtureHome = join(scopeRoot, "home");
+      const moduleRoot = join(scopeRoot, ".kota", "modules", "autonomy-port");
+      mkdirSync(join(fixtureHome, ".kota"), { recursive: true });
+      mkdirSync(moduleRoot, { recursive: true });
+      writeFileSync(join(fixtureHome, ".kota", "config.json"), JSON.stringify({ trustedScopes: [scopeRoot] }));
+      const receipts = join(scopeRoot, "handoffs.jsonl");
+      writeFileSync(join(moduleRoot, "index.mjs"), `
+        import { appendFileSync } from "node:fs";
+        export default {
+          name: "autonomy-port", version: "1.0.0",
+          agentHarnesses: [{
+            name: "autonomy-port", description: "Records the model handoff",
+            supportsMultiTurn: true, supportedHookKinds: ["preRun", "postRun"],
+            askOwnerToolName: null, emitsAgentMessageStream: false, toolControl: "kota",
+            run: async (options) => {
+              appendFileSync(${JSON.stringify(receipts)}, JSON.stringify({ autonomyMode: options.autonomyMode }) + "\\n");
+              return { text: "accepted", streamedText: "", turns: 1, isError: false,
+                usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } } };
+            },
+          }],
+        };
+      `);
+      const launches = join(scopeRoot, "launches.txt");
+      const preload = join(scopeRoot, "block-native.mjs");
+      writeFileSync(preload, `
+        import childProcess from "node:child_process";
+        import { appendFileSync } from "node:fs";
+        import { syncBuiltinESMExports } from "node:module";
+        for (const name of ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]) {
+          const original = childProcess[name];
+          childProcess[name] = (...args) => {
+            if (!/codex|sandbox-exec|bwrap/.test(JSON.stringify(args.slice(0, 2)))) return original(...args);
+            appendFileSync(${JSON.stringify(launches)}, name + "\\n");
+            throw new Error("Unexpected native execution");
+          };
+        }
+        syncBuiltinESMExports();
+      `);
+      const interactive = entry === "repl" || entry === "resume-repl";
+      const resumed = entry === "resume-prompt" || entry === "resume-repl";
+      const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
+      const id = history.create("test-model", scopeRoot, "user");
+      history.save(id, [{ role: "user", content: "saved context" }], 0, 0);
+      const args = entry === "pipe" ? [] : [
+        "run", ...(interactive ? ["-i"] : ["hello"]), ...(resumed ? ["--continue", id] : []),
+      ];
+      for (const autonomyMode of [undefined, "passive", "supervised", "autonomous"] as const) {
+        // Channel overrides a less restrictive daemon default; absent channel
+        // configuration inherits supervision from the daemon default.
+        seedScopeConfig(scopeRoot, {
+          defaultAgentHarness: autonomyMode === "autonomous" ? "autonomy-port" : "codex",
+          model: "test-model",
+          cli: autonomyMode === "supervised" || autonomyMode === undefined ? {} : { defaultAutonomyMode: autonomyMode },
+          serve: autonomyMode === undefined ? {} : { defaultAutonomyMode: autonomyMode === "supervised" ? "supervised" : "autonomous" },
+        });
+        const result = runFull(args, {
+          cwd: scopeRoot, preload,
+          input: interactive ? "first turn\nsecond turn\nexit\n" : entry === "pipe" ? "hello" : undefined,
+          env: { HOME: fixtureHome, CODEX_HOME: join(fixtureHome, ".codex"), KOTA_SCOPE_ROOT: scopeRoot, KOTA_PRESET: "" },
+        });
+        expect(existsSync(launches), result.stderr).toBe(false);
+        if (autonomyMode === undefined) {
+          expect(result.exitCode, result.stderr).toBe(1);
+          expect(result.stderr).toContain("autonomy mode is not configured");
+          expect(existsSync(receipts)).toBe(false);
+        } else if (autonomyMode === "autonomous") {
+          expect(result.exitCode, result.stderr).toBe(0);
+          expect(result.stderr).not.toContain("cannot honor");
+          const handoffs = readFileSync(receipts, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+          expect(handoffs).toEqual(Array.from({ length: interactive ? 2 : 1 }, () => ({ autonomyMode })));
+        } else {
+          expect(result.exitCode, result.stderr).toBe(interactive ? 0 : 1);
+          expect(result.stderr).toContain(`autonomyMode="${autonomyMode}"`);
+          expect(result.stderr.match(/cannot honor requested run option/g)).toHaveLength(interactive ? 2 : 1);
+          expect(existsSync(receipts)).toBe(false);
+        }
+      }
+    },
+  );
 });

@@ -60,7 +60,7 @@ describe("harness conversation resume", () => {
 		await runAgentHarnessWithConversationResume({
 			harness,
 			prompt: "new prompt",
-			run: { effort: "xhigh", model: "model" },
+			run: { effort: "xhigh", model: "model", scopeRoot },
 		});
 
 		expect(run.mock.calls[0]?.[0]).toMatchObject({

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: The CLI harness path drops configured passive or supervised mode. Native adapter checks rejecting those modes are consequently bypassed, and native scope projection grants writable workspace access. The omission affects explicit-run, REPL, and piped-input construction.
 
@@ -154,3 +153,39 @@ excerpt:
 >     writableRoots: [resolve(args.cwd)],
 >   });
 > }
+
+
+## Resolution
+
+Original priority: p1. Fixed the CLI-owned autonomy handoff. `src/cli.ts`
+resolves the selected scope's CLI mode (with the existing daemon-default
+fallback) before choosing harness or classic execution. Explicit prompts,
+REPL turns, resumed prompts and REPL conversations, and piped input forward
+that resolved mode. Missing configuration fails visibly. Native adapter
+capability declarations and passive/supervised rejection remain unchanged.
+
+## Final verification
+
+- `pnpm check:fast` passed: production/test types, lint, task validation,
+  generated client bindings and module admission.
+- `pnpm test:cli` passed all 38 tests. Five public CLI journeys exercise
+  prompt, pipe, REPL, resumed prompt and resumed REPL boundaries, including
+  repeated turns. They distinguish lost supervision through Codex rejection
+  before native launch, channel-over-daemon precedence, daemon fallback,
+  missing-mode rejection and successful autonomous handoff to a controlled
+  adapter. Existing output and authentication fixtures now configure autonomy
+  explicitly.
+- Selected owner tests passed all 30 cases in Codex adapter, autonomy resolver
+  and harness resume suites. These preserve direct adapter rejection and
+  conversation behavior. The plain-call history fixture now uses its temporary
+  scope instead of writing session state in the repository.
+- Real CLI rejection transcripts are retained in this builder run's
+  `cli-autonomy-transcript.json`. Passive and supervised invocations exited 1
+  with their requested mode in the diagnostic; native launch ports were guarded.
+- Final diff inspection and whitespace validation passed. No live model calls
+  or native agent execution were needed for this configuration/authorization
+  handoff. Full repository deterministic tests and production build were not run;
+  no native-client source or shared contract changed.
+
+The original finding and cited evidence above remain preserved as historical
+provenance. Publication belongs to the workflow runtime.
