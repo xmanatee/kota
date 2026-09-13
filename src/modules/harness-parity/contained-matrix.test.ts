@@ -10,6 +10,7 @@ import { containedEvaluationProfiles } from "#modules/eval-harness/contained-eva
 import { writeFakeContainerBackend, writeTerminalRun } from "#modules/eval-harness/subprocess-executor-test-helpers.js";
 import { containedMatrixRequest, containedMatrixSelection, containedMatrixTool, type PreparedContainedMatrix, prepareContainedMatrix, runContainedMatrix } from "./contained-matrix.js";
 import { CONTAINED_STAGE_RESULT_PREFIX, decodeContainedStageOutput } from "./contained-stage-protocol.js";
+import { runHarnessParityMatrix } from "./harness-parity-operations.js";
 import { createFixingHarness, writeFixAddScenario } from "./model-matrix.test-support.js";
 
 // Only the external subprocess port is controlled. Matrix pairing, fixture
@@ -38,6 +39,9 @@ function context() { return { scopeRoot: root, cwd: root, agentOutputDir: root, 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "contained-matrix-"));
   docker = join(root, "docker.mjs"); writeFakeContainerBackend(docker);
+  // This process port executes on the test host, whose Git/Node installation
+  // need not match the image PATH. Offline verifiers strip test env variables.
+  writeFileSync(docker, readFileSync(docker, "utf8").replaceAll("process.env.KOTA_FAKE_CONTAINER_USE_HOST_PATH", '"1"'));
   clearAgentHarnessRegistryForTest(); registerAgentHarness(createFixingHarness("openai-tools"));
   vi.stubEnv("OPENROUTER_API_KEY", "synthetic-key");
   processPort.run.mockReset();
@@ -79,6 +83,9 @@ it("prepares exact native and local raw/scaffold routes without serializing host
 });
 
 function prepareNativeLocal(resolveAuth: AgentHarness["resolveIsolatedContainerAuth"]) {
+  registerAgentHarness({ ...createFixingHarness("openai-tools"), validateModelId: (model) => {
+    if (!model.startsWith("ollama/")) throw new Error("Synthetic local harness only supports Ollama");
+  } });
   registerAgentHarness({ ...createFixingHarness("codex"), modelRouting: { kind: "native", provider: "openai" },
     toolControl: "native", validateModelId: undefined, resolveIsolatedContainerAuth: resolveAuth });
   const input = { ...profile(), matrix: { ...matrix(),
@@ -90,7 +97,10 @@ function prepareNativeLocal(resolveAuth: AgentHarness["resolveIsolatedContainerA
   return prepareContainedMatrix(root, join(root, "report"), containedEvaluationProfiles(root).rollout!, 1);
 }
 
-it.each(["declared", "missing-file", "unsupported"] as const)("retains an unavailable native baseline (%s) while executing local scenario and eval rows", async (unavailability) => {
+it.each([
+  ["contained", "declared"], ["contained", "missing-file"], ["contained", "unsupported"],
+  ["public", "declared"], ["public", "missing-file"], ["public", "unsupported"],
+] as const)("%s retains an unavailable native baseline (%s) while executing local scenario and eval rows", async (entryPoint, unavailability) => {
   const prepared = prepareNativeLocal(unavailability === "unsupported" ? undefined : () => {
     if (unavailability === "declared") throw new ContainerAuthUnavailableError("synthetic native credential unavailable");
     return { sourceFile: join(root, "missing-login"), containerDirectory: "/run/login", fileName: "auth.json", locatorEnvKey: "CODEX_HOME" };
@@ -121,7 +131,9 @@ it.each(["declared", "missing-file", "unsupported"] as const)("retains an unavai
     const text = options.args.includes("workflow") ? "" : `${CONTAINED_STAGE_RESULT_PREFIX}${JSON.stringify({ result: { text: "done", streamedText: "done", turns: 1, usage: UNKNOWN_AGENT_USAGE, isError: false }, messages: [] })}\n`;
     return { status: "completed", exitCode: 0, signal: null, stdout: { text, totalBytes: text.length, truncated: false }, stderr: { text: "", totalBytes: 0, truncated: false } };
   });
-  const result = await runContainedMatrix(prepared, { signal: new AbortController().signal, reportProgress: () => {}, onProcessSpawn: () => {} });
+  const result = entryPoint === "public"
+    ? await runHarnessParityMatrix(prepared.deps, prepared.options)
+    : await runContainedMatrix(prepared, { signal: new AbortController().signal, reportProgress: () => {}, onProcessSpawn: () => {} });
   expect(result.ok, JSON.stringify(result)).toBe(true);
   if (!result.ok) return;
   expect(result.rows.filter((row) => row.role === "baseline")).toEqual([
@@ -129,7 +141,7 @@ it.each(["declared", "missing-file", "unsupported"] as const)("retains an unavai
     expect.objectContaining({ targetKind: "harness-parity-scenario", model: "gpt-5.5", harnessName: "codex", status: "skipped", verification: null }),
   ]);
   expect(result.rows.filter((row) => row.role === "candidate").map((row) => row.status)).toEqual(["passed", "passed"]);
-  expect(processPort.run).toHaveBeenCalledTimes(2);
+  expect(processPort.run).toHaveBeenCalledTimes(entryPoint === "public" ? 1 : 2);
   expect(result.shadowComparisons).toHaveLength(2);
   expect(result.shadowComparisons.every((comparison) => !comparison.compatible)).toBe(true);
   expect(JSON.parse(readFileSync(result.reportPath, "utf8")).rows).toEqual(result.rows);

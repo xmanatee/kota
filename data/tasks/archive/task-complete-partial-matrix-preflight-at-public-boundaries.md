@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Complete partial matrix preflight at public entry points
 
@@ -49,3 +48,22 @@ model quota, a contained host grant, or permission to bypass a Docker denial.
 Live comparison and support-tier claims remain owned by
 `task-run-live-openrouter-and-local-model-rollout-evalua`; link evidence rather
 than copying run packets into source control.
+
+## Completion
+
+Public and contained preparation now share adapter container-auth resolution.
+Explicit unavailability preserves the native baseline as skipped while the local
+scenario and eval fixture execute. Malformed login files, locators and unexpected
+resolver/preflight exceptions return the existing typed public failures with
+model/provider/harness-attributed evidence before inference.
+
+Verification in builder run `2026-09-13T00-24-34-844Z-builder-l4ijhj`:
+16 contained/public cohort and rejection cases, 15 selected public boundary cases,
+and 13 auth, native-launch and matrix owner cases passed. The synthetic contained
+fixture now uses the host PATH when executing host Git/Node. All four original
+real-launch routing assertions remain intact and now expose the first error:
+`spawnSync /bin/ps EPERM`. Both a direct process-identity command and the production
+`ProcessSupervisor` independently reproduce that sandbox restriction; see the
+run artifacts `launcher-diagnostic.log`, `boundary-tests.log` and
+`process-owner-probe.json`. Live model and Docker comparisons were not performed
+and remain with the linked rollout task.

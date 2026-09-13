@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentHarness } from "#core/agent-harness/index.js";
+import { resolveAdapterContainerAuth } from "#modules/eval-harness/container-auth.js";
 import {
   containerExecutionProfileCanRun,
   createSubprocessExecutor,
@@ -44,7 +45,7 @@ export function matrixEvalExecutor(args: {
     isolationBackend,
     extraEnv: matrixExecutorAuthEnv(args.harness, args.spec, args.deps.scopeRoot, isolationBackend ?? { kind: "host-subprocess" }),
     ...(isolationBackend?.kind === "container" && args.harness.modelRouting?.kind === "native"
-      ? { containerAuth: args.harness.resolveIsolatedContainerAuth?.(process.env) } : {}),
+      ? { containerAuth: resolveAdapterContainerAuth(args.harness, process.env) } : {}),
     providerEgressTaskBoundary: {
       agentHarness: args.harness.name,
       toolControl: args.harness.toolControl,
@@ -61,7 +62,12 @@ export function preflightMatrixEval(args: {
   spec: MatrixModelSpec;
   harness: AgentHarness;
 }): string | null {
-  const profile = args.executor.preflight(args.profile);
+  let profile: ReturnType<WorkflowExecutor["preflight"]>;
+  try {
+    profile = args.executor.preflight(args.profile);
+  } catch (error) {
+    return matrixEvalFailure({ ...args, error });
+  }
   // Resource readiness cannot establish a credential or endpoint route.
   // Native login is adapter-owned; local endpoints require provider egress.
   let routingIssue: string | null = null;
@@ -94,4 +100,18 @@ export function preflightMatrixEval(args: {
     return `${args.spec.label}: ${routingIssue ?? verifierIssue ?? executionProfileGateReason(profile)}; evidence: ${artifactPath}`;
   }
   return null;
+}
+
+/** Preserve attribution even when preparation cannot produce an execution profile. */
+export function matrixEvalFailure(args: {
+  outBaseDir: string; index: number; spec: MatrixModelSpec; harness: AgentHarness; error: unknown;
+}): string {
+  const message = args.error instanceof Error ? args.error.message : String(args.error);
+  const artifactDir = join(args.outBaseDir, "eval-preflight");
+  mkdirSync(artifactDir, { recursive: true });
+  const artifactPath = join(artifactDir, `${args.index}.json`);
+  writeFileSync(artifactPath, JSON.stringify({
+    model: args.spec.model, provider: args.spec.executionProvider, harness: args.harness.name, error: message,
+  }, null, 2));
+  return `${args.spec.label}: ${message}; evidence: ${artifactPath}`;
 }

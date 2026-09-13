@@ -77,6 +77,8 @@ describe("contained route launch propagation", () => {
     expect(preflight).toMatchObject({ status: "non-gating", gateEligible: false, networkPolicy: { provider, enforcementMode: "docker-internal-proxy" } });
     const result = await executor.execute({ workflowName: "noop", workingDir: entry.workingDir, budgetMs: 5000, executionProfile: preflight });
     expect(result.kind).toBe("error");
+    expect(result, JSON.stringify({ preflight, result })).toMatchObject({ kind: "error", message: expect.stringContaining("exited with status 1") });
+    expect(existsSync(log), JSON.stringify({ preflight, result })).toBe(true);
     const launch = JSON.parse(readFileSync(log, "utf8").trim());
     expect(launch.env.KOTA_EVAL_PROVIDER_EGRESS_PROVIDER).toBe(provider);
     expect(launch.env.HTTP_PROXY).toBe("http://test-proxy:8080");

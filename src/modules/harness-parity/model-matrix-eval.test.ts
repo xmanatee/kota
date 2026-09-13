@@ -11,7 +11,7 @@ import type {
   WorkflowExecutionRequest,
   WorkflowExecutor,
 } from "#modules/eval-harness/public-surface.js";
-import { OFFLINE_CONTAINER_NETWORK_POLICY, PROVIDER_EGRESS_NETWORK_LABELS, providerEgressEndpointLabelValue, providerEgressEndpointsFor } from "#modules/eval-harness/public-surface.js";
+import { createSubprocessExecutor, OFFLINE_CONTAINER_NETWORK_POLICY, PROVIDER_EGRESS_NETWORK_LABELS, providerEgressEndpointLabelValue, providerEgressEndpointsFor } from "#modules/eval-harness/public-surface.js";
 import { createFakeExecutableVerifierSandbox, writeFakeContainerBackend } from "#modules/eval-harness/subprocess-executor-test-helpers.js";
 import type { HarnessParityMatrixOptions, HarnessParityMatrixResult } from "./client.js";
 import { type HarnessParityDeps, runHarnessParityMatrix } from "./harness-parity-operations.js";
@@ -288,7 +288,8 @@ describe("harness-parity model matrix eval fixtures", () => {
     });
     expect(result.ok, JSON.stringify(result)).toBe(true);
     if (!result.ok) return;
-    expect(result.rows.map((row) => row.status)).toEqual(["passed", "passed"]);
+    const executionEvidence = result.rows.map((row) => JSON.parse(readFileSync(join(row.evalHarness!.runArtifactPath, "fixture-run.json"), "utf8")).execution);
+    expect(result.rows.map((row) => row.status), JSON.stringify({ result, executionEvidence })).toEqual(["passed", "passed"]);
     const launches = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
     const candidates = launches.filter((entry) => entry.command === "node");
     expect(candidates).toHaveLength(2);
@@ -372,13 +373,11 @@ describe("harness-parity model matrix eval fixtures", () => {
     });
   });
 
-  it.each(["native", "ollama", "lmstudio"] as const)("rejects unsupported %s routing despite container readiness", async (route) => {
-    const native = route === "native";
-    const provider = native ? "openai" : route;
+  it.each(["ollama", "lmstudio"] as const)("rejects unsupported %s routing despite container readiness", async (route) => {
+    const provider = route;
     const hostAuth = vi.fn(() => ({ CODEX_HOME: "/host/login" }));
     const harness: AgentHarness = {
-      ...createFixingHarness(native ? "codex" : "openai-tools"),
-      ...(native ? { modelRouting: { kind: "native", provider: "openai" } as const } : {}),
+      ...createFixingHarness("openai-tools"),
       resolveIsolatedHostAuthEnv: hostAuth,
     };
     const run = vi.spyOn(harness, "run");
@@ -401,12 +400,10 @@ describe("harness-parity model matrix eval fixtures", () => {
     }, {
       scenarios: ["fix-add"], evalFixtures: ["eval-alpha"], ...PROFILE,
       harnesses: [harness.name],
-      baselines: [{ model: native ? "gpt-5.5" : `${provider}/installed-model`, provider: native ? "openai" : "local" }],
+      baselines: [{ model: `${provider}/installed-model`, provider: "local" }],
       evalIsolationBackends: { [provider]: {
         kind: "container", executable: container, image: "ready-image", kotaBinaryPath: "/opt/kota/bin/kota.mjs",
-        networkPolicy: native ? { kind: "provider-egress", provider: "openai", enforcement: {
-          kind: "docker-internal-proxy", networkName: "openai-test", proxyUrl: "http://provider-proxy:8080",
-        } } : { kind: "offline" },
+        networkPolicy: { kind: "offline" },
       } },
     });
     expect(result).toMatchObject({ ok: false, reason: "eval_preflight_failed" });
@@ -417,10 +414,46 @@ describe("harness-parity model matrix eval fixtures", () => {
     const artifact = readFileSync(result.message.split("evidence: ")[1]!, "utf8");
     expect(JSON.parse(artifact)).toMatchObject({
       provider, harness: harness.name, verifierIssue: null,
-      executionProfile: { backendKind: "container", status: native ? "non-gating" : "verified" },
-      routingIssue: expect.stringContaining(native ? "owner-mediated container login" : "contained local-runtime route"),
+      executionProfile: { backendKind: "container", status: "verified" },
+      routingIssue: expect.stringContaining("contained local-runtime route"),
     });
     expect(artifact).not.toContain("not-native-login");
+  });
+
+  it.each(["resolver", "locator", "empty-login", "directory-login", "preflight-login", "preflight-defect"] as const)("reports %s failure through the public route before inference", async (failure) => {
+    const docker = join(outRoot, "docker.mjs");
+    writeFakeContainerBackend(docker);
+    const sourceFile = join(outRoot, "login");
+    if (failure === "directory-login") mkdirSync(sourceFile);
+    else writeFileSync(sourceFile, failure === "empty-login" || failure === "preflight-login" ? "" : "synthetic-login");
+    const auth = { sourceFile, containerDirectory: failure === "locator" ? "/candidate" : "/run/login", fileName: "auth.json", locatorEnvKey: "CODEX_HOME" };
+    const native: AgentHarness = { ...createFixingHarness("codex"), modelRouting: { kind: "native", provider: "openai" }, validateModelId: undefined,
+      resolveIsolatedContainerAuth: () => {
+        if (failure === "resolver") throw new Error("unexpected resolver defect");
+        return auth;
+      } };
+    const run = vi.spyOn(native, "run");
+    registerAgentHarness(native);
+    writeFixAddScenario(evalFixturesRoot);
+    const backend = { kind: "container" as const, executable: docker, image: "ready", kotaBinaryPath: "/opt/kota/bin/kota.mjs" };
+    const executor = createSubprocessExecutor({ kotaBinaryPath: "unused", isolationBackend: backend, containerAuth: auth });
+    const execute = vi.spyOn(executor, "execute");
+    if (failure === "preflight-defect") vi.spyOn(executor, "preflight").mockImplementation(() => { throw new Error("unexpected preflight defect"); });
+    const result = await invokeMatrixRoute({
+      scopeRoot: evalFixturesRoot, scenariosRoot: evalFixturesRoot, evalFixturesRoot, defaultOutBaseDir: outRoot, kotaBinaryPath: "unused", config: {},
+      ...(failure.startsWith("preflight-") ? { evalExecutor: executor } : {}),
+    }, { scenarios: ["fix-add"], evalFixtures: ["eval-alpha"], harnesses: ["codex"], ...PROFILE,
+      baselines: [{ model: "gpt-5.5", provider: "openai" }], evalIsolationBackends: { openai: backend } });
+    expect(result).toMatchObject({ ok: false, reason: failure.startsWith("preflight-") ? "eval_preflight_failed" : "invalid_eval_isolation" });
+    expect(run).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    if (result.ok) return;
+    const error = failure === "resolver" ? "unexpected resolver defect" : failure === "locator" ? "Invalid adapter container login locator."
+      : failure === "preflight-defect" ? "unexpected preflight defect" : "Container login must be a nonempty regular credential file.";
+    expect(result.message).toContain(error);
+    const evidence = readFileSync(result.message.split("evidence: ")[1]!, "utf8");
+    expect(JSON.parse(evidence)).toMatchObject({ model: "gpt-5.5", provider: "openai", harness: "codex", error });
+    expect(evidence).not.toContain("synthetic-login");
   });
 
   it("rejects malformed isolation and a different provider's egress policy", () => {

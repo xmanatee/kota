@@ -1,10 +1,24 @@
 import { closeSync, constants, fstatSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
+import { type AgentHarness, ContainerAuthUnavailableError } from "#core/agent-harness/harness-definition.js";
 import { registerOwnedProcessResource } from "#core/execution/owned-process-resources.js";
 import type { SubprocessExecutorOptions } from "./subprocess-executor-types.js";
 
 type ContainerAuth = NonNullable<SubprocessExecutorOptions["containerAuth"]>;
+
+/** Resolve the adapter contract once on the trusted host. Only explicit
+ * unavailability may remove a route from execution; malformed credentials fail. */
+export function resolveAdapterContainerAuth(harness: AgentHarness, env: NodeJS.ProcessEnv): ContainerAuth | undefined {
+  if (harness.modelRouting?.kind !== "native") return undefined;
+  if (!harness.resolveIsolatedContainerAuth) {
+    throw new ContainerAuthUnavailableError(`Harness ${harness.name} has no contained native authentication contract`);
+  }
+  const auth = harness.resolveIsolatedContainerAuth(env);
+  const issue = containerAuthIssue(auth);
+  if (issue !== null) throw new ContainerAuthUnavailableError(issue);
+  return auth;
+}
 
 function openLogin(auth: ContainerAuth, workingDir?: string): number {
   if (!isAbsolute(auth.sourceFile) || !/^\/run\/[a-zA-Z0-9_-]+$/.test(auth.containerDirectory) ||

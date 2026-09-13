@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ContainerAuthUnavailableError } from "#core/agent-harness/harness-definition.js";
 import type { AgentHarness } from "#core/agent-harness/index.js";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { WorkflowExecutor } from "#modules/eval-harness/public-surface.js";
@@ -21,7 +22,7 @@ import {
   runEvalFixturesForSpec,
 } from "./model-matrix-eval.js";
 import { matrixHarnessOverrides } from "./model-matrix-execution.js";
-import { matrixEvalExecutor, preflightMatrixEval, validateMatrixIsolationBackends } from "./model-matrix-isolation.js";
+import { matrixEvalExecutor, matrixEvalFailure, preflightMatrixEval, validateMatrixIsolationBackends } from "./model-matrix-isolation.js";
 import {
   buildModelSpecs,
   resolveOpenRouterPreflight,
@@ -190,12 +191,20 @@ export async function runHarnessParityModelMatrix(
       const backends = options.evalIsolationBackends === undefined
         ? undefined : validateMatrixIsolationBackends(options.evalIsolationBackends);
       // Resolve the whole matrix before any row can consume inference.
-      for (const execution of executions) {
+      for (const [index, execution] of executions.entries()) {
         if (skipReasonFor(execution.spec, openRouterPreflight, execution.unavailableReason) !== null) continue;
-        execution.evalExecutor ??= matrixEvalExecutor({ deps, ...execution, backends });
+        try {
+          execution.evalExecutor ??= matrixEvalExecutor({ deps, ...execution, backends });
+        } catch (error) {
+          if (error instanceof ContainerAuthUnavailableError) {
+            execution.unavailableReason = error.message;
+          } else {
+            return { ok: false, reason: "invalid_eval_isolation", message: matrixEvalFailure({ ...execution, outBaseDir, index, error }) };
+          }
+        }
       }
     } catch (error) {
-      return { ok: false, reason: "invalid_eval_isolation", message: (error as Error).message };
+      return { ok: false, reason: "invalid_eval_isolation", message: error instanceof Error ? error.message : String(error) };
     }
     const failures: string[] = [];
     for (const [index, execution] of executions.entries()) {

@@ -60,7 +60,7 @@ export function containedScenarioExecution(options: SubprocessExecutorOptions, h
         const prefix = "git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c diff.external= diff --no-ext-diff --no-textconv --no-index";
         const diff = await isolated(pair, `${prefix} --no-color --unified=3 initial working`, 30_000);
         const names = await isolated(pair, `${prefix} --name-only initial working`, 30_000);
-        if (![0, 1].includes(diff.status ?? -1) || ![0, 1].includes(names.status ?? -1)) throw new Error("Contained diff collection failed");
+        if (![0, 1].includes(diff.status ?? -1) || ![0, 1].includes(names.status ?? -1)) throw new Error(`Contained diff collection failed: diff exit=${diff.status}, names exit=${names.status}; ${tail([diff.stderr, names.stderr].join("\n"), 4096)}`);
         return { diff: diff.stdout, changedFiles: names.stdout.split("\n").filter(Boolean).map((path) => path.replace(/^(initial|working)\//, "")).sort() };
       } finally { rmSync(pair, { recursive: true, force: true }); }
     },

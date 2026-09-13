@@ -10,7 +10,7 @@ import { networkReadEffect } from "#core/tools/effect.js";
 import { resolveKotaBinary, resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import { defineWorkflowBlockingOperation, runWorkflowBlockingOperation, type WorkflowBlockingOperationContext } from "#core/workflow/blocking-operation.js";
 import { containedEvaluationProfiles, requireContainedEvaluationOrigin } from "#modules/eval-harness/contained-evaluation.js";
-import { containerAuthIssue } from "#modules/eval-harness/container-auth.js";
+import { resolveAdapterContainerAuth } from "#modules/eval-harness/container-auth.js";
 import { createSubprocessExecutor } from "#modules/eval-harness/subprocess-executor.js";
 import type { SubprocessExecutorOptions } from "#modules/eval-harness/subprocess-executor-types.js";
 import type { HarnessParityMatrixOptions } from "./client.js";
@@ -93,19 +93,12 @@ export function prepareContainedMatrix(scopeRoot: string, artifactDir: string,
       toolControl: harness.toolControl, modelRouting: harness.modelRouting,
       nativeAbortQuarantine: harness.nativeAbortQuarantine, unsupportedRunOptions: harness.unsupportedRunOptions };
     let containerAuth: SubprocessExecutorOptions["containerAuth"];
-    let unavailableReason: string | null = null;
-    if (harness.modelRouting?.kind === "native" && !harness.resolveIsolatedContainerAuth) {
-      unavailableReason = `Harness ${harness.name} has no contained native authentication contract`;
-    } else {
-      try {
-        containerAuth = harness.resolveIsolatedContainerAuth?.(process.env);
-      } catch (error) {
-        if (!(error instanceof ContainerAuthUnavailableError)) throw error;
-        unavailableReason = error.message;
-      }
-      if (containerAuth) unavailableReason = containerAuthIssue(containerAuth);
+    try {
+      containerAuth = resolveAdapterContainerAuth(harness, process.env);
+    } catch (error) {
+      if (!(error instanceof ContainerAuthUnavailableError)) throw error;
+      return { spec, harness: facts, status: "unavailable", reason: error.message };
     }
-    if (unavailableReason !== null) return { spec, harness: facts, status: "unavailable", reason: unavailableReason };
     return { spec, harness: facts, status: "ready", executorOptions: {
       kotaBinaryPath, isolationBackend: backend,
       extraEnv: { ...matrixExecutorAuthEnv(harness, spec, scopeRoot, backend), ...env },
