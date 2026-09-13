@@ -119,7 +119,7 @@ export class WorkflowRuntime {
         if (!definition?.integration) {
           throw new Error(`Writer workflow "${context.workflow}" has no integration policy`);
         }
-        return validateRunIntegration(context, definition.integration, input);
+        return validateRunIntegration(context, definition.integration, input, runtimeConfig.authorityConfigPath);
       },
       verifyPostReconcile: (context, input) => {
         const definition = this.ctx.definitions.find(

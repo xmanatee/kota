@@ -306,17 +306,12 @@ function initializeCodeFixture(root: string): void {
   mkdirSync(join(root, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(root, "data", "inbox"), { recursive: true });
   writeFileSync(join(root, ".gitignore"), ".kota/\n");
-  writeFileSync(
-    join(root, "package.json"),
-    `${JSON.stringify({
-      name: "scope-onboarding-code-acceptance",
-      private: true,
-      scripts: {
-        "check:fast": "node -e \"process.exit(0)\"",
-        "validate-tasks": "node -e \"process.exit(0)\"",
-      },
-    }, null, 2)}\n`,
-  );
+  mkdirSync(join(root, ".kota"), { recursive: true });
+  writeFileSync(join(root, ".kota", "config.json"), JSON.stringify({
+    workflow: { validationCommand: [process.execPath, "verify.mjs"] },
+  }));
+  writeFileSync(join(root, "verify.mjs"),
+    'import { readFileSync } from "node:fs";\nif (!readFileSync("AGENTS.md", "utf8").includes("Acceptance code scope")) process.exit(1);\n');
   writeFileSync(join(root, "data", "inbox", "keep.md"), "operator-owned\n");
   execFileSync("git", ["init", "--quiet"], { cwd: root });
   execFileSync("git", ["add", "."], { cwd: root });

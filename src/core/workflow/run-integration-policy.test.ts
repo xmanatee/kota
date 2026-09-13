@@ -388,6 +388,15 @@ describe("shared integration continuation policy", () => {
     expect(prompt.length).toBeLessThan(14_000);
   });
 
+  it("reports missing project setup without executing the workflow command", async () => {
+    await expect(validateRunIntegration(context(), {
+      validationCommand: ["must-not-launch"], projectValidation: true,
+    }, {
+      workspaceDir: process.cwd(), head: "head", canonicalHead: "canonical",
+      signal: new AbortController().signal,
+    }, join(stateRoot, "machine.json"))).rejects.toThrow("configure workflow.validationCommand");
+  });
+
   it("sanitizes and bounds validation command output before returning evidence", async () => {
     const output = `HEAD\u0000\u001b[31mcolored\u001b[0m${"x".repeat(13_000)}TAIL`;
     const validation = await validateRunIntegration(

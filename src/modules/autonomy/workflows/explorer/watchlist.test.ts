@@ -142,8 +142,10 @@ describe("direct watchlist editing", () => {
   async function validate(boundary: "repair" | "publication") {
     const runCommand = createWorkflowCommandRunner({ cwd: root });
     if (boundary === "publication") {
-      const [command, ...args] = explorerWorkflow.integration!.validationCommand;
-      await runCommand({ command, args });
+      const policy = explorerWorkflow.integration!;
+      for (const [command, ...args] of [policy.validationCommand, ...policy.additionalValidationCommands ?? []]) {
+        await runCommand({ command, args });
+      }
       return;
     }
     const bus = new EventBus();

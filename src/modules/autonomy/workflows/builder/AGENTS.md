@@ -12,6 +12,11 @@ Builder is a business workflow, not a private execution runtime.
   readiness and runs one build agent. Universal
   repair checks protect target-task authority and independent critic review;
   the agent selects behavior-specific proof.
+- Publication composes installed task validation with the selected scope's
+  `workflow.validationCommand` from trusted configuration. Configure the command
+  in `.kota/config.json` using argv, for example `["python3", "-m", "pytest"]`.
+  Missing configuration requires setup; declared failures use runtime integration
+  repair. The shared sandbox executes project checks in the reconciled writer.
 - A continuation `decompose` decision terminally classifies the builder so the
   existing decomposer can review the immutable task contract, deduplicate child
   identities, and apply task mutations through repo-task operations.

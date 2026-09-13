@@ -12,8 +12,10 @@ import {
   resolveAgentHarness,
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
+import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
+import { withNativeCliSandbox } from "#core/agent-harness/native-cli-sandbox.js";
 import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/native-cli-workflow-rails.js";
-import type { KotaConfig } from "#core/config/config.js";
+import { type KotaConfig, loadConfig } from "#core/config/config.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { renderUntrustedContent } from "#core/util/untrusted-content.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
@@ -227,8 +229,16 @@ export async function validateRunIntegration(
   context: RunContext,
   policy: WorkflowIntegrationPolicy,
   input: IntegrationValidationInput,
+  authorityConfigPath?: string,
 ): Promise<IntegrationValidation> {
-  const [command, ...args] = policy.validationCommand;
+  // Daemon configuration belongs to its host scope. Resolve project authority
+  // from the selected canonical scope, never from the candidate checkout.
+  const projectCommand = policy.projectValidation
+    ? loadConfig(context.scope.root, undefined, { globalConfigPath: authorityConfigPath }).workflow?.validationCommand
+    : undefined;
+  if (policy.projectValidation && projectCommand === undefined) {
+    throw new Error(`Project validation setup required for ${context.scope.root}: configure workflow.validationCommand in the selected scope's trusted .kota/config.json (or operator configuration).`);
+  }
   const runCommand = createWorkflowCommandRunner({
     cwd: input.workspaceDir,
     env: context.resources.env,
@@ -236,15 +246,30 @@ export async function validateRunIntegration(
     onProcessSpawn: context.processes.register,
   });
   try {
-    const result = await runCommand({
-      command,
-      args,
-      captureLimitBytesPerStream: 1_000_000,
-    });
-    return {
-      status: "passed",
-      evidence: [normalizeEvidence([workflowCommandOutput(result) || `${command} passed`])],
-    };
+    const evidence: string[] = [];
+    for (const [command, ...args] of [policy.validationCommand, ...policy.additionalValidationCommands ?? []]) {
+      const result = await runCommand({ command, args, captureLimitBytesPerStream: 1_000_000 });
+      evidence.push(workflowCommandOutput(result) || `${command} passed`);
+    }
+    if (projectCommand !== undefined) {
+      const [command, ...args] = projectCommand;
+      const result = await withNativeCliSandbox(command, args, {
+        cwd: input.workspaceDir,
+        scopeRoot: context.scope.root,
+        runtimeStateRoot: join(context.scope.root, ".kota"),
+        authorityConfigPath,
+        machineAuthorityOwner: "kota",
+        writableRoots: [input.workspaceDir],
+        runtimeWritableRoots: [context.resources.agentDir, context.resources.tempDir, context.resources.artifactDir],
+        env: buildNativeCliEnvironment({ overrides: context.resources.env }),
+      }, (launch) => runCommand({
+        ...launch,
+        envMode: "replace",
+        captureLimitBytesPerStream: 1_000_000,
+      }));
+      evidence.push(workflowCommandOutput(result) || `${command} passed`);
+    }
+    return { status: "passed", evidence: [normalizeEvidence(evidence)] };
   } catch (error) {
     input.signal.throwIfAborted();
     if (!(error instanceof WorkflowCommandError) || error.kind === "spawn-failed") {

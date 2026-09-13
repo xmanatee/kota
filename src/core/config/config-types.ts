@@ -158,6 +158,8 @@ export type CoreKotaConfig = {
 
   /** Workflow runtime settings. */
   workflow?: {
+    /** Project verification argv, loaded through scope trust and executed in the writer sandbox. */
+    validationCommand?: [string, ...string[]];
     /** Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB. */
     maxStepOutputBytes?: number;
     /**

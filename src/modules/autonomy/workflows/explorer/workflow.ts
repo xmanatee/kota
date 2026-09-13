@@ -16,7 +16,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
+import { taskQueueIntegrationPolicy, taskQueueValidationCommand } from "#modules/repo-tasks/task-integration-policy.js";
 import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import {
   EXPLORATION_REFRESH_MS,
@@ -109,7 +109,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   repository: "write",
   resources: () => ["autonomy:exploration"],
-  integration: taskQueueIntegrationPolicy({ validationCommand }),
+  integration: taskQueueIntegrationPolicy({ additionalValidationCommands: [validationCommand] }),
   finalize: finalizeExplorer,
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
@@ -142,14 +142,13 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           {
             id: "explorer-files-valid",
             type: "code" as const,
-            run: async (ctx) =>
-              workflowCommandOutput(
-                await ctx.runCommand({
-                  command: validationCommand[0],
-                  args: validationCommand.slice(1),
-                  cwd: ctx.workspaceRoot,
-                }),
-              ),
+            run: async (ctx) => {
+              const outputs: string[] = [];
+              for (const [command, ...args] of [taskQueueValidationCommand, validationCommand]) {
+                outputs.push(workflowCommandOutput(await ctx.runCommand({ command, args, cwd: ctx.workspaceRoot })));
+              }
+              return outputs.join("\n");
+            },
           },
         ],
         continuation: autonomyContinuationPolicy({

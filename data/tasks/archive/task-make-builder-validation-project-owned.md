@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Validate automation changes with the selected project's tooling
 
@@ -38,3 +37,17 @@ Retain claims, critic review, scope isolation, and failure visibility. Update
 the affected owner tests, replacing command-literal assertions with these effects.
 No all-harness benchmark, extra full matrix, or new sandbox implementation is
 needed for this deterministic contract. Keep the deliberate Git-root restriction.
+
+## Completion
+
+Builder now composes mandatory installed task validation with the selected
+canonical scope's trusted project command. KOTA configures its own static check;
+Explorer retains its separate watchlist check. Shared reconciliation, ownership,
+critic review and integration repair remain in their existing owners.
+
+Verified with the two-project publication and rejection journey, the composed
+external-scope onboarding journey, selected owner and reconciliation tests,
+static checks and production compilation. Test OS ports were controlled where
+the run sandbox denied process observation or nested sandbox execution; this
+does not claim live OS sandbox enforcement. Run evidence records the exact
+checks and environment limitations.

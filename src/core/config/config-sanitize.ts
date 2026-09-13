@@ -224,6 +224,14 @@ function sanitizeNotifications(out: Partial<CoreKotaConfig>, src: unknown): void
 function sanitizeWorkflow(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
   const w: NonNullable<CoreKotaConfig["workflow"]> = {};
+  if (src.validationCommand !== undefined) {
+    const command = src.validationCommand;
+    if (!Array.isArray(command) || command.length === 0 ||
+      command.some((part) => typeof part !== "string" || part.trim() === "")) {
+      throw new Error("workflow.validationCommand must be a non-empty string array");
+    }
+    w.validationCommand = command as [string, ...string[]];
+  }
   if (typeof src.maxStepOutputBytes === "number" && src.maxStepOutputBytes > 0) w.maxStepOutputBytes = src.maxStepOutputBytes;
   if (
     isPlainObject(src.agentTokenBudget) &&

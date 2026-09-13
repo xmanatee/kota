@@ -2469,6 +2469,14 @@
         "maxStepOutputBytes": {
           "description": "Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB.",
           "type": "number"
+        },
+        "validationCommand": {
+          "description": "Project verification argv, loaded through scope trust and executed in the writer sandbox.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
         }
       },
       "type": "object"

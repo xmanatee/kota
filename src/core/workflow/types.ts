@@ -90,6 +90,10 @@ export type WorkflowDefinitionInput = {
 
 export type WorkflowIntegrationPolicy = Readonly<{
   validationCommand: readonly [string, ...string[]];
+  /** Additional module-owned checks; all must pass. */
+  additionalValidationCommands?: readonly (readonly [string, ...string[]])[];
+  /** Require the selected scope's configured project check in the shared sandbox. */
+  projectValidation?: boolean;
   /**
    * Pure semantic guard evaluated against the exact canonical snapshot a
    * writer was reconciled onto. The runtime executes it while publication is

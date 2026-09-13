@@ -80,6 +80,16 @@ describe("workflow run transaction definition", () => {
     });
   });
 
+  it.each([
+    { additionalValidationCommands: [["check"], []] },
+    { additionalValidationCommands: ["check"] },
+    { projectValidation: "yes" },
+  ])("rejects malformed composed validation: %j", (invalid) => {
+    expect(() => validateWorkflowDefinitions([
+      workflow("write", { ...integration, ...invalid } as unknown as NonNullable<WorkflowDefinitionInput["integration"]>),
+    ])).toThrow(WorkflowDefinitionError);
+  });
+
   it("preserves a writer's semantic post-reconcile invariant", () => {
     const postReconcile = () => ({ satisfied: true } as const);
     const [validated] = validateWorkflowDefinitions([

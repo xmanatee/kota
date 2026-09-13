@@ -40,9 +40,11 @@ export const verifyTaskOwnershipAfterReconcile: WorkflowPostReconcileInvariant =
 };
 
 /** Domain validation and ownership compose with each workflow's semantic invariant. */
-export function taskQueueIntegrationPolicy(options: Partial<WorkflowIntegrationPolicy> = {}): WorkflowIntegrationPolicy {
+export function taskQueueIntegrationPolicy(options: Pick<WorkflowIntegrationPolicy, "projectValidation" | "additionalValidationCommands" | "postReconcile"> = {}): WorkflowIntegrationPolicy {
   return {
-    validationCommand: options.validationCommand ?? taskQueueValidationCommand,
+    validationCommand: taskQueueValidationCommand,
+    additionalValidationCommands: options.additionalValidationCommands,
+    projectValidation: options.projectValidation,
     postReconcile: (input) => {
       const ownership = verifyTaskOwnershipAfterReconcile(input);
       return ownership.satisfied ? options.postReconcile?.(input) ?? ownership : ownership;

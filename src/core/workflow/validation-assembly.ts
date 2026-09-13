@@ -79,7 +79,7 @@ export function assembleWorkflowDefinition(
       const raw = definition.integration as Record<string, unknown>;
       rejectUnknownKeys(
         raw,
-        ["validationCommand", "postReconcile"],
+        ["validationCommand", "additionalValidationCommands", "projectValidation", "postReconcile"],
         "integration",
         definitionPath,
       );
@@ -94,6 +94,16 @@ export function assembleWorkflowDefinition(
           definitionPath,
         );
       }
+      const additional = raw.additionalValidationCommands;
+      if (additional !== undefined && (!Array.isArray(additional) || additional.some(
+        (entry) => !Array.isArray(entry) || entry.length === 0 ||
+          entry.some((part) => typeof part !== "string" || part.trim() === ""),
+      ))) {
+        throw new WorkflowDefinitionError("integration.additionalValidationCommands must contain non-empty string arrays", definitionPath);
+      }
+      if (raw.projectValidation !== undefined && typeof raw.projectValidation !== "boolean") {
+        throw new WorkflowDefinitionError("integration.projectValidation must be a boolean", definitionPath);
+      }
       const postReconcile = raw.postReconcile;
       if (postReconcile !== undefined && typeof postReconcile !== "function") {
         throw new WorkflowDefinitionError(
@@ -103,6 +113,8 @@ export function assembleWorkflowDefinition(
       }
       return {
         validationCommand: command as [string, ...string[]],
+        ...(additional === undefined ? {} : { additionalValidationCommands: additional as [string, ...string[]][] }),
+        ...(raw.projectValidation === undefined ? {} : { projectValidation: raw.projectValidation as boolean }),
         ...(postReconcile === undefined
           ? {}
           : { postReconcile: postReconcile as WorkflowPostReconcileInvariant }),

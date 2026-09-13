@@ -90,6 +90,22 @@ describe("layered configuration", () => {
     }).workflow?.agentTokenBudget).toEqual({ maxTotalTokens: 50_000 });
   });
 
+  it("selects project verification through trusted configuration precedence", () => {
+    const scope = { workflow: { validationCommand: ["python3", "verify.py"] } };
+    writeFileSync(scopeConfigPath, JSON.stringify(scope));
+    expect(loadConfigWithDiagnostics(root, undefined, { globalConfigPath }).config.workflow).toBeUndefined();
+    expect(load(scope, undefined, { workflow: { validationCommand: ["make", "test"] } }).workflow)
+      .toEqual(scope.workflow);
+    expect(load(scope, { workflow: { validationCommand: ["cargo", "test"] } }).workflow)
+      .toEqual({ validationCommand: ["cargo", "test"] });
+  });
+
+  it.each([[], "make test", [""], ["make", 1], null])("rejects a malformed project check without falling back: %j", (validationCommand) => {
+    expect(() => load({ workflow: { validationCommand } }, undefined, {
+      workflow: { validationCommand: ["make", "test"] },
+    })).toThrow("workflow.validationCommand");
+  });
+
   it("propagates separately configured CLI and server autonomy", () => {
     expect(load({ serve: { defaultAutonomyMode: "supervised" }, cli: { defaultAutonomyMode: "passive" } }))
       .toMatchObject({ serve: { defaultAutonomyMode: "supervised" }, cli: { defaultAutonomyMode: "passive" } });
