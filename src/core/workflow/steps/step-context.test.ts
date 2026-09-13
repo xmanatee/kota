@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -57,10 +58,17 @@ afterEach(() => {
 
 describe("createStepContext", () => {
   it.each(["missing", "unprojectable"])("rejects %s selected review input before launching and accepts its repaired handoff", async (failure) => {
-    const workspaceRoot = tempScope();
+    const scopeRoot = tempScope();
+    const workspaceRoot = join(scopeRoot, "writer");
+    mkdirSync(workspaceRoot);
     try {
       const bus = new EventBus();
-      const runDir = join(workspaceRoot, ".kota/runs/run-1");
+      const runDir = join(scopeRoot, ".kota/runs/run-1");
+      const runtime = join(scopeRoot, ".kota/runtime/run-1");
+      const agentRunDir = join(runtime, "agent");
+      const tempRoot = join(runtime, "tmp");
+      const artifactRoot = join(runtime, "artifacts");
+      for (const dir of [agentRunDir, tempRoot, artifactRoot]) mkdirSync(dir, { recursive: true });
       mkdirSync(runDir, { recursive: true });
       const path = join(runDir, "assessment.json");
       if (failure === "unprojectable") writeFileSync(path, "\0private binary");
@@ -70,13 +78,33 @@ describe("createStepContext", () => {
         supportedHookKinds: [], askOwnerToolName: null, emitsAgentMessageStream: false, toolControl: "kota", run,
       };
       const context = createStepContext(makeMetadata(), trigger, undefined, {}, {}, [], {
-        workspaceRoot, scopeRoot: workspaceRoot, bus, pbus: new ScopedEventBus(bus, "scope-a"),
-        store: new WorkflowRunStore(workspaceRoot), readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        workspaceRoot, scopeRoot, bus, pbus: new ScopedEventBus(bus, "scope-a"),
+        store: new WorkflowRunStore(scopeRoot), readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        runtimeResources: {
+          profileId: "validation", agentRunDir, tempRoot, artifactRoot,
+          env: { KOTA_RUN_DIR: agentRunDir, KOTA_RUN_TEMP_DIR: tempRoot, KOTA_RUN_ARTIFACT_DIR: artifactRoot },
+        },
         runAgentHarness: async (_harness, options) => {
           expect(options.readOnlyHostRoots?.some((path) => path.includes("/originals/"))).toBe(false);
+          const delivered = options.readOnlyHostRoots!.map((path) => readFileSync(path, "utf8")).join("\n");
+          expect(delivered).toContain("validation passed");
+          expect(delivered).toContain("reproduce-selected-case");
+          expect(delivered).not.toContain("disposable-compiled-output");
+          expect(delivered).not.toContain("Artifact selection exceeds");
+          expect(options.readOnlyHostRoots).not.toContain(tempRoot);
+          expect(options.agentReadScope).not.toContain(tempRoot);
           return run();
         },
       });
+      // Real validation uses the run environment. Scratch would exhaust review
+      // discovery if it were included alongside the selected result/reproducer.
+      execFileSync(process.execPath, ["-e", `
+        const { writeFileSync } = require("node:fs");
+        const { join } = require("node:path");
+        for (let i = 0; i < 4100; i++) writeFileSync(join(process.env.KOTA_RUN_TEMP_DIR, i + ".js"), "disposable-compiled-output");
+        writeFileSync(join(process.env.KOTA_RUN_ARTIFACT_DIR, "result.txt"), "validation passed; source revision fixture; command node validation");
+        writeFileSync(join(process.env.KOTA_RUN_DIR, "reproducer.js"), "reproduce-selected-case");
+      `], { env: context.runtimeResources!.env });
       const review = () => context.runAgentHarness(harness, {
         prompt: "Assess selected input", effort: "low", cwd: workspaceRoot, agentWriteScope: "deny-all", autonomyMode: "autonomous",
       }, { evidence: { currentRunReviewFiles: ["assessment.json"] } });
@@ -85,7 +113,10 @@ describe("createStepContext", () => {
       writeFileSync(path, JSON.stringify({ outcome: "positive and negative observed" }));
       await expect(review()).resolves.toMatchObject({ text: "reviewed" });
       expect(run).toHaveBeenCalledOnce();
-    } finally { rmSync(workspaceRoot, { recursive: true, force: true }); }
+      // Subsequent critic/repair reviews preserve the writer's retry workspace.
+      await expect(review()).resolves.toMatchObject({ text: "reviewed" });
+      expect(existsSync(join(tempRoot, "4099.js"))).toBe(true);
+    } finally { rmSync(scopeRoot, { recursive: true, force: true }); }
   });
 
   it.each(["registered", "injected"])("returns tool failures while preserving fatal errors and cancellation with the %s runner", async (runnerKind) => {

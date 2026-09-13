@@ -491,6 +491,9 @@ describe("native CLI live sandbox", () => {
   it("lets a native CLI own the sandbox without an outer wrapper", async () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-owned-sandbox-"));
     roots.push(scopeRoot);
+    const scratch = join(scopeRoot, ".kota", "runtime", "run", "tmp");
+    const artifacts = join(scopeRoot, ".kota", "runtime", "run", "artifacts");
+    for (const path of [scratch, artifacts]) mkdirSync(path, { recursive: true });
 
     const process = await withNativeCliSandbox(
       "/bin/sh",
@@ -499,13 +502,28 @@ describe("native CLI live sandbox", () => {
         cwd: scopeRoot,
         machineAuthorityOwner: "native-cli",
         writableRoots: [scopeRoot],
-        env: buildNativeCliEnvironment(),
+        runtimeWritableRoots: [scratch, artifacts],
+        env: buildNativeCliEnvironment({ overrides: {
+          KOTA_RUN_TEMP_DIR: scratch, KOTA_RUN_ARTIFACT_DIR: artifacts,
+        } }),
+        prepareEnvironment(context, env) {
+          expect(context.writableRoots).toEqual(expect.arrayContaining([scratch, artifacts]));
+          return env;
+        },
       },
-      async (sandboxedProcess) => sandboxedProcess,
+      async (sandboxedProcess) => {
+        writeFileSync(join(sandboxedProcess.env.TMPDIR!, "invocation.txt"), "disposable");
+        writeFileSync(join(sandboxedProcess.env.KOTA_RUN_TEMP_DIR!, "compiled.js"), "generated");
+        writeFileSync(join(sandboxedProcess.env.KOTA_RUN_ARTIFACT_DIR!, "result.txt"), "selected");
+        return sandboxedProcess;
+      },
     );
 
     expect(process.command).toBe(realpathSync("/bin/sh"));
     expect(process.args).toEqual(["-c", "true"]);
     expect(process.env.HOME).toContain("kota-native-cli-");
+    expect(existsSync(process.env.TMPDIR!)).toBe(false);
+    expect(readFileSync(join(scratch, "compiled.js"), "utf8")).toBe("generated");
+    expect(readFileSync(join(artifacts, "result.txt"), "utf8")).toBe("selected");
   });
 });

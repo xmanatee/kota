@@ -88,7 +88,9 @@ It uses a fresh `CODEX_HOME` and explicitly disables plugins and hooks, so
 operator-global extensions cannot affect daemon-launched workflow steps;
 Codex auth is copied into the provider-only per-invocation runtime home.
 Tool permissions deny both the original login credential and the runtime home,
-preserving lexical and resolved identities over overlapping grants.
+preserving lexical and resolved identities over overlapping grants. Runtime-supplied
+scratch and artifact roots remain writable independently of the repository write
+scope, as in the other native adapters.
 Trusted host isolation may replace `HOME`; the adapter projects only the
 resolved `CODEX_HOME` locator so local login remains available without
 restoring the operator home environment. Contained eval launches use the adapter's

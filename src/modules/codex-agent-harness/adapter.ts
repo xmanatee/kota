@@ -252,6 +252,11 @@ export const codexAgentHarness: AgentHarness = {
         model: options.model,
         effort: options.effort,
         writableRoots: scope.writableRoots,
+        runtimeWritableRoots: [
+          options.agentOutputDir,
+          options.env?.KOTA_RUN_TEMP_DIR,
+          options.env?.KOTA_RUN_ARTIFACT_DIR,
+        ].filter((path): path is string => path !== undefined),
         authorityConfigPath: options.authorityConfigPath,
         readOnlyHostRoots: options.readOnlyHostRoots ?? [],
         env: options.env,

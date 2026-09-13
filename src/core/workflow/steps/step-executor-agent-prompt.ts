@@ -169,6 +169,14 @@ export function buildAgentPrompt(
     `Step: ${step.id}`,
     `Run ID: ${metadata.id}`,
     `Run directory: ${agentRunDir}`,
+    ...(runtimeResources?.tempRoot === undefined ? [] : [
+      `Run scratch directory: ${runtimeResources.tempRoot}`,
+      "Use a fresh subdirectory there for disposable validation workspaces and generated output. It survives run retries and is excluded from review handoffs; runtime cleanup and retention own its lifetime.",
+    ]),
+    ...(runtimeResources?.artifactRoot === undefined ? [] : [
+      `Run artifact directory: ${runtimeResources.artifactRoot}`,
+    ]),
+    "Run output and artifact directories are recursively retained for review. Keep selected results, command/source provenance and necessary small reproducers there; keep disposable source copies and compiled trees in scratch.",
     `Workflow definition: ${metadata.definitionPath}`,
     `Prompt file: ${step.promptPath}`,
     `Scope root: ${scopeRoot}`,

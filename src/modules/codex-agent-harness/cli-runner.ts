@@ -114,6 +114,7 @@ type CollectTextFromCodexCliArgs = {
   model: string;
   effort: AgentEffort;
   writableRoots: readonly string[];
+  runtimeWritableRoots?: readonly string[];
   readOnlyHostRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
@@ -426,6 +427,7 @@ export async function collectTextFromCodexCli(
       machineAuthorityOwner: "native-cli",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
+      runtimeWritableRoots: args.runtimeWritableRoots,
       readOnlyHostRoots: args.readOnlyHostRoots,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_ENDPOINTS.map((endpoint) => endpoint.host),

@@ -253,11 +253,15 @@ describe("buildAgentPrompt trigger payload trust boundary", () => {
       {
         profileId: "profile-1",
         agentRunDir: "/worktree/.kota/runs/run-1",
+        tempRoot: "/runtime/run-1/tmp",
+        artifactRoot: "/runtime/run-1/artifacts",
         env: {},
       },
     );
 
     expect(prompt).toContain("Run directory: /worktree/.kota/runs/run-1");
+    expect(prompt).toContain("Run scratch directory: /runtime/run-1/tmp");
+    expect(prompt).toContain("Run artifact directory: /runtime/run-1/artifacts");
     expect(prompt).not.toContain("Run directory: /repo/.kota/runs/run-1");
   });
 

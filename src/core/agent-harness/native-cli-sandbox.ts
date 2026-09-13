@@ -315,6 +315,7 @@ export async function withNativeCliSandbox<T>(
         ),
         writableRoots: absoluteRoots([
           ...options.writableRoots,
+          ...explicitRuntimeWritableRoots,
           ...authorizationWritableRoots,
         ], options.cwd),
         readProtectedPaths,

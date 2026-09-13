@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Keep disposable validation workspaces out of review evidence
 
@@ -48,3 +47,22 @@ Do not assume every directory under agent output is an authored deliverable.
   store, scan every source file, or prescribe per-workflow export schemas. Extend
   a focused existing owner scenario for the distinction and remove any replaced
   path. Report unperformed broader checks honestly.
+
+## Completion
+
+Codex now carries the existing runtime scratch/artifact grants through its
+launcher into native tool permissions, matching the other native adapters.
+Workflow prompts expose the supplied scratch/artifact paths; shared native
+instructions distinguish run-persistent scratch from invocation-only temp and
+selected evidence. The handoff collector and retention/cleanup owners remain
+unchanged; no historical or active workspace was removed.
+
+The existing reviewer-input scenario now generates 4,100 scratch files alongside
+a result and small reproducer. Actual handoffs deliver the selected proof on
+repeated reviews without the generated tree, preserve scratch for retries, and
+reject missing/unprojectable required input. Focused permission, environment,
+invocation-cleanup, artifact-integrity and prompt-path checks also passed.
+Run-local validation logs record the commands and sandbox limitations: process
+registration's ps probe and loopback listening were denied; nested OS sandbox
+cases were skipped. Full build, full deterministic suite and live model evaluation
+were not run.

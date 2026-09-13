@@ -211,6 +211,8 @@ describe("codexAgentHarness", () => {
         env: {
           OPENAI_API_KEY: "must-not-reach-codex",
           KOTA_TEST_ENV: "preserved",
+          KOTA_RUN_TEMP_DIR: "/runtime/run/tmp",
+          KOTA_RUN_ARTIFACT_DIR: "/runtime/run/artifacts",
         },
         onMessage,
         onUsage,
@@ -243,6 +245,7 @@ describe("codexAgentHarness", () => {
         machineAuthorityOwner: "native-cli",
         authorityConfigPath: "/operator/.kota/config.json",
         writableRoots: ["/repo"],
+        runtimeWritableRoots: ["/runtime/run/tmp", "/runtime/run/artifacts"],
         env: expect.any(Object),
         allowedEgressHosts: [
           "api.openai.com",
