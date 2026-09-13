@@ -13,6 +13,7 @@ const PROTOCOL_TEST_FILES = [
   "src/core/mcp/client-http-redirect-policy.test.ts",
   "src/core/mcp/client-oauth-endpoint-policy.test.ts",
   "src/core/mcp/client-oauth-redirect-policy.test.ts",
+  "src/core/mcp/client-oauth-resource-binding.test.ts",
   "src/core/mcp/stdio-stderr-redaction.test.ts",
   "src/core/mcp/client.test.ts",
   "src/modules/agent-client-protocol/**/*.test.ts",

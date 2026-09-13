@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Authorization-code OAuth accepts the MCP peer's resource metadata without binding it to the configured MCP resource. A malicious peer can nominate another service's audience, cause KOTA to request a token for that service, and receive the resulting bearer token when KOTA retries the original peer. A controlled probe of the production HTTP and authorization runtime demonstrated this token delivery. PKCE, callback-state validation, and HTTPS endpoint checks do not prevent the audience mismatch.
 
@@ -140,3 +139,38 @@ excerpt:
 > url: transport.url,
 >           method: "POST",
 >           headers: this.httpHeadersForRequest(method, requestParams),
+
+
+## Resolution
+
+Authorization-code OAuth now uses the shared configured-resource metadata validator
+before issuer discovery, client resolution, consent, or token exchange. The resource
+must equal the normalized operator-configured MCP HTTP URL, including its path,
+port, and query. Enterprise-managed authorization retains its explicit configured
+resource. Interactive scope expansion remains supported.
+
+The validated configured resource enters the existing token binding. Refresh uses
+that binding's resource, and bearer requests use the client's fixed configured
+transport. Every subsequent authorization challenge is validated again, so a peer
+cannot replace the audience after a successful grant. No token persistence or
+alternate token-installation path bypasses this owner.
+
+## Verification
+
+- Added public McpClient protocol regressions with controlled HTTP and callback
+  ports. Before the fix, all five mismatched-resource connections succeeded;
+  after the fix, different origins, sibling paths, child paths, ports, and queries
+  reject before consent, issuer requests, token exchange, or bearer delivery.
+- The positive journey checks URL normalization, requested consent scopes,
+  authorization URL and token-form audiences, refresh-token reuse, refreshed
+  bearer delivery to the configured peer, and rejection of later audience drift.
+  Production discovery, authorization, refresh, and HTTP dispatch execute; only
+  network, callback, and clock ports are controlled.
+- `pnpm test:protocol src/core/mcp/`: 53 tests passed across six files, covering
+  this regression plus existing client, endpoint, redirect, and redaction behavior.
+- `pnpm check:fast`: passed production/test typechecking, lint, task validation,
+  generated client bindings, and module admission.
+
+These deterministic checks establish the client-side binding and compatibility.
+No live issuer grants were exercised, and no claim is made about live issuer grant
+policy. The original confirmed claim and synthetic evidence remain above.

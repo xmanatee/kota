@@ -80,20 +80,18 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       );
     }
 
-    const resource = config.type === "oauth-client-credentials"
+    const resource = config.type !== "enterprise-managed"
       ? this.validateConfiguredProtectedResourceMetadata(
           config,
           resourceMetadata,
           challenge.scopes,
           this.transport.url,
         )
-      : config.type === "enterprise-managed"
-      ? this.validateEnterpriseManagedProtectedResourceMetadata(
+      : this.validateEnterpriseManagedProtectedResourceMetadata(
           config,
           resourceMetadata,
           challenge.scopes,
-        )
-      : resourceMetadata.resource;
+        );
     const requestedScopes = config.type === "oauth-client-credentials"
       ? [...configuredScopes]
       : config.type === "enterprise-managed"
@@ -160,6 +158,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
 
   protected validateConfiguredProtectedResourceMetadata(
     config:
+      | NormalizedMcpOAuthAuthorizationCodeConfig
       | NormalizedMcpOAuthClientCredentialsAuthorizationConfig
       | NormalizedMcpEnterpriseManagedAuthorizationConfig,
     resourceMetadata: McpProtectedResourceMetadata,
@@ -183,7 +182,7 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
       );
     }
     if (normalizedResource !== configuredResource) {
-      const configuredResourceLabel = config.type === "oauth-client-credentials"
+      const configuredResourceLabel = config.type !== "enterprise-managed"
         ? "configured MCP HTTP URL"
         : "configured MCP resource";
       throw this.authorizationFlowError(
@@ -193,6 +192,9 @@ export abstract class McpClientAuthorizationRuntime extends McpClientOAuthTokenR
         `protected-resource metadata resource does not match ${configuredResourceLabel} "${configuredResource}"`,
       );
     }
+
+    // Interactive OAuth may request additional consent, but never another audience.
+    if (config.type === "oauth") return configuredResource;
 
     const unsupportedChallengeScopes = scopesNotIncluded(
       challengeScopes,
