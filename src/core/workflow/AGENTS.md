@@ -35,8 +35,10 @@ and publication.
   under its original run. Stream only when supported; always retain returned
   results, verification summaries, and measured usage, including on errors or
   cancellation. Agent success still requires validation and publication.
-- Workflow owners supply repair continuation's domain contract and judgment;
-  core observes semantic boundaries, check evidence, queue revisions, and
+- Workflow owners supply repair continuation's domain contract and judgment.
+  Failed continuation judgments propagate through runtime incident/recovery
+  handling; only a completed judgment can request an owner decision.
+  Core observes semantic boundaries, check evidence, queue revisions, and
   same-scope workspace changes, then owns durable yield/resume. One judgment
   covers a boundary until unresolved attempts grow geometrically, failures
   strictly expand, or diff scope materially expands; volatile churn alone
@@ -48,7 +50,9 @@ and publication.
   read-only; they inspect unpublished work without becoming mutation owners.
   The step context snapshots runtime-selected artifact roots into the existing
   run store and grants bounded files containing only verified selected projections,
-  never a directory containing unselected evidence. Linked snapshots require
+  never a directory containing unselected evidence. Disposable compiled trees
+  belong in run temp; review roots retain the selected verification outputs.
+  Linked snapshots require
   explicit selection and a same-scope run observation. Originals keep exact
   hashes; redacted or unavailable projections never stand in for original bytes.
   Cleanup atomically moves private runtime originals into the existing run store;

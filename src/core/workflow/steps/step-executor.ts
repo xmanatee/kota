@@ -3,6 +3,7 @@ import {
   type KotaAgentMessage,
 } from "#core/agent-harness/index.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { AgentBackoffAdmissionError } from "../agent-backoff.js";
 import { withWorkflowBlockingOperation } from "../blocking-operation-context.js";
 import {
   continuationPacketNeedsJudgment,
@@ -350,6 +351,23 @@ export async function executeStep(
             diff: progress.diff,
           },
           remainingFailures: [],
+        }).catch((failure: unknown) => {
+          if (failure instanceof AgentBackoffAdmissionError) {
+            throw new RepairLoopError(
+              undefined, step.id, [],
+              { content: "", turns: 0, sessionId: resumedSessionId,
+                repairIterations: [], repairWarnings: [] },
+              failure.message, failure,
+            );
+          }
+          if (failure instanceof AgentStepRuntimeError) {
+            // Recovery resumes the stopped writer, never the nested judge.
+            throw new AgentStepRuntimeError(
+              failure.message, failure.kind, false, failure.retryAt,
+              resumedSessionId,
+            );
+          }
+          throw failure;
         });
         if (record === null) continue;
         try {

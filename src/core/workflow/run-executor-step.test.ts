@@ -9,23 +9,12 @@ import {
   HARD_MAX_STEP_OUTPUT_BYTES,
   type StepAccumulators,
 } from "./run-executor-step.js";
-import {
-  type AgentStepConfig,
-  AgentStepRuntimeError,
-} from "./steps/step-executor.js";
+import type { AgentStepConfig } from "./steps/step-executor.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 
 const executeStepMock = vi.hoisted(() => vi.fn());
 vi.mock("./steps/step-executor.js", () => ({
   executeStep: executeStepMock,
-  AgentStepRuntimeError: class AgentStepRuntimeError extends Error {
-    kind: string;
-    retryable: boolean;
-    constructor(msg: string, kind: string, retryable: boolean) {
-      super(msg);
-      this.kind = kind;
-      this.retryable = retryable;
-    }
-  },
 }));
 
 describe("applyOutputSizeLimit", () => {

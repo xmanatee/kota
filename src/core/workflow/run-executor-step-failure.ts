@@ -103,25 +103,30 @@ export function recordWorkflowStepFailure(args: {
         )
       : caughtError);
 
+  const admissionFailure = err instanceof AgentBackoffAdmissionError
+    ? err
+    : repairFailure?.agentBackoff instanceof AgentBackoffAdmissionError
+      ? repairFailure.agentBackoff
+      : undefined;
   const agentRuntimeFailure =
     err instanceof AgentStepRuntimeError
       ? err
-      : repairFailure instanceof RepairLoopError
+      : repairFailure?.agentBackoff instanceof AgentStepRuntimeError
         ? repairFailure.agentBackoff
         : undefined;
-  let agentBackoff: WorkflowAgentBackoffSignal | undefined;
+  let agentBackoff: WorkflowAgentBackoffSignal | undefined = admissionFailure?.incidentSignal;
   if (
     agentRuntimeFailure !== undefined &&
     (!isStepTimeout || idleTimeoutError !== undefined)
   ) {
     agentBackoff = workflowAgentBackoffSignalFromError(agentRuntimeFailure);
   }
-  const appliedBackoff = agentBackoff === undefined
+  const appliedBackoff = admissionFailure !== undefined || agentBackoff === undefined
     ? undefined
     : agentConfig.agentBackoff?.apply(agentBackoff);
-  const thrownError = appliedBackoff === undefined
+  const thrownError = admissionFailure ?? (appliedBackoff === undefined
     ? err
-    : new AgentBackoffAdmissionError(appliedBackoff, agentBackoff);
+    : new AgentBackoffAdmissionError(appliedBackoff, agentBackoff));
   if (appliedBackoff !== undefined) {
     (agentConfig.agentBackoffAbortController ?? runAbortController).abort(
       thrownError,

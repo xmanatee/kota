@@ -1,4 +1,5 @@
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
+import type { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import type { WorkflowContinuationRecord } from "./continuation.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
 import type {
@@ -48,7 +49,7 @@ export class RepairLoopError extends Error {
     readonly failureIds: string[],
     readonly output: RepairLoopFailureOutput,
     message: string,
-    readonly agentBackoff?: AgentStepRuntimeError,
+    readonly agentBackoff?: AgentStepRuntimeError | AgentBackoffAdmissionError,
   ) {
     super(message);
     this.name = "RepairLoopError";
@@ -60,19 +61,19 @@ export class RepairLoopError extends Error {
   }
 
   get retryable(): boolean | undefined {
-    return this.stepRuntimeKind === undefined
+    return this.stepRuntimeKind === undefined || !(this.agentBackoff instanceof AgentStepRuntimeError)
       ? undefined
-      : this.agentBackoff?.retryable;
+      : this.agentBackoff.retryable;
   }
 
   get retryAt(): string | undefined {
-    return this.stepRuntimeKind === undefined
+    return this.stepRuntimeKind === undefined || !(this.agentBackoff instanceof AgentStepRuntimeError)
       ? undefined
-      : this.agentBackoff?.retryAt;
+      : this.agentBackoff.retryAt;
   }
 
   asAgentStepRuntimeError(): this {
-    if (this.repairKind === undefined && this.agentBackoff !== undefined) {
+    if (this.repairKind === undefined && this.agentBackoff instanceof AgentStepRuntimeError) {
       this.stepRuntimeKind = this.agentBackoff.kind;
       this[AGENT_STEP_RUNTIME_ERROR] = true;
     }

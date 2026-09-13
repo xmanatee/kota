@@ -7,6 +7,7 @@ import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
 import { runChecksPhased } from "#core/workflow/repair-loop-checks.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { invokeStructuredAgentJudge } from "./agent-judge.js";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
@@ -25,6 +26,25 @@ const mockRunAgentHarness = getMockRunAgentHarness();
 
 describe("critic judge retry handling", () => {
   beforeEach(resetCriticTestMocks);
+
+  it("classifies a structured judge launch failure without retrying or producing a decision", async () => {
+    const dir = makeTmpDir();
+    const launch = vi.fn(async () => ({
+      text: "sandbox-exec: data object length 154882 exceeds maximum (65535)",
+      streamedText: "", turns: 0, usage: UNKNOWN_AGENT_USAGE,
+      isError: true, subtype: "codex_cli_error",
+    }));
+    await expect(invokeStructuredAgentJudge(
+      "Judge the preserved checkpoint", dir,
+      { label: "Continuation judge", systemPrompt: "Return a decision.",
+        harness: "claude-agent-sdk", model: "test", effort: "low" },
+      launch, JSON.parse, dir,
+    )).rejects.toMatchObject({
+      name: "AgentStepRuntimeError", kind: "runtime", retryable: false,
+      message: expect.stringContaining("data object length 154882"),
+    });
+    expect(launch).toHaveBeenCalledOnce();
+  });
 
   it("launches the judge with read-only filesystem authority", async () => {
     const dir = makeTmpDir();

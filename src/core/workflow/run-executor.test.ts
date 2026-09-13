@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import type { RunContext } from "./run-context.js";
 import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import { executeWorkflowRun } from "./run-executor.js";
@@ -17,6 +18,7 @@ import {
   registerWorkflowScenarioDriver,
   TRIGGER,
 } from "./run-executor-test-fixture.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 import type { WorkflowCommandRunner } from "./workflow-command.js";
 
 let fixture: RunExecutorTestFixture;
@@ -262,9 +264,14 @@ describe("continuation checkpoints", () => {
     );
   }, 10_000);
 
-  it("suspends an active agent call when a progress frame reveals proven priority work", async () => {
+  it.each(["preserve-yield", "launch-failure", "admission-incident", "admission-gated"])("checkpoints an active call for priority work with %s", async (outcome) => {
     const { workspaceRoot, runContext, bus, store, log } = fixture;
-    const harness = "workflow-continuation-active-yield";
+    const harness = `workflow-continuation-active-${outcome}`;
+    const admission = new AgentBackoffAdmissionError({
+      runtimeId: "native-fixture", kind: "runtime", failureCount: 2,
+      until: "2099-01-01T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z",
+      reason: "sandbox bootstrap unavailable",
+    }, outcome === "admission-incident" ? { kind: "runtime", reason: "sandbox bootstrap unavailable" } : undefined);
     let completedNativeCall = false;
     let decisionCalls = 0;
     let judgedChangedPaths: readonly string[] = [];
@@ -342,6 +349,13 @@ describe("continuation checkpoints", () => {
               decide: (_context, _step, packet) => {
                 decisionCalls += 1;
                 judgedChangedPaths = packet.workspace.changedPaths;
+                if (outcome.startsWith("admission-")) throw admission;
+                if (outcome === "launch-failure") {
+                  throw new AgentStepRuntimeError(
+                    "sandbox-exec: data object length 154882 exceeds maximum (65535)",
+                    "runtime", false, undefined, "judge-session",
+                  );
+                }
                 if (decisionCalls === 1) {
                   rmSync(join(workspaceRoot, ".kota", "runs", "test-run"), {
                     recursive: true,
@@ -378,6 +392,22 @@ describe("continuation checkpoints", () => {
 
     expect(completedNativeCall).toBe(false);
     expect(judgedChangedPaths).toContain("quiesced-final.ts");
+    if (outcome !== "preserve-yield") {
+      expect(result.continuation).toBeUndefined();
+      expect(result.metadata.continuations ?? []).toEqual([]);
+      if (outcome === "launch-failure") {
+        expect(result.agentBackoff).toMatchObject({ kind: "runtime", reason: expect.stringContaining("data object length 154882") });
+      } else {
+        expect(result.deferredByAgentBackoff).toBe(admission.backoff);
+        expect(result.agentBackoff).toBe(admission.incidentSignal);
+        expect(result.metadata.status).toBe(outcome === "admission-incident" ? "failed" : "interrupted");
+      }
+      expect(result.metadata.steps[0]).toMatchObject({ status: "failed", output: { sessionId: "active-session" } });
+      expect(readFileSync(join(runContext.sandbox.workspaceDir, "quiesced-final.ts"), "utf8")).toContain("quiesced = true");
+      expect(decisionCalls).toBe(1);
+      expect(resumedSessions).toEqual([undefined]);
+      return;
+    }
     expect(result.continuation).toMatchObject({
       stepId: "agent",
       decision: { decision: "preserve-yield" },

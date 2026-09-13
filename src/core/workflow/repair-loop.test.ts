@@ -22,6 +22,7 @@ import type {
 } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import {
   buildRepairPrompt,
   RepairAgentRuntimeError,
@@ -668,8 +669,13 @@ describe("runAgentRepairLoop", () => {
     expect(decide).toHaveBeenCalledOnce();
   });
 
-  it("preserves a typed owner-attention checkpoint when continuation judgment fails", async () => {
+  it.each(["runtime", "admission"])("retains repair output when continuation judgment fails with %s", async (kind) => {
     const harnessName = uniqueName("repair-continuation-judge-failure");
+    const admission = new AgentBackoffAdmissionError({
+      runtimeId: "native-fixture", kind: "runtime", failureCount: 1,
+      until: "2099-01-01T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z",
+      reason: "sandbox bootstrap unavailable",
+    }, { kind: "runtime", reason: "sandbox bootstrap unavailable" });
     const repairRuns: string[] = [];
     registerRepairHarness(harnessName, async () => {
       repairRuns.push("repair");
@@ -707,7 +713,8 @@ describe("runAgentRepairLoop", () => {
             },
           }),
           decide: () => {
-            throw new Error("judge unavailable");
+            if (kind === "admission") throw admission;
+            throw new Error("sandbox-exec: data object length 154882 exceeds maximum (65535)");
           },
           resolveAgentContract: (parent) => ({
             harness: parent.harness,
@@ -720,11 +727,12 @@ describe("runAgentRepairLoop", () => {
       },
     });
 
+    const metadata = makeMetadata();
     const failure = await runAgentRepairLoop(
       step,
-      makeInitialResult(),
+      { ...makeInitialResult(), output: { content: "initial", turns: 1, sessionId: "writer-session" } },
       makeContext(scopeRoot),
-      makeMetadata(),
+      metadata,
       new AbortController(),
       vi.fn(),
       { scopeRoot, resolveAgentHarness },
@@ -733,13 +741,20 @@ describe("runAgentRepairLoop", () => {
       (error: unknown) => error,
     );
 
-    expect(failure).toBeInstanceOf(WorkflowContinuationSuspension);
-    expect(
-      (failure as WorkflowContinuationSuspension).continuation.decision,
-    ).toMatchObject({
-      decision: "needs-owner",
-      rationale: expect.stringContaining("judge unavailable"),
-    });
+    expect(failure).toBeInstanceOf(RepairLoopError);
+    expect(failure).toMatchObject({ output: {
+      content: "initial", sessionId: "writer-session", repairIterations: [],
+    } });
+    if (kind === "admission") {
+      expect((failure as RepairLoopError).agentBackoff).toBe(admission);
+    } else {
+      expect(failure).toBeInstanceOf(RepairAgentRuntimeError);
+      expect(failure).toMatchObject({
+        kind: "runtime", retryable: false,
+        message: expect.stringContaining("data object length 154882"),
+      });
+    }
+    expect(metadata.continuations).toBeUndefined();
     expect(repairRuns).toHaveLength(0);
   });
 

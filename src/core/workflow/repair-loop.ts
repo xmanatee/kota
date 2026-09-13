@@ -48,6 +48,7 @@ import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-age
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
 import {
   AgentStepRuntimeError,
+  classifyThrownAgentError,
   isEmptyAgentOutputSubtype,
 } from "./steps/step-executor-retry.js";
 
@@ -102,13 +103,19 @@ export async function evaluateAgentContinuation(input: {
       await input.policy.decide(input.context, input.step, packet),
     );
   } catch (error) {
+    if (
+      error instanceof AgentStepRuntimeError ||
+      error instanceof AgentBackoffAdmissionError ||
+      (error instanceof Error && error.name === "AbortError")
+    ) throw error;
     const detail = error instanceof Error ? error.message : String(error);
-    decision = Object.freeze({
-      decision: "needs-owner",
-      rationale: `Continuation judgment failed at a quiescent checkpoint: ${detail}`,
-      nextAction:
-        "Inspect the preserved continuation packet and retry or direct the same run lineage.",
-    });
+    const classification = classifyThrownAgentError(error);
+    throw new AgentStepRuntimeError(
+      `Continuation judgment failed at a quiescent checkpoint: ${detail}`,
+      classification?.kind ?? "runtime",
+      false,
+      classification?.retryAt,
+    );
   }
   const record: WorkflowContinuationRecord = Object.freeze({
     stepId: input.step.id,
@@ -281,6 +288,19 @@ export async function runAgentRepairLoop(
         id: failure.id,
         output: failure.output,
       })),
+    }).catch((error: unknown) => {
+      if (error instanceof AgentBackoffAdmissionError) {
+        throw new RepairLoopError(
+          undefined, step.id, progress.failureIds, failureOutput(),
+          error.message, error,
+        );
+      }
+      if (error instanceof AgentStepRuntimeError) {
+        throw new RepairAgentRuntimeError(
+          error, step.id, progress.failureIds, failureOutput(),
+        );
+      }
+      throw error;
     });
     if (record === null) return;
     try {
