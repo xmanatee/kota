@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Catalog operations accumulate entries and unique cursors until the peer omits nextCursor, with no aggregate resource bound. A malicious peer can therefore keep initialization or enumeration pending and grow retained memory despite individual request timeouts and response limits. A controlled production-client probe accepted 2,048 continuing pages and attempted another; only the synthetic peer's deliberate failure ended traversal. Memory exhaustion itself was not attempted.
 
@@ -129,3 +128,42 @@ excerpt:
 
 > const tools = client.supportsTools() ? await client.listTools() : [];
 >           this.registry.replaceServerTools(name, client, tools);
+
+
+## Resolution and verification
+
+The common client-operation owner now bounds complete tools, resources,
+resource-template and prompt traversal to 128 pages, 10,000 entries, 16 MiB of
+aggregate serialized UTF-8 result data and a 30-second deadline. Byte accounting
+includes cursors, rejected definitions and metadata and runs before decoding or
+retaining each page. The entry limit is checked before appending entries;
+continuing peers receive no request beyond the page limit. Existing response-body
+limits and repeated-cursor rejection remain in place.
+
+Whole-traversal cancellation propagates to HTTP requests and removes pending
+stdio requests. A monotonic elapsed-time check also enforces the deadline when
+rapid responses postpone timer callbacks. Failed tool traversals preserve the
+previous complete tool-header settings rather than publishing a partial catalog.
+
+Verification in builder run `2026-09-13T07-40-11-607Z-builder-ht2oi6`:
+
+- `pnpm test:protocol src/core/mcp`: 90 tests passed in eight files. The 35 new
+  public-client cases cover every catalog's continuous unique-cursor termination,
+  valid boundary pagination, aggregate entries and UTF-8 cursor bytes, repeated
+  cursors, pre-cancellation and cancellation/deadline during response streaming.
+  They also exercise late stdio replies, fresh traversal after cancellation,
+  elapsed-time enforcement and preservation of tool-header settings. Existing
+  transport, response-body, authorization and diagnostic security cases passed.
+  The former single resources repeated-cursor case was replaced by the shared
+  four-catalog coverage.
+- `pnpm test:owner src/core/mcp/manager`: 17 tests passed in two files, checking
+  initialization failure isolation, refresh retention and catalog consumers.
+- `pnpm check:fast` passed during implementation, covering production/test types,
+  lint, task validation, generated client bindings and module admission. Final
+  static verification is recorded in the run's `check-fast.log`.
+- Final source inspection confirms all four complete-list consumers use the
+  common traversal owner; `git diff --check` passed for changed source/config.
+
+The byte limit bounds serialized result data, not exact JavaScript heap usage.
+Tests use synthetic HTTP peers, controlled clocks and a real stdio subprocess;
+no memory-exhaustion attempt, live remote service or deployment claim is made.

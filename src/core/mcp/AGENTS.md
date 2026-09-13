@@ -28,3 +28,7 @@ into the runtime tool list.
 - Publish client terminal diagnostics through `McpClientBase.writeDiagnostic` so
   configured credentials are redacted from the complete message before rendering.
   Protocol decoders return data; the client owns diagnostic publication.
+- Complete catalog traversal shares client-operation budgets and cancellation.
+  Account for cursors and metadata as well as entries before retaining pages;
+  per-response transport limits alone do not bound a catalog. Publish derived
+  tool-header settings only after the complete traversal succeeds.

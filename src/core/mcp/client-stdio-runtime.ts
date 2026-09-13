@@ -120,7 +120,9 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     params?: JsonRpcParams,
     timeout = CONNECT_TIMEOUT,
     progress?: McpRequestProgressOptions,
+    signal?: AbortSignal,
   ): Promise<JsonRpcResult> {
+    if (signal?.aborted) return Promise.reject(signal.reason);
     if (!this.proc?.stdin?.writable) {
       return Promise.reject(
         new Error(`MCP server "${this.serverName}" is not connected`),
@@ -153,22 +155,36 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
           return;
         }
       }
-      const timer = setTimeout(() => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
         this.pending.delete(id);
         this.clearProgressForRequest(id);
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(signal?.reason);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
         reject(new Error(`MCP request "${method}" timed out after ${timeout}ms`));
       }, timeout);
 
       this.pending.set(id, {
         resolve: (value) => {
-          clearTimeout(timer);
+          cleanup();
           resolve(value);
         },
         reject: (err) => {
-          clearTimeout(timer);
+          cleanup();
           reject(err);
         },
       });
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
 
       this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
     });

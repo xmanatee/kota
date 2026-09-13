@@ -34,7 +34,9 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     params?: JsonRpcParams,
     timeout = CONNECT_TIMEOUT,
     progress?: McpRequestProgressOptions,
+    signal?: AbortSignal,
   ): Promise<JsonRpcResult> {
+    signal?.throwIfAborted();
     if (this.closing) {
       throw new Error(`MCP server "${this.serverName}" is closed`);
     }
@@ -58,6 +60,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       if (!skipRefresh) {
         await this.refreshExpiredOAuthTokenIfNeeded();
       }
+      signal?.throwIfAborted();
       const id = this.nextId++;
       latestRequestId = id;
       const progressToken = progress ? progress.token ?? generatedProgressToken(id) : undefined;
@@ -89,7 +92,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
           method: "POST",
           headers: this.httpHeadersForRequest(method, requestParams),
           body: JSON.stringify(msg),
-          signal: controller.signal,
+          signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
           limits: { timeoutMs: timeout },
         });
         return {
@@ -100,6 +103,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         };
       } catch (err) {
         clearTimeout(timer);
+        signal?.throwIfAborted();
         const message = timedOut || (err instanceof Error && err.name === "AbortError")
           ? `request timed out after ${timeout}ms`
           : err instanceof Error ? err.message : String(err);
@@ -110,10 +114,12 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     try {
       let sent = await send(false);
       try {
+        signal?.throwIfAborted();
         const authorizationError = await this.authorizationErrorForHttpResponse(
           sent.response,
           method,
         );
+        signal?.throwIfAborted();
         if (authorizationError && await this.authorizeForHttpChallenge(authorizationError)) {
           sent.complete();
           this.clearProgressForRequest(sent.id);
@@ -123,6 +129,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         }
         return await this.decodeHttpResponse(sent.response, method, sent.id);
       } catch (err) {
+        signal?.throwIfAborted();
         if (sent.timedOut() || (err instanceof Error && err.name === "AbortError")) {
           throw this.requestErrorForMethod(method, `request timed out after ${timeout}ms`);
         }

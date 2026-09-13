@@ -1,12 +1,16 @@
+import { Buffer } from "node:buffer";
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
+import { abortable } from "#core/outbound-http/abortable.js";
 import { McpClientConnection } from "./client-connection.js";
 import type {
   JsonRpcRequest,
+  JsonRpcResult,
   McpCacheHints,
   McpCallToolOptions,
   McpCallToolResult,
   McpCallToolRetry,
   McpCancelTaskResult,
+  McpCatalogOptions,
   McpGetPromptResult,
   McpGetTaskResult,
   McpListPromptsPage,
@@ -14,10 +18,7 @@ import type {
   McpListResourceTemplatesPage,
   McpListToolsPage,
   McpOperationRetry,
-  McpPromptSchema,
   McpReadResourceResult,
-  McpResourceSchema,
-  McpResourceTemplateSchema,
   McpToolArguments,
   McpToolInputRequests,
   McpToolInputResponses,
@@ -56,6 +57,16 @@ import {
   decodeListToolsResult,
 } from "./client-tool-list-decoders.js";
 
+// Whole-operation limits complement the transport's individual response limits.
+// Allow large legitimate catalogs without retaining an unbounded peer-controlled graph.
+export const MCP_CATALOG_MAX_PAGES = 128;
+export const MCP_CATALOG_MAX_ENTRIES = 10_000;
+export const MCP_CATALOG_MAX_BYTES = 16 * 1024 * 1024;
+export const MCP_CATALOG_TIMEOUT_MS = 30_000;
+
+type CatalogMethod = "tools/list" | "resources/list" | "resources/templates/list" | "prompts/list";
+type CatalogPage = { nextCursor?: string; cache: McpCacheHints };
+
 export abstract class McpClientOperations extends McpClientConnection {
   private assertTasksNegotiated(method: "tasks/get" | "tasks/update" | "tasks/cancel"): void {
     if (this.supportsTasks()) return;
@@ -65,20 +76,91 @@ export abstract class McpClientOperations extends McpClientConnection {
     );
   }
 
-  async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
-    const result = await this.request(
-      "tools/list",
-      cursor !== undefined ? { cursor } : undefined,
-    );
-    let page: McpListToolsPage;
+  private decodeCatalogPage<Page>(
+    method: CatalogMethod,
+    result: JsonRpcResult,
+    decode: (result: unknown) => Page,
+  ): Page {
     try {
-      page = decodeListToolsResult(result);
+      return decode(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `MCP tools/list failed for server "${this.serverName}": ${message}`,
-      );
+      throw new Error(`MCP ${method} failed for server "${this.serverName}": ${message}`);
     }
+  }
+
+  private async listCatalog<Page extends CatalogPage, Entry>(
+    method: CatalogMethod,
+    decode: (result: unknown) => Page,
+    entries: (page: Page) => Entry[],
+    options: McpCatalogOptions,
+    acceptPage?: (page: Page) => void,
+  ): Promise<{ entries: Entry[]; cache: McpCacheHints }> {
+    const controller = new AbortController();
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
+    const deadline = performance.now() + MCP_CATALOG_TIMEOUT_MS;
+    const timeoutError = new Error(
+      `MCP ${method} catalog traversal for server "${this.serverName}" exceeded ${MCP_CATALOG_TIMEOUT_MS}ms deadline`,
+    );
+    const timer = setTimeout(() => controller.abort(timeoutError), MCP_CATALOG_TIMEOUT_MS);
+    const checkActive = () => {
+      // Also check elapsed time between pages: a timely peer can starve timer callbacks.
+      if (performance.now() >= deadline) controller.abort(timeoutError);
+      signal.throwIfAborted();
+    };
+    const collected: Entry[] = [];
+    const cacheHints: McpCacheHints[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    let bytes = 0;
+    let pages = 0;
+    const limitError = (limit: string) => new Error(
+      `MCP ${method} catalog traversal for server "${this.serverName}" exceeded ${limit} limit`,
+    );
+    try {
+      do {
+        checkActive();
+        if (pages >= MCP_CATALOG_MAX_PAGES) throw limitError(`${MCP_CATALOG_MAX_PAGES} pages`);
+        const result = await abortable(this.request(
+          method,
+          cursor !== undefined ? { cursor } : undefined,
+          undefined,
+          undefined,
+          signal,
+        ), signal);
+        checkActive();
+        // Count the full result, including cursors, rejected entries and metadata,
+        // before decoding or retaining this page. This is serialized size, not heap usage.
+        bytes += Buffer.byteLength(JSON.stringify(result) ?? "null", "utf8");
+        if (bytes > MCP_CATALOG_MAX_BYTES) throw limitError(`${MCP_CATALOG_MAX_BYTES} aggregate bytes`);
+        const page = this.decodeCatalogPage(method, result, decode);
+        const pageEntries = entries(page);
+        if (collected.length + pageEntries.length > MCP_CATALOG_MAX_ENTRIES) {
+          throw limitError(`${MCP_CATALOG_MAX_ENTRIES} entries`);
+        }
+        cursor = page.nextCursor;
+        if (cursor !== undefined && seenCursors.has(cursor)) {
+          throw new Error(
+            `Malformed MCP ${method} result from server "${this.serverName}": repeated nextCursor`,
+          );
+        }
+        checkActive();
+        if (cursor !== undefined) seenCursors.add(cursor);
+        collected.push(...pageEntries);
+        cacheHints.push(page.cache);
+        acceptPage?.(page);
+        pages++;
+      } while (cursor !== undefined);
+      checkActive();
+      return { entries: collected, cache: combineListCacheHints(cacheHints) };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private reportRejectedTools(page: McpListToolsPage): void {
     for (const rejected of page.rejectedTools) {
       const toolLabel = rejected.toolName ? `tool "${rejected.toolName}"` : "tool definition";
       this.writeDiagnostic(
@@ -86,152 +168,63 @@ export abstract class McpClientOperations extends McpClientConnection {
         "warn",
       );
     }
+  }
+
+  async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
+    const result = await this.request("tools/list", cursor !== undefined ? { cursor } : undefined);
+    const page = this.decodeCatalogPage("tools/list", result, decodeListToolsResult);
+    this.reportRejectedTools(page);
     this.cacheHeaderParameters(page.tools);
     return page;
   }
 
-  /** List available tools from the server. */
-  async listTools(): Promise<McpToolSchema[]> {
-    const tools: McpToolSchema[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-
-    do {
-      const page = await this.listToolsPage(cursor);
-      tools.push(...page.tools);
-      cursor = page.nextCursor;
-      if (cursor !== undefined) {
-        if (seenCursors.has(cursor)) {
-          throw new Error(
-            `Malformed MCP tools/list result from server "${this.serverName}": repeated nextCursor`,
-          );
-        }
-        seenCursors.add(cursor);
-      }
-    } while (cursor !== undefined);
-
-    this.cacheHeaderParameters(tools);
-    return tools;
+  /** List the complete catalog; failure never publishes partial header parameters. */
+  async listTools(options: McpCatalogOptions = {}): Promise<McpToolSchema[]> {
+    const catalog = await this.listCatalog(
+      "tools/list", decodeListToolsResult, (page) => page.tools, options,
+      (page) => this.reportRejectedTools(page),
+    );
+    this.cacheHeaderParameters(catalog.entries);
+    return catalog.entries;
   }
 
   async listResourcesPage(cursor?: string): Promise<McpListResourcesPage> {
-    const result = await this.request(
-      "resources/list",
-      cursor !== undefined ? { cursor } : undefined,
-    );
-    try {
-      return decodeListResourcesResult(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `MCP resources/list failed for server "${this.serverName}": ${message}`,
-      );
-    }
+    const result = await this.request("resources/list", cursor !== undefined ? { cursor } : undefined);
+    return this.decodeCatalogPage("resources/list", result, decodeListResourcesResult);
   }
 
   /** List available resources from the server across all pages. */
-  async listResources(): Promise<McpListResourcesPage> {
-    const resources: McpResourceSchema[] = [];
-    const cacheHints: McpCacheHints[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-
-    do {
-      const page = await this.listResourcesPage(cursor);
-      resources.push(...page.resources);
-      cacheHints.push(page.cache);
-      cursor = page.nextCursor;
-      if (cursor !== undefined) {
-        if (seenCursors.has(cursor)) {
-          throw new Error(
-            `Malformed MCP resources/list result from server "${this.serverName}": repeated nextCursor`,
-          );
-        }
-        seenCursors.add(cursor);
-      }
-    } while (cursor !== undefined);
-
-    return { resources, cache: combineListCacheHints(cacheHints) };
+  async listResources(options: McpCatalogOptions = {}): Promise<McpListResourcesPage> {
+    const catalog = await this.listCatalog(
+      "resources/list", decodeListResourcesResult, (page) => page.resources, options,
+    );
+    return { resources: catalog.entries, cache: catalog.cache };
   }
 
   async listResourceTemplatesPage(cursor?: string): Promise<McpListResourceTemplatesPage> {
-    const result = await this.request(
-      "resources/templates/list",
-      cursor !== undefined ? { cursor } : undefined,
-    );
-    try {
-      return decodeListResourceTemplatesResult(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `MCP resources/templates/list failed for server "${this.serverName}": ${message}`,
-      );
-    }
+    const result = await this.request("resources/templates/list", cursor !== undefined ? { cursor } : undefined);
+    return this.decodeCatalogPage("resources/templates/list", result, decodeListResourceTemplatesResult);
   }
 
   /** List available resource templates from the server across all pages. */
-  async listResourceTemplates(): Promise<McpListResourceTemplatesPage> {
-    const resourceTemplates: McpResourceTemplateSchema[] = [];
-    const cacheHints: McpCacheHints[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-
-    do {
-      const page = await this.listResourceTemplatesPage(cursor);
-      resourceTemplates.push(...page.resourceTemplates);
-      cacheHints.push(page.cache);
-      cursor = page.nextCursor;
-      if (cursor !== undefined) {
-        if (seenCursors.has(cursor)) {
-          throw new Error(
-            `Malformed MCP resources/templates/list result from server "${this.serverName}": repeated nextCursor`,
-          );
-        }
-        seenCursors.add(cursor);
-      }
-    } while (cursor !== undefined);
-
-    return { resourceTemplates, cache: combineListCacheHints(cacheHints) };
+  async listResourceTemplates(options: McpCatalogOptions = {}): Promise<McpListResourceTemplatesPage> {
+    const catalog = await this.listCatalog(
+      "resources/templates/list", decodeListResourceTemplatesResult, (page) => page.resourceTemplates, options,
+    );
+    return { resourceTemplates: catalog.entries, cache: catalog.cache };
   }
 
   async listPromptsPage(cursor?: string): Promise<McpListPromptsPage> {
-    const result = await this.request(
-      "prompts/list",
-      cursor !== undefined ? { cursor } : undefined,
-    );
-    try {
-      return decodeListPromptsResult(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `MCP prompts/list failed for server "${this.serverName}": ${message}`,
-      );
-    }
+    const result = await this.request("prompts/list", cursor !== undefined ? { cursor } : undefined);
+    return this.decodeCatalogPage("prompts/list", result, decodeListPromptsResult);
   }
 
   /** List available prompts from the server across all pages. */
-  async listPrompts(): Promise<McpListPromptsPage> {
-    const prompts: McpPromptSchema[] = [];
-    const cacheHints: McpCacheHints[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-
-    do {
-      const page = await this.listPromptsPage(cursor);
-      prompts.push(...page.prompts);
-      cacheHints.push(page.cache);
-      cursor = page.nextCursor;
-      if (cursor !== undefined) {
-        if (seenCursors.has(cursor)) {
-          throw new Error(
-            `Malformed MCP prompts/list result from server "${this.serverName}": repeated nextCursor`,
-          );
-        }
-        seenCursors.add(cursor);
-      }
-    } while (cursor !== undefined);
-
-    return { prompts, cache: combineListCacheHints(cacheHints) };
+  async listPrompts(options: McpCatalogOptions = {}): Promise<McpListPromptsPage> {
+    const catalog = await this.listCatalog(
+      "prompts/list", decodeListPromptsResult, (page) => page.prompts, options,
+    );
+    return { prompts: catalog.entries, cache: catalog.cache };
   }
 
   /** Read a resource from the server. */

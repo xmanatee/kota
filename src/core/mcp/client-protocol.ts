@@ -145,6 +145,9 @@ export type McpRequestProgressOptions = {
   token?: McpProgressToken;
   maxEvents?: number;
 };
+export type McpCatalogOptions = {
+  signal?: AbortSignal;
+};
 export type McpCallToolOptions = {
   progress?: McpRequestProgressOptions;
 };

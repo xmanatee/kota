@@ -903,37 +903,6 @@ describe("Remote Resources, Prompts & Skills", () => {
     }
   });
 
-  it("rejects repeated pagination cursors at the client boundary", async () => {
-    const http = mockClientHttpFetch((req) => {
-      if (req.body.method === "server/discover") {
-        return jsonRpcHttpResponse(req.body.id, {
-          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
-          capabilities: { resources: {} },
-        });
-      }
-      if (req.body.method === "resources/list") {
-        return jsonRpcHttpResponse(req.body.id, {
-          resources: [],
-          nextCursor: "repeated-cursor",
-        });
-      }
-      return jsonRpcHttpResponse(req.body.id, {});
-    });
-    restoreFetch = http.mockRestore;
-
-    client = new McpClient(
-      { type: "http", url: "https://mcp.example.test/mcp" },
-      "repeated-cursor-client",
-    );
-    await client.connect();
-
-    await expect(client.listResources()).rejects.toThrow(
-      /Malformed MCP resources\/list result .*repeated nextCursor/,
-    );
-    expect(http.requests.filter((request) => request.body.method === "resources/list"))
-      .toHaveLength(2);
-  });
-
   it("decodes MCP-served skill catalogs and reads direct skill URIs", async () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {

@@ -151,11 +151,12 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
     params?: JsonRpcParams,
     timeout = CONNECT_TIMEOUT,
     progress?: McpRequestProgressOptions,
+    signal?: AbortSignal,
   ): Promise<JsonRpcResult> {
     if (this.transport.type === "http") {
-      return this.httpRequest(method, params, timeout, progress);
+      return this.httpRequest(method, params, timeout, progress, signal);
     }
-    return this.stdioRequest(method, params, timeout, progress).catch((err) => {
+    return this.stdioRequest(method, params, timeout, progress, signal).catch((err) => {
       if (method === "initialize") throw err;
       const message = err instanceof Error ? err.message : String(err);
       throw this.requestErrorForMethod(method, message);

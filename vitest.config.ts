@@ -17,6 +17,7 @@ const PROTOCOL_TEST_FILES = [
   "src/core/mcp/client-oauth-resource-binding.test.ts",
   "src/core/mcp/stdio-stderr-redaction.test.ts",
   "src/core/mcp/client.test.ts",
+  "src/core/mcp/client-catalog-limits.test.ts",
   "src/modules/agent-client-protocol/**/*.test.ts",
   "src/modules/mcp-server/mcp-protocol-types.test.ts",
   "src/modules/mcp-server/interoperability.test.ts",

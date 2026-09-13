@@ -52,6 +52,7 @@ export type {
   McpCallToolResult,
   McpCallToolRetry,
   McpCancelTaskResult,
+  McpCatalogOptions,
   McpCompleteCallToolResult,
   McpCompletedTaskResult,
   McpCreateTaskResult,
