@@ -13,6 +13,10 @@ function isSensitiveFieldName(name: string): boolean {
   return SENSITIVE_FIELD_SEGMENT.test(separatorNormalized);
 }
 
+export function isSensitiveOutboundHttpHeader(name: string): boolean {
+  return SENSITIVE_HEADER.test(name);
+}
+
 export function redactOutboundHttpUrl(rawUrl: string): string {
   let url: URL;
   try {
@@ -31,7 +35,7 @@ export function redactOutboundHttpUrl(rawUrl: string): string {
 export function redactOutboundHttpHeaders(headers: Headers): Readonly<Record<string, string>> {
   const redacted: Record<string, string> = {};
   for (const [name, value] of headers.entries()) {
-    redacted[name] = SENSITIVE_HEADER.test(name) ? "[redacted]" : redactOutboundHttpText(value);
+    redacted[name] = isSensitiveOutboundHttpHeader(name) ? "[redacted]" : redactOutboundHttpText(value);
   }
   return redacted;
 }

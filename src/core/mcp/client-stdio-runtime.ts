@@ -33,7 +33,7 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
 
   protected async connectStdio(): Promise<McpInitializeResult> {
     if (this.transport.type !== "stdio") {
-      throw new Error(`MCP server "${this.serverName}" is not a stdio transport`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is not a stdio transport`);
     }
     this.proc = spawn(this.transport.command, this.transport.args ?? [], {
       stdio: ["pipe", "pipe", "pipe"],
@@ -41,12 +41,12 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     });
 
     this.proc.on("error", (err) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
+      this.rejectAll(this.diagnosticError(`MCP server "${this.serverName}" failed: ${err.message}`));
       this.connected = false;
     });
 
     this.proc.on("exit", (code) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
+      this.rejectAll(this.diagnosticError(`MCP server "${this.serverName}" exited with code ${code}`));
       this.connected = false;
     });
 
@@ -72,7 +72,7 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     if (!this.proc || this.closing) return;
     this.closing = true;
     this.connected = false;
-    this.rejectAll(new Error(`MCP server "${this.serverName}" is closing`));
+    this.rejectAll(this.diagnosticError(`MCP server "${this.serverName}" is closing`));
     this.streamingRequestIds.clear();
     this.clearAllProgress();
     this.toolListSubscriptionId = null;
@@ -125,7 +125,7 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     if (signal?.aborted) return Promise.reject(signal.reason);
     if (!this.proc?.stdin?.writable) {
       return Promise.reject(
-        new Error(`MCP server "${this.serverName}" is not connected`),
+        this.diagnosticError(`MCP server "${this.serverName}" is not connected`),
       );
     }
 

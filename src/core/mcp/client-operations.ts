@@ -85,7 +85,7 @@ export abstract class McpClientOperations extends McpClientConnection {
       return decode(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`MCP ${method} failed for server "${this.serverName}": ${message}`);
+      throw this.diagnosticError(`MCP ${method} failed for server "${this.serverName}": ${message}`);
     }
   }
 
@@ -101,7 +101,7 @@ export abstract class McpClientOperations extends McpClientConnection {
       ? AbortSignal.any([options.signal, controller.signal])
       : controller.signal;
     const deadline = performance.now() + MCP_CATALOG_TIMEOUT_MS;
-    const timeoutError = new Error(
+    const timeoutError = this.diagnosticError(
       `MCP ${method} catalog traversal for server "${this.serverName}" exceeded ${MCP_CATALOG_TIMEOUT_MS}ms deadline`,
     );
     const timer = setTimeout(() => controller.abort(timeoutError), MCP_CATALOG_TIMEOUT_MS);
@@ -116,7 +116,7 @@ export abstract class McpClientOperations extends McpClientConnection {
     let cursor: string | undefined;
     let bytes = 0;
     let pages = 0;
-    const limitError = (limit: string) => new Error(
+    const limitError = (limit: string) => this.diagnosticError(
       `MCP ${method} catalog traversal for server "${this.serverName}" exceeded ${limit} limit`,
     );
     try {
@@ -142,7 +142,7 @@ export abstract class McpClientOperations extends McpClientConnection {
         }
         cursor = page.nextCursor;
         if (cursor !== undefined && seenCursors.has(cursor)) {
-          throw new Error(
+          throw this.diagnosticError(
             `Malformed MCP ${method} result from server "${this.serverName}": repeated nextCursor`,
           );
         }
@@ -235,10 +235,10 @@ export abstract class McpClientOperations extends McpClientConnection {
     const params: JsonRpcRequest["params"] = { uri };
     this.applyInputRetryParams(params, retry, "resources/read");
     const result = await this.request("resources/read", params, CALL_TIMEOUT);
-    const decoded = decodeReadResourceResult(
+    const decoded = this.decodeWithRedaction(() => decodeReadResourceResult(
       result,
       this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
-    );
+    ));
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;
   }
@@ -249,18 +249,14 @@ export abstract class McpClientOperations extends McpClientConnection {
       result = await this.readResource(MCP_SKILL_INDEX_RESOURCE_URI);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return unavailableRemoteSkillCatalog(message, this.supportsSkills());
+      return unavailableRemoteSkillCatalog(this.redactSensitiveErrorMessage(message), this.supportsSkills());
     }
     if (result.resultType === "input_required") {
-      throw new Error(
+      throw this.diagnosticError(
         `MCP remote skill index on server "${this.serverName}" requires additional input`,
       );
     }
-    return decodeRemoteSkillIndexResource(
-      result,
-      this.serverName,
-      this.supportsSkills(),
-    );
+    return this.decodeWithRedaction(() => decodeRemoteSkillIndexResource(result, this.serverName, this.supportsSkills()));
   }
 
   async readRemoteSkill(
@@ -268,9 +264,9 @@ export abstract class McpClientOperations extends McpClientConnection {
     source: McpRemoteSkillSource = "direct",
     retry?: McpOperationRetry,
   ): Promise<McpRemoteSkillReadResult> {
-    assertValidRemoteSkillResourceUri(uri);
+    this.decodeWithRedaction(() => assertValidRemoteSkillResourceUri(uri));
     const result = await this.readResource(uri, retry);
-    return toRemoteSkillReadResult(result, this.serverName, uri, source);
+    return this.decodeWithRedaction(() => toRemoteSkillReadResult(result, this.serverName, uri, source));
   }
 
   /** Get a prompt from the server. */
@@ -282,10 +278,10 @@ export abstract class McpClientOperations extends McpClientConnection {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     this.applyInputRetryParams(params, retry, "prompts/get");
     const result = await this.request("prompts/get", params, CALL_TIMEOUT);
-    const decoded = decodeGetPromptResult(
+    const decoded = this.decodeWithRedaction(() => decodeGetPromptResult(
       result,
       this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
-    );
+    ));
     this.warnDeprecatedInputRequiredResult(decoded);
     return decoded;
   }
@@ -300,10 +296,10 @@ export abstract class McpClientOperations extends McpClientConnection {
     const params: JsonRpcRequest["params"] = { name, arguments: args };
     this.applyInputRetryParams(params, retry, "tools/call");
     const result = await this.request("tools/call", params, CALL_TIMEOUT, options.progress);
-    const decoded = decodeCallToolResult(
+    const decoded = this.decodeWithRedaction(() => decodeCallToolResult(
       result,
       this.protocolVersion ?? MCP_LEGACY_PROTOCOL_VERSION,
-    );
+    ));
     if (decoded.resultType === "task" && !this.supportsTasks()) {
       throw this.requestErrorForMethod(
         "tools/call",
@@ -317,10 +313,10 @@ export abstract class McpClientOperations extends McpClientConnection {
   async getTask(taskId: string): Promise<McpGetTaskResult> {
     this.assertTasksNegotiated("tasks/get");
     const result = await this.request("tasks/get", { taskId }, CALL_TIMEOUT);
-    return decodeGetTaskResult(
+    return this.decodeWithRedaction(() => decodeGetTaskResult(
       result,
       this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
-    );
+    ));
   }
 
   async updateTask(
@@ -339,14 +335,14 @@ export abstract class McpClientOperations extends McpClientConnection {
       }
       params.requestState = update.requestState;
     }
-    params.inputResponses = decodeMcpToolInputResponses(
+    params.inputResponses = this.decodeWithRedaction(() => decodeMcpToolInputResponses(
       update.inputResponses,
       update.inputRequests,
       "tasks/update",
-    );
+    ));
     try {
       const result = await this.request("tasks/update", params, CALL_TIMEOUT);
-      return decodeEmptyTaskAckResult(result, "tasks/update");
+      return this.decodeWithRedaction(() => decodeEmptyTaskAckResult(result, "tasks/update"));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (
@@ -365,7 +361,7 @@ export abstract class McpClientOperations extends McpClientConnection {
   async cancelTask(taskId: string): Promise<McpCancelTaskResult> {
     this.assertTasksNegotiated("tasks/cancel");
     const result = await this.request("tasks/cancel", { taskId }, CALL_TIMEOUT);
-    return decodeEmptyTaskAckResult(result, "tasks/cancel");
+    return this.decodeWithRedaction(() => decodeEmptyTaskAckResult(result, "tasks/cancel"));
   }
 
 }

@@ -86,7 +86,7 @@ export abstract class McpClientProtectedResourceRuntime extends McpClientNotific
     url: string,
   ): Promise<McpProtectedResourceMetadataDiscovery> {
     if (this.transport.type !== "http") {
-      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
     const transport = this.transport;
     const controller = new AbortController();

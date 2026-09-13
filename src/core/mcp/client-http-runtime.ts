@@ -38,13 +38,13 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
   ): Promise<JsonRpcResult> {
     signal?.throwIfAborted();
     if (this.closing) {
-      throw new Error(`MCP server "${this.serverName}" is closed`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is closed`);
     }
     if (method !== "server/discover" && !this.connected) {
-      throw new Error(`MCP server "${this.serverName}" is not connected`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is not connected`);
     }
     if (this.transport.type !== "http") {
-      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
     const transport = this.transport;
     let latestRequestId: number | null = null;
@@ -149,7 +149,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     params: JsonRpcParams,
   ): Headers {
     if (this.transport.type !== "http") {
-      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is not an HTTP transport`);
     }
     const headers = new Headers(this.transport.headers ?? {});
     const token = this.oauthTokenBinding?.token.accessToken;

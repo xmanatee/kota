@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -509,3 +508,148 @@ excerpt:
 >   ? error.message
 >   : `MCP operation error: ${error instanceof Error ? error.message : String(error)}`;
 > return { content: message, is_error: true };
+
+
+## Configured-header and peer-label variant resolution
+
+Revalidated both variants in the existing diagnostic-redaction family. The
+configured peer already receives its own credential; the additional disclosure
+is into terminal diagnostics and error consumers. Omitted header credentials
+and post-redaction label insertion share the client credential set and error
+publication owner. Earlier stdio and notification resolutions and evidence
+remain intact above.
+
+The MCP client now uses outbound HTTP's existing sensitive-header classification
+for configured credential collection. It includes complete header values,
+authorization credentials (including Basic payload/password), and individual
+cookie values, including quoted values and values containing equals signs.
+Tool and connection error constructors require the client redactor and apply it
+after message assembly, also sanitizing public server/method metadata.
+Authorization and authorization-flow errors apply the same complete-message and
+metadata protection. Authoritative peer identity, outbound credentials and the
+private authorization challenge used for retry remain unchanged. Scoped MCP
+guidance records that distinction.
+
+Verification in builder run `2026-09-13T11-44-34-991Z-builder-2494xf`:
+
+- Public-client regression tests first reproduced seven failures for API keys,
+  cookies, Basic/proxy credentials and peer labels in tool, catalog and
+  authorization errors (`diagnostics-before.log`). Only synthetic credentials
+  and a mocked network port were used; real client framing, warning publication
+  and error construction executed.
+- `pnpm test:protocol src/core/mcp/client-diagnostic-redaction.test.ts src/core/mcp/stdio-stderr-redaction.test.ts src/core/mcp/client.test.ts`
+  passed 44 tests (`mcp-tests.log`), preserving spawned-stdio stderr protection,
+  subscription and progress warnings, useful output, and successful results.
+- After adding authorization-flow and private-retry-challenge assertions,
+  `pnpm test:protocol src/core/mcp/client-diagnostic-redaction.test.ts` passed all
+  11 tests (`diagnostics-final.log`). Assertions cover terminal output, complete
+  errors, stacks and serialized metadata, as well as unchanged outbound headers,
+  peer identity and original retry scopes. A stable run-local TMPDIR was used
+  after a runtime restart invalidated the earlier temporary path.
+- `pnpm test src/core/mcp/client-oauth-endpoint-policy.test.ts src/core/mcp/client-oauth-redirect-policy.test.ts src/core/mcp/client-oauth-resource-binding.test.ts src/core/outbound-http/transport-errors.test.ts`
+  passed 23 tests (`auth-http-tests.log`), protecting OAuth endpoint, redirect and
+  audience policy plus the reused HTTP diagnostic classification behavior.
+- `pnpm check:fast` passed (`check-fast.log`): production/test TypeScript, lint,
+  task validation, generated client bindings and module admission. Final
+  `pnpm typecheck:tests`, focused Biome validation and `pnpm validate-tasks`
+  also passed after the last test edits and archive transition
+  (`final-test-typecheck.log`, `final-task-validation.log`).
+
+These boundary regressions distinguish the reported disclosures from the repaired
+behavior without live credentials or an external server. No live-model evaluation
+or deployment observation was needed for this deterministic client repair.
+
+## Critic repair: lifecycle and decoding diagnostics
+
+The critic correctly reproduced a remaining peer-label disclosure by connecting
+an HTTP client, closing it and calling a tool. The earlier repair protected typed
+request errors but lifecycle guards still constructed plain errors directly.
+This corrects the earlier completion claim for peer-label error protection.
+
+`McpClientBase.diagnosticError` now applies the existing credential redactor to
+complete locally assembled error messages. HTTP and stdio lifecycle guards,
+stdio process/close rejections, catalog decoding/budget failures and remote-skill
+decoding failures use that boundary. Errors retain their existing classification
+and useful context; identity and successful remote-skill provenance retain their
+original protocol values. Authorization-flow handling remains unchanged by this
+repair. The scoped guidance names the local-error publication boundary.
+
+Repair verification:
+
+- `repair-lifecycle-before.log` reproduces the unredacted peer label through the
+  public HTTP connection lifecycle before this repair.
+- `pnpm test:protocol src/core/mcp/client-diagnostic-redaction.test.ts src/core/mcp/stdio-stderr-redaction.test.ts src/core/mcp/client.test.ts src/core/mcp/client-catalog-limits.test.ts`
+  passed 81 tests (`repair-mcp-tests.log`). This covers client behavior and
+  catalog cancellation/budget enforcement alongside diagnostic regressions.
+- With final coverage added, `pnpm test:protocol src/core/mcp/client-diagnostic-redaction.test.ts src/core/mcp/stdio-stderr-redaction.test.ts`
+  passed all 15 tests (`repair-diagnostics-final.log`). Public journeys cover
+  repeated connect, call/list after close, reconnect after close, malformed
+  catalog and skill-index results, and a spawned stdio peer echoing its env
+  credential in its advertised name. Terminal output, error messages, stacks
+  and metadata remain protected; rejection context and raw protocol identity
+  remain intact. Tests use only synthetic secrets and the existing network port.
+- `pnpm check:fast` passed after the final source/test edits
+  (`repair-check-fast.log`): production and test types, lint, task validation,
+  generated bindings and bundled module admission. The final task-note update
+  also passed `pnpm validate-tasks`. No live credentials, external-server probe
+  or deployment observation was required for this deterministic repair.
+
+## Critic repair: terminal stdio initialization failures
+
+The second critic reproduced a separate bypass: stdio `initialize` requests keep
+raw JSON-RPC errors for version negotiation, and terminal failures escaped public
+`connect()` without redaction. The manager could then publish that message.
+
+The public connection boundary now converts terminal stdio failures into the
+existing redacted connection error after negotiation has finished. Raw error
+codes and data remain available to fallback selection; public errors retain no
+raw JSON-RPC data or cause. The previous stderr, HTTP and lifecycle protections
+remain in place.
+
+A spawned-peer regression reproduced cleartext env-credential echoes from both
+initial rejection and rejection after fallback (`repair2-initialize-before.log`).
+The same fixture also checks successful draft negotiation when a configured env
+value equals the advertised draft version, proving diagnostic redaction does not
+rewrite the raw supported-version data used by negotiation. Failure assertions
+cover error messages, stacks and serialized metadata using synthetic values.
+
+Verification:
+
+- `pnpm test:protocol src/core/mcp/stdio-stderr-redaction.test.ts src/core/mcp/client-diagnostic-redaction.test.ts src/core/mcp/client.test.ts`
+  passed (`repair2-mcp-tests.log`), including both new failure regressions,
+  successful fallback, earlier credential/label regressions and the existing
+  public client protocol journeys.
+- `pnpm check:fast` passed (`repair2-check-fast.log`): production/test TypeScript,
+  lint, task validation, generated client bindings and module admission.
+- Final task notes passed `pnpm validate-tasks`; `git diff --check` found no
+  whitespace errors. No live credentials or external services were used.
+
+## Critic repair: operation-result and retry decoding
+
+The third critic correctly found that malformed operation results could place a
+configured credential in an input-request key. The decoder included that key in
+its exception, which escaped the public client and could be published by the
+manager. Earlier error-boundary repairs did not cover these decoder failures.
+
+The client now redacts exceptions from operation-result, retry-input, remote-skill
+and header-parameter decoding through one shared boundary. Successful decoded
+values remain unchanged. HTTP request failures from body readers also pass through
+the client redactor; existing typed errors retain their safe metadata and private
+authorization retry state, and caller cancellation retains its original reason.
+Stdio version negotiation continues to use raw errors until terminal rejection.
+
+Verification:
+
+- Six public-client regressions failed before the repair (`repair3-before.log`):
+  malformed tool, resource, prompt and task results, plus JSON and SSE body-read
+  failures. They now pass and assert redacted messages, stacks and serialized
+  errors. Successful results retain the original input-request keys.
+- `pnpm test:protocol src/core/mcp` passed all 114 tests across eight files
+  (`repair3-mcp-tests.log`). This includes retry-key rejection before network
+  publication, earlier stderr and initialization regressions, authorization,
+  protocol negotiation, catalog budgets and cancellation. Synthetic credentials
+  and controlled network ports exercise the production client boundary.
+- `pnpm check:fast` passed (`repair3-check-fast.log`), covering production and test
+  types, lint, task validation, generated bindings and module admission.
+
+No live credentials, external services or deployment observation were needed.

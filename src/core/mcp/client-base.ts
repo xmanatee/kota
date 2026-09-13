@@ -1,7 +1,9 @@
+import { Buffer } from "node:buffer";
 import type { ChildProcess } from "node:child_process";
 import type { Interface } from "node:readline";
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import { printTerminalDiagnostic, writeTerminalStderr } from "#core/modules/terminal-renderer.js";
+import { isSensitiveOutboundHttpHeader } from "#core/outbound-http/redaction.js";
 import type {
   McpAuthorizationResolver,
   McpClientOptions,
@@ -255,11 +257,11 @@ export abstract class McpClientBase {
       params.requestState = retry.requestState;
     }
     if (retry.inputResponses !== undefined) {
-      params.inputResponses = decodeMcpToolInputResponses(
+      params.inputResponses = this.decodeWithRedaction(() => decodeMcpToolInputResponses(
         retry.inputResponses,
         retry.inputRequests,
         kind,
-      );
+      ));
     }
   }
 
@@ -338,7 +340,7 @@ export abstract class McpClientBase {
   protected cacheHeaderParameters(tools: readonly McpToolSchema[]): void {
     this.headerParametersByTool.clear();
     for (const tool of tools) {
-      const specs = collectMcpHeaderParameters(tool);
+      const specs = this.decodeWithRedaction(() => collectMcpHeaderParameters(tool));
       if (specs.length === 0) continue;
       this.headerParametersByTool.set(tool.name, specs);
     }
@@ -392,10 +394,30 @@ export abstract class McpClientBase {
     }
     if (this.transport.type === "http") {
       for (const [key, value] of Object.entries(this.transport.headers ?? {})) {
-        if (key.toLowerCase() !== "authorization") continue;
+        if (!isSensitiveOutboundHttpHeader(key)) continue;
         add(value);
-        const bearer = /^Bearer\s+(.+)$/i.exec(value);
-        add(bearer?.[1]);
+        add(value.trim());
+        if (/^(?:proxy-)?authorization$/i.test(key)) {
+          const credentials = /^(\S+)\s+(.+)$/.exec(value.trim());
+          add(credentials?.[2]);
+          if (credentials?.[1]?.toLowerCase() === "basic" && credentials[2]) {
+            const decoded = Buffer.from(credentials[2], "base64").toString("utf8");
+            add(decoded);
+            const separator = decoded.indexOf(":");
+            if (separator !== -1) add(decoded.slice(separator + 1));
+          }
+        }
+        if (key.toLowerCase() === "cookie") {
+          for (const cookie of value.split(";")) {
+            const separator = cookie.indexOf("=");
+            if (separator === -1) continue;
+            const credential = cookie.slice(separator + 1).trim();
+            add(credential);
+            if (credential.startsWith('"') && credential.endsWith('"')) {
+              add(credential.slice(1, -1));
+            }
+          }
+        }
       }
       const client = this.transport.authorization?.client;
       if (client?.kind === "registered") {
@@ -434,8 +456,20 @@ export abstract class McpClientBase {
     }
   }
 
+  protected decodeWithRedaction<Result>(decode: () => Result): Result {
+    try {
+      return decode();
+    } catch (err) {
+      throw this.diagnosticError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  protected diagnosticError(message: string): Error {
+    return new Error(this.redactSensitiveErrorMessage(message));
+  }
+
   protected requestErrorForMethod(method: string, message: string): Error {
-    const redactedMessage = this.redactSensitiveErrorMessage(message);
+    const redact = (value: string) => this.redactSensitiveErrorMessage(value);
     if (
       method === "tools/call" ||
       method === "resources/read" ||
@@ -444,9 +478,9 @@ export abstract class McpClientBase {
       method === "tasks/update" ||
       method === "tasks/cancel"
     ) {
-      return new McpToolError(this.serverName, method, redactedMessage);
+      return new McpToolError(this.serverName, method, message, redact);
     }
-    return new McpConnectionError(this.serverName, method, redactedMessage);
+    return new McpConnectionError(this.serverName, method, message, redact);
   }
 
   protected defaultServerNameForTransport(): string {

@@ -1,4 +1,4 @@
-import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.js";
+import { McpAuthorizationError, McpAuthorizationFlowError, McpConnectionError, McpToolError } from "./client-auth-types.js";
 import {
   isUnsupportedProtocolVersionError,
   supportedVersionsForUnsupportedProtocolVersionError,
@@ -29,13 +29,13 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
   /** Connect the configured transport and complete the MCP handshake. */
   async connect(): Promise<void> {
     if (this.connected) {
-      throw new Error(`MCP server "${this.serverName}" is already connected`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is already connected`);
     }
     if (this.connecting) {
-      throw new Error(`MCP server "${this.serverName}" is already connecting`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is already connecting`);
     }
     if (this.closing) {
-      throw new Error(`MCP server "${this.serverName}" is closed`);
+      throw this.diagnosticError(`MCP server "${this.serverName}" is closed`);
     }
 
     this.connecting = true;
@@ -44,9 +44,15 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
         ? await this.connectHttp()
         : await this.connectStdio();
       if (this.closing) {
-        throw new Error(`MCP server "${this.serverName}" was closed during connection`);
+        throw this.diagnosticError(`MCP server "${this.serverName}" was closed during connection`);
       }
       this.applyInitializeResult(result);
+    } catch (err) {
+      if (this.transport.type !== "stdio") throw err;
+      // Version negotiation needs the raw JSON-RPC error and its data until
+      // fallback finishes. Only the terminal failure crosses the public boundary.
+      const message = err instanceof Error ? err.message : String(err);
+      throw this.requestErrorForMethod("initialize", message);
     } finally {
       this.connecting = false;
     }
@@ -154,7 +160,16 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
     signal?: AbortSignal,
   ): Promise<JsonRpcResult> {
     if (this.transport.type === "http") {
-      return this.httpRequest(method, params, timeout, progress, signal);
+      return this.httpRequest(method, params, timeout, progress, signal).catch((err) => {
+        signal?.throwIfAborted();
+        // Typed errors already contain safe projections, including the private
+        // challenge retained for OAuth retry. Other transport failures do not.
+        if (
+          err instanceof McpAuthorizationError || err instanceof McpAuthorizationFlowError ||
+          err instanceof McpConnectionError || err instanceof McpToolError
+        ) throw err;
+        throw this.diagnosticError(err instanceof Error ? err.message : String(err));
+      });
     }
     return this.stdioRequest(method, params, timeout, progress, signal).catch((err) => {
       if (method === "initialize") throw err;

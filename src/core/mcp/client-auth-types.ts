@@ -217,13 +217,18 @@ export type NormalizedMcpClientTransport =
 
 export class McpConnectionError extends Error {
   readonly name = "McpConnectionError";
+  readonly serverName: string;
+  readonly method: string;
 
   constructor(
-    readonly serverName: string,
-    readonly method: string,
+    serverName: string,
+    method: string,
     message: string,
+    redact: (value: string) => string,
   ) {
-    super(`MCP connection error for server "${serverName}" during ${method}: ${message}`);
+    super(redact(`MCP connection error for server "${serverName}" during ${method}: ${message}`));
+    this.serverName = redact(serverName);
+    this.method = redact(method);
   }
 }
 
@@ -528,9 +533,9 @@ export class McpAuthorizationError extends Error {
     redactChallengeDetail: McpAuthorizationChallengeMessageRedactor,
   ) {
     const redactedChallenge = redactAuthorizationChallenge(challenge, redactChallengeDetail);
-    super(mcpAuthorizationErrorMessage(serverName, method, status, redactedChallenge));
-    this.serverName = serverName;
-    this.method = method;
+    super(redactChallengeDetail(mcpAuthorizationErrorMessage(serverName, method, status, challenge)));
+    this.serverName = redactChallengeDetail(serverName);
+    this.method = redactChallengeDetail(method);
     this.status = status;
     this.challenge = redactedChallenge;
     mcpAuthorizationErrorChallenges.set(this, challenge);
@@ -566,13 +571,13 @@ export class McpAuthorizationFlowError extends Error {
     const redactedIssuer = redactFlowDetail(issuer);
     const redactedScopeList = redactScopeList(scopes, redactFlowDetail);
     const redactedReason = redactFlowDetail(reason);
-    super(
+    super(redactFlowDetail(
       `MCP authorization flow failed for server "${serverName}" ` +
         `resource "${redactedResource}" ` +
         `issuer "${redactedIssuer}" ` +
         `scopes="${redactedScopeList.joined}": ${redactedReason}`,
-    );
-    this.serverName = serverName;
+    ));
+    this.serverName = redactFlowDetail(serverName);
     this.resource = redactedResource;
     this.issuer = redactedIssuer;
     this.scopes = redactedScopeList.scopes;
@@ -581,12 +586,17 @@ export class McpAuthorizationFlowError extends Error {
 
 export class McpToolError extends Error {
   readonly name = "McpToolError";
+  readonly serverName: string;
+  readonly method: string;
 
   constructor(
-    readonly serverName: string,
-    readonly method: string,
+    serverName: string,
+    method: string,
     message: string,
+    redact: (value: string) => string,
   ) {
-    super(`MCP tool error for server "${serverName}" during ${method}: ${message}`);
+    super(redact(`MCP tool error for server "${serverName}" during ${method}: ${message}`));
+    this.serverName = redact(serverName);
+    this.method = redact(method);
   }
 }

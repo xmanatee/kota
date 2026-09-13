@@ -28,6 +28,13 @@ into the runtime tool list.
 - Publish client terminal diagnostics through `McpClientBase.writeDiagnostic` so
   configured credentials are redacted from the complete message before rendering.
   Protocol decoders return data; the client owns diagnostic publication.
+- Route locally assembled lifecycle and decoding errors through
+  `McpClientBase.diagnosticError`. Typed request-error constructors redact the
+  assembled message and public metadata with the client's credential set.
+  Result and retry decoders use `decodeWithRedaction` at the client boundary;
+  successful values are never redacted in place. Keep peer identity and retry
+  challenges unchanged in protocol state; sanitized error fields are diagnostic
+  projections.
 - Complete catalog traversal shares client-operation budgets and cancellation.
   Account for cursors and metadata as well as entries before retaining pages;
   per-response transport limits alone do not bound a catalog. Publish derived
