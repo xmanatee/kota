@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Consolidate reminder transition verification at the scheduler owner
@@ -50,3 +49,20 @@ Report local executable/support/exclusion/production deltas separately. This
 725-line surface is a concrete new opportunity, not a claim that it can close
 the aggregate 98,687-line deficit. Preserve the 50% minimum in the successor
 assessment; do not substitute completed-task counts for published measurement.
+
+## Completion
+
+Consolidated the Scheduler transition cases and retained real timer, bus and
+SQLite proofs. Replaced the vacuous cloned-state corruption check with persisted
+malformed input; completed-history proof now checks exact retention after reopen.
+No production behavior or support files changed.
+
+Local executable counts: 725 -> 337 (-388); support, exclusions and production
+deltas are all zero. The aggregate 50% minimum remains with the successor
+assessment; this local result does not establish aggregate completion.
+
+Scheduler/parser/store: 52 tests passed. Scope-host reminder consumer: 4 tests
+passed. `pnpm check:fast` passed. The daemon reminder HTTP/SSE integration check
+was attempted but could not bind 127.0.0.1 (`listen EPERM`) in this sandbox.
+Run `2026-09-13T00-24-37-120Z-builder-27jwnc` retains the admission rationale,
+validation details and attributable local measurement in its ordinary summary.

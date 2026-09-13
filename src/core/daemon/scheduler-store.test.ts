@@ -12,6 +12,7 @@ import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { scopeHash } from "./schedule-parser.js";
 import { Scheduler } from "./scheduler.js";
 import { migrateSchedules } from "./scheduler-migration.js";
+import type { ScheduleState } from "./scheduler-store.js";
 
 let root: string;
 let database: RunStateDatabase;
@@ -97,10 +98,43 @@ describe("durable reminders", () => {
 			new Date(1000000001000).toISOString(),
 		);
 		for (let i = 0; i < 25; i++)
-			scheduler.markFired(scheduler.add(`done ${i}`, future()).id);
+			scheduler.markFired(
+				scheduler.add(`done ${i}`, future()).id,
+				new Date(1000000000000 + i),
+			);
+		const restarted = RunStateDatabase.openExisting(join(root, ".kota"));
+		opened.push(restarted);
+		const restored = new Scheduler({ database: restarted, scopeId });
 		expect(
-			scheduler.list().filter((item) => item.status === "fired"),
-		).toHaveLength(20);
-		expect(scheduler.pending()).toHaveLength(1);
+			restored
+				.list()
+				.filter((item) => item.status === "fired")
+				.map((item) => item.description),
+		).toEqual(Array.from({ length: 20 }, (_, i) => `done ${i + 5}`));
+		expect(restored.pending()).toEqual([scheduler.get(repeat.id)]);
+	});
+
+	it("treats a stored sub-second repeat as one-shot", () => {
+		const scheduler = new Scheduler({ database, scopeId });
+		const item = scheduler.add("Corrupt repeat", new Date(0));
+		const snapshot = database.readScopeStateValue<ScheduleState>(
+			scopeId,
+			"reminders",
+		);
+		// Write through the real persistence boundary; Scheduler reads return clones.
+		database.compareAndSetScopeStateValue({
+			scopeId,
+			key: "reminders",
+			expectedRevision: snapshot.revision,
+			value: { items: [{ ...item, repeatMs: 100 }], nextId: item.id + 1 },
+			updatedAt: new Date().toISOString(),
+		});
+		expect(scheduler.get(item.id)?.repeatMs).toBe(100);
+		scheduler.markFired(item.id);
+		expect(scheduler.get(item.id)).toMatchObject({
+			status: "fired",
+			firedAt: expect.any(String),
+		});
+		expect(scheduler.getDue()).toEqual([]);
 	});
 });
