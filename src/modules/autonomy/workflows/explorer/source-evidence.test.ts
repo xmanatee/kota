@@ -1,13 +1,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { decodeExplorerState, type ExplorerState } from "./explorer-state.js";
 import { refreshExplorerSources } from "./source-evidence.js";
 
 const roots: string[] = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { vi.useRealTimers(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 it("reconsiders changed task dependencies and priority, but ignores dependency ordering", async () => {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-intent-"));
@@ -84,4 +84,55 @@ it("rechecks due sources without repeating an AI decision on unchanged or inacce
   inaccessible = false;
   content += " New measured recovery results identify an integration failure.";
   expect(await inspect(reviewed)).toMatchObject({ shouldReview: true });
+});
+
+it("reuses retained readable bytes after cleanup and task changes, including failed optional refreshes", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-13T01:00:00Z"));
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-retained-"));
+  roots.push(workspaceRoot);
+  mkdirSync(join(workspaceRoot, "data/tasks"), { recursive: true });
+  writeFileSync(join(workspaceRoot, "data/watchlist.yaml"),
+    "resources:\n  - url: https://example.com/readable\n    added: 2026-09-01\n  - url: https://example.com/optional\n    added: 2026-09-01\n");
+  const content = "A maintained runtime stores task ownership across restart.";
+  let failed = false;
+  const runTool = vi.fn(async (_name: string, args: Record<string, unknown>) =>
+    failed || args.url === "https://example.com/optional"
+      ? { content: "Unavailable", is_error: true } : { content });
+  const inspect = (current: ExplorerState, runId: string) => refreshExplorerSources({
+    workspaceRoot, current, runTool, capacity: 2,
+    artifactDir: join(workspaceRoot, "working", runId), evidenceDir: join(workspaceRoot, "runs", runId),
+  });
+  const first = await inspect(decodeExplorerState(null), "first");
+  expect(first.shouldReview).toBe(true);
+  const reviewed = decodeExplorerState(JSON.parse(JSON.stringify({ ...decodeExplorerState(null),
+    sources: first.sources, lastReviewedFingerprint: first.fingerprint })));
+  rmSync(join(workspaceRoot, "working"), { recursive: true });
+  writeFileSync(join(workspaceRoot, "data/tasks/task-owner.md"),
+    "---\nstatus: blocked\npriority: p1\n---\n# Owner direction\n\n## Blocked on\n\nA credential. Investigate independent recovery ideas.\n");
+  const reconsidered = await inspect(reviewed, "second");
+  expect(runTool).toHaveBeenCalledTimes(2);
+  expect(reconsidered.shouldReview).toBe(true);
+  expect(reconsidered.observations).toHaveLength(1);
+  expect(reconsidered.observations[0]).toMatchObject({ origin: "retained", accessible: true,
+    observedAt: "2026-09-13T01:00:00.000Z" });
+  expect(readFileSync(reconsidered.observations[0]!.contentPath, "utf8")).toBe(content);
+  expect((await inspect({ ...reviewed, lastReviewedFingerprint: reconsidered.fingerprint }, "replay")).shouldReview).toBe(false);
+  failed = true;
+  vi.setSystemTime(new Date("2026-09-14T01:00:00Z"));
+  const unavailable = await inspect(reviewed, "failed-refresh");
+  expect(unavailable.shouldReview).toBe(true);
+  expect(unavailable.observations.filter((observation) => observation.origin === "fetch").every((observation) => !observation.accessible)).toBe(true);
+  expect(unavailable.sources["https://example.com/readable"]?.readable).toEqual(reviewed.sources["https://example.com/readable"]?.readable);
+  expect(readFileSync(unavailable.observations.find((observation) => observation.origin === "retained")!.contentPath, "utf8")).toBe(content);
+  const retainedPath = reconsidered.observations[0]!.evidencePath;
+  writeFileSync(retainedPath, "Different bytes must not inherit the earlier content identity.");
+  const refreshed = { ...reviewed, sources: unavailable.sources };
+  expect((await inspect(refreshed, "mismatched")).shouldReview).toBe(false);
+  rmSync(retainedPath);
+  expect((await inspect(refreshed, "missing")).shouldReview).toBe(false);
+  expect(() => decodeExplorerState({ ...reviewed, sources: {
+    "https://example.com/readable": { ...reviewed.sources["https://example.com/readable"],
+      readable: { runId: "../outside", observedAt: "2026-09-13T01:00:00Z" } },
+  } })).toThrow("readable source reference");
 });

@@ -11,9 +11,16 @@ implementation to builders through the existing publication transaction.
   empty-queue events. Idle review rechecks claim-aware supply and spare delivery
   capacity; retained tasks and inbox ownership do not veto independent work.
   Initial review needs structural evidence, plus delivery friction unless idle.
-  An unchanged cohort never forces another agent review or task production.
-  Settled judgments retain their relevant delivery issue keys and revisit reason;
-  structural changes, changes to those issues, a new justified scoped request,
+  Idle review may assess uncited structural opportunities in an unchanged cohort.
+  Settlement consumes only explicitly assessed observation fingerprints, accumulated
+  across decisions in the requested scope. Once those opportunities are exhausted,
+  unchanged evidence never forces another agent review or task production.
+  Each retained assessment keeps its delivery baseline, relevant issue keys and
+  revisit reason until its observations are reassessed; reviewing another mechanism
+  cannot consume a pending change to that baseline. A disappeared or replaced
+  structural observation remains pending until a decision explicitly reassesses
+  its retained fingerprint; scan absence does not establish resolution.
+  Structural changes, changes to those issues, a new justified scoped request,
   or linked terminal evidence may reopen investigation. Unrelated issue churn
   leaves the judgment settled across requests and restart. Shared
   runtime resources and transactional state own serialization and publication.

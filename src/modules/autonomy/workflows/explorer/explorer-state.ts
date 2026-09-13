@@ -3,6 +3,8 @@ export const EXPLORER_STATE_KEY = "autonomy/explorer/cooldown";
 export type ExplorerSourceObservation = {
   checkedAt: string;
   fingerprint: string | null;
+  /** Last readable response in the canonical run store, independent of later access failures. */
+  readable?: { runId: string; observedAt: string };
 };
 
 export type ExplorerState = {
@@ -39,6 +41,12 @@ export function decodeExplorerState(value: unknown): ExplorerState {
     if (!source || typeof source.checkedAt !== "string" || Number.isNaN(Date.parse(source.checkedAt)) ||
       (source.fingerprint !== null && typeof source.fingerprint !== "string")) {
       throw new Error("explorer source observation is invalid");
+    }
+    if (source.readable !== undefined && (!source.readable ||
+      typeof source.readable.runId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(source.readable.runId) ||
+      typeof source.readable.observedAt !== "string" || Number.isNaN(Date.parse(source.readable.observedAt)) ||
+      source.fingerprint === null)) {
+      throw new Error("explorer readable source reference is invalid");
     }
   }
   return { observedAt, lastExplorationAt: state.lastExplorationAt, lastReviewedFingerprint, sources };

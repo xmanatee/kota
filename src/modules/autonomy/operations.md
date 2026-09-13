@@ -32,7 +32,8 @@ controls; deterministic maintenance remains eligible while agent work is parked.
 - Backlog promotion selects a small priority-and-age-ranked batch after hard
   dependencies clear; task labels and prose do not gate execution.
 - Explorer may update the watchlist, create useful work, or finish with no
-  change. Inaccessible sources block rather than invite synthesis. Cooldowns
+  change. Inaccessible sources block claims requiring unread material; independent
+  research can use available readable sources. Cooldowns
   pace exploration and builder work without hard caps.
 - Operator reports and evaluator drift remain observation/governance surfaces
   and never leak cost bias into agent context.

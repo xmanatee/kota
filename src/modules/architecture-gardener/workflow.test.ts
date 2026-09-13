@@ -22,6 +22,7 @@ import { decodeGardenerDecision } from "./decision.js";
 import { architectureReviewRequested } from "./events.js";
 import { GARDENER_STATE_KEY } from "./gardener-state.js";
 import { stageGardenerTask } from "./gardener-task.js";
+import { collectObservations } from "./observations.js";
 import { ARCHITECTURE_GARDENER_RUN_ARTIFACT } from "./proposal-identity.js";
 import type { ArchitectureGardenerRunState, ArchitectureObservation } from "./types.js";
 import architectureGardenerWorkflow, { verifyGardenerSettlementAfterReconcile } from "./workflow.js";
@@ -638,9 +639,12 @@ describe("Architecture Gardener Workflow", () => {
     expect(restarted.steps.investigate?.status).toBe("skipped");
   });
 
-  it("investigates a changed structural/friction cohort once through the durable issue projection", async () => {
+  it("reopens an earlier assessment through durable issue changes after reviewing another opportunity", async () => {
     writeFileSync(join(testWorkspace, "src/core/bad.ts"), 'import "#modules/foo/index.js";');
-    runGit(testWorkspace, ["add", "src/core/bad.ts"]);
+    writeFileSync(join(testWorkspace, "src/core/other.ts"), 'import "#modules/foo/index.js";');
+    const structural = collectObservations({ workspaceRoot: testWorkspace });
+    expect(structural).toHaveLength(2);
+    runGit(testWorkspace, ["add", "src/core/bad.ts", "src/core/other.ts"]);
     runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "structural evidence"]);
     const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "issue-state"));
     const observation = buildAutonomyIssueObservation({
@@ -654,11 +658,20 @@ describe("Architecture Gardener Workflow", () => {
     const trigger = { event: "workflow.completed", payload: { workflow: "builder", scopeId: state.scopeId } };
     const first = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
       workspaceRoot: testWorkspace, trigger, ports: { state },
-      stepOutputs: { investigate: { action: "no-action", rationale: "No shared mechanism established; a changed loader failure could alter this judgment.", evidenceRefs: ["src/core/bad.ts", ".kota/runs/failed-build"], revisit: { reason: "Revisit changed source ownership or module-loader failure kind.", deliveryIssueKeys: [observation.issueKey] }, existingTaskId: null, proposal: null } },
+      stepOutputs: { investigate: { action: "no-action", rationale: "No shared mechanism established; a changed loader failure could alter this judgment.", evidenceRefs: [structural[0]!.fingerprint, "src/core/bad.ts", ".kota/runs/failed-build"], revisit: { reason: "Revisit changed source ownership or module-loader failure kind.", deliveryIssueKeys: [observation.issueKey] }, existingTaskId: null, proposal: null } },
     }).run();
     expect(first.status, first.error).toBe("success");
     const evidence = JSON.parse(readFileSync(join(first.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
     expect(evidence.observations.some((o: { kind: string }) => o.kind === "delivery-friction")).toBe(true);
+    const second = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger: { event: "autonomy.queue.empty", payload: {} },
+      ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
+      stepOutputs: { investigate: { action: "no-action", rationale: "The other import is independent of the loading failure.",
+        evidenceRefs: [structural[1]!.fingerprint, "src/core/other.ts"],
+        revisit: { reason: "Revisit the second import's ownership.", deliveryIssueKeys: [] }, existingTaskId: null, proposal: null } },
+    }).run();
+    expect(second.status, second.error).toBe("success");
+    expect(second.steps.investigate?.status).toBe("success");
     const churn = applyAutonomyIssueObservations({ current: projection, observations: [
       buildAutonomyIssueObservation({ ...observation, signalIds: ["repeated-loader"], observationCount: 20,
         summaries: ["Loader failure repeated 20 times"], observedAt: "2026-09-09T11:00:00Z" }),
@@ -672,9 +685,21 @@ describe("Architecture Gardener Workflow", () => {
       buildAutonomyIssueObservation({ ...observation, signalIds: ["changed-loader"], severity: "warning", observedAt: "2026-09-09T12:00:00Z" }),
     ] }).projection;
     state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 2, changed);
+    const removedPath = structural[0]!.affectedPaths[0]!;
+    writeFileSync(join(testWorkspace, removedPath), "export {};\n");
+    runGit(testWorkspace, ["add", removedPath]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "remove first structural signal"]);
+    const unrelatedDecision = JSON.parse(readFileSync(join(second.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8")).decision;
+    const unrelatedReview = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger, ports: { state },
+      stepOutputs: { investigate: unrelatedDecision },
+    }).run();
+    expect(unrelatedReview.status, unrelatedReview.error).toBe("success");
     const changedReview = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
       workspaceRoot: testWorkspace, trigger, ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
-      stepOutputs: { investigate: evidence.decision },
+      stepOutputs: { investigate: { ...evidence.decision,
+        rationale: "Inspected the removed import; its resolution rejects the earlier causal link.",
+        revisit: { reason: "New source ownership evidence.", deliveryIssueKeys: [] } } },
     }).run();
     expect(changedReview.status, changedReview.error).toBe("success");
     expect(changedReview.steps.investigate?.status).toBe("success");
@@ -683,8 +708,11 @@ describe("Architecture Gardener Workflow", () => {
     expect(settled.steps.investigate?.status).toBe("skipped");
   });
 
-  it("uses idle capacity despite retained tasks and inbox without repeating a settled review", async () => {
+  it("uses idle capacity for an unreviewed opportunity after settling another, preserving retained owners", async () => {
     writeFileSync(join(testWorkspace, "src/core/bad.ts"), 'import "#modules/foo/index.js";');
+    writeFileSync(join(testWorkspace, "src/core/other.ts"), 'import "#modules/foo/index.js";');
+    const observations = collectObservations({ workspaceRoot: testWorkspace });
+    expect(observations).toHaveLength(2);
     mkdirSync(join(testWorkspace, "data/inbox"));
     writeFileSync(join(testWorkspace, "data/inbox/task-capture.md"), "Investigate a captured failure.\n");
     writeFileSync(join(testWorkspace, "data/tasks/task-retained.md"), "---\nstatus: open\npriority: p1\n---\n# Retained delivery\n\nPreserve the existing delivery contract while its owner is waiting.\n");
@@ -701,20 +729,38 @@ describe("Architecture Gardener Workflow", () => {
       database.suspendRun({ runId: id, epoch, state: "waiting", suspendedAt: now });
     }
     database.close();
-    const review = () => new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+    // Process launching is an external port; validate the real published task
+    // tree in process while the scenario retains runtime publication ownership.
+    vi.spyOn(workflowCommands, "createWorkflowCommandRunner").mockImplementation((options) => async (input) => {
+      const cwd = input.cwd ?? options.cwd;
+      assertTaskQueueValid(cwd);
+      return successfulWorkflowCommandRun({ ...input, cwd });
+    });
+    const review = (decision: ReturnType<typeof decodeGardenerDecision>) => new WorkflowScenarioDriver(architectureGardenerWorkflow, {
       workspaceRoot: testWorkspace, trigger: { event: "autonomy.queue.empty", payload: {} },
       ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
-      stepOutputs: { investigate: { action: "no-action", rationale: "The import requires caller evidence before proposing a change.",
-        evidenceRefs: ["src/core/bad.ts"], revisit: { reason: "Changed import ownership.", deliveryIssueKeys: [] },
-        existingTaskId: null, proposal: null } },
+      stepOutputs: { investigate: decision },
     }).run();
-    const first = await review();
+    const first = await review(decodeGardenerDecision({ action: "no-action",
+      rationale: "The first import requires caller evidence; the other boundary has not been assessed.",
+      evidenceRefs: [observations[0]!.fingerprint, "src/core/bad.ts"],
+      revisit: { reason: "Changed import ownership.", deliveryIssueKeys: [] }, existingTaskId: null, proposal: null }));
     expect(first.status, first.error).toBe("success");
     expect(first.steps.investigate.status).toBe("success");
-    const repeated = await review();
+    const second = await review({ ...ownershipDecision(), evidenceRefs: [observations[1]!.fingerprint, "src/core/other.ts"] });
+    expect(second.status, second.error).toBe("success");
+    expect(second.steps.investigate.status).toBe("success");
+    const generated = findGeneratedWorkTask(testWorkspace, "architecture-gardener:foo-owner")!.task;
+    expect(generated).toMatchObject({ state: "open", priority: "p1" });
+    expect(listFullRepoTasks(testWorkspace)).toHaveLength(2);
+    expect(state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value?.dispositions.repo?.review?.assessments?.flatMap((assessment) => assessment.observationFingerprints))
+      .toEqual(expect.arrayContaining(observations.map((observation) => observation.fingerprint)));
+    const repeated = await review(ownershipDecision());
     expect(repeated.status, repeated.error).toBe("success");
     expect(repeated.steps.investigate.status).toBe("skipped");
-    expect(listFullRepoTasks(testWorkspace).map((task) => task.id)).toEqual(["task-retained"]);
+    expect(listFullRepoTasks(testWorkspace)).toHaveLength(2);
+    expect(listFullRepoTasks(testWorkspace).find((task) => task.id === "task-retained")?.body)
+      .toContain("Preserve the existing delivery contract while its owner is waiting.");
   });
 
   it.each(["task", "inbox"])("keeps newly available %s work ahead of an idle gardener request", async (supply) => {

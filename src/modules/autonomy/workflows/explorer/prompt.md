@@ -15,17 +15,20 @@ Keep tasks concise: capture the problem, desired outcome, meaningful
 constraints, and how an implementer will know the outcome exists.
 
 `data/watchlist.yaml` contains known external sources. The `inspect-watchlist`
-step contains paths to fresh source observations, inaccessible results, and the reason
+step contains paths to fresh and retained readable source observations, inaccessible results, and the reason
 this evidence needs review. Use those observations and fetch additional sources
-only when they may add current value. Edit `data/watchlist.yaml` directly when
+only when they may add current value. Retained material establishes what was
+read at its original observation time, not current upstream behavior. An
+unavailable optional source does not block independent ideas grounded in readable
+material. Edit `data/watchlist.yaml` directly when
 a source observation or a useful new source is worth recording. Preserve operator
 notes, added dates, comments, and untouched snapshots.
 
 For an observed source, use its runtime fingerprint from `inspect-watchlist`
 in `snapshot.fingerprint`, a factual `snapshot.summary`, and its observation time
 in `snapshot.last_seen_at`. Keep a new source's snapshot absent until runtime
-evidence is available. For failed access, set `status: inaccessible` and retain
-the last useful snapshot; remove that status when access succeeds. Use
+evidence is available. For failed current access, set `status: inaccessible` and retain
+the last useful snapshot; remove that status when a fresh fetch succeeds, not merely when retained bytes are available. Use
 `canonicalized_from` only for evidenced durable redirects, retaining prior URLs
 on one canonical entry without duplicate resources or lost operator notes.
 

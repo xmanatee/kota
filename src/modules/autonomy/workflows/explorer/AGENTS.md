@@ -33,6 +33,10 @@ Failed fetches, including unavailable readable content, preserve the last useful
 content identity. Page metadata and layout markup are access evidence, not
 upstream product changes. Observations and reviewed fingerprints publish
 through the same finalizer, including no-action.
+A changed task context can reuse readable retained material before its network
+recheck is due or after a later fetch fails. Retained references preserve their
+original observation time; absent or mismatched bytes cannot establish access.
+One unavailable source does not veto independent research using readable sources.
 Source content and failures stay in retained run evidence after sandbox cleanup;
 the agent receives working copies inside its authorized run directory.
 

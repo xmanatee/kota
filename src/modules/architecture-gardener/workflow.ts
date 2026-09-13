@@ -16,7 +16,7 @@ import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_AGENT_HANG_TIMEOUT_MS, AUTONOMY_AGENT
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { repoWorkSupplyOperation, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
-import { type AdmissionEvaluation, evaluateAdmission, relevantDeliveryCohort } from "./admission.js";
+import { type AdmissionEvaluation, evaluateAdmission, relevantDeliveryCohort, settleGardenerAssessments } from "./admission.js";
 import { decodeGardenerDecision, gardenerDecisionOutputSchema } from "./decision.js";
 import { architectureReviewRequested } from "./events.js";
 import { computeFingerprint } from "./fingerprint.js";
@@ -244,7 +244,9 @@ const finish = typedCodeStep<{ recorded: true }>({
           reason: staged!.reason === decision.rationale ? decision.rationale : `${decision.rationale}\n${staged!.reason}`, decidedAt: now,
           taskId: staged?.taskId ?? current.dispositions[targetScope]?.taskId ?? null,
           proposalIdentities,
-          review: { decision, structuralCohort: input.admission.structuralCohort,
+          review: { decision,
+            assessments: settleGardenerAssessments(current.dispositions[targetScope]?.review, input.observations, decision),
+            structuralCohort: input.admission.structuralCohort,
             deliveryCohort: relevantDeliveryCohort(input.observations, decision.revisit.deliveryIssueKeys),
             requestFingerprint: input.requestFingerprint ?? current.dispositions[targetScope]?.review?.requestFingerprint ?? null },
         } },

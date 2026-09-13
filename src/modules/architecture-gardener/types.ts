@@ -34,8 +34,18 @@ export type ArchitectureObservation = {
 
 export type CandidateDisposition = "admitted" | "proposed" | "no-action" | "covered" | "suppressed" | "applied" | "unchanged" | "deferred";
 
+export type GardenerAssessment = {
+  /** Assessed structural signals; absence remains pending until explicitly reviewed. */
+  readonly observationFingerprints: readonly string[];
+  readonly evidenceRefs: readonly string[];
+  readonly revisit: GardenerDecision["revisit"];
+  readonly deliveryCohort: string;
+};
+
 export type SettledGardenerReview = {
   readonly decision: GardenerDecision;
+  /** Each retained assessment keeps its own causal judgment and observed baseline. */
+  readonly assessments?: readonly GardenerAssessment[];
   readonly structuralCohort: string;
   readonly deliveryCohort: string;
   readonly requestFingerprint: string | null;

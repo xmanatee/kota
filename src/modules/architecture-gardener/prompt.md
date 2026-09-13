@@ -23,6 +23,17 @@ linked terminal tasks, inspect migrated callers, retired paths and actual proof;
 completion status alone does not establish a simpler result. Keep any follow-up
 outcome and evidence linked to the original task through normal task provenance.
 
+Use `admission.unreviewedObservationFingerprints` to find opportunities outside
+settled judgments. Choose worthwhile investigation without a task quota. Include
+in `evidenceRefs` the exact fingerprint of each observation actually assessed,
+alongside the concrete source evidence. Explain its disposition in the rationale,
+including false positives and leads with insufficient support. Reading a scan or
+settling one mechanism does not assess every observation. If the known leads are
+exhausted, cite the assessed observations and explain that specific conclusion;
+leave unrelated, uninvestigated fingerprints uncited for later idle discovery.
+When an earlier observation disappears or changes, inspect its resolution and cite
+its retained fingerprint when reassessing that judgment.
+
 Return the structured decision. Cite concrete files/symbols or durable records
 actually inspected. `no-action` is a complete outcome, including an empty scan,
 a false positive, insufficient evidence, or a verified completed simplification;
