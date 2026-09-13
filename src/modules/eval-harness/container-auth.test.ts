@@ -48,11 +48,11 @@ describe("adapter-owned contained login", () => {
     for (const sourceFile of [candidateAuth, alias]) {
       expect(() => snapshotContainerAuth({ ...auth, sourceFile }, workspace)).toThrow(/outside the candidate/);
     }
-    for (const sourceFile of [join(root, "missing"), workspace]) {
-      expect(containerAuthIssue({ ...auth, sourceFile })).toMatch(/unavailable or unreadable/);
-    }
+    expect(containerAuthIssue({ ...auth, sourceFile: join(root, "missing") })).toMatch(/unavailable or unreadable/);
+    expect(() => containerAuthIssue({ ...auth, sourceFile: workspace })).toThrow(/nonempty regular/);
     writeFileSync(auth.sourceFile, "");
-    expect(containerAuthIssue(auth)).toMatch(/unavailable or unreadable/);
+    expect(() => containerAuthIssue(auth)).toThrow(/nonempty regular/);
+    expect(() => containerAuthIssue({ ...auth, containerDirectory: "/candidate" })).toThrow(/Invalid adapter/);
     expect(() => snapshotContainerAuth({ ...auth, containerDirectory: "/candidate" }, workspace)).toThrow(/Invalid adapter/);
   });
 });

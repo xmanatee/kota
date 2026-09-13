@@ -222,7 +222,9 @@ export function resolveOpenRouterPreflight(
 export function skipReasonFor(
   spec: MatrixModelSpec,
   openRouterPreflight: MatrixOpenRouterPreflight,
+  unavailableReason?: string,
 ): string | null {
+  if (unavailableReason !== undefined) return unavailableReason;
   if (
     (spec.provider === "openrouter" || spec.model.startsWith("openrouter/")) &&
     !openRouterPreflight.available

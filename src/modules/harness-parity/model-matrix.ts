@@ -112,7 +112,7 @@ function resolveRepeats(
   return repeats;
 }
 
-export type MatrixExecution = { spec: import("./model-matrix-models.js").MatrixModelSpec; harness: AgentHarness; evalExecutor?: WorkflowExecutor };
+export type MatrixExecution = { spec: import("./model-matrix-models.js").MatrixModelSpec; harness: AgentHarness; evalExecutor?: WorkflowExecutor; unavailableReason?: string };
 
 export function resolveMatrixExecutions(config: HarnessParityDeps["config"], options: HarnessParityMatrixOptions): MatrixExecution[] | HarnessParityMatrixResult {
   let specs: ReturnType<typeof buildModelSpecs>;
@@ -191,7 +191,7 @@ export async function runHarnessParityModelMatrix(
         ? undefined : validateMatrixIsolationBackends(options.evalIsolationBackends);
       // Resolve the whole matrix before any row can consume inference.
       for (const execution of executions) {
-        if (skipReasonFor(execution.spec, openRouterPreflight) !== null) continue;
+        if (skipReasonFor(execution.spec, openRouterPreflight, execution.unavailableReason) !== null) continue;
         execution.evalExecutor ??= matrixEvalExecutor({ deps, ...execution, backends });
       }
     } catch (error) {
@@ -199,7 +199,7 @@ export async function runHarnessParityModelMatrix(
     }
     const failures: string[] = [];
     for (const [index, execution] of executions.entries()) {
-      if (skipReasonFor(execution.spec, openRouterPreflight) !== null) continue;
+      if (skipReasonFor(execution.spec, openRouterPreflight, execution.unavailableReason) !== null) continue;
       const failure = preflightMatrixEval({
         ...execution, executor: execution.evalExecutor!, profile: evalResourceProfile, outBaseDir, index,
       });
@@ -211,10 +211,10 @@ export async function runHarnessParityModelMatrix(
   }
   const rows: HarnessParityMatrixRow[] = [];
 
-  for (const { spec, harness, evalExecutor } of executions) {
+  for (const { spec, harness, evalExecutor, unavailableReason } of executions) {
     deps.matrixExecution?.signal.throwIfAborted();
     const harnessOverrides = matrixHarnessOverrides(harness, spec, options.effort);
-    const skipReason = skipReasonFor(spec, openRouterPreflight);
+    const skipReason = skipReasonFor(spec, openRouterPreflight, unavailableReason);
     if (evalFixtures.fixtures.length > 0 && evalResourceProfile !== null) {
       rows.push(
         ...(await runEvalFixturesForSpec({
@@ -224,6 +224,7 @@ export async function runHarnessParityModelMatrix(
           harness,
           harnessName: harness.name,
           openRouterPreflight,
+          unavailableReason,
           fixtures: evalFixtures.fixtures,
           outBaseDir,
           repeats,

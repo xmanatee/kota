@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { type AgentHarness, ContainerAuthUnavailableError } from "#core/agent-harness/harness-definition.js";
 import { clearAgentHarnessRegistryForTest, registerAgentHarness, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ProcessSupervisorOptions } from "#core/execution/process-supervisor.js";
@@ -72,9 +73,72 @@ it("prepares exact native and local raw/scaffold routes without serializing host
   expect(prepared.executions.map((row) => [row.harness.name, row.spec.model])).toEqual([
     ["codex", "gpt-5.5"], ["openai-tools", "ollama/installed-model"], ["openai-tools-scaffold", "ollama/installed-model"],
   ]);
-  expect(prepared.executions[0]!.executorOptions.containerAuth?.sourceFile).toBe(login);
-  expect(prepared.executions[1]!.executorOptions.extraEnv).not.toHaveProperty("OPENROUTER_API_KEY");
+  expect(prepared.executions[0]).toMatchObject({ status: "ready", executorOptions: { containerAuth: { sourceFile: login } } });
+  expect(prepared.executions[1]?.status === "ready" && prepared.executions[1].executorOptions.extraEnv).not.toHaveProperty("OPENROUTER_API_KEY");
   expect(() => structuredClone(prepared)).not.toThrow();
+});
+
+function prepareNativeLocal(resolveAuth: AgentHarness["resolveIsolatedContainerAuth"]) {
+  registerAgentHarness({ ...createFixingHarness("codex"), modelRouting: { kind: "native", provider: "openai" },
+    toolControl: "native", validateModelId: undefined, resolveIsolatedContainerAuth: resolveAuth });
+  const input = { ...profile(), matrix: { ...matrix(),
+    baselines: [{ label: "baseline", model: "gpt-5.5", provider: "openai" }],
+    candidates: [{ label: "local", model: "ollama/installed-model", provider: "local" }],
+    harnesses: ["codex", "openai-tools"], harnessesByLabel: { baseline: ["codex"], local: ["openai-tools"] },
+    evalIsolationBackends: { openai: backend("openai"), ollama: backend("ollama") } } };
+  vi.stubEnv("KOTA_EVAL_CONTAINED_PROFILES", JSON.stringify({ rollout: input }));
+  return prepareContainedMatrix(root, join(root, "report"), containedEvaluationProfiles(root).rollout!, 1);
+}
+
+it.each(["declared", "missing-file", "unsupported"] as const)("retains an unavailable native baseline (%s) while executing local scenario and eval rows", async (unavailability) => {
+  const prepared = prepareNativeLocal(unavailability === "unsupported" ? undefined : () => {
+    if (unavailability === "declared") throw new ContainerAuthUnavailableError("synthetic native credential unavailable");
+    return { sourceFile: join(root, "missing-login"), containerDirectory: "/run/login", fileName: "auth.json", locatorEnvKey: "CODEX_HOME" };
+  });
+  expect(prepared.executions.map((entry) => [entry.spec.model, entry.status])).toEqual([
+    ["gpt-5.5", "unavailable"], ["ollama/installed-model", "ready"],
+  ]);
+  expect(() => structuredClone(prepared)).not.toThrow();
+  const { PROVIDER_EGRESS_NETWORK_LABELS: labels, providerEgressEndpointLabelValue, providerEgressEndpointsFor } = await import("#modules/eval-harness/provider-egress.js");
+  vi.stubEnv("KOTA_FAKE_CONTAINER_NETWORK_LABELS", JSON.stringify({ [labels.policy]: "provider-egress", [labels.provider]: "ollama", [labels.endpoints]: providerEgressEndpointLabelValue(providerEgressEndpointsFor("ollama")) }));
+  const scenarios = join(root, "scenarios"); writeFixAddScenario(scenarios);
+  const path = join(scenarios, "fix-add", "scenario.json"); const scenario = JSON.parse(readFileSync(path, "utf8"));
+  scenario.verification.trustedFiles = []; writeFileSync(path, JSON.stringify(scenario));
+  prepared.deps.scenariosRoot = scenarios; prepared.options.scenarios = ["fix-add"];
+  const fixture = join(root, "fixtures", "eval-alpha"); mkdirSync(join(fixture, "initial"), { recursive: true });
+  writeFileSync(join(fixture, "fixture.json"), JSON.stringify({ id: "eval-alpha", description: "partial cohort composition", role: "builder", workflowName: "noop", budgetMs: 30000,
+    predicates: [{ kind: "file-exists", path: "done.txt" }], preRunExpectations: [{ predicate: { kind: "file-exists", path: "done.txt" }, expected: "fail" }],
+    controlDecisions: ["act"], provenance: { kind: "smoke-fixture", justification: "Verifies skipped baseline and local evidence survive report composition for both target kinds." } }));
+  prepared.deps.evalFixturesRoot = join(root, "fixtures"); prepared.options.evalFixtures = ["eval-alpha"];
+  processPort.run.mockImplementation(async (options: ProcessSupervisorOptions) => {
+    if (options.args.includes("workflow")) {
+      writeTerminalRun(options.cwd, "noop", "partial-local", "success");
+      writeFileSync(join(options.cwd, "done.txt"), "ok");
+    } else {
+      expect(JSON.parse(options.args.at(-1)!)).toMatchObject({ harness: "openai-tools", model: "ollama/installed-model" });
+      writeFileSync(join(options.cwd, "add.js"), "exports.add = (a, b) => a + b;\n");
+    }
+    const text = options.args.includes("workflow") ? "" : `${CONTAINED_STAGE_RESULT_PREFIX}${JSON.stringify({ result: { text: "done", streamedText: "done", turns: 1, usage: UNKNOWN_AGENT_USAGE, isError: false }, messages: [] })}\n`;
+    return { status: "completed", exitCode: 0, signal: null, stdout: { text, totalBytes: text.length, truncated: false }, stderr: { text: "", totalBytes: 0, truncated: false } };
+  });
+  const result = await runContainedMatrix(prepared, { signal: new AbortController().signal, reportProgress: () => {}, onProcessSpawn: () => {} });
+  expect(result.ok, JSON.stringify(result)).toBe(true);
+  if (!result.ok) return;
+  expect(result.rows.filter((row) => row.role === "baseline")).toEqual([
+    expect.objectContaining({ targetKind: "eval-harness-fixture", model: "gpt-5.5", harnessName: "codex", status: "skipped", skipReason: expect.any(String), verification: null, estimatedCostUsd: null }),
+    expect.objectContaining({ targetKind: "harness-parity-scenario", model: "gpt-5.5", harnessName: "codex", status: "skipped", verification: null }),
+  ]);
+  expect(result.rows.filter((row) => row.role === "candidate").map((row) => row.status)).toEqual(["passed", "passed"]);
+  expect(processPort.run).toHaveBeenCalledTimes(2);
+  expect(result.shadowComparisons).toHaveLength(2);
+  expect(result.shadowComparisons.every((comparison) => !comparison.compatible)).toBe(true);
+  expect(JSON.parse(readFileSync(result.reportPath, "utf8")).rows).toEqual(result.rows);
+});
+
+it("does not convert unexpected native resolver errors or malformed locators into skipped rows", () => {
+  expect(() => prepareNativeLocal(() => { throw new Error("unexpected resolver defect"); })).toThrow("unexpected resolver defect");
+  expect(() => prepareNativeLocal(() => ({ sourceFile: join(root, "missing"), containerDirectory: "/candidate", fileName: "auth.json", locatorEnvKey: "CODEX_HOME" }))).toThrow("Invalid adapter");
+  expect(processPort.run).not.toHaveBeenCalled();
 });
 
 function prepare(): PreparedContainedMatrix {
@@ -140,7 +204,7 @@ it("executes equal paired repeats through contained launches and offline verifie
 it("rejects missing images and cancellation before any candidate or host fallback", async () => {
   const prepared = prepare();
   for (const execution of prepared.executions) {
-    if (execution.executorOptions.isolationBackend?.kind === "container") execution.executorOptions.isolationBackend.image = "missing:image";
+    if (execution.status === "ready" && execution.executorOptions.isolationBackend?.kind === "container") execution.executorOptions.isolationBackend.image = "missing:image";
   }
   const result = await runContainedMatrix(prepared, { signal: new AbortController().signal, reportProgress: () => {} });
   expect(result).toMatchObject({ ok: false, reason: "eval_preflight_failed" });

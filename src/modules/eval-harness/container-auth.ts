@@ -32,7 +32,9 @@ export function containerAuthIssue(auth: ContainerAuth): string | null {
   try {
     closeSync(openLogin(auth));
     return null;
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) ||
+      !["ENOENT", "EACCES", "EPERM"].includes(String(error.code))) throw error;
     return "Adapter-owned container login is unavailable or unreadable in this execution context; no credential or entitlement absence is inferred.";
   }
 }

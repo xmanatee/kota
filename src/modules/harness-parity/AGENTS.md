@@ -52,7 +52,10 @@ Candidates use the shared subprocess executor and scoring stays offline. Native
 container login uses an adapter-declared credential file locator: the executor
 snapshots only that file outside the candidate tree and mounts the snapshot
 read-only. Host homes, configuration and session stores do not cross this boundary.
-Missing login access rejects before matrix inference; file readability does not
+Contained matrices retain explicitly unavailable native login/capability rows as
+unexecuted evidence while preparing independent compatible routes. Invalid grants,
+malformed login locators, isolation failures and unexpected errors still reject;
+file readability does not
 establish authentication or entitlement. Local providers require their matching
 internal proxy policy and the model-client owner's contained endpoint. Proxy
 readiness, positive inference, and denied unintended access still need live proof;

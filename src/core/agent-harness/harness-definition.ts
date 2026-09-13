@@ -12,6 +12,12 @@ import type {
   AgentHarnessWriter,
 } from "./types.js";
 
+/** Explicit adapter capability/credential unavailability, safe to retain as an
+ * unexecuted comparison row. Unexpected resolver failures must still propagate. */
+export class ContainerAuthUnavailableError extends Error {
+  override readonly name = "ContainerAuthUnavailableError";
+}
+
 /**
  * An agent harness is the long-lived loop that turns a prompt plus options
  * into a completed agent run. Different adapters implement this protocol
@@ -108,6 +114,7 @@ export type AgentHarness = {
    * The launcher snapshots only this file outside the candidate tree, mounts
    * it read-only, and supplies the declared locator. Never caller-authored.
    * The adapter must deny both source and runtime credentials to native tools.
+   * Throw ContainerAuthUnavailableError only for known unavailability.
    */
   readonly resolveIsolatedContainerAuth?: (
     env: NodeJS.ProcessEnv,

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { ContainerAuthUnavailableError } from "#core/agent-harness/harness-definition.js";
 import type { AgentHarness, KotaToolInputSchema } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
@@ -9,6 +10,7 @@ import { networkReadEffect } from "#core/tools/effect.js";
 import { resolveKotaBinary, resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import { defineWorkflowBlockingOperation, runWorkflowBlockingOperation, type WorkflowBlockingOperationContext } from "#core/workflow/blocking-operation.js";
 import { containedEvaluationProfiles, requireContainedEvaluationOrigin } from "#modules/eval-harness/contained-evaluation.js";
+import { containerAuthIssue } from "#modules/eval-harness/container-auth.js";
 import { createSubprocessExecutor } from "#modules/eval-harness/subprocess-executor.js";
 import type { SubprocessExecutorOptions } from "#modules/eval-harness/subprocess-executor-types.js";
 import type { HarnessParityMatrixOptions } from "./client.js";
@@ -52,7 +54,10 @@ export type PreparedContainedMatrix = {
   budgetMs: number;
   env: NodeJS.ProcessEnv;
   openRouterPreflight: MatrixOpenRouterPreflight;
-  executions: { spec: MatrixModelSpec; harness: HarnessFacts; executorOptions: SubprocessExecutorOptions }[];
+  executions: ({ spec: MatrixModelSpec; harness: HarnessFacts } & (
+    | { status: "ready"; executorOptions: SubprocessExecutorOptions }
+    | { status: "unavailable"; reason: string }
+  ))[];
 };
 export function prepareContainedMatrix(scopeRoot: string, artifactDir: string,
   profile: ReturnType<typeof containedEvaluationProfiles>[string], repeatCount: number): PreparedContainedMatrix {
@@ -78,21 +83,33 @@ export function prepareContainedMatrix(scopeRoot: string, artifactDir: string,
   for (const [label, names] of Object.entries(selection.harnessesByLabel)) {
     if (names.some((name) => !selected.some((entry) => entry.spec.label === label && entry.harness.name === name))) throw new Error(`Requested matrix route for ${label} is incompatible`);
   }
-  const executions = selected.map(({ spec, harness }) => {
+  const executions: PreparedContainedMatrix["executions"] = selected.map(({ spec, harness }) => {
     const backend = selection.evalIsolationBackends[spec.executionProvider];
     if (backend?.kind !== "container" || backend.networkPolicy?.kind !== "provider-egress" || backend.networkPolicy.provider !== spec.executionProvider)
       throw new Error(`Missing contained provider route for ${spec.executionProvider}`);
-    if (harness.modelRouting?.kind === "native" && !harness.resolveIsolatedContainerAuth)
-      throw new Error(`Harness ${harness.name} has no contained native authentication contract`);
     const facts: HarnessFacts = { name: harness.name, description: harness.description,
       supportsMultiTurn: harness.supportsMultiTurn, supportedHookKinds: harness.supportedHookKinds,
       askOwnerToolName: harness.askOwnerToolName, emitsAgentMessageStream: harness.emitsAgentMessageStream,
       toolControl: harness.toolControl, modelRouting: harness.modelRouting,
       nativeAbortQuarantine: harness.nativeAbortQuarantine, unsupportedRunOptions: harness.unsupportedRunOptions };
-    return { spec, harness: facts, executorOptions: {
+    let containerAuth: SubprocessExecutorOptions["containerAuth"];
+    let unavailableReason: string | null = null;
+    if (harness.modelRouting?.kind === "native" && !harness.resolveIsolatedContainerAuth) {
+      unavailableReason = `Harness ${harness.name} has no contained native authentication contract`;
+    } else {
+      try {
+        containerAuth = harness.resolveIsolatedContainerAuth?.(process.env);
+      } catch (error) {
+        if (!(error instanceof ContainerAuthUnavailableError)) throw error;
+        unavailableReason = error.message;
+      }
+      if (containerAuth) unavailableReason = containerAuthIssue(containerAuth);
+    }
+    if (unavailableReason !== null) return { spec, harness: facts, status: "unavailable", reason: unavailableReason };
+    return { spec, harness: facts, status: "ready", executorOptions: {
       kotaBinaryPath, isolationBackend: backend,
       extraEnv: { ...matrixExecutorAuthEnv(harness, spec, scopeRoot, backend), ...env },
-      containerAuth: harness.resolveIsolatedContainerAuth?.(process.env),
+      containerAuth,
       providerEgressTaskBoundary: { agentHarness: harness.name, toolControl: harness.toolControl },
     } };
   });
@@ -104,17 +121,18 @@ export function prepareContainedMatrix(scopeRoot: string, artifactDir: string,
 export async function runContainedMatrix(input: PreparedContainedMatrix, context: WorkflowBlockingOperationContext) {
   context.signal.throwIfAborted();
   const executions = input.executions.map((entry) => {
-    const options = { ...entry.executorOptions, signal: context.signal, onProcessSpawn: context.onProcessSpawn, onExecutionFailure: context.onExecutionFailure };
     const harness: AgentHarness = { ...entry.harness,
-      ...(entry.executorOptions.containerAuth ? { resolveIsolatedContainerAuth: () => entry.executorOptions.containerAuth! } : {}),
+      ...(entry.status === "ready" && entry.executorOptions.containerAuth ? { resolveIsolatedContainerAuth: () => entry.executorOptions.containerAuth! } : {}),
       async run() { throw new Error("Contained matrix cannot launch an agent on the host"); } };
+    if (entry.status === "unavailable") return { spec: entry.spec, harness, unavailableReason: entry.reason };
+    const options = { ...entry.executorOptions, signal: context.signal, onProcessSpawn: context.onProcessSpawn, onExecutionFailure: context.onExecutionFailure };
     return { spec: entry.spec, harness, evalExecutor: createSubprocessExecutor(options), options };
   });
   return runHarnessParityModelMatrix({ ...input.deps, matrixExecution: {
     executions, openRouterPreflight: input.openRouterPreflight, signal: context.signal, env: input.env,
     scenarioExecution: (spec, harness, executor, profile) => {
       const entry = executions.find((entry) => entry.spec === spec && entry.harness === harness);
-      if (!entry) throw new Error("Contained matrix execution identity missing");
+      if (!entry?.options) throw new Error("Contained matrix execution identity missing");
       return containedScenarioExecution(entry.options, harness, executor.preflight(profile), input.budgetMs);
     },
   } }, input.options);

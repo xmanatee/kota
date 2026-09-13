@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ContainerAuthUnavailableError } from "#core/agent-harness/harness-definition.js";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 
 export const ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV =
@@ -47,7 +48,7 @@ export function prepareAntigravityCliRuntimeEnvironment(
 /** Contained login must satisfy the harness contract's native-tool credential
  * exclusion. AGY's headless file-storage fallback alone does not establish it. */
 export function resolveAntigravityCliContainerAuth(_env: NodeJS.ProcessEnv): never {
-  throw new Error(
+  throw new ContainerAuthUnavailableError(
     "Antigravity contained subscription login projection is not implemented. " +
     "AGY supports headless file-based token storage, but KOTA has not established " +
     "the selected Linux release's login-file location, refresh behavior, and native-tool credential exclusion. " +

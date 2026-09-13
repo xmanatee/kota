@@ -212,13 +212,14 @@ export async function runEvalFixturesForSpec(args: {
   harness?: import("#core/agent-harness/index.js").AgentHarness;
   harnessName: string;
   openRouterPreflight: MatrixOpenRouterPreflight;
+  unavailableReason?: string;
   fixtures: readonly LoadedFixture[];
   outBaseDir: string;
   repeats: number;
   requestedProfile: ResourceProfile;
   executor: WorkflowExecutor;
 }): Promise<HarnessParityMatrixRow[]> {
-  const skipReason = skipReasonFor(args.spec, args.openRouterPreflight);
+  const skipReason = skipReasonFor(args.spec, args.openRouterPreflight, args.unavailableReason);
   if (skipReason !== null) {
     return args.fixtures.flatMap((fixture) =>
       Array.from({ length: args.repeats }, (_entry, repeatIndex) =>
