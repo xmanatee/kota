@@ -36,7 +36,16 @@ export type GeneratedWorkResolution = {
   source: string;
 };
 
+export type GeneratedWorkExistingTaskProposal = {
+  kind: "existing-task";
+  proposalKey: string;
+  taskId: string;
+  reviewedBody: string;
+  provenance: GeneratedWorkProvenance;
+};
+
 export type GeneratedWorkProposal =
+  | GeneratedWorkExistingTaskProposal
   | GeneratedWorkTaskProposal
   | GeneratedWorkQuestionProposal
   | GeneratedWorkResolution;

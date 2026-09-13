@@ -1,4 +1,5 @@
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   createGeneratedWorkQuestionQueue,
   dismissGeneratedWorkQuestion,
@@ -77,6 +78,18 @@ export type FinalizedGeneratedWorkOwnerEffects = {
   actions: GeneratedWorkProposalAction[];
 };
 
+/** A link adopts reviewed ownership without mutating the task or its runtime claim. */
+export function verifyGeneratedWorkExistingTask(workspaceRoot: string, proposal: GeneratedWorkProposal): void {
+  if (proposal.kind !== "existing-task") return;
+  const task = listFullRepoTasks(workspaceRoot).find((candidate) => candidate.id === proposal.taskId);
+  if (!task || task.state === "dropped") {
+    throw new Error(`Existing repair task ${proposal.taskId} is missing or dropped in this scope`);
+  }
+  if (task.body !== proposal.reviewedBody) {
+    throw new Error(`Existing repair task ${proposal.taskId} changed after ownership review`);
+  }
+}
+
 export function stageGeneratedWorkProposal(args: {
   workspaceRoot: string;
   proposal: GeneratedWorkProposal;
@@ -86,7 +99,10 @@ export function stageGeneratedWorkProposal(args: {
   const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
   const actions: StagedGeneratedWorkProposalResult["actions"] = [];
 
-  if (proposal.kind === "task") {
+  if (proposal.kind === "existing-task") {
+    verifyGeneratedWorkExistingTask(args.workspaceRoot, proposal);
+    actions.push({ kind: "owner-question-dismissal-pending" });
+  } else if (proposal.kind === "task") {
     actions.push({ kind: "owner-question-dismissal-pending" });
     actions.push(...writeGeneratedWorkTask({
       workspaceRoot: args.workspaceRoot,
@@ -102,7 +118,7 @@ export function stageGeneratedWorkProposal(args: {
   }
 
   const taskAction = actions.find((action) => "taskId" in action);
-  const taskId = proposal.kind === "task"
+  const taskId = proposal.kind === "existing-task" ? proposal.taskId : proposal.kind === "task"
     ? taskAction && "taskId" in taskAction
       ? taskAction.taskId
       : existingTask?.task.id ?? null
@@ -157,6 +173,7 @@ export function finalizeGeneratedWorkOwnerEffects(args: {
   ownerQuestionQueue: OwnerQuestionQueue;
   proposal: GeneratedWorkProposal;
 }): FinalizedGeneratedWorkOwnerEffects {
+  verifyGeneratedWorkExistingTask(args.workspaceRoot, args.proposal);
   const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
   if (args.proposal.kind === "owner-question") {
     const reconciled = reconcileGeneratedWorkQuestion({
@@ -196,10 +213,10 @@ export function finalizeGeneratedWorkOwnerEffects(args: {
   const actions = dismissGeneratedWorkQuestion(
     args.ownerQuestionQueue,
     proposalKey,
-    args.proposal.kind === "task"
+    (args.proposal.kind === "task" || args.proposal.kind === "existing-task")
       ? "The generated-work disposition now routes through a task."
       : args.proposal.reason,
-    args.proposal.kind === "task"
+    (args.proposal.kind === "task" || args.proposal.kind === "existing-task")
       ? args.proposal.provenance.source
       : args.proposal.source,
   );
@@ -215,6 +232,11 @@ export function canPublishGeneratedWorkOwnerEffects(args: {
   proposal: GeneratedWorkProposal;
   fresh: boolean;
 }): boolean {
+  if (args.proposal.kind === "existing-task") {
+    if (!args.fresh) return false;
+    verifyGeneratedWorkExistingTask(args.workspaceRoot, args.proposal);
+    return true;
+  }
   const task = findGeneratedWorkTask(args.workspaceRoot, args.proposal.proposalKey);
   if (args.proposal.kind === "task") {
     return task !== null && task.task.state !== "dropped" && !hasGeneratedWorkRetirement(task);

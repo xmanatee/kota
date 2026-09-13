@@ -5,6 +5,7 @@ import {
 } from "#modules/autonomy/generated-task-text.js";
 import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { IssueDisposition } from "./issue-disposition.js";
 
 function issueTaskBody(
@@ -36,6 +37,7 @@ export function proposalFor(
   issue: AutonomyIssue,
   disposition: IssueDisposition,
   runId: string,
+  workspaceRoot: string,
 ): GeneratedWorkProposal {
   const proposalKey = `autonomy-issue:${issue.issueKey}`;
   const provenance = {
@@ -45,6 +47,13 @@ export function proposalFor(
     semanticRevision: issue.semanticRevision,
     evidenceRefs: issue.evidenceRefs.map((ref) => ref.ref),
   };
+  if (disposition.action === "link-task") {
+    const task = listFullRepoTasks(workspaceRoot).find((candidate) => candidate.id === disposition.existingTaskId);
+    if (!task || task.state === "dropped") {
+      throw new Error(`Existing repair task ${disposition.existingTaskId} is missing or dropped in this scope`);
+    }
+    return { kind: "existing-task", proposalKey, taskId: task.id, reviewedBody: task.body, provenance };
+  }
   if (disposition.action === "create-task") {
     return {
       kind: "task",

@@ -20,7 +20,10 @@ This workflow is the single AI decision path for durable autonomy issues.
   scoped issue export in their agent directory. Missing or unsafe content stays
   explicitly unavailable; references do not authorize canonical host reads.
 - Inspect the linked evidence, current owner, implementation, and related queue
-  work before acting. Prefer one existing owner over parallel repair tasks.
+  work before acting. Link relevant existing repair tasks through the disposition
+  contract; publication rechecks the reviewed task body without changing its
+  contract or runtime claim. Reconciliation follows that same issue/task link,
+  retaining task lineage after a clear observation for recurrence review.
 - Do not replay AI review without a new decision-request transition.
 - `doctor.fix` is the sole deterministic recovery action. Its allowlist and
   idempotent settled-state verification target only the cited stale daemon

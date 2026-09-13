@@ -226,7 +226,7 @@ describe("autonomy health issue projection", () => {
     );
   });
 
-  it("drops the stable generated task on an explicit source clear", () => {
+  it.each(["generated", "existing"] as const)("clears an issue while preserving task authority for a %s owner", (owner) => {
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     const opened = applyReview(workspaceRoot, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
@@ -234,7 +234,7 @@ describe("autonomy health issue projection", () => {
       workspaceRoot,
       proposal: {
         kind: "task",
-        proposalKey: `autonomy-issue:${issueKey}`,
+        proposalKey: owner === "generated" ? `autonomy-issue:${issueKey}` : "independent:repair-owner",
         title: "Repair the generated health issue",
         priority: "p1",
         body: "## Problem\n\nThe health issue is open.\n",
@@ -270,9 +270,9 @@ describe("autonomy health issue projection", () => {
       ),
     );
 
-    expect(cleared.taskMutations).toEqual([
+    expect(cleared.taskMutations).toEqual(owner === "generated" ? [
       { id: task.taskId, state: "dropped" },
-    ]);
+    ] : []);
     expect(existsSync(
       join(workspaceRoot, "data", "tasks", "archive", `${task.taskId}.md`),
     )).toBe(false);

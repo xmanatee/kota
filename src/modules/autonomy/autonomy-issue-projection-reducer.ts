@@ -91,7 +91,6 @@ function applyClear(
         },
         links: {
           ...mergeObservationLinks(existing.links, observation),
-          taskIds: [],
           ownerQuestionIds: [],
         },
         history: [

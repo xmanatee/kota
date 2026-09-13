@@ -23,6 +23,13 @@ describe("issue disposition contract", () => {
     },
   );
 
+  it("requires an explicit task owner instead of hiding ownership in observation", () => {
+    expect(() => decodeIssueDisposition({ ...base, action: "link-task" })).toThrow(/existingTaskId/);
+    expect(() => decodeIssueDisposition({ ...base, action: "observe", existingTaskId: "task-repair" })).toThrow(/existingTaskId/);
+    expect(decodeIssueDisposition({ ...base, action: "link-task", existingTaskId: "task-repair" }))
+      .toMatchObject({ action: "link-task", existingTaskId: "task-repair" });
+  });
+
   it("requires a durable issue identity for a duplicate disposition", () => {
     expect(() => decodeIssueDisposition({ ...base, action: "duplicate" })).toThrow(
       /duplicateOfIssueKey/,

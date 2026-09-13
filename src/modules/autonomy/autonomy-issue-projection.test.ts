@@ -97,6 +97,17 @@ describe("durable autonomy issue projection", () => {
     const replay = applyAutonomyIssueObservations({ current: disposed, observations });
     expect(replay.transitions.every((transition) => !transition.requiresDecision)).toBe(true);
     expect(replay.projection).toEqual(disposed);
+    const cleared = applyAutonomyIssueObservations({ current: disposed, observations: [observation({
+      kind: "cleared", runId: "verified", observedAt: "2026-06-17T16:00:00.000Z",
+    })] }).projection;
+    expect(cleared.issues[0]).toMatchObject({ status: "resolved", links: { taskIds: ["task-health-builder"] } });
+    const recurrence = applyAutonomyIssueObservations({ current: cleared, observations: [observation({
+      runId: "recurrence", observedAt: "2026-06-18T12:00:00.000Z",
+    })] });
+    expect(recurrence.transitions).toEqual([expect.objectContaining({ kind: "reopened", requiresDecision: true })]);
+    expect(recurrence.projection.issues[0]).toMatchObject({
+      disposition: { kind: "needs-decision" }, links: { taskIds: ["task-health-builder"] },
+    });
   });
 
   it("ignores a disposition produced for an older semantic revision", () => {

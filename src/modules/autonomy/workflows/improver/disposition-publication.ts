@@ -20,6 +20,7 @@ import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-pro
 import {
   finalizeGeneratedWorkProposal,
   type StagedGeneratedWorkProposalResult,
+  verifyGeneratedWorkExistingTask,
 } from "#modules/autonomy/generated-work-proposal.js";
 import {
   type DeterministicRecoveryResult,
@@ -153,7 +154,7 @@ function recordDisposition(
         issueKey: applied.issueKey,
         semanticRevision: applied.semanticRevision,
         kind:
-          applied.disposition.action === "create-task"
+          (applied.disposition.action === "create-task" || applied.disposition.action === "link-task")
             ? "task"
             : applied.disposition.action === "ask-owner"
               ? "owner-question"
@@ -245,6 +246,11 @@ export const verifyImproverDispositionAfterReconcile: WorkflowPostReconcileInvar
       satisfied: false,
       reason: `Improver disposition artifact for ${input.runId} is missing`,
     };
+  }
+  try {
+    verifyGeneratedWorkExistingTask(input.workspaceRoot, artifact.applied.proposal);
+  } catch (error) {
+    return { satisfied: false, reason: error instanceof Error ? error.message : String(error) };
   }
   return isImproverDispositionCurrent(projection, artifact.applied)
     ? { satisfied: true }

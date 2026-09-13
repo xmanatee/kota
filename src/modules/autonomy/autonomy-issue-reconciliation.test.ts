@@ -9,6 +9,7 @@ import {
   recordAutonomyIssueDispositions,
 } from "./autonomy-issue-projection.js";
 import {
+  inspectAutonomyIssueOwner,
   planAutonomyIssueOwnerReconciliation,
   publishExhaustedInvestigationAttention,
 } from "./autonomy-issue-reconciliation.js";
@@ -181,13 +182,21 @@ describe("autonomy issue disposition-owner reconciliation", () => {
         ownerQuestionIds: [],
       }],
     });
-    expect(planAutonomyIssueOwnerReconciliation({
-      projection: taskProjection,
-      runs: [],
-      tasks: [task],
-      questions: [],
-      requestedAt: "2026-09-03T11:00:00.000Z",
-    })).toEqual([]);
+    for (const [state, phase] of [["open", "owned-remediation"], ["blocked", "genuinely-blocked"], ["done", "validating"]] as const) {
+      const currentTask = { ...task, state };
+      expect(inspectAutonomyIssueOwner({ issue: taskProjection.issues[0]!, runs: [],
+        taskById: new Map([[task.id, currentTask]]), questionById: new Map(), requestedAt: NOW,
+      })).toMatchObject({ phase, owned: true });
+      expect(planAutonomyIssueOwnerReconciliation({ projection: taskProjection, runs: [],
+        tasks: [currentTask], questions: [], requestedAt: NOW,
+      })).toEqual([]);
+      expect(taskProjection.issues[0]?.status).toBe("open");
+    }
+    const superseded = { ...task, state: "dropped" as const, body: "Superseded by task-repair-successor." };
+    expect(planAutonomyIssueOwnerReconciliation({ projection: taskProjection, runs: [],
+      tasks: [superseded, { ...task, id: "task-repair-successor", state: "open" }], questions: [], requestedAt: NOW,
+    })).toEqual([expect.objectContaining({ issueKey: issue.issueKey, phase: "awaiting-investigation" })]);
+    expect(taskProjection.issues[0]?.links.taskIds).toEqual([task.id]);
 
     expect(planAutonomyIssueOwnerReconciliation({
       projection: taskProjection,

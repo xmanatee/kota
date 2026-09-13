@@ -22,6 +22,7 @@ export function applyDispositionInWorker(
     input.issue,
     input.disposition,
     input.workflowRunId,
+    input.workspaceRoot,
   );
   let recovery: DeterministicRecoveryResult | null = null;
   if (input.disposition.action === "recover") {

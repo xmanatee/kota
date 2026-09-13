@@ -3,6 +3,7 @@ import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 
 export const ISSUE_DISPOSITION_ACTIONS = [
   "create-task",
+  "link-task",
   "recover",
   "ask-owner",
   "observe",
@@ -17,6 +18,7 @@ const issueDispositionSchema = z.object({
   action: z.enum(ISSUE_DISPOSITION_ACTIONS),
   recoveryAction: z.enum(ISSUE_RECOVERY_ACTIONS),
   rationale: z.string().min(1),
+  existingTaskId: z.string().optional(),
   taskTitle: z.string(),
   taskDesiredOutcome: z.string(),
   taskPriority: z.enum(["p0", "p1", "p2", "p3"]),
@@ -26,6 +28,14 @@ const issueDispositionSchema = z.object({
   proposedAnswers: z.array(z.string().min(1)),
   duplicateOfIssueKey: z.string().optional(),
 }).strict().superRefine((value, ctx) => {
+  if (value.action === "link-task" && !value.existingTaskId?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["existingTaskId"],
+      message: "existingTaskId is required for link-task" });
+  }
+  if (value.action !== "link-task" && value.existingTaskId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["existingTaskId"],
+      message: "existingTaskId is only valid for link-task" });
+  }
   if (value.action === "create-task") {
     for (const [field, text] of [
       ["taskTitle", value.taskTitle],

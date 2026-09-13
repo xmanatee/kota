@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
+  finalizeGeneratedWorkProposal,
   generatedWorkTaskMutationPaths,
   materializeGeneratedWorkProposal,
+  stageGeneratedWorkProposal,
 } from "./generated-work-proposal.js";
 import {
   cleanupGeneratedWorkScopeRoots,
@@ -57,6 +59,35 @@ describe("generated-work proposal materializer", () => {
       expect(repeated.actions).toContainEqual({ kind: "noop", reason: "task is current" });
     });
   }
+
+  it.each(["open", "blocked", "done", "dropped"] as const)(
+    "adopts an existing %s task without changing its contract", (state) => {
+      const workspaceRoot = makeGeneratedWorkScopeRoot("existing-owner");
+      const generated = taskProposal();
+      const created = materializeGeneratedWorkProposal({ workspaceRoot, proposal: generated });
+      placeTaskInState(workspaceRoot, created.taskId!, state);
+      const before = listFullRepoTasks(workspaceRoot);
+      const proposal = { kind: "existing-task" as const, proposalKey: generated.proposalKey,
+        taskId: created.taskId!, reviewedBody: before[0]!.body, provenance: generated.provenance };
+      if (state === "dropped") {
+        expect(() => materializeGeneratedWorkProposal({ workspaceRoot, proposal })).toThrow(/missing or dropped/);
+      } else {
+        const staged = stageGeneratedWorkProposal({ workspaceRoot, proposal });
+        expect(staged).toMatchObject({ taskId: created.taskId, touchedTaskQueue: false, ownerQuestionId: null });
+        const queue = new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
+        const result = finalizeGeneratedWorkProposal({ workspaceRoot, proposal, staged, ownerQuestionQueue: queue });
+        expect(result).toMatchObject({ taskId: created.taskId, touchedTaskQueue: false, ownerQuestionId: null });
+        expect(materializeGeneratedWorkProposal({ workspaceRoot, proposal }).taskId).toBe(created.taskId);
+        expect(queue.list()).toEqual([]);
+        expect(() => materializeGeneratedWorkProposal({
+          workspaceRoot: makeGeneratedWorkScopeRoot("other-scope"), proposal,
+        })).toThrow(/missing or dropped/);
+        expect(() => stageGeneratedWorkProposal({ workspaceRoot, proposal: { ...proposal, reviewedBody: "unreviewed contract" } }))
+          .toThrow(/changed after ownership review/);
+      }
+      expect(listFullRepoTasks(workspaceRoot)).toEqual(before);
+    },
+  );
 
   it("opens a revised question while retaining the owner's previous answer", () => {
     const workspaceRoot = makeGeneratedWorkScopeRoot("question");

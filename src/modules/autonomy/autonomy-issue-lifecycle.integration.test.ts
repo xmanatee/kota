@@ -329,7 +329,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]).toMatchObject({
           status: "resolved",
           semanticRevision: 1,
-          links: { taskIds: [], ownerQuestionIds: [] },
+          links: { taskIds: [tasks[0]!.id], ownerQuestionIds: [] },
         });
         expect(attention.some((text) => text.includes("action resolved"))).toBe(true);
         expect(listFullRepoTasks(workspaceRoot)).toEqual([

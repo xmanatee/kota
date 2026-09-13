@@ -18,11 +18,14 @@ import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
   emptyAutonomyIssueProjection,
+  readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { planAutonomyIssueOwnerReconciliation } from "#modules/autonomy/autonomy-issue-reconciliation.js";
 import {
   createGeneratedWorkQuestionQueue,
   generatedWorkQuestionDedupeKey,
 } from "#modules/autonomy/generated-work-owner-question.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   type AppliedDisposition,
   publishImproverDisposition,verifyImproverDispositionAfterReconcile, } from "./disposition-publication.js";
@@ -297,6 +300,59 @@ describe("improver issue disposition workflow", () => {
     expect(invariant({ ...input, head: "unexpected-writer-change" })).toMatchObject({
       satisfied: false,
     });
+  });
+
+  it("publishes an existing repair owner durably and rejects superseded review content", async () => {
+    const issue = openIssue();
+    const taskId = "task-existing-repair";
+    const taskPath = join(workspaceRoot, "data/tasks", `${taskId}.md`);
+    mkdirSync(join(workspaceRoot, "data/tasks"), { recursive: true });
+    const content = "---\nstatus: blocked\npriority: p1\n---\n# Repair the fixture failure\n\n## Outcome\nRepair the owning boundary and verify the original failure.\n\n## Blocked on\nExternal provider recovery.\n";
+    writeFileSync(taskPath, content);
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "--quiet", "-m", "existing repair owner"], { cwd: workspaceRoot });
+    const state = stateForProjection();
+    const result = await new WorkflowScenarioDriver(improverWorkflow, {
+      workspaceRoot,
+      trigger: { event: autonomyIssueDecisionRequested.name, payload: {
+        issueKey: issue.issueKey, semanticRevision: issue.semanticRevision,
+      } },
+      stepOutputs: { "review-issue": { ...OBSERVED_DISPOSITION,
+        action: "link-task", existingTaskId: taskId,
+        rationale: "The existing repair contract covers the fixture boundary and its original failure verification; provider recovery is its external prerequisite.",
+      } },
+      ports: { state, runCommand: improverCommandRunner(workspaceRoot) },
+    }).run();
+    expect(result.status, JSON.stringify(result)).toBe("success");
+    expect(result.steps["apply-disposition"].output).toMatchObject({
+      materialized: { taskId, ownerQuestionId: null, touchedTaskQueue: false },
+    });
+    const sourceRunId = basename(result.runDirPath);
+    const invariantInput = {
+      workspaceRoot, repoRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"),
+      runId: sourceRunId, workflowName: "improver",
+      trigger: { event: autonomyIssueDecisionRequested.name, schemaRef: null, payload: {} },
+      readState: <T = unknown>() => ({ revision: 1, value: projection as T }),
+      head: "head", baseHead: "head", canonicalHead: "head", signal: new AbortController().signal,
+    };
+    expect(verifyImproverDispositionAfterReconcile(invariantInput)).toEqual({ satisfied: true });
+    writeFileSync(taskPath, content.replace("Repair the owning boundary", "A different outcome supersedes the original repair"));
+    expect(verifyImproverDispositionAfterReconcile(invariantInput)).toMatchObject({ satisfied: false });
+    expect(() => publishImproverDisposition({ scopeRoot: workspaceRoot, sourceRunId, currentProjection: projection }))
+      .toThrow(/changed after ownership review/);
+    writeFileSync(taskPath, content);
+    projection = publishImproverDisposition({ scopeRoot: workspaceRoot, sourceRunId, currentProjection: projection }).nextProjection;
+    expect(projection.issues[0]).toMatchObject({ status: "open", disposition: { kind: "task" }, links: { taskIds: [taskId], ownerQuestionIds: [] } });
+    expect(publishImproverDisposition({ scopeRoot: workspaceRoot, sourceRunId, currentProjection: projection }).published).toBe(false);
+    state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).revision, projection);
+    const restarted = readAutonomyIssueProjection(workspaceRoot, state.stateDir);
+    expect(restarted.issues[0]?.links.taskIds).toEqual([taskId]);
+    expect(planAutonomyIssueOwnerReconciliation({ projection: restarted, tasks: listFullRepoTasks(workspaceRoot),
+      runs: [], questions: [], requestedAt: new Date().toISOString(),
+    })).toEqual([]);
+    expect(readFileSync(taskPath, "utf8")).toBe(content);
+    expect(listFullRepoTasks(workspaceRoot)).toHaveLength(1);
+    expect(createGeneratedWorkQuestionQueue(workspaceRoot).list()).toEqual([]);
   });
 
   it("publishes verified deterministic recovery as a clear observation", async () => {
