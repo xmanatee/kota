@@ -454,7 +454,11 @@ resources:
   - url: https://github.com/modelcontextprotocol/modelcontextprotocol/releases
     added: "2026-09-13"
     refresh: weekly
-    notes: "Monitor stable protocol releases and their linked changelogs for changes to KOTA MCP interoperability. Replaces overlapping core specification page monitoring; extension projects retain their own development signals. The September 13 bounded GitHub release observation identified stable revision 2026-07-28. This is a discovery-surface replacement, not a redirect; runtime has not observed this new URL yet."
+    notes: "Monitor stable protocol releases and their linked changelogs for changes to KOTA MCP interoperability. Replaces overlapping core specification page monitoring; extension projects retain their own development signals. The September 13 bounded GitHub release observation identified stable revision 2026-07-28. This is a discovery-surface replacement, not a redirect."
+    snapshot:
+      fingerprint: sha256:bb544817036008ff589d06c7cb0be6fd
+      summary: "The release page identifies 2026-07-28 as the latest stable MCP revision, distinct from its release candidate, and links the versioned specification and changelog."
+      last_seen_at: "2026-09-13T11:24:22.377Z"
   - url: https://modelcontextprotocol.io/extensions/auth/oauth-client-credentials
     added: "2026-05-25"
     refresh: weekly
