@@ -12,7 +12,7 @@ The owner wants practical alternatives to Codex/Claude, not a favorable
 leaderboard or a predetermined replacement verdict. No default changes follow
 from readiness, synthetic runs or missing measurements.
 
-## Implemented Preparation Repair
+## Preparation Repair And Remaining Owner
 
 The existing contained matrix, native/local routing, raw/scaffold adapters and
 integer admission repair have integrated. Before this repair,
@@ -21,8 +21,8 @@ integer admission repair have integrated. Before this repair,
 auth locator before returning any executions. A September 13 source-level
 probe with a synthetic unavailable Codex locator and a local candidate threw
 `synthetic native credential unavailable` for the entire preparation.
-No credentials, model or container were used. Thus an unavailable baseline can
-prevented independently useful local work.
+No credentials, model or container were used. An unavailable baseline prevented
+independently useful local work.
 
 The retained change supports bounded partial cohorts through the existing preparation/report owners.
 Keep explicitly unavailable credential/capability rows attributable, while
@@ -30,8 +30,11 @@ preparing independently authorized compatible rows. Do not silently omit the
 baseline, substitute API auth for native login, or turn invalid grants,
 malformed profiles, isolation failures or unexpected errors into successful
 skips. Reuse existing row/result types where suitable; no new benchmark runner
-or host execution bridge. This shared repair belongs here, not in the coding
-parity task too.
+or host execution bridge. Follow-up review found public matrix preflight gaps
+and unresolved deterministic routing checks. Their independent implementation
+owner is `task-complete-partial-matrix-preflight-at-public-boundaries`; do not
+hide them behind this task's external live-qualification block or duplicate
+them in the coding parity task. The full preparation contract is not complete.
 
 ## Acceptance
 
@@ -91,6 +94,13 @@ permanent Docker prohibition. The worker cannot author that grant or restart
 its parent. Existing deployment/setup owners supply the profile; no new setup
 task or host execution bridge is needed.
 
+Operator recheck at `2026-09-13T00:01Z`: Docker reports server version 29.3.1,
+but a minimal read-only, unprivileged, network-disabled container invocation
+was rejected by the execution hook with `Structural guard: destructive docker
+commands are blocked`. No container ran. The owner's Docker approval remains
+recorded, but it does not remove this current execution restriction. Do not
+bypass it through a different API, command spelling or workflow.
+
 The public OpenRouter catalog refresh was also attempted through the supplied
 network path; curl could not connect to the invocation's proxy. The shipped
 catalog remains dated 2026-06-26, and current availability is unverified. Keep
@@ -123,3 +133,6 @@ normal invocation temporary directory. Four unmocked subprocess cases remain
 failed in the broader routing checks (three missing launch logs, one error-row
 result); they are not claimed as passes. Details and logs are in this run's
 `agent/summary.md`. No production routing or isolation policy was relaxed.
+These synthetic subprocess failures do not establish a live credential or
+Docker prerequisite. The open public-preflight follow-up above owns diagnosis
+and correction; do not call them environmental without identifying the cause.
