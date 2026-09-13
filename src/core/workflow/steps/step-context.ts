@@ -54,6 +54,7 @@ import {
   createWorkflowCommandRunner,
   type WorkflowCommandRunner,
 } from "../workflow-command.js";
+import { AgentInvocationError } from "./step-executor-retry.js";
 import { buildWorkflowToolContext } from "./step-tool-context.js";
 
 async function enforceWorkflowToolScopePolicy(args: {
@@ -221,7 +222,7 @@ export function createStepContext(
     const handoffs: RunArtifactHandoff[] = [];
     const unavailable: string[] = [...(execution?.evidence?.unavailable ?? [])];
     if (execution?.evidence !== undefined) {
-      if (options.agentWriteScope !== "deny-all") throw new Error("Evidence handoffs require a read-only consumer");
+      if (options.agentWriteScope !== "deny-all") throw new AgentInvocationError("Evidence handoffs require a read-only consumer");
       const selectedCurrentRunFiles: Array<{
         file: string;
         projectionLimit?: "review";
@@ -238,9 +239,9 @@ export function createStepContext(
           isAbsolute(file) ||
           file.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..")
         ) {
-          throw new Error("Invalid current-run evidence file");
+          throw new AgentInvocationError("Invalid current-run evidence file");
         }
-        if (seenCurrentRunFiles.has(file)) throw new Error("Duplicate current-run evidence file");
+        if (seenCurrentRunFiles.has(file)) throw new AgentInvocationError("Duplicate current-run evidence file");
         seenCurrentRunFiles.add(file);
         return {
           source: `run/${file}`,
@@ -268,7 +269,7 @@ export function createStepContext(
           const reason = entry?.status === "unavailable" ? entry.reason
             : entry?.status === "retained" && entry.projection.status === "unavailable"
               ? entry.projection.reason : "Selected artifact is absent";
-          throw new Error(`Required review evidence ${file.source} unavailable: ${reason}`);
+          throw new AgentInvocationError(`Required review evidence ${file.source} unavailable: ${reason}`);
         }
       }
       handoffs.push(currentHandoff);

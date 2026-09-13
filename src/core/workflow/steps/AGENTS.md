@@ -133,3 +133,8 @@ The workflow harness runner applies this classifier to every workflow-owned
 agent call. A classified provider result activates `AgentBackoffManager`
 immediately, so repair agents and code-step judges cannot launch an internal
 retry during the same incident.
+
+Local invocation and required-evidence failures stop the owning run without shared
+backoff. Repair checks propagate unavailable invocations instead of treating them
+as a substantive rejection that can request source repair. Only classified runtime
+incidents carry shared backoff; wrappers must preserve that distinction.

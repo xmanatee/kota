@@ -12,8 +12,10 @@ import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js"
 import { resolvePromptContextStartDir } from "#core/workflow/steps/step-executor-agent-prompt.js";
 import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
+  AgentInvocationError,
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
+  classifyThrownAgentError,
   isEmptyAgentOutputSubtype,
 } from "#core/workflow/steps/step-executor-retry.js";
 import type { CriticVerdict } from "./critic-verdict.js";
@@ -129,7 +131,9 @@ export function invokeStructuredAgentJudge<T>(
       const classification = classifyAgentRuntimeFailure({ message: response.text, subtype: response.subtype });
       return classification?.retryable && attempt < maxAttempts
         ? { kind: "retry", error, formatReminder: false, emptyOutputFailures: 0 }
-        : { kind: "reject", error: new AgentStepRuntimeError(error.message, classification?.kind ?? "runtime", false, classification?.retryAt) };
+        : { kind: "reject", error: classification
+          ? new AgentStepRuntimeError(error.message, classification.kind, false, classification.retryAt)
+          : new AgentInvocationError(error.message) };
     }
     const emptyOutputFailures = isEmptyAgentOutputSubtype(response.subtype)
       ? input.emptyOutputFailures + 1 : 0;
@@ -143,7 +147,7 @@ export function invokeStructuredAgentJudge<T>(
         );
     return attempt < maxAttempts
       ? { kind: "retry", error, formatReminder: true, emptyOutputFailures }
-      : { kind: "reject", error };
+      : { kind: "reject", error: error instanceof AgentStepRuntimeError ? error : new AgentInvocationError(error.message) };
   }, signal);
 }
 
@@ -197,20 +201,15 @@ async function invokeJudge<T>(
         },
       );
     } catch (thrown) {
-      if (thrown instanceof AgentBackoffAdmissionError || thrown instanceof AgentStepRuntimeError) throw thrown;
+      if (thrown instanceof AgentBackoffAdmissionError || thrown instanceof AgentStepRuntimeError || thrown instanceof AgentInvocationError || (thrown instanceof Error && thrown.name === "AbortError")) throw thrown;
       const message = thrown instanceof Error ? thrown.message : String(thrown);
       lastError = new Error(
         `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${message}`,
       );
-      const code = thrown instanceof Error
-        ? (thrown as NodeJS.ErrnoException).code
-        : undefined;
-      const classification = classifyAgentRuntimeFailure({
-        message,
-        code,
-        errorName: thrown instanceof Error ? thrown.name : undefined,
-      });
-      if (!classification?.retryable) throw new AgentStepRuntimeError(lastError.message, classification?.kind ?? "runtime", false);
+      const classification = classifyThrownAgentError(thrown);
+      if (classification === null) throw new AgentInvocationError(lastError.message, { cause: thrown });
+      lastError = new AgentStepRuntimeError(lastError.message, classification.kind, false, classification.retryAt);
+      if (!classification.retryable) throw lastError;
       needsFormatReminder = false;
       continue;
     }
@@ -225,5 +224,5 @@ async function invokeJudge<T>(
     needsFormatReminder = decision.formatReminder;
     emptyOutputFailures = decision.emptyOutputFailures;
   }
-  throw new AgentStepRuntimeError(lastError!.message, "runtime", false);
+  throw lastError!;
 }

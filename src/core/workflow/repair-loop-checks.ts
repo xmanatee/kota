@@ -5,7 +5,7 @@ import type {
   WorkflowStepContext,
 } from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
-import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
+import { AgentInvocationError, AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 
 export type RepairCheckResult = {
   id: string;
@@ -51,7 +51,8 @@ async function runRepairCheck(
   } catch (error) {
     if (
       error instanceof AgentBackoffAdmissionError ||
-      error instanceof AgentStepRuntimeError
+      error instanceof AgentStepRuntimeError ||
+      error instanceof AgentInvocationError
     ) {
       throw error;
     }

@@ -47,6 +47,7 @@ import { captureWorkflowMutationSnapshot } from "./steps/agent-write-scope-snaps
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
 import {
+  AgentInvocationError,
   AgentStepRuntimeError,
   classifyThrownAgentError,
   isEmptyAgentOutputSubtype,
@@ -105,16 +106,19 @@ export async function evaluateAgentContinuation(input: {
   } catch (error) {
     if (
       error instanceof AgentStepRuntimeError ||
+      error instanceof AgentInvocationError ||
       error instanceof AgentBackoffAdmissionError ||
       (error instanceof Error && error.name === "AbortError")
     ) throw error;
     const detail = error instanceof Error ? error.message : String(error);
     const classification = classifyThrownAgentError(error);
+    const message = `Continuation judgment failed at a quiescent checkpoint: ${detail}`;
+    if (classification === null) throw new AgentInvocationError(message, { cause: error });
     throw new AgentStepRuntimeError(
-      `Continuation judgment failed at a quiescent checkpoint: ${detail}`,
-      classification?.kind ?? "runtime",
+      message,
+      classification.kind,
       false,
-      classification?.retryAt,
+      classification.retryAt,
     );
   }
   const record: WorkflowContinuationRecord = Object.freeze({
@@ -298,6 +302,11 @@ export async function runAgentRepairLoop(
       if (error instanceof AgentStepRuntimeError) {
         throw new RepairAgentRuntimeError(
           error, step.id, progress.failureIds, failureOutput(),
+        );
+      }
+      if (error instanceof AgentInvocationError) {
+        throw new RepairLoopError(
+          undefined, step.id, progress.failureIds, failureOutput(), error.message,
         );
       }
       throw error;

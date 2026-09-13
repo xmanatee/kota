@@ -37,6 +37,7 @@ import type {
 import type { WorkflowAgentStep } from "./step-types.js";
 import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
@@ -669,7 +670,7 @@ describe("runAgentRepairLoop", () => {
     expect(decide).toHaveBeenCalledOnce();
   });
 
-  it.each(["runtime", "admission"])("retains repair output when continuation judgment fails with %s", async (kind) => {
+  it.each(["local", "runtime", "admission"])("retains repair output when continuation judgment fails with %s", async (kind) => {
     const harnessName = uniqueName("repair-continuation-judge-failure");
     const admission = new AgentBackoffAdmissionError({
       runtimeId: "native-fixture", kind: "runtime", failureCount: 1,
@@ -714,7 +715,8 @@ describe("runAgentRepairLoop", () => {
           }),
           decide: () => {
             if (kind === "admission") throw admission;
-            throw new Error("sandbox-exec: data object length 154882 exceeds maximum (65535)");
+            if (kind === "local") throw new Error("Missing publication contract");
+            throw new AgentStepRuntimeError("sandbox bootstrap unavailable", "runtime", false);
           },
           resolveAgentContract: (parent) => ({
             harness: parent.harness,
@@ -747,11 +749,15 @@ describe("runAgentRepairLoop", () => {
     } });
     if (kind === "admission") {
       expect((failure as RepairLoopError).agentBackoff).toBe(admission);
+    } else if (kind === "local") {
+      expect((failure as RepairLoopError).agentBackoff).toBeUndefined();
+      expect(failure).not.toBeInstanceOf(RepairAgentRuntimeError);
+      expect((failure as Error).message).toContain("Missing publication contract");
     } else {
       expect(failure).toBeInstanceOf(RepairAgentRuntimeError);
       expect(failure).toMatchObject({
         kind: "runtime", retryable: false,
-        message: expect.stringContaining("data object length 154882"),
+        message: expect.stringContaining("sandbox bootstrap unavailable"),
       });
     }
     expect(metadata.continuations).toBeUndefined();

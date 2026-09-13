@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classifyAgentPolicyRefusal, classifyAgentRuntimeFailure } from "./step-executor-retry.js";
+import { AgentInvocationError, AgentStepRuntimeError, classifyAgentPolicyRefusal, classifyAgentRuntimeFailure, classifyThrownAgentError } from "./step-executor-retry.js";
 
 describe("classifyAgentRuntimeFailure", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("preserves typed invocation provenance before inspecting diagnostic text", () => {
+    expect(classifyThrownAgentError(new AgentInvocationError("Required review evidence run/authentication.json unavailable"))).toBeNull();
+    expect(classifyThrownAgentError(new AgentStepRuntimeError("bootstrap failed", "runtime", false))).toEqual({ kind: "runtime", retryable: false });
+    expect(classifyThrownAgentError(null)).toBeNull();
+    expect(classifyThrownAgentError(undefined)).toBeNull();
   });
 
   it("classifies typed successful-empty output incidents without parsing text", () => {

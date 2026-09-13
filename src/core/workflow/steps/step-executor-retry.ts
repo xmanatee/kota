@@ -16,6 +16,14 @@ export const DEFAULT_AGENT_STEP_RETRY: WorkflowRetryConfig = {
   backoffFactor: 2,
 };
 
+/** An invocation failed locally, without a verdict or a shared runtime incident. */
+export class AgentInvocationError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "AgentInvocationError";
+  }
+}
+
 export class AgentStepRuntimeError extends Error {
   constructor(
     message: string,
@@ -485,16 +493,20 @@ export function classifyAgentRuntimeFailure(
 export function classifyThrownAgentError(
   error: unknown,
 ): AgentFailureClassification | null {
+  if (error instanceof AgentInvocationError) return null;
+  if (error instanceof AgentStepRuntimeError) {
+    return { kind: error.kind, retryable: error.retryable, retryAt: error.retryAt };
+  }
   const detail = error instanceof Error ? error.message : String(error);
-  const sysError = error as NodeJS.ErrnoException;
-  const errorWithStatus = error as { status?: number };
+  const sysError = error as NodeJS.ErrnoException | null | undefined;
+  const errorWithStatus = error as { status?: number } | null | undefined;
   return classifyAgentRuntimeFailure({
     message: detail,
     status:
-      typeof errorWithStatus.status === "number"
+      typeof errorWithStatus?.status === "number"
         ? errorWithStatus.status
         : undefined,
-    code: typeof sysError.code === "string" ? sysError.code : undefined,
+    code: typeof sysError?.code === "string" ? sysError.code : undefined,
     errorName: error instanceof Error ? error.name : undefined,
   });
 }

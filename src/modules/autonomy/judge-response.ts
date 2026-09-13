@@ -1,4 +1,5 @@
 import {
+  AgentInvocationError,
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
   isEmptyAgentOutputSubtype,
@@ -33,7 +34,9 @@ export function decideJudgeResponse(input: {
     const classification = classifyAgentRuntimeFailure({ message: response.text, subtype: response.subtype });
     return classification?.retryable && attempt < maxAttempts
       ? { kind: "retry", error, formatReminder: false, emptyOutputFailures: 0 }
-      : { kind: "reject", error: new AgentStepRuntimeError(error.message, classification?.kind ?? "runtime", false) };
+      : { kind: "reject", error: classification
+          ? new AgentStepRuntimeError(error.message, classification.kind, false, classification.retryAt)
+          : new AgentInvocationError(error.message) };
   }
   const emptyOutputFailures = isEmptyAgentOutputSubtype(response.subtype)
     ? input.emptyOutputFailures + 1 : 0;

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Contain run-local failures without parking unrelated agent work
 
@@ -49,3 +48,27 @@ circuit breaker, classifier per workflow or error-message allowlist.
   remove any replaced classification path, and use proportionate verification.
   Runtime activation and subsequent live observation follow publication; they
   are not prerequisites for a builder to finish this implementation.
+
+## Resolution
+
+Local invocation failures now preserve their provenance through evidence handoff,
+critic and structured judges, and continuation review. They fail the owning run
+without shared backoff or treating unavailable review as permission for source
+repair. Classified failures preserve their kind and provider retry horizon,
+including exhausted transient retries. Existing runtime readiness and quality
+incident protections remain in place.
+
+The composed runtime regression reproduces a 40,091,312-byte required packet
+rejection before inference through direct, critic and structured callers. It
+observes retained writer content, task-resource ownership, an execution-class
+dead letter with no backoff, no automatic retry of unchanged failed work, and an
+independent agent continuing and starting again with concurrency two. Only the
+inference and socket-availability ports are controlled.
+
+Validation: production build and deterministic static checks passed. The broader
+owning/runtime selection passed 232 of 235 tests, including all three composed
+reproductions, classification, shared backoff/reset, continuation, lifecycle,
+coordinator, dead-letter and issue-source tests. Three existing process checks
+could not execute under sandbox process restrictions; an earlier context suite
+also hit `/bin/ps EPERM` in process registration. No live provider or deployment
+observation is claimed; activation follows runtime-owned publication.

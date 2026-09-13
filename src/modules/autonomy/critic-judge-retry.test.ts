@@ -7,7 +7,7 @@ import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
 import { runChecksPhased } from "#core/workflow/repair-loop-checks.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import { invokeStructuredAgentJudge } from "./agent-judge.js";
+import { invokeAgentJudge, invokeStructuredAgentJudge } from "./agent-judge.js";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
@@ -32,7 +32,7 @@ describe("critic judge retry handling", () => {
     const launch = vi.fn(async () => ({
       text: "sandbox-exec: data object length 154882 exceeds maximum (65535)",
       streamedText: "", turns: 0, usage: UNKNOWN_AGENT_USAGE,
-      isError: true, subtype: "codex_cli_error",
+      isError: true, subtype: "native_cli_sandbox_error",
     }));
     await expect(invokeStructuredAgentJudge(
       "Judge the preserved checkpoint", dir,
@@ -43,6 +43,29 @@ describe("critic judge retry handling", () => {
       name: "AgentStepRuntimeError", kind: "runtime", retryable: false,
       message: expect.stringContaining("data object length 154882"),
     });
+    expect(launch).toHaveBeenCalledOnce();
+  });
+
+  it.each(["critic", "structured"] as const)("preserves local and provider provenance in the %s judge", async (kind) => {
+    const dir = makeTmpDir();
+    const config = { label: "Review", systemPrompt: "Return JSON.", harness: "claude-agent-sdk", model: "test", effort: "low" as const, maxRetries: 2, retryBaseDelayMs: 0 };
+    const launch = vi.fn();
+    const invoke = () => kind === "critic"
+      ? invokeAgentJudge("Review", dir, config, launch, dir)
+      : invokeStructuredAgentJudge("Review", dir, config, launch, JSON.parse, dir);
+    launch.mockRejectedValue(new Error("Missing publication contract"));
+    await expect(invoke()).rejects.toMatchObject({ name: "AgentInvocationError", message: expect.stringContaining("Missing publication contract") });
+    expect(launch).toHaveBeenCalledOnce();
+    launch.mockClear().mockRejectedValue(Object.assign(new Error("upstream failed"), { status: 503 }));
+    await expect(invoke()).rejects.toMatchObject({ name: "AgentStepRuntimeError", kind: "provider", retryable: false });
+    expect(launch).toHaveBeenCalledTimes(2);
+    launch.mockClear().mockResolvedValue({ text: "invalid local input", isError: true });
+    await expect(invoke()).rejects.toMatchObject({ name: "AgentInvocationError" });
+    expect(launch).toHaveBeenCalledOnce();
+    const abort = new Error("cancelled");
+    abort.name = "AbortError";
+    launch.mockClear().mockRejectedValue(abort);
+    await expect(invoke()).rejects.toBe(abort);
     expect(launch).toHaveBeenCalledOnce();
   });
 
@@ -104,7 +127,7 @@ describe("critic judge retry handling", () => {
       subtype: "error_max_turns",
     });
     await expect(runChecksPhased([check], makeContext(dir, runDir), TEST_PARENT_STEP))
-      .rejects.toMatchObject({ name: "AgentStepRuntimeError", kind: "runtime", retryable: false });
+      .rejects.toMatchObject({ name: "AgentInvocationError" });
 
     expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
   });
