@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -31,6 +31,9 @@ it.each(["edit", "delete", "archive"])("protects held tasks during %s publicatio
   const task = join(scope, "data/tasks/task-owned.md");
   writeFileSync(task, "---\nstatus: open\npriority: p2\n---\n# Owned task\n\nPreserve the requested outcome.\n");
   git("add", "."); git("commit", "-qm", "baseline");
+  const baseHead = git("rev-parse", "HEAD");
+  appendFileSync(task, "\nCanonical clarification from another writer.\n");
+  git("add", "."); git("commit", "-qm", "canonical advance");
   const canonicalHead = git("rev-parse", "HEAD");
   if (change === "edit") writeFileSync(task, "Changed contract\n");
   else if (change === "delete") rmSync(task);
@@ -45,13 +48,14 @@ it.each(["edit", "delete", "archive"])("protects held tasks during %s publicatio
       trigger: { event: "manual", schemaRef: null, payload: {} } });
     const input: WorkflowPostReconcileInvariantInput = {
       workspaceRoot: scope, repoRoot: scope, stateDir: join(scope, ".kota"), runId: "reviewer", workflowName: "reviewer",
-      trigger: { event: "manual", schemaRef: null, payload: {} }, baseHead: canonicalHead, canonicalHead, head: git("rev-parse", "HEAD"),
+      trigger: { event: "manual", schemaRef: null, payload: {} }, baseHead, canonicalHead, head: git("rev-parse", "HEAD"),
       signal: new AbortController().signal, readState: () => ({ value: null, revision: 0 }),
       runEvidence: { getRun: (id) => db.getRun(id), listRuns: () => db.listRuns(scopeId) },
     };
     expect(verifyTaskOwnershipAfterReconcile(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("builder-owner") });
     expect(verifyTaskOwnershipAfterReconcile({ ...input, runId: "builder-owner" })).toEqual({ satisfied: true });
     expect(verifyTaskOwnershipAfterReconcile({ ...input, runEvidence: undefined })).toMatchObject({ satisfied: false });
+    expect(verifyTaskOwnershipAfterReconcile({ ...input, head: baseHead })).toEqual({ satisfied: true });
     expect(verifyTaskOwnershipAfterReconcile({ ...input, head: canonicalHead, runEvidence: undefined })).toEqual({ satisfied: true });
     const { epoch } = db.beginDaemonSession(now);
     expect(db.startRun("builder-owner", epoch, now)).not.toBeNull();

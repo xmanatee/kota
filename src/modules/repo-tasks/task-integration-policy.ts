@@ -17,9 +17,10 @@ export const taskQueueValidationCommand: readonly [string, ...string[]] = [
 /** Runtime owns claims; task publication must respect every other current owner. */
 export const verifyTaskOwnershipAfterReconcile: WorkflowPostReconcileInvariant = (input) => {
   input.signal.throwIfAborted();
+  // No-op finalization can leave the writer behind canonical; exclude canonical-only edits.
   const paths = execFileSync("git", [
     "diff", "--no-ext-diff", "--no-renames", "--relative", "--name-only", "-z",
-    input.canonicalHead, input.head, "--", "data/tasks/",
+    `${input.canonicalHead}...${input.head}`, "--", "data/tasks/",
   ], { cwd: input.workspaceRoot, env: withProtectedGitBareRepositoryEnv(), encoding: "utf8", maxBuffer: 4 * 1024 * 1024 })
     .split("\0").filter(Boolean);
   const changed = new Set(paths.filter((path) => path.endsWith(".md"))

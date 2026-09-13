@@ -1,6 +1,17 @@
 import type { EvidenceJsonValue } from "#core/evidence/policy.js";
 import type { BlockedEvidence } from "./evidence.js";
 
+/** Short identities require an explicit code citation, not a six-letter prose word. */
+export function evidenceReferences(task: { id: string; body: string }): string[] {
+  const tokens = task.body.match(/[A-Za-z0-9.][A-Za-z0-9._/-]*/g) ?? [];
+  const paths = tokens.filter((token) => /^\.kota\/(?:eval-runs|runs)\/[^/]+/.test(token) &&
+    !token.split("/").some((part) => part === "." || part === ".."));
+  const runIds = paths.flatMap((path) => path.startsWith(".kota/runs/") ? [path.split("/")[2]!] : []);
+  const shortIds = [...task.body.matchAll(/`([a-z0-9]{6})`/g)].map((match) => match[1]!);
+  return [...new Set([...paths, ...runIds, ...shortIds,
+    ...tokens.filter((token) => /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/.test(token))])];
+}
+
 // Observation and attempt bookkeeping cannot authorize another attempt at the
 // same outcome. Keep source, isolation and result facts in the fingerprint;
 // the full capture, including execution chronology, stays reviewable.
@@ -39,7 +50,7 @@ export function relevantBlockedEvidence(
   task: { id: string; body: string; hint: string },
 ): BlockedEvidence {
   if (![".kota/runs", ".kota/eval-runs"].includes(task.hint.replace(/\/+$/, ""))) return collection;
-  const tokens = new Set(task.body.match(/[A-Za-z0-9.][A-Za-z0-9._/-]*/g) ?? []);
+  const tokens = new Set(evidenceReferences(task));
   const cohort = (path: string) => path.split("/").slice(0, 3).join("/");
   const linked = new Set<string>();
   for (const artifact of collection.artifacts) {
@@ -68,7 +79,7 @@ export function recoveryEvidenceOutcomes(
   collection: BlockedEvidence,
   task: { id: string; body: string },
 ): string[] {
-  const tokens = new Set(task.body.match(/[A-Za-z0-9.][A-Za-z0-9._/-]*/g) ?? []);
+  const tokens = new Set(evidenceReferences(task));
   const outcomes = new Set<string>();
   for (const artifact of collection.artifacts) {
     const runId = artifact.path.split("/")[2] ?? "";

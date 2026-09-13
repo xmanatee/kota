@@ -16,6 +16,21 @@ function fixture() {
 }
 
 describe("scoped blocked evidence collection", () => {
+  it("distinguishes explicit run citations from ordinary words in discovery and recovery", async () => {
+    const root = fixture();
+    const task = { id: "task-target", body: "Check parity across models, using `abcdef` and .kota/runs/cited/result.json" };
+    for (const id of ["old-preset-parity", "builder-abcdef", "cited"]) {
+      const dir = join(root, ".kota/runs", id);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "result.json"), JSON.stringify({ source: id, outcome: "fail" }));
+    }
+    const collected = await collectBlockedEvidence(root, ".kota/runs", [], { task, runIds: [] });
+    expect(collected.artifacts.map((item) => item.content.source).sort()).toEqual(["builder-abcdef", "cited"]);
+    const all = await collectBlockedEvidence(root, ".kota/runs");
+    expect(relevantBlockedEvidence(all, { ...task, hint: ".kota/runs" }).artifacts).toEqual(collected.artifacts);
+    expect(recoveryEvidenceOutcomes(all, task)).toHaveLength(2);
+  });
+
   it("captures redacted content and alternate eval provenance without treating a file as acceptance", async () => {
     const root = fixture();
     const path = join(root, ".kota/eval-runs/evaluation/result.json");

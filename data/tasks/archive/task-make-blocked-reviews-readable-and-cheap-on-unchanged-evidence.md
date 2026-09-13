@@ -89,3 +89,21 @@ history-read helpers from 12 to 1 while retaining all selected evidence reads.
 Focused owner tests and handoff-failure/recovery tests passed. Broader workflow
 publication tests encountered the sandbox's `/bin/ps` denial; deployment and
 subsequent real blocked-review observation remain with the runtime and monitor.
+
+### Deployment Correction
+
+The first deployed review `2026-09-13T09-09-35-908Z-blocked-promoter-0b43ma`
+still failed: ordinary six-letter prose such as "parity" was interpreted as a
+short run identity. Discovery selected 11,978 unrelated preset-parity files and
+produced a 40,091,312-byte packet, causing repeated local runtime backoff before
+inference. This was not provider quota exhaustion.
+
+Collection, relevance and recovery now share explicit citation extraction:
+full run/path references remain supported; short identities use code citations.
+Task-linked authority and task-named export discovery remain distinct from proof
+of acceptance. The retained failing task now selects 57 files / 346,402 compact
+JSON bytes in 234 ms; all five current collections stay below 1.4 MB. The
+existing collector/review suites pass eight scenarios, including prose exclusion,
+explicit citations, changed outcomes, scope safety and the pageable judge handoff.
+Post-activation judgment and promotion remain operational observations, not
+claims established by this measurement.

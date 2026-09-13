@@ -7,6 +7,7 @@ import type { WorkflowBlockingOperationContext } from "#core/workflow/blocking-o
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { evidenceReferences } from "./evidence-relevance.js";
 
 export type BlockedEvidence = {
   artifacts: Array<{ path: string; digest: string; content: EvidenceJsonObject }>;
@@ -50,16 +51,6 @@ export async function collectBlockedEvidenceInWorker(input: CollectionInput, con
   const result = await collectBlockedEvidence(input.scopeRoot, input.hint, input.excludedRunIds, selection, context);
   if (unavailable) result.unavailable.push(unavailable);
   return result;
-}
-
-export function evidenceReferences(task: { id: string; body: string }): string[] {
-  const tokens = task.body.match(/[A-Za-z0-9.][A-Za-z0-9._/-]*/g) ?? [];
-  const citedRuns = tokens.flatMap((token) => {
-    const match = /^\.kota\/runs\/([A-Za-z0-9][A-Za-z0-9._-]*)(?:\/|$)/.exec(token);
-    return match ? [match[1]!] : [];
-  });
-  return [...new Set([task.id, `data/tasks/${task.id}.md`, ...citedRuns, ...tokens.filter((token) =>
-    /^[a-z0-9]{6}$/.test(token) || /^\d{4}-\d{2}-\d{2}T/.test(token))])];
 }
 
 export const collectBlockedEvidenceOperation = defineWorkflowBlockingOperation<
@@ -119,7 +110,7 @@ export async function collectBlockedEvidence(scopeRoot: string, hint: string, ex
   };
   const broad = roots.includes(requested);
   if (broad && selection) {
-    const tokens = new Set([selection.task.id, ...(selection.task.body.match(/[A-Za-z0-9.][A-Za-z0-9._/-]*/g) ?? [])]);
+    const tokens = new Set([selection.task.id, ...evidenceReferences(selection.task)]);
     const selected = new Set<string>();
     for (const id of selection.runIds) {
       try { selected.add(join(roots[0]!, validateWorkflowRunId(id, "Evidence selection"))); }
