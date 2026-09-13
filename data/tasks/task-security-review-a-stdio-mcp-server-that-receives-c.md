@@ -1,5 +1,6 @@
 ---
-status: done
+status: open
+priority: p2
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -277,3 +278,234 @@ Verification in builder run `2026-09-13T07-40-09-121Z-builder-lmbyg2`:
 - `pnpm check:fast` passed: production/test TypeScript, lint, task validation,
   generated client bindings, and module admission. The complete static-gate log
   is this run's `check-fast.log`; behavioral output is in `mcp-tests.log`.
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/mcp/client-base.ts
+claim:
+
+> MCP diagnostic redaction collects only Authorization from configured HTTP headers. A peer can echo configured X-Api-Key or cookie credentials into terminal warnings and request errors unchanged. The same probe correctly redacts a bearer token.
+
+## Desired Outcome
+
+> Complete the client-owned diagnostic redaction boundary: collect configured credential-bearing header values and their credential components, and redact complete published errors and diagnostics after incorporating peer-controlled labels. Keep authoritative protocol values separate from diagnostic projections. This common repair covers omitted HTTP credentials and label-based reinsertion while preserving earlier bearer and stdio protections.
+
+> Revalidate this variant within the existing diagnostic-redaction family, preserving prior resolutions. Exercise complete header and bare cookie credential echoes through public warnings and errors. mcp-header-credential-probe.json retains both disclosures and the successful bearer control.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-13T08-26-28-776Z-security-review-2xz9f5.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-13T08-26-28-776Z-security-review-2xz9f5
+
+security evidence: f232c7f55de9e73e313e8e9414a75fb643fa8c19ca65d9fbfcde44a12bb748a3
+evidence identity: mcp-non-authorization-header-credential-echo-v1
+Evidence lineage (new-variant): 9feffc41efce65c813ceb04d5b882da5d076299964f0bd97c40ef3f28103f857
+> The predecessor protects bearer credentials echoed through notification diagnostics. Those sinks now use the shared redactor, but credential collection excludes non-Authorization headers. X-Api-Key and cookie credentials survive the repaired publication path. This is new credential-source evidence, not a regression of the bearer sink.
+production owner: src/core/mcp/client-base
+violated invariant: mcp-credentials-redacted-from-diagnostics
+Common repair:
+> Complete the client-owned diagnostic redaction boundary: collect configured credential-bearing header values and their credential components, and redact complete published errors and diagnostics after incorporating peer-controlled labels. Keep authoritative protocol values separate from diagnostic projections. This common repair covers omitted HTTP credentials and label-based reinsertion while preserving earlier bearer and stdio protections.
+Exploit preconditions:
+> A configured HTTP MCP peer receives authentication through X-Api-Key or Cookie and echoes the credential in a progress notification or JSON-RPC error. The peer already possesses its own credential; disclosure crosses into terminal output and error consumers. Preserved public-client probes reproduced both variants using synthetic credentials and a mocked network port.
+finding id: mcp-configured-header-credential-disclosure
+candidate id: mcp-transport:src/core/mcp/client-base.ts:1
+verdict: confirmed
+rationale:
+
+> Unchanged client-base code collects only Authorization from configured HTTP headers. Earlier independent public-client probes reproduced X-Api-Key and bare cookie credential disclosure through warnings and request errors, while the bearer control remained redacted. Retained receipts agree. The configured peer already receives its credential; the violation is publication into diagnostics and error consumers. The nominated task retains evidence key 9feffc41efce65c813ceb04d5b882da5d076299964f0bd97c40ef3f28103f857 with the matching owner/invariant. This is a new credential-source variant within that family. Completing credential collection and complete-message redaction addresses it while preserving predecessor protections.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 393
+
+excerpt:
+
+
+
+> if (this.transport.type === "http") {
+>   for (const [key, value] of Object.entries(this.transport.headers ?? {})) {
+>     if (key.toLowerCase() !== "authorization") continue;
+>     add(value);
+>     const bearer = /^Bearer\s+(.+)$/i.exec(value);
+>     add(bearer?.[1]);
+>   }
+
+Evidence 2:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 428
+
+excerpt:
+
+
+
+> protected writeDiagnostic(message: string, destination: "warn" | "stderr"): void {
+>   const redacted = this.redactSensitiveErrorMessage(message);
+
+Evidence 3:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 437
+
+excerpt:
+
+
+
+> protected requestErrorForMethod(method: string, message: string): Error {
+>   const redactedMessage = this.redactSensitiveErrorMessage(message);
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/mcp/client-base.ts
+claim:
+
+> A peer-controlled serverInfo.name is appended to MCP request errors after sensitive-value redaction. A malicious peer can place its bearer credential in that name and disclose it through subsequent errors without echoing it in the error detail.
+
+## Desired Outcome
+
+> Complete the client-owned diagnostic redaction boundary: collect configured credential-bearing header values and their credential components, and redact complete published errors and diagnostics after incorporating peer-controlled labels. Keep authoritative protocol values separate from diagnostic projections. This common repair covers omitted HTTP credentials and label-based reinsertion while preserving earlier bearer and stdio protections.
+
+> Retain this distinct variant within the same revalidated diagnostic-redaction family. Verify peer labels cannot reinsert credentials into complete error messages or published metadata. mcp-server-label-probe.json retains the public-client disclosure.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-13T08-26-28-776Z-security-review-2xz9f5.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-13T08-26-28-776Z-security-review-2xz9f5
+
+security evidence: 6ef15b384128425dc866071af67cca425d9ee1f90d2a13b1fcce1a9900134e9d
+evidence identity: mcp-peer-server-label-post-redaction-echo-v1
+Evidence lineage (new-variant): 9feffc41efce65c813ceb04d5b882da5d076299964f0bd97c40ef3f28103f857
+> The predecessor now redacts complete notification warnings, including server labels. Request errors redact only their detail before constructors append the peer-controlled server name. This is a distinct error-construction variant; the repaired warning path remains protected.
+production owner: src/core/mcp/client-base
+violated invariant: mcp-credentials-redacted-from-diagnostics
+Common repair:
+> Complete the client-owned diagnostic redaction boundary: collect configured credential-bearing header values and their credential components, and redact complete published errors and diagnostics after incorporating peer-controlled labels. Keep authoritative protocol values separate from diagnostic projections. This common repair covers omitted HTTP credentials and label-based reinsertion while preserving earlier bearer and stdio protections.
+Exploit preconditions:
+> A configured MCP peer receives a bearer credential, advertises it as serverInfo.name during discovery, and subsequently returns an ordinary operation error. The preserved public-client probe confirmed the credential survives in Error.message even though the error detail contains no credential.
+finding id: mcp-peer-server-label-credential-disclosure
+candidate id: mcp-transport:src/core/mcp/client-connection.ts:1
+verdict: confirmed
+rationale:
+
+> Relevant code remains unchanged: discovery adopts peer-controlled serverInfo.name, requestErrorForMethod redacts only error detail, and error constructors subsequently append the name. The operation executor publishes the resulting message. The earlier independent public-client probe reproduced a synthetic bearer credential leaking exclusively through the peer name; complete warning redaction remained effective. The nominated task retains the cited predecessor evidence key and matching owner/invariant. This distinct error-construction variant fits the same client diagnostic repair, provided complete errors and published metadata are sanitized without changing authoritative protocol identity.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/mcp/client-connection.ts
+
+line: 69
+
+excerpt:
+
+
+
+> protected applyInitializeResult(result: McpInitializeResult): void {
+>   if (result.serverInfo?.name) {
+>     this.serverName = result.serverInfo.name;
+>   }
+
+Evidence 2:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 437
+
+excerpt:
+
+
+
+> protected requestErrorForMethod(method: string, message: string): Error {
+>   const redactedMessage = this.redactSensitiveErrorMessage(message);
+
+Evidence 3:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 447
+
+excerpt:
+
+
+
+> return new McpToolError(this.serverName, method, redactedMessage);
+> }
+> return new McpConnectionError(this.serverName, method, redactedMessage);
+
+Evidence 4:
+
+
+
+path: src/core/mcp/manager-operation-executor.ts
+
+line: 104
+
+excerpt:
+
+
+
+> const message = error instanceof McpToolError
+>   ? error.message
+>   : `MCP operation error: ${error instanceof Error ? error.message : String(error)}`;
+> return { content: message, is_error: true };
