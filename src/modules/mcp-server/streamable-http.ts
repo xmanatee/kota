@@ -6,16 +6,16 @@ import {
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 	MCP_MODERN_PROTOCOL_VERSIONS,
+	MCP_STATELESS_PROTOCOL_VERSION,
 } from "./mcp-protocol-types.js";
-import type { McpServer } from "./server.js";
+import type { McpServer, McpServerStreamSink } from "./server.js";
 import {
 	MCP_SERVER_CARD_WELL_KNOWN_PATH,
 	readMcpServerCard,
 } from "./server-card.js";
 
-const HEADER_MISMATCH_CODE = -32001;
 const AUTHORIZATION_ERROR_CODE = -32005;
-const UNSUPPORTED_PROTOCOL_VERSION_CODE = -32004;
+const UNSUPPORTED_PROTOCOL_VERSION_CODE = -32022;
 const DEFAULT_ENDPOINT_PATH = "/mcp";
 const HTTP_UNAVAILABLE_METHODS = new Set([
 	"resources/subscribe",
@@ -109,10 +109,9 @@ type AuthorizationValidationResult =
 
 type RecognizedParamHeader = {
 	headerName: string;
-	paramName: string;
+	path: string[];
 };
 
-type ToolInputSchemaProperty = KotaTool["input_schema"]["properties"][string];
 
 export async function handleStreamableHttpRequest(
 	server: McpServer,
@@ -153,7 +152,7 @@ export async function handleStreamableHttpRequest(
 	}
 
 	if (!isOriginAllowed(readHeader(request.headers, "origin"), options.allowedOrigins)) {
-		return jsonErrorResponse(403, undefined, HEADER_MISMATCH_CODE, "Forbidden: invalid Origin header");
+		return jsonErrorResponse(403, undefined, -32001, "Forbidden: invalid Origin header");
 	}
 
 	if (options.authorization) {
@@ -193,24 +192,33 @@ export async function handleStreamableHttpRequest(
 	}
 
 	if (bodyValidation.body.method === "subscriptions/listen") {
-		const dispatch = await server.handleJsonRpcMessage(bodyValidation.body);
+		const pending: JsonRpcOutboundPayload[] = [];
+		let deliver: (message: JsonRpcOutboundPayload) => void = (message) => pending.push(message);
+		const subscription = await server.openSubscription(bodyValidation.body, (message) =>
+			deliver(normalizeHttpResponse(bodyValidation.body, message))
+		);
+		const dispatch = subscription.dispatch;
 		if (dispatch.kind === "invalid") {
+			subscription.close();
 			return jsonErrorResponse(400, readJsonRpcId(bodyValidation.body), -32600, "Invalid JSON-RPC message");
 		}
 		const messages = dispatchMessages(dispatch).map((message) =>
 			normalizeHttpResponse(bodyValidation.body, message)
 		);
 		const error = messages.find(isJsonRpcErrorPayload);
-		if (error) return jsonResponse(responseStatusForPayload(error), error);
-		const requestId = readJsonRpcId(bodyValidation.body);
-		if (requestId === null || requestId === undefined) {
-			return jsonErrorResponse(400, null, -32600, "Invalid JSON-RPC message");
+		if (error) {
+			subscription.close();
+			return jsonResponse(responseStatusForPayload(error), error);
 		}
 		return sseResponse(200, messages, {
-			subscribe: (send) =>
-				server.registerStreamSink(requestId, (message) =>
-					send(normalizeHttpResponse(bodyValidation.body, message))
-				),
+			subscribe: (send) => {
+				deliver = send;
+				for (const message of pending.splice(0)) send(message);
+				return () => {
+					deliver = () => {};
+					subscription.close();
+				};
+			},
 		});
 	}
 
@@ -447,6 +455,7 @@ function validatePostBodyAndHeaders(
 	server: McpServer,
 	request: StreamableHttpRequest,
 ): HeaderValidationResult {
+	const mismatchCode = headerMismatchCode(request.headers);
 	const accept = readHeader(request.headers, "accept");
 	if (!accepts(accept, "application/json")) {
 		return {
@@ -454,7 +463,7 @@ function validatePostBodyAndHeaders(
 			response: jsonErrorResponse(
 				406,
 				undefined,
-				HEADER_MISMATCH_CODE,
+				mismatchCode,
 				"Accept header must include application/json",
 			),
 		};
@@ -477,17 +486,20 @@ function validatePostBodyAndHeaders(
 		return { ok: false, response: jsonErrorResponse(400, null, -32600, "Invalid JSON-RPC message") };
 	}
 	const id = readJsonRpcId(parsed);
+	if (readBodyProtocolVersion(parsed) === MCP_STATELESS_PROTOCOL_VERSION && ("result" in parsed || "error" in parsed)) {
+		return { ok: false, response: jsonErrorResponse(400, id, -32600, "Clients must not send JSON-RPC responses") };
+	}
 	const versionHeader = readHeader(request.headers, "mcp-protocol-version");
 	if (!versionHeader) {
 		return {
 			ok: false,
-			response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: missing MCP-Protocol-Version header"),
+			response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: missing MCP-Protocol-Version header"),
 		};
 	}
 	if (!isSafeHeaderValue(versionHeader)) {
 		return {
 			ok: false,
-			response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: malformed MCP-Protocol-Version header"),
+			response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: malformed MCP-Protocol-Version header"),
 		};
 	}
 	if (!(MCP_MODERN_PROTOCOL_VERSIONS as readonly string[]).includes(versionHeader)) {
@@ -506,7 +518,7 @@ function validatePostBodyAndHeaders(
 			response: jsonErrorResponse(
 				400,
 				id,
-				HEADER_MISMATCH_CODE,
+				mismatchCode,
 				`Header mismatch: MCP-Protocol-Version header value '${versionHeader}' does not match body value '${String(bodyVersion)}'`,
 			),
 		};
@@ -524,18 +536,19 @@ function validateMethodHeaders(
 	body: KotaJsonObject,
 	headers: StreamableHttpRequest["headers"],
 ): HeaderValidationResult {
+	const mismatchCode = headerMismatchCode(headers);
 	const id = readJsonRpcId(body);
 	const methodHeader = readHeader(headers, "mcp-method");
 	if (!methodHeader) {
 		return {
 			ok: false,
-			response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: missing Mcp-Method header"),
+			response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: missing Mcp-Method header"),
 		};
 	}
 	if (!isSafeHeaderValue(methodHeader)) {
 		return {
 			ok: false,
-			response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: malformed Mcp-Method header"),
+			response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: malformed Mcp-Method header"),
 		};
 	}
 	if (methodHeader !== body.method) {
@@ -544,7 +557,7 @@ function validateMethodHeaders(
 			response: jsonErrorResponse(
 				400,
 				id,
-				HEADER_MISMATCH_CODE,
+				mismatchCode,
 				`Header mismatch: Mcp-Method header value '${methodHeader}' does not match body value '${String(body.method)}'`,
 			),
 		};
@@ -556,22 +569,22 @@ function validateMethodHeaders(
 		if (!nameHeader) {
 			return {
 				ok: false,
-				response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: missing Mcp-Name header"),
+				response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: missing Mcp-Name header"),
 			};
 		}
-		if (!isSafeHeaderValue(nameHeader)) {
+		if (readBodyProtocolVersion(body) === MCP_STATELESS_PROTOCOL_VERSION ? decodeParamHeaderValue(nameHeader) === null : !isSafeHeaderValue(nameHeader)) {
 			return {
 				ok: false,
-				response: jsonErrorResponse(400, id, HEADER_MISMATCH_CODE, "Header mismatch: malformed Mcp-Name header"),
+				response: jsonErrorResponse(400, id, mismatchCode, "Header mismatch: malformed Mcp-Name header"),
 			};
 		}
-		if (nameHeader !== expectedName) {
+		if ((readBodyProtocolVersion(body) === MCP_STATELESS_PROTOCOL_VERSION ? decodeParamHeaderValue(nameHeader) : nameHeader) !== expectedName) {
 			return {
 				ok: false,
 				response: jsonErrorResponse(
 					400,
 					id,
-					HEADER_MISMATCH_CODE,
+					mismatchCode,
 					`Header mismatch: Mcp-Name header value '${nameHeader}' does not match body value '${expectedName}'`,
 				),
 			};
@@ -588,6 +601,7 @@ function validateRecognizedParamHeaders(
 	body: KotaJsonObject,
 	headers: StreamableHttpRequest["headers"],
 ): HeaderValidationResult {
+	const mismatchCode = headerMismatchCode(headers);
 	if (body.method !== "tools/call") return { ok: true, body };
 	const params = isJsonObject(body.params) ? body.params : {};
 	if (typeof params.name !== "string") return { ok: true, body };
@@ -595,9 +609,10 @@ function validateRecognizedParamHeaders(
 	if (!tool) return { ok: true, body };
 	const id = readJsonRpcId(body);
 	const args = isJsonObject(params.arguments) ? params.arguments : {};
-	for (const spec of recognizedParamHeaders(tool)) {
+	for (const spec of recognizedParamHeaders(tool, readBodyProtocolVersion(body) === MCP_STATELESS_PROTOCOL_VERSION)) {
 		const rawHeader = readHeader(headers, `mcp-param-${spec.headerName}`);
-		const bodyValue = args[spec.paramName];
+		let bodyValue: KotaJsonValue | undefined = args;
+		for (const name of spec.path) bodyValue = isJsonObject(bodyValue) ? bodyValue[name] : undefined;
 		if (bodyValue === undefined || bodyValue === null) {
 			if (rawHeader !== undefined) {
 				return {
@@ -605,7 +620,7 @@ function validateRecognizedParamHeaders(
 					response: jsonErrorResponse(
 						400,
 						id,
-						HEADER_MISMATCH_CODE,
+						mismatchCode,
 						`Header mismatch: Mcp-Param-${spec.headerName} header has no matching body parameter`,
 					),
 				};
@@ -620,7 +635,7 @@ function validateRecognizedParamHeaders(
 				response: jsonErrorResponse(
 					400,
 					id,
-					HEADER_MISMATCH_CODE,
+					mismatchCode,
 					`Header mismatch: missing Mcp-Param-${spec.headerName} header`,
 				),
 			};
@@ -632,7 +647,7 @@ function validateRecognizedParamHeaders(
 				response: jsonErrorResponse(
 					400,
 					id,
-					HEADER_MISMATCH_CODE,
+					mismatchCode,
 					`Header mismatch: malformed Mcp-Param-${spec.headerName} header`,
 				),
 			};
@@ -643,7 +658,7 @@ function validateRecognizedParamHeaders(
 				response: jsonErrorResponse(
 					400,
 					id,
-					HEADER_MISMATCH_CODE,
+					mismatchCode,
 					`Header mismatch: Mcp-Param-${spec.headerName} header value '${rawHeader}' does not match body value '${expected}'`,
 				),
 			};
@@ -652,24 +667,33 @@ function validateRecognizedParamHeaders(
 	return { ok: true, body };
 }
 
-function recognizedParamHeaders(tool: KotaTool): RecognizedParamHeader[] {
-	const out: RecognizedParamHeader[] = [];
-	for (const [paramName, rawSchema] of Object.entries(tool.input_schema.properties)) {
-		const headerName = decodeRecognizedParamHeaderName(rawSchema);
-		if (headerName === null) continue;
-		out.push({ headerName, paramName });
-	}
-	return out;
+function recognizedParamHeaders(tool: KotaTool, stateless: boolean): RecognizedParamHeader[] {
+  const out: RecognizedParamHeader[] = [];
+  const visit = (properties: KotaTool["input_schema"]["properties"], path: string[], depth: number): void => {
+    if (depth > 64) return;
+    for (const [name, rawSchema] of Object.entries(properties)) {
+      if (typeof rawSchema !== "object" || rawSchema === null || Array.isArray(rawSchema)) continue;
+      const schema = rawSchema as Record<string, unknown>;
+      const headerName = schema["x-mcp-header"];
+      const type = schema.type;
+      const nextPath = [...path, name];
+      if (typeof headerName === "string" &&
+          (stateless ? /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(headerName) : isValidMcpHeaderNamePart(headerName)) &&
+          (type === "string" || type === "boolean" || type === (stateless ? "integer" : "number"))) {
+        out.push({headerName, path: nextPath});
+      }
+      if (stateless && typeof schema.properties === "object" && schema.properties !== null && !Array.isArray(schema.properties)) {
+        visit(schema.properties as KotaTool["input_schema"]["properties"], nextPath, depth + 1);
+      }
+    }
+  };
+  visit(tool.input_schema.properties, [], 0);
+  return out;
 }
 
-function decodeRecognizedParamHeaderName(value: ToolInputSchemaProperty): string | null {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-	const headerName = "x-mcp-header" in value ? value["x-mcp-header"] : undefined;
-	const paramType = "type" in value ? value.type : undefined;
-	if (typeof headerName !== "string") return null;
-	if (!isValidMcpHeaderNamePart(headerName)) return null;
-	if (paramType !== "string" && paramType !== "number" && paramType !== "boolean") return null;
-	return headerName;
+function headerMismatchCode(headers: StreamableHttpRequest["headers"]): number {
+  const version = readHeader(headers, "mcp-protocol-version");
+  return version && version !== MCP_STATELESS_PROTOCOL_VERSION && (MCP_MODERN_PROTOCOL_VERSIONS as readonly string[]).includes(version) ? -32001 : -32020;
 }
 
 function readBodyProtocolVersion(body: KotaJsonObject): string | undefined {
@@ -819,6 +843,7 @@ function responseStatusForPayload(payload: JsonRpcOutboundPayload): number {
 	if (!isJsonObject(payload)) return 200;
 	if (!isJsonObject(payload.error)) return 200;
 	if (payload.error.code === -32601) return 404;
+	if ([-32600, -32602, -32020, -32021, -32022].includes(Number(payload.error.code))) return 400;
 	return 200;
 }
 
@@ -892,55 +917,68 @@ function sseResponse(
 	};
 }
 
-function requestScopedSseResponse(
+async function requestScopedSseResponse(
 	server: McpServer,
 	request: KotaJsonObject,
-): StreamableHttpResponse {
+): Promise<StreamableHttpResponse> {
 	const requestId = readJsonRpcId(request);
 	if (requestId === null || requestId === undefined) {
 		return jsonErrorResponse(400, null, -32600, "Invalid JSON-RPC message");
 	}
+	const controller = new AbortController();
+	const pending: JsonRpcOutboundPayload[] = [];
+	let cancelled = false;
+	let completed = false;
+	let finishStream: (() => void) | undefined;
+	let deliver: McpServerStreamSink = message => pending.push(message);
+	let ready!: () => void;
+	const firstOutput = new Promise<void>(resolve => { ready = resolve; });
+	const sendIfOpen = (message: JsonRpcOutboundPayload) => {
+		if (cancelled) return;
+		deliver(normalizeHttpResponse(request, message));
+		ready();
+	};
+	void server.handleJsonRpcMessage(request, sendIfOpen, controller.signal)
+		.then((dispatch) => {
+			if (dispatch.kind !== "invalid") return;
+			sendIfOpen({
+				jsonrpc: "2.0", id: requestId,
+				error: { code: -32600, message: "Invalid JSON-RPC message" },
+			});
+		})
+		.catch((err) => {
+			const message = err instanceof Error ? err.message : String(err);
+			sendIfOpen({
+				jsonrpc: "2.0", id: requestId,
+				error: { code: -32603, message: `Internal error: ${message}` },
+			});
+		})
+		.finally(() => {
+			completed = true;
+			ready();
+			if (!cancelled) finishStream?.();
+		});
+
+	// Dispatch validates before emitting progress or logs. Delay HTTP commitment
+	// until that output, retaining early errors as ordinary HTTP error responses.
+	await firstOutput;
+	const first = pending[0];
+	if (first && isJsonRpcErrorPayload(first)) {
+		cancelled = true;
+		controller.abort();
+		return jsonResponse(responseStatusForPayload(first), first);
+	}
+	if (!first) return { status: 202, headers: {} };
 	return sseResponse(200, [], {
 		subscribe: (send, close) => {
-			let closed = false;
-			let completed = false;
-			const sendIfOpen = (message: JsonRpcOutboundPayload) => {
-				if (closed) return;
-				send(normalizeHttpResponse(request, message));
-			};
-			void server.handleJsonRpcMessage(request, sendIfOpen)
-				.then((dispatch) => {
-					if (dispatch.kind !== "invalid") return;
-					sendIfOpen({
-						jsonrpc: "2.0",
-						id: requestId,
-						error: { code: -32600, message: "Invalid JSON-RPC message" },
-					});
-				})
-				.catch((err) => {
-					const message = err instanceof Error ? err.message : String(err);
-					sendIfOpen({
-						jsonrpc: "2.0",
-						id: requestId,
-						error: { code: -32603, message: `Internal error: ${message}` },
-					});
-				})
-				.finally(() => {
-					completed = true;
-					if (closed) return;
-					closed = true;
-					close?.();
-				});
+			deliver = send;
+			for (const message of pending.splice(0)) send(message);
+			finishStream = close;
+			if (completed) close?.();
 			return () => {
-				if (closed) return;
-				closed = true;
-				if (!completed) {
-					void server.handleJsonRpcMessage({
-						jsonrpc: "2.0",
-						method: "notifications/cancelled",
-						params: { requestId },
-					});
-				}
+				if (cancelled) return;
+				cancelled = true;
+				controller.abort();
 			};
 		},
 	});

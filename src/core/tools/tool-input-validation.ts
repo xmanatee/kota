@@ -4,8 +4,10 @@ import type {
 	KotaToolInputSchema,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
+import { MCP_STATELESS_PROTOCOL_VERSION } from "#core/mcp/client-protocol.js";
 import type { McpManager } from "#core/mcp/manager.js";
-import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
+import { validateJsonSchema2020 } from "#core/util/json-schema-2020.js";
+import { type JsonSchemaObject, validateJsonSchemaValue } from "#core/util/json-schema-validator.js";
 import { getAllTools } from "./index.js";
 
 declare const validatedToolCallInput: unique symbol;
@@ -70,13 +72,18 @@ export function validateToolCallInput(
 	mcpManager?: McpManager,
 ): ToolInputValidationResult {
 	const schema = resolveInputSchema(toolName, mcpManager);
-	return validateToolCallInputAgainstSchema(toolName, value, schema);
+	return validateToolCallInputAgainstSchema(
+    toolName, value, schema,
+    mcpManager?.isMcpTool(toolName) && mcpManager.getToolProtocolVersion(toolName) === MCP_STATELESS_PROTOCOL_VERSION
+      ? validateJsonSchema2020 : undefined,
+  );
 }
 
 export function validateToolCallInputAgainstSchema(
 	toolName: string,
 	value: KotaToolUseBlock["input"],
 	schema: KotaToolInputSchema | undefined,
+  validate: typeof validateJsonSchemaValue = validateJsonSchemaValue,
 ): ToolInputValidationResult {
 	if (!isJsonObject(value)) {
 		return {
@@ -90,7 +97,7 @@ export function validateToolCallInputAgainstSchema(
 			error: `Invalid tool input for "${toolName}": no registered input schema`,
 		};
 	}
-	const validationError = validatePayloadSchema(schema, value, "input");
+	const validationError = validate(schema as JsonSchemaObject, value, "input");
 	if (validationError) {
 		return {
 			ok: false,

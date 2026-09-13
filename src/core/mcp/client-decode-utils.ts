@@ -235,7 +235,7 @@ export function generatedProgressToken(requestId: number): McpProgressToken {
 
 export function isUnsupportedProtocolVersionError(err: Error): boolean {
   if (err instanceof McpJsonRpcError) {
-    return err.code === -32602 && /Unsupported protocol version/i.test(err.message);
+    return err.code === -32022 || err.code === -32004 || err.code === -32602 && /Unsupported protocol version/i.test(err.message);
   }
   return /MCP error -32602: Unsupported protocol version/.test(err.message);
 }

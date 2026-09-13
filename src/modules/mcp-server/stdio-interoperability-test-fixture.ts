@@ -3,6 +3,7 @@ import { McpServer } from "./server.js";
 
 const server = new McpServer({
 	log: () => {},
+	toolFilter: ["interop_echo"],
 	moduleTools: [{
 		tool: {
 			name: "interop_echo",

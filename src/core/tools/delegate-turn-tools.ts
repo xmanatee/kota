@@ -1,5 +1,6 @@
 import type {
   KotaJsonObject,
+  KotaJsonValue,
   KotaMessage,
   KotaTool,
   KotaToolUseBlock,
@@ -24,7 +25,7 @@ export type DelegateToolResultEntry = {
   tool_use_id: string;
   content: string;
   blocks?: ToolResultBlock[];
-  structuredContent?: KotaJsonObject;
+  structuredContent?: KotaJsonValue;
   _meta?: KotaJsonObject;
   is_error?: boolean;
 };
@@ -176,7 +177,7 @@ export async function executeDelegateToolBlocks(args: {
       tool_use_id: result.tool_use_id,
       content: result.content,
       ...(result.blocks ? { blocks: result.blocks } : {}),
-      ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+      ...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
       ...(result._meta ? { _meta: result._meta } : {}),
       ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
     };

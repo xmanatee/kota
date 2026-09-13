@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { KotaJsonObject, KotaJsonValue, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
+import { compileJsonSchema2020 } from "#core/util/json-schema-2020.js";
 import {
   decodeCacheHints,
   isJsonObject,
@@ -15,10 +16,11 @@ import type {
   JsonRpcResponse,
   McpHeaderParameterSpec,
   McpListToolsPage,
+  McpProtocolVersion,
   McpRejectedToolDefinition,
   McpToolSchema,
 } from "./client-protocol.js";
-import { MCP_HEADER_ANNOTATION } from "./client-protocol.js";
+import { MCP_HEADER_ANNOTATION, MCP_STATELESS_PROTOCOL_VERSION } from "./client-protocol.js";
 
 export class McpHeaderAnnotationError extends Error {
   constructor(
@@ -222,7 +224,7 @@ export function decodeToolAnnotations(
   };
 }
 
-export function decodeToolDefinition(value: KotaJsonValue, index: number): McpToolSchema {
+export function decodeToolDefinition(value: KotaJsonValue, index: number, stateless = false): McpToolSchema {
   const label = `tools[${index}]`;
   const object = optionalJsonObject(value, label, "tools/list");
   if (!object) {
@@ -230,10 +232,15 @@ export function decodeToolDefinition(value: KotaJsonValue, index: number): McpTo
   }
   const name = requireString(object.name, `${label}.name`, "tools/list");
   const inputSchema = decodeToolObjectSchema(object.inputSchema, `${label}.inputSchema`);
-  validateMcpHeaderAnnotations(name, inputSchema, `${label}.inputSchema`);
+  if (stateless) collectStatelessHeaderParameters(name, object.inputSchema);
+  else validateMcpHeaderAnnotations(name, inputSchema, `${label}.inputSchema`);
   const outputSchema = object.outputSchema === undefined
     ? undefined
-    : decodeToolObjectSchema(object.outputSchema, `${label}.outputSchema`);
+    : requireJsonObject(object.outputSchema, `${label}.outputSchema`, "tools/list");
+  if (stateless) {
+    compileJsonSchema2020(inputSchema);
+    if (outputSchema) compileJsonSchema2020(outputSchema);
+  }
   const annotations = decodeToolAnnotations(object.annotations);
   return {
     name,
@@ -246,7 +253,7 @@ export function decodeToolDefinition(value: KotaJsonValue, index: number): McpTo
   };
 }
 
-export function decodeListToolsResult(value: JsonRpcResponse["result"]): McpListToolsPage {
+export function decodeListToolsResult(value: JsonRpcResponse["result"], protocolVersion?: McpProtocolVersion): McpListToolsPage {
   const object = requireJsonObject(value, "result", "tools/list");
   const tools = object.tools;
   if (!Array.isArray(tools)) {
@@ -257,7 +264,7 @@ export function decodeListToolsResult(value: JsonRpcResponse["result"]): McpList
   const rejectedTools: McpRejectedToolDefinition[] = [];
   for (const [index, rawTool] of tools.entries()) {
     try {
-      decodedTools.push(decodeToolDefinition(rawTool, index));
+      decodedTools.push(decodeToolDefinition(rawTool, index, protocolVersion === MCP_STATELESS_PROTOCOL_VERSION));
     } catch (err) {
       if (err instanceof McpHeaderAnnotationError) {
         rejectedTools.push({
@@ -300,4 +307,37 @@ export function mcpParamHeaderValue(value: KotaJsonValue | undefined): string | 
   }
   if (isPlainMcpParamHeaderValue(raw)) return raw;
   return `=?base64?${Buffer.from(raw, "utf8").toString("base64")}?=`;
+}
+
+/** Only a chain of properties makes an annotated argument statically reachable. */
+export function collectStatelessHeaderParameters(toolName: string, schema: KotaJsonValue | undefined): McpHeaderParameterSpec[] {
+  const specs: McpHeaderParameterSpec[] = [];
+  const seen = new Set<string>();
+  let nodes = 0;
+  const visit = (value: KotaJsonValue | undefined, path: string[] | null, depth: number): void => {
+    if (++nodes > 10000 || depth > 64) throw new McpHeaderAnnotationError("Tool schema exceeds traversal limits", toolName);
+    if (Array.isArray(value)) { for (const item of value) visit(item, null, depth + 1); return; }
+    if (!isJsonObject(value)) return;
+    const header = value[MCP_HEADER_ANNOTATION];
+    if (header !== undefined) {
+      if (!path || path.length === 0 || typeof header !== "string" ||
+          !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(header) ||
+          !["string", "integer", "boolean"].includes(String(value.type)) || seen.has(header.toLowerCase())) {
+        throw new McpHeaderAnnotationError("Invalid or duplicate x-mcp-header: requires a unique HTTP token on a statically reachable string, integer or boolean property", toolName);
+      }
+      seen.add(header.toLowerCase());
+      specs.push({ paramName: path.join("."), path, headerName: header });
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === "properties" && isJsonObject(nested)) {
+        for (const [name, property] of Object.entries(nested)) visit(property, path ? [...path, name] : null, depth + 1);
+      } else if (["patternProperties", "$defs", "definitions", "dependentSchemas"].includes(key) && isJsonObject(nested)) {
+        for (const child of Object.values(nested)) visit(child, null, depth + 1);
+      } else if (["items", "additionalProperties", "unevaluatedProperties", "unevaluatedItems", "contains", "propertyNames", "not", "if", "then", "else", "allOf", "anyOf", "oneOf", "prefixItems"].includes(key)) {
+        visit(nested, null, depth + 1);
+      }
+    }
+  };
+  visit(schema, [], 0);
+  return specs;
 }

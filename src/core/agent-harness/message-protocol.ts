@@ -77,12 +77,8 @@ export function assertKotaToolInputSchema(
   }
 }
 
-/**
- * Neutral JSON Schema object shape for a tool's structured output. This is the
- * same strict object-schema style as `input_schema` because KOTA structured
- * tool results are JSON objects.
- */
-export type KotaToolOutputSchema = KotaToolInputSchema;
+/** Open JSON Schema envelope for a tool's structured JSON output. */
+export type KotaToolOutputSchema = { [key: string]: unknown };
 
 /**
  * Neutral tool-definition shape. A tool is a name, a description, and a
@@ -275,7 +271,7 @@ export type KotaToolResultBlock = {
   type: "tool_result";
   tool_use_id: string;
   content: KotaToolResultBlockContent;
-  structuredContent?: KotaJsonObject;
+  structuredContent?: KotaJsonValue;
   _meta?: KotaJsonObject;
   is_error?: boolean;
 };

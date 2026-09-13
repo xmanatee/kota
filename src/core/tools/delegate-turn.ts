@@ -256,7 +256,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         content: r.blocks
           ? (r.blocks as KotaToolResultBlockContent)
           : r.content,
-        ...(r.structuredContent ? { structuredContent: r.structuredContent } : {}),
+        ...(r.structuredContent !== undefined ? { structuredContent: r.structuredContent } : {}),
         ...(r._meta ? { _meta: r._meta } : {}),
         ...(r.is_error !== undefined ? { is_error: r.is_error } : {}),
       })),

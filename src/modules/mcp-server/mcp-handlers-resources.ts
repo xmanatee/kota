@@ -19,13 +19,16 @@ import type {
 	JsonRpcNotification,
 	JsonRpcRequest,
 	McpTask,
+	McpTransport,
 } from "./mcp-protocol-types.js";
 import {
 	activeClientSupportsMcpTasks,
 	activeClientSupportsMcpUi,
+  activeMcpProtocolVersion,
 	hasActiveMcpContext,
 	MCP_PRIVATE_RESOURCE_CACHE_HINTS,
 	MCP_PUBLIC_CATALOG_CACHE_HINTS,
+  MCP_STATELESS_PROTOCOL_VERSION,
 	MCP_TASKS_EXTENSION_ID,
 } from "./mcp-protocol-types.js";
 import { getPromptCatalogSignature } from "./prompts.js";
@@ -45,6 +48,7 @@ const PROMPT_LIST_CHANGED_DEBOUNCE_MS = 25;
 const PROMPT_LIST_CHANGED_POLL_MS = 100;
 
 type DraftSubscription = {
+	notify: McpTransport["sendNotification"];
 	resourceUris: Set<string>;
 	resourcesListChanged: boolean;
 	promptsListChanged: boolean;
@@ -60,7 +64,7 @@ type ListenParams = {
 	};
 };
 
-function subscriptionMeta(subscriptionId: string): Record<string, string> {
+function subscriptionMeta(subscriptionId: JsonRpcRequest["id"]): Record<string, JsonRpcRequest["id"]> {
 	return { [SUBSCRIPTION_ID_META_KEY]: subscriptionId };
 }
 
@@ -88,7 +92,7 @@ function sameStringArray(left: string[], right: string[]): boolean {
 
 export class ResourcesHandler {
 	private readonly legacyResourceSubscriptions = new Set<string>();
-	private readonly draftSubscriptions = new Map<string, DraftSubscription>();
+	private readonly draftSubscriptions = new Map<JsonRpcRequest["id"] | McpTransport["sendNotification"], DraftSubscription>();
 	private busUnsubs: (() => void)[] = [];
 	private resourceCatalogSignature = currentResourceCatalogSignature(undefined);
 	private promptCatalogSignature: string | null = null;
@@ -200,7 +204,9 @@ export class ResourcesHandler {
 			...(skillCatalog !== undefined && { skillCatalog }),
 		});
 		if (!result.ok) {
-			this.ctx.transport.sendError(msg, result.code, result.message);
+			const code = result.code === -32002 && activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION
+				? -32602 : result.code;
+			this.ctx.transport.sendError(msg, code, result.message);
 			return;
 		}
 		this.ctx.transport.sendResult(msg, {
@@ -229,7 +235,7 @@ export class ResourcesHandler {
 			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
 			...(skillCatalog !== undefined && { skillCatalog }),
 		})) {
-			this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
+			this.ctx.transport.sendError(msg, activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION ? -32602 : -32002, `Unknown resource: ${uri}`);
 			return;
 		}
 		this.legacyResourceSubscriptions.add(uri);
@@ -250,7 +256,7 @@ export class ResourcesHandler {
 		this.ctx.transport.sendResult(msg, {});
 	}
 
-	handleListen(msg: JsonRpcRequest): void {
+	handleListen(msg: JsonRpcRequest, sendNotification?: McpTransport["sendNotification"]): (() => void) | undefined {
 		if (!hasActiveMcpContext(this.ctx)) {
 			this.ctx.transport.sendError(msg, -32002, "Server not initialized");
 			return;
@@ -303,12 +309,14 @@ export class ResourcesHandler {
 				includeMcpApps: activeClientSupportsMcpUi(this.ctx),
 				...(skillCatalog !== undefined && { skillCatalog }),
 			})) {
-				this.ctx.transport.sendError(msg, -32002, `Unknown resource: ${uri}`);
+				this.ctx.transport.sendError(msg, activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION ? -32602 : -32002, `Unknown resource: ${uri}`);
 				return;
 			}
 		}
 
-		const subscriptionId = String(msg.id);
+		const subscriptionId = msg.id;
+		// HTTP supplies a unique delivery closure; stdio IDs belong to one connection.
+		const key = sendNotification ?? subscriptionId;
 		const resourcesListChanged = notifications?.resourcesListChanged === true;
 		const promptsListChanged = notifications?.promptsListChanged === true;
 		const taskStatus = notifications?.taskStatus === true;
@@ -332,7 +340,10 @@ export class ResourcesHandler {
 		if (taskStatus) acknowledgedNotifications.taskStatus = true;
 
 		if (resourceUris.length > 0 || resourcesListChanged || promptsListChanged || taskStatus) {
-			this.draftSubscriptions.set(subscriptionId, {
+			this.draftSubscriptions.set(key, {
+				notify: (method, params) => (sendNotification ?? this.ctx.transport.sendNotification)(method, {
+					...params, _meta: subscriptionMeta(subscriptionId),
+				}),
 				resourceUris: new Set(resourceUris),
 				resourcesListChanged,
 				promptsListChanged,
@@ -348,22 +359,23 @@ export class ResourcesHandler {
 			_meta: subscriptionMeta(subscriptionId),
 			notifications: acknowledgedNotifications,
 		});
+		return () => {
+			this.draftSubscriptions.delete(key);
+			this.stopPromptWatchersIfUnused();
+		};
 	}
 
 	handleCancelledNotification(msg: JsonRpcNotification): void {
 		const requestId = msg.params?.requestId;
 		if (typeof requestId !== "string" && typeof requestId !== "number") return;
-		this.draftSubscriptions.delete(String(requestId));
+		this.draftSubscriptions.delete(requestId);
 		this.stopPromptWatchersIfUnused();
 	}
 
 	notifyTaskStatusChanged(task: McpTask): void {
-		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
+		for (const subscription of this.draftSubscriptions.values()) {
 			if (!subscription.taskStatus) continue;
-			this.ctx.transport.sendNotification(TASK_STATUS_NOTIFICATION_METHOD, {
-				...structuredClone(task),
-				_meta: subscriptionMeta(subscriptionId),
-			});
+			subscription.notify(TASK_STATUS_NOTIFICATION_METHOD, structuredClone(task));
 		}
 	}
 
@@ -371,12 +383,9 @@ export class ResourcesHandler {
 		if (this.legacyResourceSubscriptions.has(uri)) {
 			this.ctx.transport.sendNotification("notifications/resources/updated", { uri });
 		}
-		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
+		for (const subscription of this.draftSubscriptions.values()) {
 			if (!subscription.resourceUris.has(uri)) continue;
-			this.ctx.transport.sendNotification("notifications/resources/updated", {
-				_meta: subscriptionMeta(subscriptionId),
-				uri,
-			});
+			subscription.notify("notifications/resources/updated", { uri });
 		}
 	}
 
@@ -400,11 +409,9 @@ export class ResourcesHandler {
 		const nextSignature = currentResourceCatalogSignature(this.skillCatalog());
 		if (nextSignature === this.resourceCatalogSignature) return;
 		this.resourceCatalogSignature = nextSignature;
-		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
+		for (const subscription of this.draftSubscriptions.values()) {
 			if (!subscription.resourcesListChanged) continue;
-			this.ctx.transport.sendNotification("notifications/resources/list_changed", {
-				_meta: subscriptionMeta(subscriptionId),
-			});
+			subscription.notify("notifications/resources/list_changed", {});
 		}
 	}
 
@@ -496,11 +503,9 @@ export class ResourcesHandler {
 		const nextSignature = currentPromptCatalogSignature(this.resolveScopeRoot());
 		if (nextSignature === this.promptCatalogSignature) return;
 		this.promptCatalogSignature = nextSignature;
-		for (const [subscriptionId, subscription] of this.draftSubscriptions) {
+		for (const subscription of this.draftSubscriptions.values()) {
 			if (!subscription.promptsListChanged) continue;
-			this.ctx.transport.sendNotification("notifications/prompts/list_changed", {
-				_meta: subscriptionMeta(subscriptionId),
-			});
+			subscription.notify("notifications/prompts/list_changed", {});
 		}
 	}
 }

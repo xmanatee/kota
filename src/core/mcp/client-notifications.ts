@@ -22,6 +22,7 @@ import type {
 } from "./client-protocol.js";
 import {
   MAX_PROGRESS_WARNINGS,
+  MCP_STATELESS_PROTOCOL_VERSION,
   mcpProtocolSupports,
 } from "./client-protocol.js";
 
@@ -70,6 +71,10 @@ export abstract class McpClientNotifications extends McpClientBase {
   protected handleServerRequest(
     msg: JsonRpcIncomingMessage & { id: JsonRpcId; method: string },
   ): void {
+    if (this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION) {
+      this.writeDiagnostic(`MCP protocol violation: unsolicited server request ${msg.method} is unavailable in ${this.protocolVersion}\n`, "stderr");
+      return;
+    }
     if (msg.method === "ping") {
       this.writeServerRequestResponse({ jsonrpc: "2.0", id: msg.id, result: {} });
       return;

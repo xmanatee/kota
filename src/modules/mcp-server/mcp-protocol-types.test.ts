@@ -13,6 +13,7 @@ import {
 	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_STATELESS_PROTOCOL_VERSION,
 	MCP_SUPPORTED_PROTOCOL_VERSIONS,
 	MCP_TASK_STATUSES,
 	MCP_TASK_TERMINAL_STATUSES,
@@ -109,6 +110,7 @@ describe("MCP elicitation capability modes", () => {
 describe("MCP protocol revision capabilities", () => {
 	it("keeps current stable, draft, and legacy behavior distinct", () => {
 		expect([...MCP_SUPPORTED_PROTOCOL_VERSIONS]).toEqual([
+      MCP_STATELESS_PROTOCOL_VERSION,
 			MCP_CURRENT_PROTOCOL_VERSION,
 			MCP_DRAFT_PROTOCOL_VERSION,
 			MCP_LEGACY_PROTOCOL_VERSION,

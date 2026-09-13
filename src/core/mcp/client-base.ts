@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { ChildProcess } from "node:child_process";
 import type { Interface } from "node:readline";
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
+import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { printTerminalDiagnostic, writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import { isSensitiveOutboundHttpHeader } from "#core/outbound-http/redaction.js";
 import type {
@@ -56,12 +56,14 @@ import {
   MCP_META_CLIENT_CAPABILITIES_KEY,
   MCP_META_CLIENT_INFO_KEY,
   MCP_META_PROTOCOL_VERSION_KEY,
+  MCP_STATELESS_PROTOCOL_VERSION,
   MCP_TASKS_EXTENSION_ID,
   mcpProtocolSupports,
 } from "./client-protocol.js";
 import { decodeMcpToolInputResponses } from "./client-result-decoders.js";
 import {
   collectMcpHeaderParameters,
+  collectStatelessHeaderParameters,
   mcpParamHeaderValue,
 } from "./client-tool-list-decoders.js";
 
@@ -251,7 +253,7 @@ export abstract class McpClientBase {
       );
     }
     if (retry.requestState !== undefined) {
-      if (retry.requestState.length === 0) {
+      if (this.protocolVersion !== MCP_STATELESS_PROTOCOL_VERSION && retry.requestState.length === 0) {
         throw new Error(`Malformed MCP ${kind} retry: requestState must be a non-empty string`);
       }
       params.requestState = retry.requestState;
@@ -340,7 +342,9 @@ export abstract class McpClientBase {
   protected cacheHeaderParameters(tools: readonly McpToolSchema[]): void {
     this.headerParametersByTool.clear();
     for (const tool of tools) {
-      const specs = this.decodeWithRedaction(() => collectMcpHeaderParameters(tool));
+      const specs = this.decodeWithRedaction(() => this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION
+        ? collectStatelessHeaderParameters(tool.name, tool.inputSchema as KotaJsonObject)
+        : collectMcpHeaderParameters(tool));
       if (specs.length === 0) continue;
       this.headerParametersByTool.set(tool.name, specs);
     }
@@ -358,7 +362,12 @@ export abstract class McpClientBase {
     if (!specs) return;
     const args = isJsonObject(params?.arguments) ? params.arguments : {};
     for (const spec of specs) {
-      const value = mcpParamHeaderValue(args[spec.paramName]);
+      let argument: KotaJsonValue | undefined = args;
+      for (const part of spec.path ?? [spec.paramName]) argument = isJsonObject(argument) ? argument[part] : undefined;
+      if (this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION && typeof argument === "number" && !Number.isSafeInteger(argument)) {
+        throw new Error(`MCP header parameter ${spec.paramName} must be a safe integer`);
+      }
+      const value = mcpParamHeaderValue(argument);
       if (value === null) continue;
       headers.set(`Mcp-Param-${spec.headerName}`, value);
     }

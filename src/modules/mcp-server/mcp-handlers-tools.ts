@@ -1,3 +1,5 @@
+import { compileJsonSchema2020, validateJsonSchema2020 } from "#core/util/json-schema-2020.js";
+import type { JsonSchemaObject, JsonSchemaValue } from "#core/util/json-schema-validator.js";
 /**
  * MCP `tools/list` and `tools/call` handlers plus the small adapters that
  * convert KOTA's neutral tool shape and tool-result shape into the MCP wire
@@ -39,6 +41,7 @@ import {
 	hasActiveMcpContext,
 	MCP_PUBLIC_CATALOG_CACHE_HINTS,
 	MCP_RELATED_TASK_META_KEY,
+	MCP_STATELESS_PROTOCOL_VERSION,
 	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
 import type { McpTaskStore } from "./mcp-task-store.js";
@@ -118,7 +121,11 @@ export class ToolsHandler {
 			: undefined;
 		const includeMcpApps = activeClientSupportsMcpUi(this.ctx);
 		const tools = this.getExposedTools().map((t) => {
-			const mcp = kotaToolToMcp(t, { taskSupport, includeMcpApps });
+			if (activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION) {
+        compileJsonSchema2020(t.input_schema);
+        if (t.output_schema) compileJsonSchema2020(t.output_schema);
+      }
+      const mcp = kotaToolToMcp(t, { taskSupport, includeMcpApps });
 			const annotations = getToolMcpAnnotations(t.name);
 			return annotations ? { ...mcp, annotations } : mcp;
 		});
@@ -263,6 +270,14 @@ export class ToolsHandler {
 			return jsonRpcError(-32602, `Unknown tool: ${name}`);
 		}
 
+    if (activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION) {
+      if (params.arguments !== undefined && (typeof params.arguments !== "object" || params.arguments === null || Array.isArray(params.arguments))) {
+        return jsonRpcError(-32602, "arguments must be an object");
+      }
+      const invalid = validateJsonSchema2020(tool.input_schema as JsonSchemaObject, args as JsonSchemaValue, "arguments");
+      if (invalid) return {kind: "result", failed: true, result: {resultType: "complete", content: [{type: "text", text: invalid}], isError: true}};
+    }
+
 		const retry = decodeMrtrRetryParams(params);
 		if (retry.kind === "invalid") {
 			return jsonRpcError(-32602, retry.message);
@@ -271,16 +286,16 @@ export class ToolsHandler {
 			return this.inputRequiredRetryOutcome(msg, name, retry.requestState, retry.inputResponses);
 		}
 
+		if (name === "confirm" && usesCompleteToolResults(activeMcpProtocolVersion(this.ctx))) {
+			return this.confirmInputRequiredOutcome(msg, args);
+		}
+
 		this.ctx.log(`Calling tool: ${name}`);
 		if (options.progress) {
 			this.ctx.sendProgress(0, {
 				total: 1,
 				message: `Calling tool: ${name}`,
 			});
-		}
-
-		if (name === "confirm" && usesCompleteToolResults(activeMcpProtocolVersion(this.ctx))) {
-			return this.confirmInputRequiredOutcome(msg, args);
 		}
 
 		let result: ToolResult;
@@ -320,7 +335,9 @@ export class ToolsHandler {
 		args: ToolRunnerInput,
 	): ToolCallOutcome {
 		if (!activeClientSupportsElicitation(this.ctx, "form")) {
-			return jsonRpcError(-32602, "Client does not support form elicitation");
+			return activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION
+        ? jsonRpcError(-32021, "Client does not support form elicitation", { requiredCapabilities: { elicitation: { form: {} } } })
+        : jsonRpcError(-32602, "Client does not support form elicitation");
 		}
 		const result: McpToolInputRequiredResult = this.mrtr.createInputRequiredResult(
 			msg,
@@ -354,7 +371,9 @@ export class ToolsHandler {
 			);
 		}
 		if (!activeClientSupportsElicitation(this.ctx, "form")) {
-			return jsonRpcError(-32602, "Client does not support form elicitation");
+			return activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION
+        ? jsonRpcError(-32021, "Client does not support form elicitation", { requiredCapabilities: { elicitation: { form: {} } } })
+        : jsonRpcError(-32602, "Client does not support form elicitation");
 		}
 		const verified = this.mrtr.verify(requestState, msg, ["confirm"]);
 		if (!verified.ok) {
@@ -470,7 +489,7 @@ export class ToolsHandler {
 	}
 
 	private toolResultOutcome(tool: KotaTool | null, result: ToolResult): ToolCallOutcome {
-		const outputSchemaError = tool ? validateToolStructuredOutput(tool, result) : null;
+		const outputSchemaError = tool ? validateToolStructuredOutput(tool, result, activeMcpProtocolVersion(this.ctx) === MCP_STATELESS_PROTOCOL_VERSION ? validateJsonSchema2020 : undefined) : null;
 		if (outputSchemaError) {
 			return jsonRpcError(-32603, outputSchemaError);
 		}
@@ -636,7 +655,7 @@ export function toolResultToMcpCompleteResult(result: ToolResult): McpToolComple
 	return {
 		resultType: "complete",
 		content: toolResultToMcp(result),
-		...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+		...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
 		...(result._meta ? { _meta: result._meta } : {}),
 		isError: result.is_error === true,
 	};
@@ -672,7 +691,7 @@ export function toolResultToMcp(result: ToolResult): McpContentBlock[] {
 function toolResultToMcpLegacyResult(result: ToolResult): McpLegacyToolResult {
 	return {
 		content: toolResultToMcp(result),
-		...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+		...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
 		...(result._meta ? { _meta: result._meta } : {}),
 		...(result.is_error && { isError: true }),
 	};

@@ -95,17 +95,13 @@ export function decodeSamplingContentBlock(
         `Malformed MCP ${kind} result: ${label}.content includes unsupported content block`,
       );
     }
-    const structuredContent = optionalJsonObject(
-      object.structuredContent,
-      `${label}.structuredContent`,
-      kind,
-    );
+    const structuredContent = object.structuredContent;
     const isError = optionalBoolean(object.isError, `${label}.isError`, kind);
     return {
       type: "tool_result",
       toolUseId: requireString(object.toolUseId, `${label}.toolUseId`, kind),
       content,
-      ...(structuredContent ? { structuredContent } : {}),
+      ...(structuredContent !== undefined ? { structuredContent } : {}),
       ...(isError !== undefined ? { isError } : {}),
       ...(meta ? { _meta: meta } : {}),
     };

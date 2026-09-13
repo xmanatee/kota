@@ -8,6 +8,7 @@
 
 import type {
   KotaJsonObject,
+  KotaJsonValue,
   KotaToolResultContentBlock,
 } from "#core/agent-harness/message-protocol.js";
 
@@ -16,7 +17,7 @@ export type ToolResultBlock = KotaToolResultContentBlock;
 export type ToolResult = {
   content: string;
   blocks?: ToolResultBlock[];
-  structuredContent?: KotaJsonObject;
+  structuredContent?: KotaJsonValue;
   _meta?: KotaJsonObject;
   is_error?: boolean;
 };

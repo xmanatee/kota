@@ -3,7 +3,10 @@
 Shared infrastructure utilities used across core and modules.
 
 - JSON file I/O with atomic writes and typed errors.
-- Minimal JSON Schema value validation for shared protocol boundaries.
+- Keep lightweight legacy schema checks separate from explicit dialect validation.
+  Network schema references are never fetched implicitly. Synchronous dialect
+  compilation and validation need execution deadlines: serialized schema size
+  does not bound reference expansion or regular-expression work.
 - Frontmatter parsing and serialization.
 - Git worktree status and head SHA helpers.
 - Log formatting (text and JSON modes).

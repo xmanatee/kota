@@ -1,4 +1,5 @@
 import {
+  decodeCacheHints,
   decodeDeprecatedObjectCapability,
   decodeListChangedCapability,
   isMcpProtocolVersion,
@@ -8,13 +9,14 @@ import {
   requireJsonObject,
   requireString,
 } from "./client-decode-utils.js";
-import type { JsonRpcResponse, McpInitializeResult } from "./client-protocol.js";
+import type { JsonRpcResponse, McpInitializeResult, McpProtocolVersion } from "./client-protocol.js";
 import {
   MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
   MCP_MODERN_PROTOCOL_VERSIONS,
   MCP_SKILLS_EXTENSION_ID,
+  MCP_STATELESS_PROTOCOL_VERSION,
   MCP_SUPPORTED_PROTOCOL_VERSIONS,
   MCP_TASKS_EXTENSION_ID,
   mcpProtocolSupports,
@@ -86,18 +88,20 @@ export function decodeInitializeResult(value: JsonRpcResponse["result"]): McpIni
   };
 }
 
-export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpInitializeResult {
+export function decodeDiscoverResult(value: JsonRpcResponse["result"], requestedVersion?: McpProtocolVersion): McpInitializeResult {
   const object = requireJsonObject(value, "result", "server/discover");
   const supportedVersions = optionalStringArray(
     object.supportedVersions,
     "supportedVersions",
     "server/discover",
   );
-  const protocolVersion = supportedVersions?.includes(MCP_CURRENT_PROTOCOL_VERSION)
+  const protocolVersion = (requestedVersion && supportedVersions?.includes(requestedVersion) ? requestedVersion : undefined) ?? (supportedVersions?.includes(MCP_STATELESS_PROTOCOL_VERSION)
+    ? MCP_STATELESS_PROTOCOL_VERSION
+    : supportedVersions?.includes(MCP_CURRENT_PROTOCOL_VERSION)
     ? MCP_CURRENT_PROTOCOL_VERSION
     : supportedVersions?.includes(MCP_DRAFT_PROTOCOL_VERSION)
       ? MCP_DRAFT_PROTOCOL_VERSION
-      : null;
+      : null);
   if (protocolVersion === null) {
     throw new Error(
       `Malformed MCP server/discover result: supportedVersions must include ${MCP_MODERN_PROTOCOL_VERSIONS.join(" or ")}`,
@@ -124,8 +128,16 @@ export function decodeDiscoverResult(value: JsonRpcResponse["result"]): McpIniti
     MCP_SKILLS_EXTENSION_ID,
     "server/discover",
   );
+  if (protocolVersion === MCP_STATELESS_PROTOCOL_VERSION) {
+    if (object.resultType !== "complete") throw new Error("Malformed MCP server/discover result: resultType must be complete");
+    if (object.ttlMs === undefined || object.cacheScope === undefined) throw new Error("Malformed MCP server/discover result: cache hints are required");
+    decodeCacheHints(object, "server/discover");
+    requireJsonObject(object.capabilities, "capabilities", "server/discover");
+  }
   const rawServerInfo = optionalJsonObject(
-    object.serverInfo,
+    protocolVersion === MCP_STATELESS_PROTOCOL_VERSION
+      ? optionalJsonObject(object._meta, "_meta", "server/discover")?.["io.modelcontextprotocol/serverInfo"]
+      : object.serverInfo,
     "serverInfo",
     "server/discover",
   );

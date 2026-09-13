@@ -15,6 +15,7 @@ import type {
 } from "./client-protocol.js";
 import {
   CONNECT_TIMEOUT,
+  MCP_STATELESS_PROTOCOL_VERSION,
   mcpProtocolSupports,
 } from "./client-protocol.js";
 
@@ -70,7 +71,7 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     this.rl.on("line", (line) => this.handleLine(line));
 
     const result = await this.initializeServer();
-    this.notify("notifications/initialized");
+    if (result.protocolVersion !== MCP_STATELESS_PROTOCOL_VERSION) this.notify("notifications/initialized");
     return result;
   }
 
@@ -92,7 +93,7 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     this.rl = null;
 
     try {
-      if (proc.stdin?.writable) {
+      if (proc.stdin?.writable && this.protocolVersion !== MCP_STATELESS_PROTOCOL_VERSION) {
         const id = this.nextId++;
         const msg: JsonRpcRequest = { jsonrpc: "2.0", id, method: "shutdown" };
         proc.stdin.write(`${JSON.stringify(msg)}\n`);
@@ -104,6 +105,15 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
       // Server may not support graceful shutdown.
     }
 
+    if (this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION && proc.exitCode === null && proc.signalCode === null) {
+      proc.stdin?.end();
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => { proc.off("exit", onExit); resolve(); }, 500);
+        const onExit = () => { clearTimeout(timer); resolve(); };
+        proc.once("exit", onExit);
+      });
+    }
+    if (proc.exitCode !== null || proc.signalCode !== null) return;
     proc.kill("SIGTERM");
     this.killTimer = setTimeout(() => {
       try {

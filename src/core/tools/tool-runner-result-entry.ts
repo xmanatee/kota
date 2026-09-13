@@ -12,7 +12,7 @@ export function toolResultEntry(
     tool_use_id: block.id,
     content: result.content,
     ...(result.blocks ? { blocks: result.blocks } : {}),
-    ...(result.structuredContent
+    ...(result.structuredContent !== undefined
       ? { structuredContent: result.structuredContent }
       : {}),
     ...(result._meta ? { _meta: result._meta } : {}),

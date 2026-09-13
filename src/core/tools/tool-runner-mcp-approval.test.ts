@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { MCP_CURRENT_PROTOCOL_VERSION } from "#core/mcp/client-protocol.js";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import { executeToolCalls, type ToolCallExecutionOptions } from "./tool-runner.js";
 
@@ -78,6 +79,7 @@ describe("tool runner MCP approval metadata", () => {
 				sessionId: "s-mcp",
 				mcpManager: {
 					isMcpTool: vi.fn(() => true),
+					getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 					getTools: vi.fn(() => [{
 						name: "mcp__remote__deploy",
 						description: "test",

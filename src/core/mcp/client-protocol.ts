@@ -187,16 +187,19 @@ export type McpListPromptsPage = {
   cache: McpCacheHints;
 };
 
+export const MCP_STATELESS_PROTOCOL_VERSION = "2026-07-28";
 export const MCP_LEGACY_PROTOCOL_VERSION = "2024-11-05";
 export const MCP_CURRENT_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_DRAFT_PROTOCOL_VERSION = "DRAFT-2026-v1";
-export const MCP_CURRENT_STABLE_PROTOCOL_VERSIONS = [MCP_CURRENT_PROTOCOL_VERSION] as const;
+export const MCP_CURRENT_STABLE_PROTOCOL_VERSIONS = [MCP_STATELESS_PROTOCOL_VERSION, MCP_CURRENT_PROTOCOL_VERSION] as const;
 export const MCP_DRAFT_PROTOCOL_VERSIONS = [MCP_DRAFT_PROTOCOL_VERSION] as const;
 export const MCP_MODERN_PROTOCOL_VERSIONS = [
+  MCP_STATELESS_PROTOCOL_VERSION,
   MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
 ] as const;
 export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+  MCP_STATELESS_PROTOCOL_VERSION,
   MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
@@ -206,10 +209,12 @@ export const MCP_SKILLS_EXTENSION_ID = "io.modelcontextprotocol/skills";
 
 export type McpProtocolVersion =
   | typeof MCP_LEGACY_PROTOCOL_VERSION
+  | typeof MCP_STATELESS_PROTOCOL_VERSION
   | typeof MCP_CURRENT_PROTOCOL_VERSION
   | typeof MCP_DRAFT_PROTOCOL_VERSION;
 
 export type McpModernProtocolVersion =
+  | typeof MCP_STATELESS_PROTOCOL_VERSION
   | typeof MCP_CURRENT_PROTOCOL_VERSION
   | typeof MCP_DRAFT_PROTOCOL_VERSION;
 
@@ -224,7 +229,7 @@ export type McpProtocolBooleanFeature =
   | "draftCompatibilityWarnings";
 
 export type McpProtocolCapabilities = {
-  revision: "legacy" | "current-stable" | "active-draft";
+  revision: "legacy" | "current-stable" | "active-draft" | "stateless-stable";
   toolResultContract: McpToolResultContract;
   requestMetadata: boolean;
   listChangedSubscriptions: boolean;
@@ -251,6 +256,17 @@ const MCP_PROTOCOL_CAPABILITIES: Record<McpProtocolVersion, McpProtocolCapabilit
     requestMetadata: true,
     listChangedSubscriptions: true,
     tasksExtension: true,
+    skillsExtension: false,
+    elicitation: true,
+    draftCompatibilityWarnings: false,
+  },
+  // The draft task/skill adapters do not implement the released extensions.
+  [MCP_STATELESS_PROTOCOL_VERSION]: {
+    revision: "stateless-stable",
+    toolResultContract: "complete-tool-result",
+    requestMetadata: true,
+    listChangedSubscriptions: true,
+    tasksExtension: false,
     skillsExtension: false,
     elicitation: true,
     draftCompatibilityWarnings: false,
@@ -322,7 +338,7 @@ export type McpCompleteResultFields = {
   content: McpToolContentBlock[];
   text: string;
   blocks: ToolResultBlock[];
-  structuredContent?: KotaJsonObject;
+  structuredContent?: KotaJsonValue;
   _meta?: KotaJsonObject;
   isError?: boolean;
 };
@@ -411,7 +427,7 @@ export type McpSamplingToolResultContent = {
   type: "tool_result";
   toolUseId: string;
   content: McpToolContentBlock[];
-  structuredContent?: KotaJsonObject;
+  structuredContent?: KotaJsonValue;
   isError?: boolean;
   _meta?: KotaJsonObject;
 };
@@ -606,6 +622,7 @@ export type ActiveProgressRequest = {
 
 export type McpHeaderParameterSpec = {
   paramName: string;
+  path?: string[];
   headerName: string;
 };
 

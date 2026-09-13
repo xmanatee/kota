@@ -198,7 +198,9 @@ rl.on("line", (line) => {
     process.stdout.write("Starting up...\\n\\n");
   }
 
-  if (msg.method === "initialize") {
+  if (msg.method === "server/discover") {
+    write({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Legacy peer: initialize first" } });
+  } else if (msg.method === "initialize") {
     initCount += 1;
     if (mode === "slow_init") {
       setTimeout(() => {

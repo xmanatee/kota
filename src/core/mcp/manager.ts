@@ -248,6 +248,11 @@ export class McpManager {
     return this.remoteTaskRuntime.getResumeResults();
   }
 
+  /** Negotiated wire contract for a remote tool; synthetic operations have local schemas. */
+  getToolProtocolVersion(name: string): ReturnType<McpManagerClient["getProtocolVersion"]> | undefined {
+    return this.registry.getTool(name)?.client.getProtocolVersion();
+  }
+
   getToolDeclarationFingerprint(name: string): string | undefined {
     return this.registry.getTool(name)?.declaration.fingerprint;
   }

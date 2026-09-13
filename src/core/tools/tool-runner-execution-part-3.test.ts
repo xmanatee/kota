@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MCP_CURRENT_PROTOCOL_VERSION } from "#core/mcp/client-protocol.js";
 import { deferred, mockAssess, mockExecuteTool, mockGetToolEffect, mockTruncate, readEffect, releaseTool, runOptions, safeAssessment, startTracker, toolBlock } from "./runner-test-support.js";
 import { executeToolCalls } from "./tool-runner.js";
 import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
@@ -27,6 +28,7 @@ describe("executeToolCalls scheduling and results", () => {
     mockExecuteTool.mockImplementation((name: string) => startDeferredTool(name));
     const mcpManager = {
       isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 		getTools: vi.fn(() => [
 			"read",
 			"write",
@@ -93,6 +95,7 @@ describe("executeToolCalls scheduling and results", () => {
     };
     const mcpManager = {
       isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 		getTools: vi.fn(() => [{
 			name: "mcp__server__tool",
 			description: "test",
@@ -135,6 +138,7 @@ describe("executeToolCalls scheduling and results", () => {
     const mcpInputResolver = vi.fn();
     const mcpManager = {
       isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 		getTools: vi.fn(() => [{
 			name: "mcp__server__tool",
 			description: "test",
@@ -161,6 +165,7 @@ describe("executeToolCalls scheduling and results", () => {
     const controller = new AbortController();
     const mcpManager = {
       isMcpTool: vi.fn((name: string) => name.startsWith("mcp__")),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 		getTools: vi.fn(() => [{
 			name: "mcp__server__tool",
 			description: "test",
@@ -187,6 +192,7 @@ describe("executeToolCalls scheduling and results", () => {
     mockExecuteTool.mockResolvedValue({ content: "local result" });
     const mcpManager = {
       isMcpTool: vi.fn(() => false),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
       executeTool: vi.fn(),
     };
     await executeToolCalls(

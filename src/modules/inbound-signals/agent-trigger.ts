@@ -52,7 +52,9 @@ export async function triggerInboundSignalAgent(
   if (result.is_error) {
     return { ok: false, reason: result.content };
   }
-  const childSessionId = result.structuredContent?.childSessionId;
+  const structured = result.structuredContent;
+  const childSessionId = typeof structured === "object" && structured !== null && !Array.isArray(structured)
+    ? structured.childSessionId : undefined;
   return {
     ok: true,
     ...(typeof childSessionId === "string" && childSessionId.length > 0

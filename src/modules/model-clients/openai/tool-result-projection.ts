@@ -124,7 +124,7 @@ function sortedKeys(value: KotaJsonObject): string[] {
 	return Object.keys(value).sort();
 }
 
-function stableJsonStringify(value: KotaJsonObject | KotaMcpAnnotations): string {
+function stableJsonStringify(value: KotaJsonValue | KotaMcpAnnotations): string {
 	return JSON.stringify(sortJson(value), null, 2);
 }
 

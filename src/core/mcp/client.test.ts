@@ -9,11 +9,14 @@ import {
   MCP_MODERN_PROTOCOL_VERSIONS,
   MCP_SKILL_INDEX_RESOURCE_URI,
   MCP_SKILLS_EXTENSION_ID,
+  MCP_STATELESS_PROTOCOL_VERSION,
   MCP_SUPPORTED_PROTOCOL_VERSIONS,
   McpClient,
   McpConnectionError,
+  type McpOperationRetry,
   type McpProgressEvent,
   McpToolError,
+  mcpOAuthSecret,
   mcpProtocolCapabilities,
   mcpProtocolSupports,
   mcpToolResultContractForProtocol,
@@ -127,7 +130,7 @@ describe("McpClient Lifecycle & Stdio Transport", () => {
   it("connect times out for non-MCP process", async () => {
     client = new McpClient("sleep", ["30"], {}, "stuck-server");
     await expect(client.connect()).rejects.toThrow(/timed out/);
-  }, 15_000);
+  }, 25_000);
 
   it("spawns stdio MCP servers without inherited parent secrets or KOTA runtime env", async () => {
     const envSnapshot = snapshotMcpStdioEnvProbeEnv();
@@ -215,9 +218,10 @@ describe("Protocol Negotiation & Canonical Capabilities", () => {
     expect(MCP_SUPPORTED_PROTOCOL_VERSIONS).toContain(MCP_CURRENT_PROTOCOL_VERSION);
     expect(MCP_SUPPORTED_PROTOCOL_VERSIONS).toContain(MCP_LEGACY_PROTOCOL_VERSION);
     expect(MCP_SUPPORTED_PROTOCOL_VERSIONS).toContain(MCP_DRAFT_PROTOCOL_VERSION);
-    expect(MCP_CURRENT_STABLE_PROTOCOL_VERSIONS).toEqual([MCP_CURRENT_PROTOCOL_VERSION]);
+    expect(MCP_CURRENT_STABLE_PROTOCOL_VERSIONS).toEqual([MCP_STATELESS_PROTOCOL_VERSION, MCP_CURRENT_PROTOCOL_VERSION]);
     expect(MCP_DRAFT_PROTOCOL_VERSIONS).toEqual([MCP_DRAFT_PROTOCOL_VERSION]);
     expect(MCP_MODERN_PROTOCOL_VERSIONS).toEqual([
+      MCP_STATELESS_PROTOCOL_VERSION,
       MCP_CURRENT_PROTOCOL_VERSION,
       MCP_DRAFT_PROTOCOL_VERSION,
     ]);
@@ -689,6 +693,77 @@ describe("Authentication, OAuth & Security Policies", () => {
     await expect(client.connect()).rejects.toThrow();
   });
 
+  it.each([
+    {redirectUri: "http://127.0.0.1:43111/callback", applicationType: "native"},
+    {redirectUri: "http://[::1]:43111/callback", applicationType: "native"},
+    {redirectUri: "https://client.example.test/callback", applicationType: "web"},
+  ])("registers $applicationType OAuth clients for $redirectUri and completes a released tool call", async ({redirectUri, applicationType}) => {
+    const resource = "https://mcp.example.test/mcp";
+    const issuer = "https://auth.example.test";
+    let registrations = 0;
+    let exchanges = 0;
+    const json = (value: object, status = 200) => new Response(JSON.stringify(value), {
+      status, headers: {"content-type": "application/json"},
+    });
+    const http = mockClientHttpFetch((request) => {
+      if (request.url === `${resource}/metadata`) return json({resource, authorization_servers: [issuer]});
+      if (request.url === `${issuer}/.well-known/oauth-authorization-server`) return json({
+        issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`,
+        registration_endpoint: `${issuer}/register`, code_challenge_methods_supported: ["S256"],
+      });
+      if (request.url === `${issuer}/register`) {
+        registrations++;
+        const registration: Record<string, unknown> = JSON.parse(request.bodyText);
+        // Enforce registration before issuing a client id: omission defaults to web
+        // under OIDC and cannot register an HTTP loopback callback.
+        if (registration.application_type !== applicationType) return json({
+          error: "invalid_client_metadata", error_description: "Incorrect or missing application_type",
+        }, 400);
+        expect(registration.redirect_uris).toEqual([redirectUri]);
+        expect(registration.token_endpoint_auth_method).toBe("none");
+        return json({client_id: "synthetic-dynamic-client"}, 201);
+      }
+      if (request.url === `${issuer}/token`) {
+        exchanges++;
+        expect(request.form.get("client_id")).toBe("synthetic-dynamic-client");
+        expect(request.form.get("redirect_uri")).toBe(redirectUri);
+        expect(request.form.get("code")).toBe("synthetic-code");
+        expect(request.form.get("code_verifier")).toBeTruthy();
+        expect(request.form.get("resource")).toBe(resource);
+        return json({access_token: "synthetic-access-token", token_type: "Bearer", expires_in: 3600});
+      }
+      expect(request.url).toBe(resource);
+      if (!request.headers.has("authorization")) return new Response(null, {status: 401, headers: {
+        "www-authenticate": `Bearer resource_metadata="${resource}/metadata"`,
+      }});
+      expect(request.headers.get("authorization")).toBe("Bearer synthetic-access-token");
+      expect(request.headers.get("MCP-Protocol-Version")).toBe(MCP_STATELESS_PROTOCOL_VERSION);
+      if (request.body.method === "server/discover") return jsonRpcHttpResponse(request.body.id, {
+        resultType: "complete", supportedVersions: [MCP_STATELESS_PROTOCOL_VERSION],
+        capabilities: {tools: {}}, ttlMs: 0, cacheScope: "private",
+        _meta: {"io.modelcontextprotocol/serverInfo": {name: "registered-peer", version: "1"}},
+      });
+      expect(request.body.method).toBe("tools/call");
+      return jsonRpcHttpResponse(request.body.id, {resultType: "complete", content: [{type: "text", text: "authorized tool result"}]});
+    });
+    restoreFetch = http.mockRestore;
+    client = new McpClient({type: "http", url: resource, authorization: {
+      type: "oauth", issuer, redirectUri, scopes: [],
+      client: {kind: "dynamic", clientName: "KOTA test", dynamicClientRegistration: {enabled: true}},
+    }}, "registration-peer", {authorizationResolver: async (request) => {
+      expect(registrations).toBe(1);
+      const authorizationUrl = new URL(request.authorizationUrl);
+      expect(authorizationUrl.searchParams.get("client_id")).toBe("synthetic-dynamic-client");
+      expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe("S256");
+      expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(redirectUri);
+      return {callbackUrl: mcpOAuthSecret(`${redirectUri}?code=synthetic-code&state=${request.state}`)};
+    }});
+    await client.connect();
+    expect(expectCompletedResult(await client.callTool("echo", {})).text).toBe("authorized tool result");
+    expect(registrations).toBe(1);
+    expect(exchanges).toBe(1);
+  });
+
   it("completes OAuth client credentials with private_key_jwt signing and retries", async () => {
     const keyPair = privateKeyJwtTestKeyPair();
     const http = mockClientHttpFetch((req) => {
@@ -1018,4 +1093,112 @@ describe("Concurrency & Fault Resilience", () => {
     await expect(client.close()).resolves.not.toThrow();
     expect(client.isConnected()).toBe(false);
   }, 10_000);
+});
+
+describe("released stateless MCP peers", () => {
+  const discovery = {
+    resultType: "complete", supportedVersions: [MCP_STATELESS_PROTOCOL_VERSION],
+    capabilities: {tools: {}, extensions: {"io.modelcontextprotocol/tasks": {}}},
+    ttlMs: 0, cacheScope: "private",
+    _meta: {"io.modelcontextprotocol/serverInfo": {name: "released-peer", version: "1"}},
+  };
+
+  it("excludes invalid header schemas and completes a URL input retry without elicitationId", async () => {
+    const fetch = mockClientHttpFetch(({body, headers}) => {
+      expect(headers.get("MCP-Protocol-Version")).toBe(MCP_STATELESS_PROTOCOL_VERSION);
+      if (body.method === "server/discover") return jsonRpcHttpResponse(body.id, discovery);
+      if (body.method === "tools/list") return jsonRpcHttpResponse(body.id, {
+        resultType: "complete", ttlMs: 0, cacheScope: "private", tools: [
+          {name: "choose", inputSchema: {type: "object", examples: [{"x-mcp-header": "ordinary data"}], properties: {count: {type: "integer", "x-mcp-header": "Count"}}}, outputSchema: {type: "array", items: {type: "number"}}},
+          {name: "invalid_float", inputSchema: {type: "object", properties: {count: {type: "number", "x-mcp-header": "Count"}}}},
+          {name: "invalid_branch", inputSchema: {type: "object", properties: {}, anyOf: [{properties: {count: {type: "integer", "x-mcp-header": "Count"}}}]}},
+        ],
+      });
+      expect(body.method).toBe("tools/call");
+      expect(headers.get("Mcp-Param-Count")).toBe("0");
+      if (!body.params?.inputResponses) return jsonRpcHttpResponse(body.id, {
+        resultType: "input_required", requestState: "opaque-state",
+        inputRequests: {login: {method: "elicitation/create", params: {mode: "url", message: "Sign in", url: "https://login.example.test"}}},
+      });
+      expect(body.params.requestState).toBe("opaque-state");
+      return jsonRpcHttpResponse(body.id, {resultType: "complete", content: [], structuredContent: [0, 1]});
+    });
+    const client = new McpClient({type: "http", url: "https://mcp.example.test/mcp"}, "released", {supportedElicitationModes: ["url"]});
+    try {
+      await client.connect();
+      expect(client.getName()).toBe("released-peer");
+      expect(client.supportsTasks()).toBe(false);
+      expect((await client.listTools()).map(tool => tool.name)).toEqual(["choose"]);
+      const pending = await client.callTool("choose", {count: 0});
+      expect(pending.resultType).toBe("input_required");
+      if (pending.resultType !== "input_required") throw new Error("Expected input_required");
+      const complete = await client.callTool("choose", {count: 0}, {inputRequests: pending.inputRequests, requestState: "opaque-state", inputResponses: {login: {action: "accept"}}});
+      expect(complete).toMatchObject({resultType: "complete", structuredContent: [0, 1]});
+      const calls = fetch.requests.filter(request => request.body.method === "tools/call");
+      expect(calls[0].body.id).not.toBe(calls[1].body.id);
+      await expect(client.callTool("choose", {count: Number.MAX_SAFE_INTEGER + 1})).rejects.toThrow("safe integer");
+    } finally { await client.close(); fetch.mockRestore(); }
+  });
+
+  it.each(["tools/call", "resources/read", "prompts/get"] as const)("echoes empty opaque state and completes %s retries", async (method) => {
+    const complete = method === "tools/call"
+      ? {resultType: "complete", content: [{type: "text", text: "resumed"}]}
+      : method === "resources/read"
+        ? {resultType: "complete", contents: [{uri: "peer://resource", text: "resumed"}], ttlMs: 0, cacheScope: "private"}
+        : {resultType: "complete", messages: [{role: "user", content: {type: "text", text: "resumed"}}]};
+    const fetch = mockClientHttpFetch(({body}) => {
+      if (body.method === "server/discover") return jsonRpcHttpResponse(body.id, discovery);
+      expect(body.method).toBe(method);
+      if (!Object.hasOwn(body.params ?? {}, "requestState")) {
+        return jsonRpcHttpResponse(body.id, {resultType: "input_required", requestState: ""});
+      }
+      expect(body.params!.requestState).toBe("");
+      return jsonRpcHttpResponse(body.id, complete);
+    });
+    const client = new McpClient({type: "http", url: "https://mcp.example.test/mcp"}, "empty-state");
+    const invoke = (retry?: McpOperationRetry) => method === "tools/call"
+      ? client.callTool("resume", {}, retry)
+      : method === "resources/read" ? client.readResource("peer://resource", retry) : client.getPrompt("resume", {}, retry);
+    try {
+      await client.connect();
+      const pending = await invoke();
+      expect(pending).toMatchObject({resultType: "input_required", requestState: ""});
+      if (pending.resultType !== "input_required" || pending.requestState === undefined) throw new Error("Expected input_required with requestState");
+      const result = await invoke({requestState: pending.requestState});
+      expect(result.resultType).toBe("complete");
+      expect(JSON.stringify(result)).toContain("resumed");
+      const calls = fetch.requests.filter(request => request.body.method === method);
+      expect(calls).toHaveLength(2);
+      expect(calls[1]!.body.id).not.toBe(calls[0]!.body.id);
+      expect(calls[1]!.body.params).toEqual({...calls[0]!.body.params, requestState: ""});
+    } finally { await client.close(); fetch.mockRestore(); }
+  });
+
+  it.each([{}, {resultType: "task"}, {resultType: "unknown"}])("rejects an unsupported released result envelope %j", async (result) => {
+    const fetch = mockClientHttpFetch(({body}) => jsonRpcHttpResponse(body.id, body.method === "server/discover" ? discovery : result));
+    const client = new McpClient({type: "http", url: "https://mcp.example.test/mcp"}, "strict");
+    try {
+      await client.connect();
+      await expect(client.callTool("test", {})).rejects.toThrow("resultType");
+    } finally { await client.close(); fetch.mockRestore(); }
+  });
+
+  it("retries a mutually supported prior revision, but never initializes after a released unsupported-version error", async () => {
+    let compatible = true;
+    const fetch = mockClientHttpFetch(({body, headers}) => {
+      if (headers.get("MCP-Protocol-Version") === MCP_CURRENT_PROTOCOL_VERSION) {
+        return jsonRpcHttpResponse(body.id, {supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION], capabilities: {tools: {}}, serverInfo: {name: "prior-peer"}});
+      }
+      return new Response(JSON.stringify({jsonrpc: "2.0", id: body.id, error: {code: -32022, message: "Unsupported protocol version", data: {requested: MCP_STATELESS_PROTOCOL_VERSION, supported: [compatible ? MCP_CURRENT_PROTOCOL_VERSION : "2099-01-01"]}}}), {status: 400, headers: {"content-type": "application/json"}});
+    });
+    const client = new McpClient({type: "http", url: "https://mcp.example.test/mcp"}, "compatible");
+    const rejected = new McpClient({type: "http", url: "https://mcp.example.test/mcp"}, "incompatible");
+    try {
+      await client.connect();
+      expect(client.getProtocolVersion()).toBe(MCP_CURRENT_PROTOCOL_VERSION);
+      compatible = false;
+      await expect(rejected.connect()).rejects.toThrow("Unsupported protocol version");
+      expect(fetch.requests.every(request => request.body.method === "server/discover")).toBe(true);
+    } finally { await client.close(); await rejected.close(); fetch.mockRestore(); }
+  });
 });

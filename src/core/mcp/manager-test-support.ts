@@ -115,6 +115,7 @@ export class FakeMcpManagerClient implements McpManagerClient {
 
   isConnected(): boolean { return this.connected; }
   getName(): string { return this.name; }
+  getProtocolVersion(): ReturnType<McpManagerClient["getProtocolVersion"]> { return MCP_CURRENT_PROTOCOL_VERSION; }
   getCacheAuthorizationContextKey(): string { return `auth:${this.name}`; }
   supportsTools(): boolean { return this.capabilities.tools !== false; }
   supportsResources(): boolean { return this.capabilities.resources === true; }

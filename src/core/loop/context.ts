@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type {
   KotaJsonObject,
+  KotaJsonValue,
   KotaMessage,
   KotaModelResponse,
   KotaToolResultBlockContent,
@@ -111,7 +112,7 @@ export class Context {
       tool_use_id: string;
       content: string;
       blocks?: ToolResultBlock[];
-      structuredContent?: KotaJsonObject;
+      structuredContent?: KotaJsonValue;
       _meta?: KotaJsonObject;
       is_error?: boolean;
     }>,
@@ -124,7 +125,7 @@ export class Context {
         content: r.blocks
           ? (r.blocks as KotaToolResultBlockContent)
           : r.content,
-        ...(r.structuredContent ? { structuredContent: r.structuredContent } : {}),
+        ...(r.structuredContent !== undefined ? { structuredContent: r.structuredContent } : {}),
         ...(r._meta ? { _meta: r._meta } : {}),
         is_error: r.is_error,
       })),

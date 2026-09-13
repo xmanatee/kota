@@ -14,18 +14,18 @@ export function mcpToolInputRequestElicitationMode(
 
 export function mcpToolUrlElicitationDetails(
   request: McpToolInputRequest | McpSamplingInputRequest,
-): { message: string; url: string; elicitationId: string } | null {
+): { message: string; url: string; elicitationId?: string } | null {
   if (mcpToolInputRequestElicitationMode(request) !== "url") return null;
   const params = request.params as KotaJsonObject;
   const { message, url, elicitationId } = params;
   if (
     typeof message !== "string" ||
     typeof url !== "string" ||
-    typeof elicitationId !== "string"
+    (elicitationId !== undefined && typeof elicitationId !== "string")
   ) {
     return null;
   }
-  return { message, url, elicitationId };
+  return { message, url, ...(elicitationId !== undefined ? { elicitationId } : {}) };
 }
 
 export function uniqueSupportedElicitationModes(

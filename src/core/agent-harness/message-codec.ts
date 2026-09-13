@@ -62,7 +62,9 @@ function decodeContentBlock(value: unknown, location: string): KotaContentBlock 
     case "tool_result":
       requireString(block.tool_use_id, `${location}.tool_use_id`);
       decodeToolResultContent(block.content, `${location}.content`);
-      validateOptionalJsonObject(block.structuredContent, `${location}.structuredContent`);
+      if (block.structuredContent !== undefined && !isJsonValue(block.structuredContent)) {
+        throw new KotaMessageDecodeError(`${location}.structuredContent`, "expected a JSON value");
+      }
       validateOptionalJsonObject(block._meta, `${location}._meta`);
       if (block.is_error !== undefined && typeof block.is_error !== "boolean") {
         throw new KotaMessageDecodeError(`${location}.is_error`, "expected a boolean");

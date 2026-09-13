@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
@@ -108,6 +109,61 @@ async function eventually<T>(read: () => T, accept: (value: T) => boolean): Prom
 }
 
 describe("McpServer method handlers", () => {
+	it("isolates stdio progress by typed ID and preserves token ownership after cancellation", async () => {
+		const input = new PassThrough();
+		const output = new PassThrough();
+		const messages: KotaJsonObject[] = [];
+		output.on("data", chunk => {
+			for (const line of chunk.toString().trim().split("\n")) messages.push(JSON.parse(line));
+		});
+		const releases: (() => void)[] = [];
+		const server = new McpServer({ input, output, log: () => {}, moduleTools: [{
+			tool: { name: "progress", description: "Gated progress", input_schema: { type: "object", properties: {} } },
+			effect: networkReadEffect(),
+			runner: async () => {
+				await new Promise<void>(resolve => releases.push(resolve));
+				return { content: "completed" };
+			},
+		}] });
+		const send = (id: number | string, token: string) => {
+			const params = requestMeta({}, { name: "progress", arguments: {} });
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: {
+				...params, _meta: { ...params._meta as KotaJsonObject, progressToken: token },
+			} })}\n`);
+		};
+		try {
+			await server.start();
+			send(1, "numeric");
+			send("1", "string");
+			await eventually(() => releases.length, count => count === 2);
+			send(2, "numeric");
+			await eventually(() => messages, items => items.some(item => item.id === 2));
+			expect(messages).toContainEqual(expect.objectContaining({ id: 2, error: expect.objectContaining({ code: -32602 }) }));
+			expect(releases).toHaveLength(2);
+			input.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } })}\n`);
+			send(1, "numeric");
+			await eventually(() => releases.length, count => count === 3);
+			releases[0]!();
+			await eventually(() => messages, items => items.some(item => item.id === 1 && item.result));
+			releases[1]!();
+			releases[2]!();
+			await eventually(() => messages.filter(item => item.result).length, count => count === 3);
+			const progress = messages.filter(item => item.method === "notifications/progress").map(item => item.params);
+			expect(progress).toEqual([
+				expect.objectContaining({ progressToken: "numeric", progress: 0 }),
+				expect.objectContaining({ progressToken: "string", progress: 0 }),
+				expect.objectContaining({ progressToken: "numeric", progress: 0 }),
+				expect.objectContaining({ progressToken: "string", progress: 1 }),
+				expect.objectContaining({ progressToken: "numeric", progress: 1 }),
+			]);
+		} finally {
+			for (const release of releases) release();
+			server.stop();
+			input.destroy();
+			output.destroy();
+		}
+	});
+
 	it("negotiates supported revisions and derives discovery capabilities from the server owner", async () => {
 		const logs: string[] = [];
 		const server = new McpServer({ name: "test-kota", version: "2", log: (line) => logs.push(line) });
@@ -414,7 +470,7 @@ describe("McpServer method handlers", () => {
 		await server.start();
 		await initialize(server, {}, MCP_DRAFT_PROTOCOL_VERSION);
 		const messages: JsonRpcOutboundPayload[] = [];
-		const opened = await server.handleJsonRpcMessage({
+		const opened = await server.openSubscription({
 			jsonrpc: "2.0",
 			id: "subscription-1",
 			method: "subscriptions/listen",
@@ -427,8 +483,7 @@ describe("McpServer method handlers", () => {
 				},
 			},
 		}, (message) => messages.push(message));
-		expect(opened.kind).toBe("accepted");
-		const unregister = server.registerStreamSink("subscription-1", (message) => messages.push(message));
+		expect(opened.dispatch).toMatchObject({kind: "response", response: {method: "notifications/subscriptions/acknowledged"}});
 
 		bus.emit("workflow.completed", {
 			scopeId: "test-scope",
@@ -441,15 +496,14 @@ describe("McpServer method handlers", () => {
 			runDir: ".kota/runs/run-1",
 			tags: [],
 		});
-		await eventually(() => messages.length, (count) => count >= 2);
+		await eventually(() => messages.length, (count) => count >= 1);
 		expect(messages).toEqual(expect.arrayContaining([
-			expect.objectContaining({ method: "notifications/subscriptions/acknowledged" }),
 			expect.objectContaining({
 				method: "notifications/resources/updated",
 				params: expect.objectContaining({ uri: "kota://workflow/status" }),
 			}),
 		]));
-		unregister();
+		opened.close();
 		server.stop();
 	});
 

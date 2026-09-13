@@ -1,5 +1,6 @@
 import type {
 	KotaJsonObject,
+	KotaJsonValue,
 	KotaMessage,
 	KotaToolInputSchema,
 	KotaToolUseBlock,
@@ -43,7 +44,7 @@ export type ToolResultEntry = {
 	tool_use_id: string;
 	content: string;
 	blocks?: ToolResultBlock[];
-	structuredContent?: KotaJsonObject;
+	structuredContent?: KotaJsonValue;
 	_meta?: KotaJsonObject;
 	is_error?: boolean;
 };

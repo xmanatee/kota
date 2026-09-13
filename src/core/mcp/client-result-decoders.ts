@@ -89,17 +89,14 @@ export function decodeCompleteResultFields(object: KotaJsonObject): McpCompleteR
   ) {
     throw new Error("Malformed MCP tools/call result: structuredContent must be JSON");
   }
-  const structuredContent = optionalJsonObject(
-    object.structuredContent,
-    "structuredContent",
-  );
+  const structuredContent = object.structuredContent;
   const meta = optionalJsonObject(object._meta, "_meta");
   const isError = optionalBoolean(object.isError, "isError");
   return {
     content,
     text: toResultText(content),
     blocks: content.map(toToolResultBlock),
-    ...(structuredContent ? { structuredContent } : {}),
+    ...(structuredContent !== undefined ? { structuredContent } : {}),
     ...(meta ? { _meta: meta } : {}),
     ...(isError !== undefined ? { isError } : {}),
   };
@@ -131,7 +128,7 @@ export function decodeInputRequests(
       requireString(params.message, `${label}.params.message`, kind);
       if (mode === "url") {
         requireString(params.url, `${label}.params.url`, kind);
-        requireString(params.elicitationId, `${label}.params.elicitationId`, kind);
+        optionalString(params.elicitationId, `${label}.params.elicitationId`, kind);
       }
       decoded[requestId] = {
         ...request,

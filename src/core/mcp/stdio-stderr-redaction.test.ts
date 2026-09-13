@@ -164,7 +164,9 @@ describe("MCP stdio stderr diagnostics", () => {
       rl.on("line", (line) => {
         let msg;
         try { msg = JSON.parse(line); } catch { return; }
-        if (msg.method === "initialize") {
+        if (msg.method === "server/discover") {
+          write({jsonrpc: "2.0", id: msg.id, error: {code: -32601, message: "Use initialize"}});
+        } else if (msg.method === "initialize") {
           write({ jsonrpc: "2.0", id: msg.id, result: {
             protocolVersion: "2024-11-05", capabilities: {},
             serverInfo: { name: "peer-" + process.env.KOTA_MCP_STDIO_SECRET },

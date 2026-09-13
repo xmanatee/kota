@@ -8,6 +8,7 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
+import { MCP_CURRENT_PROTOCOL_VERSION } from "#core/mcp/client-protocol.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { runDelegateTurns } from "./delegate-turn.js";
@@ -157,6 +158,7 @@ describe("runDelegateTurns", () => {
         },
       }]),
       isMcpTool: vi.fn((name: string) => name === "mcp__search__lookup"),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
       getToolResultContentProvenance: vi.fn(() => ({
         kind: "external-mcp" as const,
         serverName: "search",

@@ -88,7 +88,7 @@ export function toolResultEntryToBlock(entry: ToolResultEntry): KotaToolResultBl
 		type: "tool_result",
 		tool_use_id: entry.tool_use_id,
 		content: entry.blocks ? entry.blocks : entry.content,
-		...(entry.structuredContent ? { structuredContent: entry.structuredContent } : {}),
+		...(entry.structuredContent !== undefined ? { structuredContent: entry.structuredContent } : {}),
 		...(entry._meta ? { _meta: entry._meta } : {}),
 		is_error: entry.is_error === true,
 	};

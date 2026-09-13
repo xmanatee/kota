@@ -28,8 +28,8 @@ function formatUrlModeRequests(request: McpRemoteInputRequest): string {
     if (!details) continue;
     lines.push(
       `- ${requestId}: server="${request.server}", tool="${request.tool}", ` +
-        `message="${details.message}", url="${details.url}", ` +
-        `elicitationId="${details.elicitationId}"`,
+        `message="${details.message}", url="${details.url}"` +
+        (details.elicitationId !== undefined ? `, elicitationId="${details.elicitationId}"` : ""),
     );
   }
   return lines.join("\n");

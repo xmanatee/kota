@@ -282,9 +282,6 @@ function decodeSamplingContentBlock(
 			}
 			content.push(block);
 		}
-		if (value.structuredContent !== undefined && !isJsonObject(value.structuredContent)) {
-			return `${label}.structuredContent must be an object`;
-		}
 		if (value.isError !== undefined && typeof value.isError !== "boolean") {
 			return `${label}.isError must be a boolean`;
 		}

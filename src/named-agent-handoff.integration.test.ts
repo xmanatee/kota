@@ -181,11 +181,13 @@ describe("named agent handoff workflow integration", () => {
         if (handoff.is_error) {
           return harnessError(handoff.content);
         }
-        const output = handoff.structuredContent?.structuredOutput as {
+        const structured = handoff.structuredContent;
+        if (typeof structured !== "object" || structured === null || Array.isArray(structured)) throw new Error("Expected handoff object output");
+        const output = structured.structuredOutput as {
           verdict: string;
           summary: string;
         };
-        const trace = handoff.structuredContent?.trace as {
+        const trace = structured.trace as {
           parentRunId: string;
           parentStepId: string;
           parentSpanId: string;
@@ -197,7 +199,7 @@ describe("named agent handoff workflow integration", () => {
             JSON.stringify({
               verdict: output.verdict,
               summary: output.summary,
-              childSessionId: handoff.structuredContent?.childSessionId,
+              childSessionId: structured.childSessionId,
               parentRunId: trace.parentRunId,
               parentStepId: trace.parentStepId,
               parentSpanId: trace.parentSpanId,

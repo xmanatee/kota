@@ -11,6 +11,7 @@ export type McpManagerClient = Pick<
   | "close"
   | "isConnected"
   | "getName"
+  | "getProtocolVersion"
   | "getCacheAuthorizationContextKey"
   | "supportsTools"
   | "supportsResources"

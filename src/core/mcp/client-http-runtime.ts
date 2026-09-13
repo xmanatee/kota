@@ -4,6 +4,7 @@ import {
   formatJsonRpcId,
   generatedProgressToken,
   isJsonRpcId,
+  McpJsonRpcError,
 } from "./client-decode-utils.js";
 import type {
   JsonRpcIncomingMessage,
@@ -15,6 +16,7 @@ import type {
 import {
   CONNECT_TIMEOUT,
   MCP_CURRENT_PROTOCOL_VERSION,
+  MCP_STATELESS_PROTOCOL_VERSION,
 } from "./client-protocol.js";
 import {
   assertMcpResponseContentLength,
@@ -27,6 +29,7 @@ import {
   mcpUtf8ByteLength,
   readMcpResponseTextWithLimit,
 } from "./client-response-body-limit.js";
+import { mcpParamHeaderValue } from "./client-tool-list-decoders.js";
 
 export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime {
   protected async httpRequest(
@@ -159,7 +162,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     headers.set("MCP-Protocol-Version", this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION);
     headers.set("Mcp-Method", method);
     const name = this.httpMcpNameForRequest(method, params);
-    if (name !== null) headers.set("Mcp-Name", name);
+    if (name !== null) headers.set("Mcp-Name", this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION ? mcpParamHeaderValue(name) ?? "" : name);
     this.setHttpParamHeaders(headers, method, params);
     return headers;
   }
@@ -215,6 +218,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       );
     }
     if (message.error) {
+      if (method === "server/discover" || method === "initialize") throw new McpJsonRpcError(message.error);
       throw this.requestErrorForMethod(
         method,
         `HTTP ${response.status}: MCP error ${message.error.code}: ${message.error.message}`,

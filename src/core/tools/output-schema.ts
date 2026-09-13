@@ -8,12 +8,13 @@ import type { ToolResult } from "./tool-result.js";
 export function validateToolStructuredOutput(
 	tool: KotaTool,
 	result: ToolResult,
+  validate: typeof validateJsonSchemaValue = validateJsonSchemaValue,
 ): string | null {
 	if (!tool.output_schema || result.is_error === true) return null;
 	if (result.structuredContent === undefined) {
 		return `Tool "${tool.name}" declared output_schema but returned no structuredContent`;
 	}
-	const validationError = validateJsonSchemaValue(
+	const validationError = validate(
 		tool.output_schema as JsonSchemaObject,
 		result.structuredContent,
 		"structuredContent",

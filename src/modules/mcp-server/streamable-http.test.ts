@@ -12,6 +12,7 @@ import {
 	MCP_META_CLIENT_INFO_KEY,
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
+	MCP_STATELESS_PROTOCOL_VERSION,
 	MCP_TASKS_EXTENSION_ID,
 } from "./mcp-protocol-types.js";
 import { McpTaskStore } from "./mcp-task-store.js";
@@ -228,7 +229,7 @@ describe("Streamable HTTP MCP transport", () => {
 			{ "mcp-protocol-version": "" },
 		));
 		expect(missingVersion.status).toBe(400);
-		expect((parseBody(missingVersion).error as { code: number }).code).toBe(-32001);
+		expect((parseBody(missingVersion).error as { code: number }).code).toBe(-32020);
 
 		const wrongMethod = await handleStreamableHttpRequest(server, request(
 			body,
@@ -315,6 +316,83 @@ describe("Streamable HTTP MCP transport", () => {
 		expect(store.read(cancelTask.taskId).status).toBe("cancelled");
 	});
 
+	it.each([
+		{},
+		{ progressToken: "validation-progress" },
+		{ [MCP_META_LOG_LEVEL_KEY]: "info" },
+	])("validates released HTTP errors before committing a stream: %j", async (streamMeta) => {
+		const server = new McpServer({ log: () => {} });
+		try {
+			for (const missingCapabilities of [false, true]) {
+				const method = missingCapabilities ? "tools/list" : "unsupported/method";
+				const response = await handleStreamableHttpRequest(server, request({
+					jsonrpc: "2.0", id: 1, method, params: { _meta: {
+						[MCP_META_PROTOCOL_VERSION_KEY]: MCP_STATELESS_PROTOCOL_VERSION,
+						...(missingCapabilities ? {} : { [MCP_META_CLIENT_CAPABILITIES_KEY]: {} }),
+						...streamMeta,
+					} },
+				}, { "mcp-protocol-version": MCP_STATELESS_PROTOCOL_VERSION }));
+				expect(response.status).toBe(missingCapabilities ? 400 : 404);
+				expect(response.stream).toBeUndefined();
+				expect(parseBody(response)).toMatchObject({ id: 1, error: { code: missingCapabilities ? -32602 : -32601 } });
+			}
+		} finally {
+			server.stop();
+		}
+	});
+
+	it.each([
+		{},
+		{ progressToken: "confirm-progress" },
+		{ [MCP_META_LOG_LEVEL_KEY]: "info" },
+	])("checks confirm capabilities before stream output and resumes supported input: %j", async (streamMeta) => {
+		const server = new McpServer({ log: () => {}, toolFilter: ["confirm"] });
+		const invoke = (capabilities: Record<string, unknown>, retry: Record<string, unknown> = {}) =>
+			handleStreamableHttpRequest(server, request({
+				jsonrpc: "2.0", id: 1, method: "tools/call", params: {
+					name: "confirm", arguments: { action: "Approve the example", risk: "low" }, ...retry,
+					_meta: {
+						[MCP_META_PROTOCOL_VERSION_KEY]: MCP_STATELESS_PROTOCOL_VERSION,
+						[MCP_META_CLIENT_CAPABILITIES_KEY]: capabilities, ...streamMeta,
+					},
+				},
+			}, { "mcp-protocol-version": MCP_STATELESS_PROTOCOL_VERSION, "mcp-name": "confirm" }));
+		const result = async (response: Awaited<ReturnType<typeof invoke>>) => {
+			expect(response.status).toBe(200);
+			if (!response.stream) return parseBody(response).result as Record<string, unknown>;
+			const messages: Record<string, unknown>[] = [];
+			let close = () => {};
+			await new Promise<void>(resolve => {
+				close = response.stream!.subscribe(message => messages.push(message as Record<string, unknown>), resolve);
+			});
+			close();
+			return messages.find(message => message.id === 1)!.result as Record<string, unknown>;
+		};
+		try {
+			const rejected = await invoke({});
+			expect(rejected.status).toBe(400);
+			expect(rejected.stream).toBeUndefined();
+			expect(parseBody(rejected)).toMatchObject({ id: 1, error: {
+				code: -32021, data: { requiredCapabilities: { elicitation: { form: {} } } },
+			} });
+			const capabilities = { elicitation: { form: {} } };
+			const waiting = await result(await invoke(capabilities));
+			expect(waiting).toMatchObject({ resultType: "input_required", requestState: expect.any(String),
+				inputRequests: { confirm: { method: "elicitation/create" } },
+			});
+			const completed = await result(await invoke(capabilities, {
+				requestState: waiting.requestState,
+				inputResponses: { confirm: { action: "accept", content: { confirmed: true } } },
+			}));
+			expect(completed).toMatchObject({ resultType: "complete", content: expect.arrayContaining([
+				expect.objectContaining({ type: "text", text: expect.stringContaining("Approve the example") }),
+			]) });
+			expect(completed.isError).not.toBe(true);
+		} finally {
+			server.stop();
+		}
+	});
+
 	it("reports unsupported versions and unknown methods with the HTTP status required by the draft", async () => {
 		const server = new McpServer({ log: () => {} });
 		const unsupported = await handleStreamableHttpRequest(server, request(
@@ -334,10 +412,10 @@ describe("Streamable HTTP MCP transport", () => {
 		));
 		expect(unsupported.status).toBe(400);
 		expect(parseBody(unsupported).error).toMatchObject({
-			code: -32004,
+			code: -32022,
 			message: "Unsupported protocol version",
 			data: {
-				supported: [MCP_CURRENT_PROTOCOL_VERSION, MCP_DRAFT_PROTOCOL_VERSION],
+				supported: [MCP_STATELESS_PROTOCOL_VERSION, MCP_CURRENT_PROTOCOL_VERSION, MCP_DRAFT_PROTOCOL_VERSION],
 				requested: "1900-01-01",
 			},
 		});
@@ -689,6 +767,75 @@ describe("Streamable HTTP MCP transport", () => {
 		}
 	});
 
+
+	it.each([
+		{ secondToken: "second-progress", cancelFirst: false },
+		{ secondToken: "first-progress", cancelFirst: false },
+		{ secondToken: "second-progress", cancelFirst: true },
+	])("isolates concurrent HTTP progress with reused IDs: $secondToken / cancelled=$cancelFirst", async ({secondToken, cancelFirst}) => {
+		const releases: (() => void)[] = [];
+		const runner = async () => {
+			await new Promise<void>(resolve => releases.push(resolve));
+			return {content: "completed"};
+		};
+		const server = new McpServer({log: () => {}, moduleTools: [{
+			tool: {name: "isolated_progress", description: "Concurrent progress", input_schema: {type: "object", properties: {}}},
+			runner, effect: networkWriteEffect(),
+		}]});
+		const streams: { messages: Record<string, unknown>[]; close: () => void; done: Promise<void> }[] = [];
+		const open = async (token: string) => {
+			const response = await handleStreamableHttpRequest(server, request({
+				jsonrpc: "2.0", id: 1, method: "tools/call", params: {
+					name: "isolated_progress", arguments: {}, _meta: {
+						[MCP_META_PROTOCOL_VERSION_KEY]: MCP_STATELESS_PROTOCOL_VERSION,
+						[MCP_META_CLIENT_CAPABILITIES_KEY]: {}, progressToken: token,
+					},
+				},
+			}, {"mcp-protocol-version": MCP_STATELESS_PROTOCOL_VERSION, "mcp-name": "isolated_progress"}));
+			expect(response.status).toBe(200);
+			const messages: Record<string, unknown>[] = [];
+			let finish!: () => void;
+			const done = new Promise<void>(resolve => { finish = resolve; });
+			const close = response.stream!.subscribe(message => messages.push(message as Record<string, unknown>), finish);
+			const stream = {messages, close, done};
+			streams.push(stream);
+			return stream;
+		};
+		try {
+			const first = await open("first-progress");
+			const second = await open(secondToken);
+			await waitForAssertion(() => expect(releases).toHaveLength(2));
+			// A request without progress and the same wire ID cannot clear either owner.
+			await handleStreamableHttpRequest(server, request({jsonrpc: "2.0", id: 1, method: "server/discover", params: {
+				_meta: {[MCP_META_PROTOCOL_VERSION_KEY]: MCP_STATELESS_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES_KEY]: {}},
+			}}, {"mcp-protocol-version": MCP_STATELESS_PROTOCOL_VERSION}));
+			if (cancelFirst) first.close();
+			releases[0]!();
+			if (!cancelFirst) await first.done;
+			releases[1]!();
+			await second.done;
+			const expectedProgress = (token: string, progress: number) => expect.objectContaining({
+				method: "notifications/progress", params: expect.objectContaining({progressToken: token, progress}),
+			});
+			expect(first.messages).toContainEqual(expectedProgress("first-progress", 0));
+			if (cancelFirst) expect(first.messages).toHaveLength(1);
+			else expect(first.messages).toContainEqual(expectedProgress("first-progress", 1));
+			expect(second.messages).toContainEqual(expectedProgress(secondToken, 0));
+			expect(second.messages).toContainEqual(expectedProgress(secondToken, 1));
+			for (const token of ["first-progress", secondToken]) {
+				const next = await open(token);
+				await waitForAssertion(() => expect(releases).toHaveLength(streams.length));
+				releases.at(-1)!();
+				await next.done;
+				expect(next.messages).toContainEqual(expect.objectContaining({id: 1, result: expect.objectContaining({content: [{type: "text", text: "completed"}]})}));
+			}
+		} finally {
+			for (const stream of streams) stream.close();
+			for (const release of releases) release();
+			server.stop();
+		}
+	});
+
 	it("streams request-scoped initialize log notifications before the final HTTP response", async () => {
 		const server = new McpServer({ log: () => {} });
 
@@ -792,6 +939,71 @@ describe("Streamable HTTP MCP transport", () => {
 		expect(calls).toBe(1);
 	});
 
+	it.each([
+		[MCP_STATELESS_PROTOCOL_VERSION, -32602, 400],
+		[MCP_CURRENT_PROTOCOL_VERSION, -32002, 200],
+		[MCP_DRAFT_PROTOCOL_VERSION, -32002, 200],
+	] as const)("maps missing resource reads for %s to error %i and HTTP %i", async (version, code, status) => {
+		const server = new McpServer({ log: () => {} });
+		try {
+			const params = draftParams({ uri: "kota://missing-review-resource" });
+			(params._meta as Record<string, unknown>)[MCP_META_PROTOCOL_VERSION_KEY] = version;
+			const response = await handleStreamableHttpRequest(server, request({
+				jsonrpc: "2.0", id: 12, method: "resources/read", params,
+			}, { "mcp-protocol-version": version, "mcp-name": "kota://missing-review-resource" }));
+			expect(response.status).toBe(status);
+			expect(parseBody(response)).toMatchObject({ id: 12, error: { code, message: expect.stringContaining("Unknown resource") } });
+		} finally {
+			server.stop();
+		}
+	});
+
+	it.each([MCP_STATELESS_PROTOCOL_VERSION, MCP_DRAFT_PROTOCOL_VERSION])("isolates reused subscription IDs and cleanup over HTTP %s", async (protocolVersion) => {
+		const bus = new EventBus();
+		const server = new McpServer({ input: new PassThrough(), output: new PassThrough(), log: () => {}, eventBus: bus });
+		const subscriptions: { id: string | number; messages: Record<string, unknown>[]; close: () => void }[] = [];
+		await server.start();
+		try {
+			for (const id of [12, 12, "12", 0]) {
+				const response = await handleStreamableHttpRequest(server, request({
+					jsonrpc: "2.0", id, method: "subscriptions/listen", params: {
+						_meta: { [MCP_META_PROTOCOL_VERSION_KEY]: protocolVersion, [MCP_META_CLIENT_CAPABILITIES_KEY]: {}, [MCP_META_CLIENT_INFO_KEY]: {name: "independent-client", version: "1"} },
+						notifications: { resourceSubscriptions: ["kota://tasks/open"] },
+					},
+				}, { "mcp-protocol-version": protocolVersion }));
+				expect(response.status).toBe(200);
+				expect(parseSseBody(response)).toEqual([expect.objectContaining({
+					method: "notifications/subscriptions/acknowledged",
+					params: { _meta: { "io.modelcontextprotocol/subscriptionId": id }, notifications: { resourceSubscriptions: ["kota://tasks/open"] } },
+				})]);
+				const messages: Record<string, unknown>[] = [];
+				const close = response.stream!.subscribe(message => messages.push(message as Record<string, unknown>));
+				subscriptions.push({ id, messages, close });
+			}
+			bus.emit("task.changed", { counts: { pending: 1, in_progress: 0, done: 0 } });
+			await waitForAssertion(() => {
+				for (const { id, messages } of subscriptions) {
+					expect(messages).toEqual([expect.objectContaining({
+						method: "notifications/resources/updated",
+						params: { uri: "kota://tasks/open", _meta: { "io.modelcontextprotocol/subscriptionId": id } },
+					})]);
+				}
+			});
+			subscriptions[0]!.close();
+			bus.emit("task.changed", { counts: { pending: 2, in_progress: 0, done: 0 } });
+			await waitForAssertion(() => {
+				expect(subscriptions.map(subscription => subscription.messages.length)).toEqual([1, 2, 2, 2]);
+			});
+			for (const subscription of subscriptions) subscription.close();
+			bus.emit("task.changed", { counts: { pending: 3, in_progress: 0, done: 0 } });
+			await new Promise<void>(resolve => setImmediate(resolve));
+			expect(subscriptions.map(subscription => subscription.messages.length)).toEqual([1, 2, 2, 2]);
+		} finally {
+			for (const subscription of subscriptions) subscription.close();
+			server.stop();
+		}
+	});
+
 	it("serves subscriptions/listen as a live SSE stream for draft resource notifications", async () => {
 		const input = new PassThrough();
 		const output = new PassThrough();
@@ -818,7 +1030,7 @@ describe("Streamable HTTP MCP transport", () => {
 				jsonrpc: "2.0",
 				method: "notifications/subscriptions/acknowledged",
 				params: {
-					_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
+					_meta: { "io.modelcontextprotocol/subscriptionId": 70 },
 					notifications: {
 						resourceSubscriptions: ["kota://tasks/open"],
 						resourcesListChanged: true,
@@ -838,7 +1050,7 @@ describe("Streamable HTTP MCP transport", () => {
 						jsonrpc: "2.0",
 						method: "notifications/resources/updated",
 						params: {
-							_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
+							_meta: { "io.modelcontextprotocol/subscriptionId": 70 },
 							uri: "kota://tasks/open",
 						},
 					}));
@@ -900,7 +1112,7 @@ describe("Streamable HTTP MCP transport", () => {
 				jsonrpc: "2.0",
 				method: "notifications/subscriptions/acknowledged",
 				params: {
-					_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+					_meta: { "io.modelcontextprotocol/subscriptionId": 71 },
 					notifications: { taskStatus: true },
 				},
 			});
@@ -931,7 +1143,7 @@ describe("Streamable HTTP MCP transport", () => {
 						jsonrpc: "2.0",
 						method: "notifications/tasks/status",
 						params: expect.objectContaining({
-							_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+							_meta: { "io.modelcontextprotocol/subscriptionId": 71 },
 							taskId: "http-task-ok",
 							status: "working",
 						}),
@@ -944,7 +1156,7 @@ describe("Streamable HTTP MCP transport", () => {
 						jsonrpc: "2.0",
 						method: "notifications/tasks/status",
 						params: expect.objectContaining({
-							_meta: { "io.modelcontextprotocol/subscriptionId": "71" },
+							_meta: { "io.modelcontextprotocol/subscriptionId": 71 },
 							taskId: "http-task-ok",
 							status: "completed",
 							result: {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaToolUseBlock } from "#core/agent-harness/message-protocol.js";
+import { MCP_CURRENT_PROTOCOL_VERSION } from "#core/mcp/client-protocol.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls, type ToolCallExecutionOptions } from "./tool-runner.js";
@@ -59,7 +60,9 @@ function declarationRefreshServerScript(): string {
     rl.on("line", (line) => {
       let msg;
       try { msg = JSON.parse(line); } catch { return; }
-      if (msg.method === "initialize") {
+      if (msg.method === "server/discover") {
+        write({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Method not found" } });
+      } else if (msg.method === "initialize") {
         write({ jsonrpc: "2.0", id: msg.id, result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: { listChanged: true } },
@@ -175,6 +178,7 @@ describe("executeToolCalls MCP declaration contract", () => {
     const executeTool = vi.fn();
     const manager = {
       isMcpTool: vi.fn(() => false),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
       getToolDeclarationFingerprint: vi.fn(() => undefined),
       executeTool,
     };
@@ -212,6 +216,7 @@ describe("executeToolCalls MCP declaration contract", () => {
     const executeTool = vi.fn().mockResolvedValue({ content: "remote called" });
     const manager = {
       isMcpTool: vi.fn(() => true),
+      getToolProtocolVersion: () => MCP_CURRENT_PROTOCOL_VERSION,
 		getTools: vi.fn(() => [{
 			name: toolName,
 			description: "Lookup",

@@ -25,6 +25,8 @@ import {
 	MCP_CURRENT_PROTOCOL_VERSION,
 	MCP_DRAFT_PROTOCOL_VERSION,
 	MCP_LEGACY_PROTOCOL_VERSION,
+	MCP_PUBLIC_CATALOG_CACHE_HINTS,
+	MCP_STATELESS_PROTOCOL_VERSION,
 	MCP_SUPPORTED_PROTOCOL_VERSIONS,
 	type McpProtocolVersion,
 	mcpProtocolSupports,
@@ -232,7 +234,9 @@ export class InitializeHandler {
 		const protocolVersion = context?.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION;
 		this.ctx.transport.sendResult(msg, {
 			supportedVersions: [...MCP_SUPPORTED_PROTOCOL_VERSIONS],
+			...(protocolVersion === MCP_STATELESS_PROTOCOL_VERSION ? MCP_PUBLIC_CATALOG_CACHE_HINTS : {}),
 			capabilities: buildMcpServerDiscoverCapabilities({
+				includeTasks: mcpProtocolSupports(protocolVersion, "tasksExtension"),
 				includeSkills:
 					this.options.advertiseSkills() &&
 					mcpProtocolSupports(protocolVersion, "skillsExtension"),
@@ -296,6 +300,7 @@ export class InitializeHandler {
 	 * scopeRoot. Draft request handlers resolve roots from MRTR retry payloads.
 	 */
 	getEffectiveScopeRoot(): string {
+		if (this.ctx.getRequestContext()?.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION) return this.options.scopeRoot;
 		if (this.clientRoots.length > 0) {
 			const firstUri = this.clientRoots[0].uri;
 			if (firstUri.startsWith("file://")) {

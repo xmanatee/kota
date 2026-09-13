@@ -172,7 +172,7 @@ export abstract class McpClientOperations extends McpClientConnection {
 
   async listToolsPage(cursor?: string): Promise<McpListToolsPage> {
     const result = await this.request("tools/list", cursor !== undefined ? { cursor } : undefined);
-    const page = this.decodeCatalogPage("tools/list", result, decodeListToolsResult);
+    const page = this.decodeCatalogPage("tools/list", result, (value) => decodeListToolsResult(value, this.protocolVersion ?? undefined));
     this.reportRejectedTools(page);
     this.cacheHeaderParameters(page.tools);
     return page;
@@ -181,7 +181,7 @@ export abstract class McpClientOperations extends McpClientConnection {
   /** List the complete catalog; failure never publishes partial header parameters. */
   async listTools(options: McpCatalogOptions = {}): Promise<McpToolSchema[]> {
     const catalog = await this.listCatalog(
-      "tools/list", decodeListToolsResult, (page) => page.tools, options,
+      "tools/list", (value) => decodeListToolsResult(value, this.protocolVersion ?? undefined), (page) => page.tools, options,
       (page) => this.reportRejectedTools(page),
     );
     this.cacheHeaderParameters(catalog.entries);

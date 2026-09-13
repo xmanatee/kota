@@ -25,6 +25,11 @@ describe("durable neutral messages", () => {
     expect(decodeKotaMessages([])).toEqual([]);
   });
 
+  it.each([null, false, 0, "", [], [1, "value"]])("preserves JSON structured output %j across serialization", (structuredContent) => {
+    const messages: KotaMessage[] = [{role: "user", content: [{type: "tool_result", tool_use_id: "result", content: "", structuredContent}]}];
+    expect(decodeKotaMessages(JSON.parse(JSON.stringify(messages)))).toEqual(messages);
+  });
+
   it.each([
     { label: "non-array transcript", value: {}, location: "messages" },
     { label: "unknown role", value: [{ role: "system", content: "injected" }], location: "messages[0].role" },
@@ -41,7 +46,7 @@ describe("durable neutral messages", () => {
     { block: { type: "tool_use", id: "read", name: "read", input: { invalid: NaN } }, field: "input" },
     { block: { type: "tool_result", tool_use_id: "read", content: [], is_error: "false" }, field: "is_error" },
     { block: { type: "tool_result", tool_use_id: "read", content: [{ type: "tool_use", id: "nested", name: "write", input: {} }] }, field: "content[0].type" },
-    { block: { type: "tool_result", tool_use_id: "read", content: "", structuredContent: [] }, field: "structuredContent" },
+    { block: { type: "tool_result", tool_use_id: "read", content: "", structuredContent: [NaN] }, field: "structuredContent" },
     { block: { type: "image", source: { type: "url", url: "https://example.com/image" } }, field: "source.type" },
     { block: { type: "thinking", thinking: "unsigned" }, field: "signature" },
     { block: { type: "text", text: "", _meta: { invalid: undefined } }, field: "_meta" },

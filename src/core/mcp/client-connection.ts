@@ -1,6 +1,7 @@
 import { McpAuthorizationError, McpAuthorizationFlowError, McpConnectionError, McpToolError } from "./client-auth-types.js";
 import {
   isUnsupportedProtocolVersionError,
+  McpJsonRpcError,
   supportedVersionsForUnsupportedProtocolVersionError,
 } from "./client-decode-utils.js";
 import {
@@ -20,6 +21,8 @@ import {
   MCP_CURRENT_PROTOCOL_VERSION,
   MCP_DRAFT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_MODERN_PROTOCOL_VERSIONS,
+  MCP_STATELESS_PROTOCOL_VERSION,
   mcpProtocolSupports,
   mcpToolResultContractForProtocol,
 } from "./client-protocol.js";
@@ -59,10 +62,10 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
   }
 
   protected async connectHttp(): Promise<McpInitializeResult> {
-    this.protocolVersion = MCP_CURRENT_PROTOCOL_VERSION;
+    this.protocolVersion = MCP_STATELESS_PROTOCOL_VERSION;
     this.toolResultContract = "complete-tool-result";
     try {
-      return decodeDiscoverResult(await this.request("server/discover"));
+      return await this.discoverServer();
     } catch (err) {
       if (err instanceof McpConnectionError || err instanceof McpAuthorizationError) {
         throw err;
@@ -115,7 +118,35 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
     await this.closeStdio();
   }
 
+  protected async discoverServer(): Promise<McpInitializeResult> {
+    this.protocolVersion = MCP_STATELESS_PROTOCOL_VERSION;
+    let result: JsonRpcResult;
+    try {
+      result = await this.request("server/discover");
+    } catch (error) {
+      if (!(error instanceof McpJsonRpcError) || !isUnsupportedProtocolVersionError(error)) throw error;
+      const supported = supportedVersionsForUnsupportedProtocolVersionError(error);
+      const version = MCP_MODERN_PROTOCOL_VERSIONS.find((candidate) =>
+        candidate !== MCP_STATELESS_PROTOCOL_VERSION && supported?.includes(candidate));
+      if (!version) throw error;
+      this.protocolVersion = version;
+      result = await this.request("server/discover");
+    }
+    return decodeDiscoverResult(result, this.protocolVersion);
+  }
+
   protected async initializeServer(): Promise<McpInitializeResult> {
+    try {
+      return await this.discoverServer();
+    } catch (error) {
+      // Modern errors identify a modern peer; malformed successful discovery
+      // also must not be hidden behind an initialization fallback.
+      if (!(error instanceof McpJsonRpcError) &&
+          !(error instanceof Error && /timed out/.test(error.message))) throw error;
+      if (error instanceof McpJsonRpcError &&
+          [-32020, -32021, -32022].includes(error.code)) throw error;
+    }
+    this.protocolVersion = null;
     try {
       return await this.requestInitialize(MCP_CURRENT_PROTOCOL_VERSION);
     } catch (err) {
@@ -159,9 +190,30 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
     progress?: McpRequestProgressOptions,
     signal?: AbortSignal,
   ): Promise<JsonRpcResult> {
-    if (this.transport.type === "http") {
-      return this.httpRequest(method, params, timeout, progress, signal).catch((err) => {
+    const response = this.transport.type === "http"
+      ? this.httpRequest(method, params, timeout, progress, signal)
+      : this.stdioRequest(method, params, timeout, progress, signal);
+    return response.then((result) => {
+      if (method !== "server/discover" && this.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION) {
+        if (typeof result !== "object" || result === null || !("resultType" in result) ||
+            (result.resultType !== "complete" && result.resultType !== "input_required")) {
+          throw new Error(`Malformed MCP ${method} result: unsupported or missing resultType`);
+        }
+        if (result.resultType === "complete" && ["tools/list", "resources/list", "resources/templates/list", "resources/read", "prompts/list"].includes(method) &&
+            (!("ttlMs" in result) || !("cacheScope" in result))) {
+          throw new Error(`Malformed MCP ${method} result: cache hints are required`);
+        }
+        if (result.resultType === "input_required" && !["tools/call", "resources/read", "prompts/get"].includes(method)) {
+          throw new Error(`Malformed MCP ${method} result: input_required is not supported for this method`);
+        }
+      }
+      return result;
+    }).catch((err) => {
+      if (this.transport.type === "http") {
         signal?.throwIfAborted();
+        // Keep negotiation data intact until discovery chooses a fallback;
+        // connectHttp redacts any terminal failure at the public boundary.
+        if (method === "server/discover" && err instanceof McpJsonRpcError) throw err;
         // Typed errors already contain safe projections, including the private
         // challenge retained for OAuth retry. Other transport failures do not.
         if (
@@ -169,10 +221,8 @@ export abstract class McpClientConnection extends McpClientStdioRuntime {
           err instanceof McpConnectionError || err instanceof McpToolError
         ) throw err;
         throw this.diagnosticError(err instanceof Error ? err.message : String(err));
-      });
-    }
-    return this.stdioRequest(method, params, timeout, progress, signal).catch((err) => {
-      if (method === "initialize") throw err;
+      }
+      if (method === "initialize" || method === "server/discover") throw err;
       const message = err instanceof Error ? err.message : String(err);
       throw this.requestErrorForMethod(method, message);
     });

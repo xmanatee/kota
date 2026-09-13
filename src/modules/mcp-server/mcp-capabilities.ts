@@ -5,12 +5,13 @@ import { MCP_SKILLS_EXTENSION_ID } from "./resources.js";
 
 type McpCapabilityOptions = {
 	includeSkills?: boolean;
+	includeTasks?: boolean;
 };
 
 function buildMcpServerExtensions(options: McpCapabilityOptions): KotaJsonObject {
 	return {
 		[MCP_UI_EXTENSION_ID]: buildMcpUiServerCapability(),
-		[MCP_TASKS_EXTENSION_ID]: {},
+		...(options.includeTasks !== false && { [MCP_TASKS_EXTENSION_ID]: {} }),
 		...(options.includeSkills === true && { [MCP_SKILLS_EXTENSION_ID]: {} }),
 	};
 }

@@ -5,13 +5,13 @@ import {
 } from "./tool-telemetry.js";
 
 export function getToolResultTelemetryPayload(result: ToolResult): string | object {
-	if (!result.blocks && !result.structuredContent && !result._meta) {
+	if (!result.blocks && result.structuredContent === undefined && !result._meta) {
 		return result.content;
 	}
 	return {
 		content: result.content,
 		...(result.blocks ? { blocks: result.blocks } : {}),
-		...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+		...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
 		...(result._meta ? { _meta: result._meta } : {}),
 	};
 }

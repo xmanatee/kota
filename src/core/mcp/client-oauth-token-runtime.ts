@@ -290,6 +290,8 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
         },
         body: JSON.stringify({
           client_name: config.client.clientName,
+          // HTTP loopback callbacks need native registration; HTTPS callbacks use web.
+          application_type: new URL(config.redirectUri).protocol === "http:" ? "native" : "web",
           redirect_uris: [config.redirectUri],
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],

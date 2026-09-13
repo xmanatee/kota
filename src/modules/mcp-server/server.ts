@@ -56,6 +56,7 @@ import {
 	MCP_META_LOG_LEVEL_KEY,
 	MCP_META_PROTOCOL_VERSION_KEY,
 	MCP_MODERN_PROTOCOL_VERSIONS,
+	MCP_STATELESS_PROTOCOL_VERSION,
 	mcpProgressTokenKey,
 	mcpProtocolSupports,
 } from "./mcp-protocol-types.js";
@@ -100,7 +101,6 @@ type RequestContextResult =
 	| { ok: false; code: number; message: string; data?: JsonRpcOutboundPayload };
 
 type ActiveProgressRequest = {
-	requestId: JsonRpcRequest["id"];
 	token: McpProgressToken;
 	tokenKey: string;
 	lastProgress: number | null;
@@ -113,13 +113,7 @@ function protocolErrorData(requestedVersion?: string): KotaJsonObject {
 	};
 }
 
-function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isOutboundObject(
-	value: JsonRpcOutboundPayload | undefined,
-): value is { [key: string]: JsonRpcOutboundPayload } {
+function isJsonObject(value: KotaJsonValue | JsonRpcOutboundPayload | undefined): value is KotaJsonObject {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -226,6 +220,11 @@ function decodeJsonRpcNotification(parsed: KotaJsonObject): JsonRpcNotification 
 	};
 }
 
+const STATELESS_UNAVAILABLE_METHODS = new Set([
+      "initialize", "ping", "shutdown", "resources/subscribe", "resources/unsubscribe",
+      "sampling/createMessage", "tasks/get", "tasks/update", "tasks/cancel", "tasks/list", "tasks/result", "tasks/input_response",
+    ]);
+
 function decodeRequestContext(msg: JsonRpcRequest): RequestContextResult {
 	const meta = msg.params?._meta;
 	if (!isJsonObject(meta)) {
@@ -249,13 +248,14 @@ function decodeRequestContext(msg: JsonRpcRequest): RequestContextResult {
 	if (!isMcpModernProtocolVersion(protocolVersion)) {
 		return {
 			ok: false,
-			code: -32602,
+			code: -32022,
 			message: `Unsupported protocol version: ${protocolVersion}. Supported protocol versions: ${MCP_MODERN_PROTOCOL_VERSIONS.join(", ")}`,
-			data: protocolErrorData(protocolVersion),
+			data: { supported: [...MCP_MODERN_PROTOCOL_VERSIONS], requested: protocolVersion },
 		};
 	}
 
-	const clientInfo = meta[MCP_META_CLIENT_INFO_KEY];
+	const clientInfo = meta[MCP_META_CLIENT_INFO_KEY] === undefined ?
+		(protocolVersion === MCP_STATELESS_PROTOCOL_VERSION ? { name: "unknown", version: "unknown" } : undefined) : meta[MCP_META_CLIENT_INFO_KEY];
 	if (!isJsonObject(clientInfo)) {
 		return {
 			ok: false,
@@ -347,7 +347,10 @@ export class McpServer {
 	private readonly output: NodeJS.WritableStream;
 	private readonly log: (msg: string) => void;
 	private readonly outboundSink = new AsyncLocalStorage<(msg: JsonRpcOutboundPayload) => void>();
-	private readonly streamSinksBySubscriptionId = new Map<string, McpServerStreamSink>();
+	private readonly subscriptionScope = new AsyncLocalStorage<{
+		notify: McpTransport["sendNotification"];
+		close: () => void;
+	}>();
 	private readonly deprecatedWarnings: DeprecatedMcpCapabilityWarnings;
 	private readonly session: SessionState = {
 		initialized: false,
@@ -357,8 +360,9 @@ export class McpServer {
 		clientSupportsRoots: false,
 	};
 	private readonly requestContext = new AsyncLocalStorage<McpRequestContext>();
-	private readonly activeProgressByRequestId = new Map<string, ActiveProgressRequest>();
-	private readonly activeProgressByToken = new Map<string, JsonRpcRequest["id"]>();
+	private readonly activeProgress = new WeakMap<McpRequestContext, ActiveProgressRequest>();
+	private readonly stdioProgressByRequestId = new Map<JsonRpcRequest["id"], McpRequestContext>();
+	private readonly stdioProgressByToken = new Map<string, McpRequestContext>();
 	private readonly initialize: InitializeHandler;
 	private readonly resources: ResourcesHandler;
 	private readonly elicitation: ElicitationHandler;
@@ -379,7 +383,19 @@ export class McpServer {
 		const send = (m: JsonRpcOutboundPayload) => this.sendPayload(m);
 		const transport: McpTransport = {
 			send,
-			sendResult: (m, result) => send({ jsonrpc: "2.0", id: m.id, result }),
+			sendResult: (m, result) => {
+        if (this.requestContext.getStore()?.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION && isJsonObject(result)) {
+          result = {
+            resultType: "complete",
+            ...result,
+            _meta: {
+              ...(isJsonObject(result._meta) ? result._meta : {}),
+              "io.modelcontextprotocol/serverInfo": { name: options.name ?? "kota", version: options.version ?? "0.1.0" },
+            },
+          };
+        }
+        send({ jsonrpc: "2.0", id: m.id, result });
+      },
 			sendError: (m, code, message, data) => send({
 				jsonrpc: "2.0",
 				id: m.id,
@@ -460,7 +476,7 @@ export class McpServer {
 			forgetTaskContinuation: (taskId) => this.tools.forgetTaskContinuation(taskId),
 		});
 
-		const ack: RequestHandler = (m) => { send({ jsonrpc: "2.0", id: m.id, result: {} }); };
+		const ack: RequestHandler = (m) => { transport.sendResult(m, {}); };
 		this.requestHandlers = new Map<string, RequestHandler>([
 			["initialize", (m) => this.initialize.handleInitialize(m)],
 			["server/discover", (m) => this.initialize.handleDiscover(m)],
@@ -471,7 +487,11 @@ export class McpServer {
 			["resources/read", (m) => this.resources.handleRead(m)],
 			["resources/subscribe", (m) => this.resources.handleSubscribe(m)],
 			["resources/unsubscribe", (m) => this.resources.handleUnsubscribe(m)],
-			["subscriptions/listen", (m) => this.resources.handleListen(m)],
+			["subscriptions/listen", (m) => {
+				const subscription = this.subscriptionScope.getStore();
+				const close = this.resources.handleListen(m, subscription?.notify);
+				if (subscription && close) subscription.close = close;
+			}],
 			["prompts/list", (m) => prompts.handleList(m)],
 			["prompts/get", (m) => prompts.handleGet(m)],
 			["sampling/createMessage", (m) => sampling.handleCreateMessage(m)],
@@ -498,7 +518,7 @@ export class McpServer {
 		});
 		this.resources.registerBusListeners();
 		this.registerTaskStatusListener();
-		this.log("MCP server started, waiting for initialize...");
+		this.log("MCP server started, accepting requests");
 	}
 
 	stop(): void {
@@ -535,6 +555,7 @@ export class McpServer {
 	async handleJsonRpcMessage(
 		parsedValue: KotaJsonValue,
 		streamSink?: McpServerStreamSink,
+		signal?: AbortSignal,
 	): Promise<McpServerDispatchResult> {
 		if (!isJsonObject(parsedValue) || parsedValue.jsonrpc !== "2.0") return { kind: "invalid" };
 
@@ -558,7 +579,7 @@ export class McpServer {
 		const sink = streamSink ?? ((msg: JsonRpcOutboundPayload) => messages.push(msg));
 		await this.outboundSink.run(sink, async () => {
 			try {
-				await this.dispatchRequest(request);
+				await this.dispatchRequest(request, signal);
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				this.sendPayload({
@@ -574,23 +595,17 @@ export class McpServer {
 		return { kind: "stream", messages };
 	}
 
-	registerStreamSink(
-		requestId: JsonRpcRequest["id"],
+	/** Each HTTP listen owns delivery and cleanup independently of its wire request ID. */
+	async openSubscription(
+		request: KotaJsonObject,
 		sink: McpServerStreamSink,
-	): () => void {
-		const key = String(requestId);
-		this.streamSinksBySubscriptionId.set(key, sink);
-		let closed = false;
-		return () => {
-			if (closed) return;
-			closed = true;
-			this.streamSinksBySubscriptionId.delete(key);
-			void this.handleJsonRpcMessage({
-				jsonrpc: "2.0",
-				method: "notifications/cancelled",
-				params: { requestId },
-			});
+	): Promise<{ dispatch: McpServerDispatchResult; close: () => void }> {
+		const subscription = {
+			notify: (method: string, params: KotaJsonObject) => sink({ jsonrpc: "2.0", method, params }),
+			close: () => {},
 		};
+		const dispatch = await this.subscriptionScope.run(subscription, () => this.handleJsonRpcMessage(request));
+		return { dispatch, close: () => subscription.close() };
 	}
 
 	private registerTaskStatusListener(): void {
@@ -603,7 +618,6 @@ export class McpServer {
 	}
 
 	private cleanupRuntimeSubscriptions(): void {
-		this.streamSinksBySubscriptionId.clear();
 		this.resources.cleanup();
 		this.taskStatusUnsubscribe?.();
 		this.taskStatusUnsubscribe = null;
@@ -615,22 +629,7 @@ export class McpServer {
 			sink(msg);
 			return;
 		}
-		if (this.sendToRegisteredStreamSink(msg)) return;
 		this.output.write(`${JSON.stringify(msg)}\n`);
-	}
-
-	private sendToRegisteredStreamSink(msg: JsonRpcOutboundPayload): boolean {
-		if (!isOutboundObject(msg) || typeof msg.method !== "string") return false;
-		const params = isOutboundObject(msg.params) ? msg.params : undefined;
-		const meta = isOutboundObject(params?._meta) ? params._meta : undefined;
-		const subscriptionId = meta?.["io.modelcontextprotocol/subscriptionId"];
-		if (typeof subscriptionId !== "string" && typeof subscriptionId !== "number") {
-			return false;
-		}
-		const sink = this.streamSinksBySubscriptionId.get(String(subscriptionId));
-		if (!sink) return false;
-		sink(msg);
-		return true;
 	}
 
 	private logFromHandler(message: string, options: McpLogOptions = {}): void {
@@ -693,8 +692,11 @@ export class McpServer {
 		// Silently ignore unknown notifications per spec
 	}
 
-	private async dispatchRequest(msg: JsonRpcRequest): Promise<void> {
-		const handler = this.requestHandlers.get(msg.method);
+	private async dispatchRequest(msg: JsonRpcRequest, signal?: AbortSignal): Promise<void> {
+		const meta = msg.params?._meta;
+    const stateless = isJsonObject(meta) && meta[MCP_META_PROTOCOL_VERSION_KEY] === MCP_STATELESS_PROTOCOL_VERSION;
+    const removed = stateless && STATELESS_UNAVAILABLE_METHODS.has(msg.method);
+    const handler = removed ? undefined : this.requestHandlers.get(msg.method);
 		if (!handler) {
 			this.sendPayload({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } });
 			return;
@@ -704,7 +706,7 @@ export class McpServer {
 			Object.hasOwn(msg.params, "_meta");
 		if (msg.method === "initialize") {
 			if (hasMetaField) {
-				await this.dispatchProtocolRequest(msg, handler);
+				await this.dispatchProtocolRequest(msg, handler, signal);
 				return;
 			}
 			await handler(msg);
@@ -718,10 +720,10 @@ export class McpServer {
 			return;
 		}
 
-		await this.dispatchProtocolRequest(msg, handler);
+		await this.dispatchProtocolRequest(msg, handler, signal);
 	}
 
-	private async dispatchProtocolRequest(msg: JsonRpcRequest, handler: RequestHandler): Promise<void> {
+	private async dispatchProtocolRequest(msg: JsonRpcRequest, handler: RequestHandler, signal?: AbortSignal): Promise<void> {
 		const decoded = decodeRequestContext(msg);
 		if (!decoded.ok) {
 			this.sendPayload({
@@ -747,11 +749,15 @@ export class McpServer {
 			});
 			return;
 		}
+		const clearProgress = () => this.clearProgressForContext(decoded.context);
+		signal?.addEventListener("abort", clearProgress, { once: true });
+		if (signal?.aborted) clearProgress();
 		try {
 			this.warnDeprecatedRequestContext(decoded.context);
 			await this.requestContext.run(decoded.context, () => Promise.resolve(handler(msg)));
 		} finally {
-			this.clearProgressForRequest(msg.id);
+			signal?.removeEventListener("abort", clearProgress);
+			clearProgress();
 		}
 	}
 
@@ -779,15 +785,17 @@ export class McpServer {
 	private activateProgress(context: McpRequestContext): boolean {
 		if (context.progressToken === undefined) return true;
 		const tokenKey = mcpProgressTokenKey(context.progressToken);
-		if (this.activeProgressByToken.has(tokenKey)) return false;
-		const requestKey = String(context.requestId);
-		this.activeProgressByRequestId.set(requestKey, {
-			requestId: context.requestId,
+		// Stdio shares one connection; each HTTP invocation has its own response sink.
+		if (!this.outboundSink.getStore()) {
+			if (this.stdioProgressByToken.has(tokenKey) || this.stdioProgressByRequestId.has(context.requestId)) return false;
+			this.stdioProgressByToken.set(tokenKey, context);
+			this.stdioProgressByRequestId.set(context.requestId, context);
+		}
+		this.activeProgress.set(context, {
 			token: context.progressToken,
 			tokenKey,
 			lastProgress: null,
 		});
-		this.activeProgressByToken.set(tokenKey, context.requestId);
 		return true;
 	}
 
@@ -797,7 +805,7 @@ export class McpServer {
 	): void {
 		const context = this.requestContext.getStore();
 		if (!context || context.progressToken === undefined) return;
-		const active = this.activeProgressByRequestId.get(String(context.requestId));
+		const active = this.activeProgress.get(context);
 		if (!active || active.tokenKey !== mcpProgressTokenKey(context.progressToken)) return;
 		if (!Number.isFinite(progress)) {
 			this.log(`Ignored invalid MCP progress value for request ${String(context.requestId)}`);
@@ -835,13 +843,19 @@ export class McpServer {
 	private clearProgressFromCancelledNotification(msg: JsonRpcNotification): void {
 		const requestId = msg.params?.requestId;
 		if (typeof requestId !== "string" && typeof requestId !== "number") return;
-		this.clearProgressForRequest(requestId);
+		const context = this.stdioProgressByRequestId.get(requestId);
+		if (context) this.clearProgressForContext(context);
 	}
 
-	private clearProgressForRequest(requestId: JsonRpcRequest["id"]): void {
-		const active = this.activeProgressByRequestId.get(String(requestId));
+	private clearProgressForContext(context: McpRequestContext): void {
+		const active = this.activeProgress.get(context);
 		if (!active) return;
-		this.activeProgressByRequestId.delete(String(requestId));
-		this.activeProgressByToken.delete(active.tokenKey);
+		this.activeProgress.delete(context);
+		if (this.stdioProgressByRequestId.get(context.requestId) === context) {
+			this.stdioProgressByRequestId.delete(context.requestId);
+		}
+		if (this.stdioProgressByToken.get(active.tokenKey) === context) {
+			this.stdioProgressByToken.delete(active.tokenKey);
+		}
 	}
 }

@@ -2,7 +2,9 @@ import type { KotaAgentMessage, KotaContentBlock, KotaToolResultBlock } from "#c
 import { TRAJECTORY_TOOL_RESULT_CONTENT_LIMIT } from "./runner-constants.js";
 import {
   type SanitizedJsonObject,
+  type SanitizedJsonValue,
   sanitizeJsonObject,
+  sanitizeJsonValue,
   truncateField,
   truncateStringField,
 } from "./runner-trajectory-json.js";
@@ -162,9 +164,9 @@ function sanitizeNestedToolResultBlock(
     sanitizedContent = sanitizedBlocks;
   }
 
-  let sanitizedStructuredContent: SanitizedJsonObject | undefined;
+  let sanitizedStructuredContent: SanitizedJsonValue | undefined;
   if (block.structuredContent !== undefined) {
-    sanitizedStructuredContent = sanitizeJsonObject(
+    sanitizedStructuredContent = sanitizeJsonValue(
       block.structuredContent,
       `${path}.structuredContent`,
     );

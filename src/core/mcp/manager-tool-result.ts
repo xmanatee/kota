@@ -1,11 +1,13 @@
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
+import { validateJsonSchema2020 } from "#core/util/json-schema-2020.js";
 import type {
   McpCallToolResult,
   McpInputRequiredCallToolResult,
   McpInputRequiredResult,
 } from "./client.js";
+import { MCP_STATELESS_PROTOCOL_VERSION } from "./client-protocol.js";
 import type { McpToolEntry } from "./remote-task-entry-resolution.js";
 
 function inputRequiredDiagnostics(
@@ -85,11 +87,11 @@ export function toToolResult(
   const toolResult: ToolResult = {
     content: result.text,
     blocks: result.blocks,
-    ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+    ...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
     ...(result._meta ? { _meta: result._meta } : {}),
     ...(result.isError !== undefined ? { is_error: result.isError } : {}),
   };
-  const schemaError = validateToolStructuredOutput(entry.tool, toolResult);
+  const schemaError = validateToolStructuredOutput(entry.tool, toolResult, result.protocolVersion === MCP_STATELESS_PROTOCOL_VERSION ? validateJsonSchema2020 : undefined);
   if (schemaError) {
     return { content: `MCP tool error: ${schemaError}`, is_error: true };
   }

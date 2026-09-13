@@ -47,3 +47,6 @@ into the runtime tool list.
   Account for cursors and metadata as well as entries before retaining pages;
   per-response transport limits alone do not bound a catalog. Publish derived
   tool-header settings only after the complete traversal succeeds.
+- Released schemas use offline JSON Schema 2020-12 validation. Reject an
+  unsupported declared dialect or unresolved reference visibly; older revisions
+  retain their existing validation contract.
