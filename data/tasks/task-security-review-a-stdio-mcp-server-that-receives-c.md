@@ -1,5 +1,6 @@
 ---
-status: done
+status: open
+priority: p2
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -653,3 +654,236 @@ Verification:
   types, lint, task validation, generated bindings and module admission.
 
 No live credentials, external services or deployment observation were needed.
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/mcp/client-stdio-runtime.ts
+claim:
+
+> MCP stderr redaction processes each data chunk independently. A credential split across chunks is published as unmasked fragments that reconstruct the complete secret. The public-client probe masked the whole synthetic credential but exposed both halves when written separately.
+
+## Desired Outcome
+
+> Make MCP diagnostic redaction stream-aware: retain a bounded undecided suffix across stderr chunks and redact credentials before publishing matching bytes. Preserve the family's existing HTTP, OAuth, notification and decoder protections.
+
+> Revalidate as new evidence for the existing diagnostic-redaction family while preserving prior resolutions. The run directory retains mcp-stderr-chunk-probe.mjs and mcp-stderr-chunk-result.json. Verify chunk boundaries, stream completion and bounded buffering.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-13T17-08-42-648Z-security-review-0sekc7.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-13T17-08-42-648Z-security-review-0sekc7
+
+security evidence: 664dd1e9783811cdd37ea9ef3a0248fd6c19b7ad5fb7637e4deec1f134123036
+evidence identity: mcp-stdio-stderr-cross-chunk-secret-echo-v1
+Evidence lineage (new-variant): 9feffc41efce65c813ceb04d5b882da5d076299964f0bd97c40ef3f28103f857
+> The nominated task retains the original stderr repair and this canonical diagnostic-family evidence key. Whole-message redaction remains present. This variant splits one credential across stream chunks; it is not a demonstrated reintroduction of the earlier sink.
+production owner: src/core/mcp/client-base
+violated invariant: mcp-credentials-redacted-from-diagnostics
+Common repair:
+> Make MCP diagnostic redaction stream-aware: retain a bounded undecided suffix across stderr chunks and redact credentials before publishing matching bytes. Preserve the family's existing HTTP, OAuth, notification and decoder protections.
+Exploit preconditions:
+> A configured stdio MCP process receives a credential through transport.env and emits it across separate stderr chunks, deliberately or through ordinary fragmentation. An observer can read KOTA terminal output or its capture. A real subprocess probe confirmed disclosure using a synthetic credential.
+finding id: mcp-stdio-stderr-fragmented-credential-disclosure
+candidate id: mcp-transport:src/core/mcp/client-stdio-runtime.ts:1
+verdict: confirmed
+rationale:
+
+> The current stderr handler redacts each chunk independently. Rerunning the inspected public-client subprocess probe masked the whole synthetic credential but published both separately written halves. A terminal-output observer can reconstruct it. The nominated task retains predecessor evidence 9feffc41efce65c813ceb04d5b882da5d076299964f0bd97c40ef3f28103f857 and the matching client diagnostic owner/invariant. This is a new fragmentation variant, not a demonstrated regression. Stream-aware credential redaction at that owner addresses it while preserving earlier protections.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/mcp/client-stdio-runtime.ts
+
+line: 54
+
+excerpt:
+
+
+
+> this.proc.stderr?.on("data", (chunk: Buffer) => {
+>   const text = chunk.toString().trim();
+>   if (!text) return;
+>   this.writeDiagnostic(
+>     `[mcp:${this.serverName}] ${text}\n`,
+>     "stderr",
+>   );
+
+Evidence 2:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 442
+
+excerpt:
+
+
+
+> protected redactSensitiveErrorMessage(message: string): string {
+>   let redacted = message;
+>   for (const value of this.sensitiveValuesForRedaction()) {
+>     redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
+>   }
+
+## Additional confirmed evidence
+
+
+## Problem
+
+The security-review workflow confirmed an application-security finding.
+
+severity: medium
+affected path: src/core/mcp/client-base.ts
+claim:
+
+> The MCP diagnostic credential set includes statically registered client secrets but omits dynamically registered secrets stored in oauthClients. A token endpoint can echo an acquired secret in Content-Type and expose it in the public connection-error message, which the manager publishes to diagnostics.
+
+## Desired Outcome
+
+> Include secrets from resolved OAuth clients, including dynamically registered clients, in the client-owned sensitive-value set before subsequent requests or diagnostics. Preserve private protocol originals and all existing diagnostic-redaction variants.
+
+> Revalidate the existing-family nomination and preserve prior evidence. The run directory retains mcp-dynamic-secret-probe.mjs and mcp-dynamic-secret-result.json. Verify acquired credentials are absent from public errors, stacks, serialized projections and terminal output.
+
+## Constraints
+
+- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.
+- Preserve the confirmed security claim and cited evidence until the fix lands.
+- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## How We Will Know
+
+- The cited vulnerability is fixed or proven impossible with code-level evidence.
+- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.
+- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.
+
+## Context
+
+Created by security-review workflow run 2026-09-13T17-08-42-648Z-security-review-0sekc7.
+
+Confirmed by security-review workflow runs:
+
+- 2026-09-13T17-08-42-648Z-security-review-0sekc7
+
+security evidence: a9dfe19cfe17f2ba9039f0c810c01a2f5b711928501ea3db424f3f6c21995be7
+evidence identity: mcp-dynamically-registered-client-secret-error-echo-v1
+Evidence lineage (new-variant): f232c7f55de9e73e313e8e9414a75fb643fa8c19ca65d9fbfcde44a12bb748a3
+> This retained evidence established incomplete credential collection at the same diagnostic owner. Its configured-header repair remains. The new credential source is dynamic registration: acquired secrets reside in oauthClients, which the redaction collector does not traverse.
+production owner: src/core/mcp/client-base
+violated invariant: mcp-credentials-redacted-from-diagnostics
+Common repair:
+> Include secrets from resolved OAuth clients, including dynamically registered clients, in the client-owned sensitive-value set before subsequent requests or diagnostics. Preserve private protocol originals and all existing diagnostic-redaction variants.
+Exploit preconditions:
+> The operator enables OAuth dynamic client registration. Registration returns a client_secret, and the configured authorization server subsequently echoes it in a token-endpoint diagnostic field. A synthetic HTTP-wire probe confirmed that KOTA sends the acquired secret and exposes it in the resulting error.
+finding id: mcp-dynamic-oauth-client-secret-diagnostic-disclosure
+candidate id: mcp-transport:src/core/mcp/client-base.ts:1
+verdict: confirmed
+rationale:
+
+> Dynamic registration stores clientSecret in oauthClients, which sensitiveValuesForRedaction does not inspect. Rerunning the inspected public-client probe with controlled HTTP responses confirmed that the acquired synthetic secret reaches the token endpoint and survives its Content-Type echo in the public connection error. The manager publishes that error through terminal diagnostics. Exploitation requires enabled dynamic registration and a credential-echoing authorization endpoint. The nominated task retains predecessor f232c7f55de9e73e313e8e9414a75fb643fa8c19ca65d9fbfcde44a12bb748a3. This new credential-source variant belongs to the same client diagnostic family; its repair must include acquired secrets alongside stream-aware publication and existing protections.
+
+Evidence:
+
+Evidence 1:
+
+
+
+path: src/core/mcp/client-base.ts
+
+line: 422
+
+excerpt:
+
+
+
+> const client = this.transport.authorization?.client;
+> if (client?.kind === "registered") {
+>   if ("clientSecret" in client && client.clientSecret !== undefined) {
+>     add(client.clientSecret);
+
+Evidence 2:
+
+
+
+path: src/core/mcp/client-oauth-token-runtime.ts
+
+line: 314
+
+excerpt:
+
+
+
+> const clientSecret = optionalString(
+>   object.client_secret,
+>   "client_secret",
+>   "authorization-server-metadata",
+> );
+> const client = {
+>   clientId,
+>   ...(clientSecret !== undefined ? { clientSecret } : {}),
+> };
+> this.oauthClients.set(cacheKey, client);
+
+Evidence 3:
+
+
+
+path: src/core/mcp/client-oauth-token-runtime.ts
+
+line: 892
+
+excerpt:
+
+
+
+> const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+> if (!contentType.includes("application/json")) {
+>   throw this.authorizationFlowError(
+>     resource,
+>     issuer,
+>     scopes,
+>     `${label} failed: unsupported response content-type "${contentType || "(missing)"}"`,
+>   );
+
+Evidence 4:
+
+
+
+path: src/core/mcp/manager.ts
+
+line: 207
+
+excerpt:
+
+
+
+> } catch (err) {
+>   printTerminalDiagnostic(
+>     `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
+>     "error",
+>   );
