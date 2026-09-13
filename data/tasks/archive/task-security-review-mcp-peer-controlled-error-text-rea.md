@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Security review: MCP peer-controlled error text reaches operator stderr without terminal-control sanitization, allowing a malicious MCP server to spoof output or invoke terminal features through OSC, CSI, C1, or bidirectional controls.
@@ -240,3 +239,32 @@ excerpt:
 > writeStderr(text): void {
 >   stderr.writeRaw(text);
 > },
+
+## Final resolution
+
+The stdio variant is fixed at the common terminal owner: `writeTerminalStderr`
+now applies the existing terminal-diagnostic control sanitizer before provider
+or fallback publication. MCP still redacts the complete diagnostic upstream.
+Peer labels are sanitized only for publication; protocol identity is unchanged.
+Trusted renderer styling remains downstream of the diagnostic boundary.
+The earlier JSON-RPC repair remains effective and is independently revalidated.
+
+Verification for builder run `2026-09-13T21-42-21-014Z-builder-ixs3k3`:
+
+- `pnpm test src/core/modules/terminal-renderer.test.ts src/mcp-terminal-diagnostics.integration.test.ts src/core/mcp/stdio-stderr-redaction.test.ts src/core/mcp/client-diagnostic-redaction.test.ts src/core/daemon/daemon-logger.test.ts src/core/modules/foreign-module-stdio.test.ts` established 54 passing owner/protocol tests. The initial integration fixture selected a colorless theme; after correcting that fixture, `pnpm test src/mcp-terminal-diagnostics.integration.test.ts` passed all 4 cases.
+- The real subprocess fixture captures stderr with OSC, CSI/C1 and bidi controls
+  in peer text and the negotiated remote name. Provider and fallback output are
+  control-free and credential-redacted; JSON-RPC errors and configured names are
+  safe, while application SGR remains intact. The stdio cases reproduced the
+  leak before the production edit.
+- `pnpm check:fast` passed with `TMPDIR` set to a fresh run-scratch directory:
+  production/test types, lint, task validation, client bindings and module admission.
+  Session-temp interruption failures were resolved with retained scratch.
+- Run artifacts `focused-tests.log`, `integration-tests-final.log`,
+  `check-fast-retained-tmp.log`, and `terminal-diagnostics-verification.md`
+  retain commands, results and the captured-output assessment.
+
+No live daemon or terminal features were invoked; output was intercepted at the
+terminal writer. Full deterministic-suite and live-model runs were not needed
+for this bounded diagnostic change. The original finding and variant evidence
+above remain preserved.

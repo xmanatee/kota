@@ -110,12 +110,15 @@ export function printTerminalPrompt(prompt: TerminalPrompt): void {
 }
 
 export function writeTerminalStderr(text: string): void {
+  // Sanitize diagnostic input before either sink; provider-owned styling is
+  // applied separately by the renderer and never passes through this boundary.
+  const safe = stripTerminalDiagnosticControls(text);
   const provider = getRenderingProvider();
   if (provider) {
-    provider.writeStderr(text);
+    provider.writeStderr(safe);
     return;
   }
-  process.stderr.write(text);
+  process.stderr.write(safe);
 }
 
 function writeFallbackDiagnostic(diagnostic: TerminalDiagnostic): void {

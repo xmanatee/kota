@@ -84,16 +84,18 @@ describe("terminal renderer core seam", () => {
     const detail = "remote\x9d0;spoofed\x9cname\x1b[31m\x9b32m\u2066";
 
     printTerminalDiagnostic(message, "error", detail);
+    writeTerminalStderr(`${message}\n${detail}\n`);
 
-    expect(stderrChunks).toEqual(["peererror\n", "remotename\n"]);
+    expect(stderrChunks).toEqual(["peererror\n", "remotename\n", "peererror\nremotename\n"]);
 
     stderrChunks.length = 0;
     const providerChunks: string[] = [];
     installProvider(providerChunks);
 
     printTerminalDiagnostic(message, "error", detail);
+    writeTerminalStderr(`${message}\n${detail}\n`);
 
-    expect(providerChunks).toEqual(["error:peererror:remotename"]);
+    expect(providerChunks).toEqual(["error:peererror:remotename", "peererror\nremotename\n"]);
     expect(stderrChunks).toEqual([]);
   });
 });

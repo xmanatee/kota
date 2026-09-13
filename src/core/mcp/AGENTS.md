@@ -27,6 +27,8 @@ into the runtime tool list.
   and protocol tests. Do not maintain a parallel catalog in `docs/`.
 - Publish client terminal diagnostics through `McpClientBase.writeDiagnostic` so
   configured credentials are redacted from the complete message before rendering.
+  Both diagnostic and stderr publication use the common terminal-renderer control
+  sanitizer; peer text and labels must never reach a provider or stream directly.
   Protocol decoders return data; the client owns diagnostic publication.
 - Route locally assembled lifecycle and decoding errors through
   `McpClientBase.diagnosticError`. Typed request-error constructors redact the
