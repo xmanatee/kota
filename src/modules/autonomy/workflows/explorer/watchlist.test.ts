@@ -80,6 +80,7 @@ describe("parseWatchlist", () => {
     ["resources: [{url: true, added: 2026-04-14}]", /resources\.0\.url/],
     ["resources: [{url: https://example.com, added: 123}]", /resources\.0\.added/],
     ["resources: [{url: https://example.com, added: 2026-04-14, status: active}]", /resources\.0\.status/],
+    ["resources: [{url: https://example.com, added: 2026-04-14, refresh: hourly}]", /resources\.0\.refresh/],
     ["resources: [&source {url: https://example.com, added: 2026-04-14}, *source]", /duplicate watchlist entry url/],
   ])("diagnoses malformed input without dropping it: %s", (raw, diagnostic) => {
     expect(() => parseWatchlist(raw)).toThrow(diagnostic);
@@ -184,6 +185,7 @@ describe("direct watchlist editing", () => {
       "    canonicalized_from: ['https://example.com/old']",
       "    notes: 'Owner''s C:\\work\\n is literal' # operator note",
       "    status: inaccessible",
+      "    refresh: weekly",
       "    snapshot:",
       '      fingerprint: "123"',
       "      summary: |",
@@ -201,6 +203,7 @@ describe("direct watchlist editing", () => {
     expect(readWatchlist(root).entries[0]).toMatchObject({
       canonicalizedFrom: ["https://example.com/old"],
       status: "inaccessible",
+      refresh: "weekly",
       notes: "Owner's C:\\work\\n is literal",
       snapshot: { fingerprint: "123", summary: 'A "quoted" observation with literal \\n and C:\\work.\nSecond line.\n' },
     });

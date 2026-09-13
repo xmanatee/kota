@@ -26,9 +26,15 @@ This directory contains the explorer workflow definition and prompt.
   `src/modules/autonomy/external-pattern-decisions.ts` catalog, which remains
   outside explorer's write scope and is curated separately.
 
+The watchlist holds evolving sources with a reason to revisit in their notes;
+one-off references belong in existing task or decision records. Prefer a project's
+release or research-series surface when it covers the same development, without
+treating that replacement as a redirect or copying the old source's snapshot.
+Daily rechecks are the default; weekly suits slower research and specifications.
+Access failures follow the same cadence and preserve the source for recovery.
 Source rechecks are deterministic reads through the normal web tool boundary.
 A time-due recheck does not itself authorize another AI review: the last actual
-review consumes a fingerprint of observed source content and task intent.
+review consumes a fingerprint of observed source content, watchlist intent and task intent.
 Failed fetches, including unavailable readable content, preserve the last useful
 content identity. Page metadata and layout markup are access evidence, not
 upstream product changes. Observations and reviewed fingerprints publish

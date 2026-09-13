@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { decodeExplorerState, type ExplorerState } from "./explorer-state.js";
-import { refreshExplorerSources } from "./source-evidence.js";
+import { explorationFingerprint, refreshExplorerSources } from "./source-evidence.js";
 
 const roots: string[] = [];
 afterEach(() => { vi.useRealTimers(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -66,7 +66,6 @@ it("rechecks due sources without repeating an AI decision on unchanged or inacce
   writeFileSync(join(workspaceRoot, "data/watchlist.yaml"), `resources:
   - url: https://example.com/research
     added: 2026-09-01
-    notes: Reviewed source evidence.
     snapshot:
       fingerprint: ${initial.sources["https://example.com/research"].fingerprint}
       summary: |
@@ -135,4 +134,71 @@ it("reuses retained readable bytes after cleanup and task changes, including fai
     "https://example.com/readable": { ...reviewed.sources["https://example.com/readable"],
       readable: { runId: "../outside", observedAt: "2026-09-13T01:00:00Z" } },
   } })).toThrow("readable source reference");
+});
+
+
+it("applies source cadence without refetching retired citations or rereviewing settled material", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const start = new Date("2026-09-13T01:00:00Z").getTime();
+  vi.setSystemTime(start);
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-cadence-"));
+  roots.push(workspaceRoot);
+  mkdirSync(join(workspaceRoot, "data/tasks"), { recursive: true });
+  const watchlistPath = join(workspaceRoot, "data/watchlist.yaml");
+  const weeklyUrl = "https://example.com/research-series";
+  const dailyUrl = "https://example.com/releases";
+  const paperUrl = "https://example.com/paper";
+  const writeSources = (notes: string, includePaper = false) => writeFileSync(watchlistPath,
+    `resources:
+  - url: ${dailyUrl}
+    added: 2026-09-01
+  - url: ${weeklyUrl}
+    added: 2026-09-01
+    refresh: weekly
+    status: inaccessible
+    notes: ${notes}
+${includePaper ? `  - url: ${paperUrl}\n    added: 2026-09-01\n` : ""}`);
+  let weeklyAccessible = false;
+  const runTool = vi.fn(async (_name: string, args: Record<string, unknown>) =>
+    args.url === weeklyUrl && !weeklyAccessible
+      ? { content: "HTTP 503", is_error: true }
+      : { content: `Readable development from ${args.url}` });
+  const inspect = (current: ExplorerState, runId: string) => refreshExplorerSources({
+    workspaceRoot, current, runTool, capacity: 2,
+    artifactDir: join(workspaceRoot, "working", runId), evidenceDir: join(workspaceRoot, "runs", runId),
+  });
+  writeSources("Monitor durable agent memory developments.", true);
+  const first = await inspect(decodeExplorerState(null), "first");
+  expect(runTool).toHaveBeenCalledTimes(3);
+  // An actual review retires a citation and publishes its decision in task history.
+  writeSources("Monitor durable agent memory developments.");
+  mkdirSync(join(workspaceRoot, "data/tasks/archive"));
+  writeFileSync(join(workspaceRoot, "data/tasks/archive/task-memory-research.md"),
+    `---\nstatus: done\n---\n# Memory research\n\nRead ${paperUrl}; existing memory behavior covers this settled reference.\n`);
+  let current = { ...decodeExplorerState(null), sources: first.sources,
+    lastReviewedFingerprint: explorationFingerprint(workspaceRoot, first.sources) };
+  vi.setSystemTime(start + 30 * 60 * 1000);
+  expect((await inspect(current, "half-hour")).shouldReview).toBe(false);
+  expect(runTool).toHaveBeenCalledTimes(3);
+  vi.setSystemTime(start + 24 * 60 * 60 * 1000);
+  const daily = await inspect(current, "daily");
+  expect(daily.shouldReview).toBe(false);
+  expect(runTool).toHaveBeenCalledTimes(4);
+  expect(runTool.mock.calls.at(-1)?.[1].url).toBe(dailyUrl);
+  current = { ...current, sources: daily.sources };
+  weeklyAccessible = true;
+  vi.setSystemTime(start + 7 * 24 * 60 * 60 * 1000);
+  const recovered = await inspect(current, "weekly");
+  expect(recovered.shouldReview).toBe(true);
+  expect(recovered.observations).toContainEqual(expect.objectContaining({ url: weeklyUrl, accessible: true, changed: true }));
+  expect(runTool).toHaveBeenCalledTimes(6);
+  current = { ...current, sources: recovered.sources, lastReviewedFingerprint: recovered.fingerprint };
+  expect((await inspect(current, "settled")).shouldReview).toBe(false);
+  writeSources("Investigate recovery after memory revisions, per owner direction.");
+  const redirected = await inspect(current, "owner-direction");
+  expect(redirected.shouldReview).toBe(true);
+  expect(redirected.observations.every((observation) => observation.origin === "retained")).toBe(true);
+  expect(runTool).toHaveBeenCalledTimes(6);
+  expect(runTool.mock.calls.filter(([, args]) => args.url === paperUrl)).toHaveLength(1);
+  expect(readFileSync(join(workspaceRoot, "data/tasks/archive/task-memory-research.md"), "utf8")).toContain(paperUrl);
 });

@@ -14,14 +14,22 @@ directly and follow the scoped task instructions.
 Keep tasks concise: capture the problem, desired outcome, meaningful
 constraints, and how an implementer will know the outcome exists.
 
-`data/watchlist.yaml` contains known external sources. The `inspect-watchlist`
+`data/watchlist.yaml` contains recurring discovery sources. Keep entries whose
+future developments could change a local decision, with that reason in `notes`.
+Prefer an evolving project, release, or research-series surface over an individual
+paper, article, or overlapping reference page. Keep settled references discoverable
+in their existing task or decision records; finding or citing an article does not
+require adding a monitor or a task. Use weekly refresh for slower sources; the
+default is daily. An inaccessible source remains eligible for later recovery.
+
+The `inspect-watchlist`
 step contains paths to fresh and retained readable source observations, inaccessible results, and the reason
 this evidence needs review. Use those observations and fetch additional sources
 only when they may add current value. Retained material establishes what was
 read at its original observation time, not current upstream behavior. An
 unavailable optional source does not block independent ideas grounded in readable
 material. Edit `data/watchlist.yaml` directly when
-a source observation or a useful new source is worth recording. Preserve operator
+an observation or a justified recurring source is worth recording. Preserve operator
 notes, added dates, comments, and untouched snapshots.
 
 For an observed source, use its runtime fingerprint from `inspect-watchlist`

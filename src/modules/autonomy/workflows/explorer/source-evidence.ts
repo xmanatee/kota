@@ -4,7 +4,6 @@ import { basename, dirname, join } from "node:path";
 import { readAnchoredTextFiles } from "#core/util/filesystem/anchored-files.js";
 import type { WorkflowRunToolRunner } from "#core/workflow/run-types.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { EXPLORATION_REFRESH_MS } from "./assessment.js";
 import type { ExplorerState } from "./explorer-state.js";
 import { readWatchlist } from "./watchlist.js";
 import { computeWatchlistFingerprint, normalizeWatchlistContent } from "./watchlist-classifier.js";
@@ -16,6 +15,7 @@ export function explorationFingerprint(workspaceRoot: string, sources: ExplorerS
     .sort((a, b) => a.id.localeCompare(b.id));
   const evidence = readWatchlist(workspaceRoot).entries.map((entry) => ({
     url: entry.url,
+    notes: entry.notes ?? null,
     fingerprint: sources[entry.url]?.fingerprint ?? null,
   })).sort((a, b) => a.url.localeCompare(b.url));
   return createHash("sha256").update(JSON.stringify({ tasks, evidence })).digest("hex");
@@ -44,7 +44,8 @@ export async function refreshExplorerSources(input: {
   const refresh = async () => {
     for (const entry of pending) {
       const previous = sources[entry.url];
-      if (previous && Date.now() - Date.parse(previous.checkedAt) < EXPLORATION_REFRESH_MS) continue;
+      const refreshMs = (entry.refresh === "weekly" ? 7 : 1) * 24 * 60 * 60 * 1000;
+      if (previous && Date.now() - Date.parse(previous.checkedAt) < refreshMs) continue;
       const result = await input.runTool("web_fetch", { url: entry.url });
       const accessible = !result.is_error && result.content.trim().length > 0;
       const observedAt = new Date().toISOString();

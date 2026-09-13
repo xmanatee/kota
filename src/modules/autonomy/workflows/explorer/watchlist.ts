@@ -15,6 +15,7 @@ const entrySchema = z.strictObject({
   added: z.string().min(1),
   canonicalized_from: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  refresh: z.enum(["daily", "weekly"]).optional(),
   status: z.literal("inaccessible").optional(),
   snapshot: snapshotSchema.optional(),
 });
