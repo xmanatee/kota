@@ -241,9 +241,20 @@ export type WorkflowAgentHarnessRunner = (
     workspaceKey?: string;
     writer?: AgentHarnessWriter;
     /** Runtime handoff for a read-only reviewer; linked runs require scope authorization. */
-    evidence?: { linked?: readonly LinkedRunArtifact[] };
+    evidence?: WorkflowAgentEvidenceSelection;
   },
 ) => Promise<AgentHarnessResult>;
+
+/** Runtime-selected evidence made readable to a deny-all workflow reviewer. */
+export type WorkflowAgentEvidenceSelection = Readonly<{
+  linked?: readonly LinkedRunArtifact[];
+  /** Files relative to the current workflow run directory. */
+  currentRunFiles?: readonly string[];
+  /** Current-run packets that need a larger, bounded, pageable review projection. */
+  currentRunReviewFiles?: readonly string[];
+  /** Honest diagnostics for selected evidence that has no readable projection. */
+  unavailable?: readonly string[];
+}>;
 
 export type WorkflowValueResolver<T> =
   | T

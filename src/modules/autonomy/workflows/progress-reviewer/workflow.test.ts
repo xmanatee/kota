@@ -28,6 +28,10 @@ import {
 } from "#core/events/module-event.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
+import {
+  type RunArtifactManifest,
+  retainRunArtifacts,
+} from "#core/workflow/run-artifact-handoff.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
@@ -779,6 +783,7 @@ describe("progress-reviewer workflow", () => {
       citingReview([
                 "event:evtj-000000000999",
                 "dead-letter:dlq-00000000-0000-4000-8000-000000000001",
+                "artifact:builder-run-001:omitted.json",
               ], "A reviewer inspected the full evidence artifact and cited exact omitted ids."),
       evidence,
       {
@@ -794,12 +799,18 @@ describe("progress-reviewer workflow", () => {
             kind: "dead-letter" as const,
             summary: "open workflow-dispatch for progress-reviewer",
           },
+          {
+            id: "artifact:builder-run-001:omitted.json",
+            kind: "artifact" as const,
+            summary: "omitted.json from builder success (builder-run-001)",
+          },
         ],
       },
     );
     expect(normalizedFromFullEvidence.findings.localScope.claims[0]?.evidenceIds).toEqual([
       "event:evtj-000000000999",
       "dead-letter:dlq-00000000-0000-4000-8000-000000000001",
+      "artifact:builder-run-001:omitted.json",
     ]);
     expect(() =>
       decodeProgressReviewAgentOutputForEvidence(
@@ -971,16 +982,35 @@ describe("progress-reviewer workflow", () => {
       "success",
       "2026-06-04T11:00:00.000Z",
     );
+    const retainedSource = join(
+      workspaceRoot,
+      ".kota",
+      "runtime-evidence-source",
+      runId,
+    );
+    mkdirSync(retainedSource, { recursive: true });
+    writeFileSync(
+      join(retainedSource, "outcome.json"),
+      JSON.stringify({
+        outcome:
+          "The intervention task closed, but the same failure recurred after integration.",
+      }),
+    );
+    retainRunArtifacts({
+      scopeRoot: workspaceRoot,
+      runId,
+      roots: [{ name: "outcome", path: retainedSource }],
+    });
     for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
       writeRunArtifactFile(
         workspaceRoot,
         runId,
-        `artifact-${String(index).padStart(2, "0")}.json`,
+        `z-artifact-${String(index).padStart(2, "0")}.json`,
         JSON.stringify({ index, body: "x".repeat(256) }),
       );
     }
-    const hiddenArtifactId =
-      `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
+    const uncollectedArtifactId =
+      `artifact:${runId}:z-artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
     for (let index = 0; index < 24; index += 1) {
       writeTask(workspaceRoot, "done", `task-large-packet-${String(index).padStart(2, "0")}`, {
       });
@@ -1017,6 +1047,7 @@ describe("progress-reviewer workflow", () => {
     });
     const payload = runCountBatchPayload(workspaceRoot, runId);
     const harnessCalls: AgentHarnessRunOptions[] = [];
+    let citedOmittedEvidenceId: string | undefined;
     registerProgressReviewHarness(async (options) => {
       harnessCalls.push(options);
       const reviewInput = parseReviewInputFromAgentPrompt(options);
@@ -1032,9 +1063,57 @@ describe("progress-reviewer workflow", () => {
           `run:${runId}`,
         ]),
       );
-      expect(exposedIds).not.toContain(hiddenArtifactId);
+      expect(exposedIds).not.toContain(uncollectedArtifactId);
       expect(options.prompt).not.toContain(largeSourceEventIds[0]);
-      const output = citingReview([`run:${runId}`, hiddenArtifactId, `dead-letter:${deadLetter.id}`], "The reviewer cited a compacted artifact alongside the exposed run and dead letter.");
+      expect(options.agentWriteScope).toBe("deny-all");
+      expect(options.prompt).toContain("## Runtime evidence handoff");
+      const readableRoots = options.readOnlyHostRoots ?? [];
+      expect(readableRoots.some((path) => path.includes("/originals/"))).toBe(false);
+      const readableEvidence = readableRoots
+        .filter((path) => path.endsWith(".jsonl"))
+        .map((path) => readFileSync(path, "utf-8"))
+        .join("\n");
+      expect(readableEvidence).toContain(
+        "The intervention task closed, but the same failure recurred after integration.",
+      );
+      const currentManifest = readableRoots
+        .filter((path) => path.includes("/manifests/") && path.endsWith(".json"))
+        .map((path) => JSON.parse(readFileSync(path, "utf-8")) as RunArtifactManifest)
+        .find((manifest) => manifest.runId === "runtime-large-run-count-packet");
+      const fullPacketEntry = currentManifest?.entries.find(
+        (entry) => entry.status === "retained" &&
+          entry.source === `run/${PROGRESS_REVIEW_EVIDENCE_ARTIFACT}`,
+      );
+      if (fullPacketEntry?.status !== "retained" ||
+        fullPacketEntry.projection.status !== "available") {
+        throw new Error("Expected a readable full-packet projection");
+      }
+      expect(fullPacketEntry.projection.bytes).toBeGreaterThan(128 * 1024);
+      const fullPacketProjectionPath = join(
+        workspaceRoot,
+        fullPacketEntry.projection.ref,
+      );
+      expect(readableRoots).toContain(fullPacketProjectionPath);
+      const fullPacketProjection = readFileSync(fullPacketProjectionPath, "utf-8");
+      expect(fullPacketProjection).toContain(largeSourceEventIds[0]);
+      const projectedPacket = JSON.parse(fullPacketProjection) as Record<
+        string,
+        { content?: { evidence?: Array<{ id?: string }> } }
+      >;
+      citedOmittedEvidenceId = projectedPacket[`run/${PROGRESS_REVIEW_EVIDENCE_ARTIFACT}`]
+        ?.content?.evidence
+        ?.map((item) => item.id)
+        .find((id): id is string => typeof id === "string" && !exposedIds.includes(id));
+      expect(citedOmittedEvidenceId).toBeDefined();
+      const output = citingReview(
+        [
+          `run:${runId}`,
+          citedOmittedEvidenceId!,
+          uncollectedArtifactId,
+          `dead-letter:${deadLetter.id}`,
+        ],
+        "The reviewer cited full-packet evidence alongside the exposed run and dead letter.",
+      );
       return {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
@@ -1062,6 +1141,7 @@ describe("progress-reviewer workflow", () => {
         runContext: makeProgressReviewRunContext(
           workspaceRoot,
           "runtime-large-run-count-packet",
+          [runId],
         ),
         bus: new EventBus(),
         store,
@@ -1071,7 +1151,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = await promise;
 
-    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.status, JSON.stringify(result.metadata)).toBe("success");
     expect(harnessCalls).toHaveLength(1);
     expect(harnessCalls[0]?.autonomyMode).toBe("autonomous");
     expect(result.metadata.warnings ?? []).not.toEqual(
@@ -1136,6 +1216,7 @@ describe("progress-reviewer workflow", () => {
     ).toHaveLength(largeSourceEventIds.length);
     expect(artifact.review.findings.localScope.claims[0]?.evidenceIds).toEqual([
       `run:${runId}`,
+      citedOmittedEvidenceId,
       `dead-letter:${deadLetter.id}`,
     ]);
   });

@@ -26,6 +26,7 @@ import {
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
   recordReviewRejection,
+  selectProgressReviewAgentEvidence,
   writeArtifact,
   writeCommitMessage,
 } from "./workflow-steps.js";
@@ -70,6 +71,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
       validate: validateProgressReviewAgentStepOutput,
+      reviewEvidence: selectProgressReviewAgentEvidence,
       // Only output rejection is recoverable; the next step rethrows other failures.
       continueOnFailure: true,
       when: (ctx) =>

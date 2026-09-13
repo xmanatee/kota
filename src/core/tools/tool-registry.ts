@@ -71,7 +71,7 @@ export type ToolRegistration = {
 	effect: ToolEffect;
 	/** Invocation-specific effect escalation for tools that expose multiple operations. */
 	resolveEffect?: toolEffectRegistry.ToolEffectResolver;
-  /** Complete filesystem mutation targets; omission leaves local writes unknown. */
+  /** Complete filesystem observation or mutation targets for this invocation. */
   resolveFilesystemTargets?: ToolFilesystemTargetResolver;
 	/** Tool group for progressive disclosure. Undefined = core (always available). */
 	group?: string;

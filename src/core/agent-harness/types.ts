@@ -127,6 +127,12 @@ export type AgentHarnessRunOptions = {
    */
   agentWriteScope?: AgentWriteScope;
   /**
+   * Machine-resolved local filesystem roots this KOTA-hosted invocation may
+   * read. A root may be a directory or an exact file. Omission preserves the
+   * ordinary session read posture; an empty list denies every local read.
+   */
+  agentReadScope?: readonly string[];
+  /**
    * Runtime-owned per-run directory where a workflow agent may write evidence
    * and finish-protocol artifacts. This is enforced as a separate exception
    * to `agentWriteScope`; sibling workflow state remains inaccessible.

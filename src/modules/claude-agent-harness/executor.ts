@@ -68,6 +68,7 @@ export type ExecutorOptions = {
   cwd?: string;
   scopeRoot?: string;
   agentWriteScope?: AgentWriteScope;
+  agentReadScope?: readonly string[];
   agentOutputDir?: string;
   verbose?: boolean;
   systemPrompt?: SDKSystemPrompt;
@@ -135,6 +136,20 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     ))) return { behavior: "deny", message: "Provider transcripts are protected runtime state. Use sandboxed commands or KOTA filesystem tools for searches that span runtime storage." };
     return { behavior: "allow", updatedInput: input };
   };
+  const permissionGuard = options.canUseTool === undefined
+    ? protectSessions
+    : composeCanUseTools(options.canUseTool, protectSessions);
+  const guardedPreToolUseTools = new Set([
+    "Read",
+    "Glob",
+    "Grep",
+    "NotebookRead",
+    "Skill",
+    // Sandboxed Bash may be auto-approved without canUseTool. The write-scope
+    // guard treats opaque commands as writes and therefore denies them for a
+    // review-only invocation before that SDK shortcut can run.
+    "Bash",
+  ]);
   return {
     model: options.model,
     maxTurns: options.maxTurns,
@@ -165,12 +180,14 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     thinking,
     spawnClaudeCodeProcess: (spawnOptions) =>
       spawnClaudeCodeProcessWithAbortKill(spawnOptions, options.onProcessSpawn),
-    canUseTool: normalizeCanUseTool(options.canUseTool === undefined ? protectSessions : composeCanUseTools(options.canUseTool, protectSessions)),
-    // Read-only built-ins may be auto-approved without canUseTool. This hook
-    // runs before permission evaluation, including on a resumed native session.
+    canUseTool: normalizeCanUseTool(permissionGuard),
+    // Read built-ins and sandboxed Bash may be auto-approved without
+    // canUseTool. This hook runs their machine guards before that shortcut,
+    // including on a resumed native session.
     hooks: { PreToolUse: [{ hooks: [async (input, toolUseID, hookOptions) => {
       if (input.hook_event_name !== "PreToolUse") return {};
-      const decision = await protectSessions(input.tool_name, z.record(z.string(), z.json()).parse(input.tool_input), { signal: hookOptions.signal, toolUseId: toolUseID ?? input.tool_use_id });
+      const guard = guardedPreToolUseTools.has(input.tool_name) ? permissionGuard : protectSessions;
+      const decision = await guard(input.tool_name, z.record(z.string(), z.json()).parse(input.tool_input), { signal: hookOptions.signal, toolUseId: toolUseID ?? input.tool_use_id });
       return decision.behavior === "deny" ? { hookSpecificOutput: {
         hookEventName: "PreToolUse" as const, permissionDecision: "deny" as const,
         permissionDecisionReason: decision.message,
@@ -180,7 +197,9 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
       enabled: true,
       failIfUnavailable: true,
       allowUnsandboxedCommands: false,
-      autoAllowBashIfSandboxed: true,
+      // Evidence reviewers carry an invocation-local read allowlist. Keep the
+      // SDK callback mandatory in addition to the pre-tool guard for Bash.
+      autoAllowBashIfSandboxed: options.agentReadScope === undefined,
       filesystem: {
         allowWrite: agentWriteRoots ?? [cwd],
         denyWrite: [dirname(authorityConfigPath), ...authorityTokenPaths, ...sessionRoots],

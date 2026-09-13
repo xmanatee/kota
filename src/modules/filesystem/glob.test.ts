@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -30,4 +30,27 @@ it("does not enumerate protected credential aliases", async () => {
   mkdirSync(join(root, ".KOTA"));
   for (const name of ["daemon-control.json", "daemon-instance.lock", "secrets.json"]) writeFileSync(join(root, ".KOTA", name), "synthetic-secret");
   expect(await runGlob({ path: ".KOTA", pattern: "**/*" }, { cwd: root })).toEqual({ content: "No files matched." });
+});
+
+it("keeps patterns and resolved matches inside the selected base", async () => {
+  mkdirSync(join(root, "workspace"));
+  mkdirSync(join(root, "private"));
+  writeFileSync(join(root, "private", "secret.ts"), "private");
+  symlinkSync(join(root, "private", "secret.ts"), join(root, "workspace", "alias.ts"));
+
+  expect(await runGlob(
+    { path: "workspace", pattern: "../private/*.ts" },
+    { cwd: root },
+  )).toMatchObject({
+    is_error: true,
+    content: expect.stringContaining("pattern must stay within path"),
+  });
+  expect(await runGlob(
+    { path: "workspace", pattern: "\\.\\./private/*.ts" },
+    { cwd: root },
+  )).toMatchObject({ is_error: true });
+  expect(await runGlob(
+    { path: "workspace", pattern: "*.ts" },
+    { cwd: root },
+  )).toEqual({ content: "No files matched." });
 });

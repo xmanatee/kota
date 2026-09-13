@@ -9,9 +9,10 @@ module lifecycle. General-purpose capabilities belong in modules.
   `tool-registry.ts`; registry reads do not initialize implementations. Registrations return exact
   disposers; module labels are metadata, not cleanup authority.
 - `tool-runner` owns admission, input/output validation, approvals and execution.
-  It enforces agent write scope and isolated output roots before local writes,
-  failing closed on opaque targets. Nested calls inherit its permissions,
-  scope and session context; module callbacks alone grant no tool authority.
+  It enforces invocation-local read scope, agent write scope and isolated output
+  roots before filesystem access, failing closed on opaque targets. Nested calls
+  inherit its permissions, scope and session context; module callbacks alone
+  grant no tool authority.
 - `tool-middleware` provides one continuation per invocation. Retry and caching
   belong to the capability that knows an operation's effects and resource identity.
 - `guardrails-config.ts` owns configuration decoding and policy snapshots;
@@ -23,7 +24,7 @@ module lifecycle. General-purpose capabilities belong in modules.
   the execution directory.
 - `session-environment` owns live session/scope credential overlays. Registration
   owns teardown; stale approvals cannot recreate an ended session's overlay.
-- Filesystem mutation targets come from the registered tool's pure
+- Filesystem read and mutation targets come from the registered tool's pure
   `resolveFilesystemTargets` declaration using the runner's execution context.
   Declare every destination, including derived paths and ancillary mutations;
   Network operations declare ancillary download destinations through the same

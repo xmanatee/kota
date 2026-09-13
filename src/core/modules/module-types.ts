@@ -196,7 +196,7 @@ export type ToolDef = {
    * projection.
    */
   resolveEffect?: ToolEffectResolver;
-  /** Complete filesystem mutation targets; omission leaves local writes unknown. */
+  /** Complete filesystem observation or mutation targets for this invocation. */
   resolveFilesystemTargets?: ToolFilesystemTargetResolver;
 };
 

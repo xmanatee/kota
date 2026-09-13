@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import type { ToolRunnerContext } from "./tool-registry.js";
 
-/** Mutation destinations. None declares no ancillary writes; it never exempts a local write effect. */
+/** Local filesystem paths observed or mutated by one tool invocation. */
 export type ToolFilesystemTargets =
 	| { kind: "none" }
 	| { kind: "known"; paths: readonly string[] }
@@ -36,4 +36,9 @@ export function resolveFilesystemTargets(
 	} catch {
 		return { kind: "unknown" };
 	}
+}
+
+/** Glob patterns select only descendants of their separately declared base. */
+export function isConfinedGlobPattern(pattern: string): boolean {
+	return !isAbsolute(pattern) && !pattern.includes("..") && !pattern.includes("\\");
 }

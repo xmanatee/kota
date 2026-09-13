@@ -31,7 +31,11 @@ import {
   sessionWriteEffect,
   type ToolEffect,
 } from "#core/tools/effect.js";
-import { resolveFilesystemTargets, type ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
+import {
+  isConfinedGlobPattern,
+  resolveFilesystemTargets,
+  type ToolFilesystemTargetResolver,
+} from "#core/tools/filesystem-targets.js";
 import { resolveOpaqueExecutionPrimaryEffect } from "#core/tools/opaque-execution-effects.js";
 import type { ValidatedToolCallInput } from "#core/tools/tool-input-validation.js";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "./kota-tools-mcp.js";
@@ -56,19 +60,34 @@ const fileTargets: ToolFilesystemTargetResolver = (input, context) =>
     ? { kind: "known", paths: [resolve(context?.cwd ?? process.cwd(), input.file_path)] }
     : { kind: "unknown" };
 
+const searchTargets: ToolFilesystemTargetResolver = (input, context) => {
+  const path = typeof input.path === "string" && input.path.length > 0
+    ? input.path
+    : ".";
+  return {
+    kind: "known",
+    paths: [resolve(context?.cwd ?? process.cwd(), path)],
+  };
+};
+
+const globTargets: ToolFilesystemTargetResolver = (input, context) =>
+  typeof input.pattern === "string" && isConfinedGlobPattern(input.pattern)
+    ? searchTargets(input, context)
+    : { kind: "unknown" };
+
 const notebookTargets: ToolFilesystemTargetResolver = (input, context) =>
   typeof input.notebook_path === "string" && input.notebook_path.length > 0
     ? { kind: "known", paths: [resolve(context?.cwd ?? process.cwd(), input.notebook_path)] }
     : { kind: "unknown" };
 
 const CLAUDE_TOOL_POLICY_BINDINGS = new Map<string, ClaudeToolPolicyBinding>([
-  ["Read", binding("filesystem", localRead)],
-  ["Glob", binding("filesystem", localRead)],
-  ["Grep", binding("filesystem", localRead)],
+  ["Read", binding("filesystem", localRead, fileTargets)],
+  ["Glob", binding("filesystem", localRead, globTargets)],
+  ["Grep", binding("filesystem", localRead, searchTargets)],
   ["Write", binding("filesystem", localWrite, fileTargets)],
   ["Edit", binding("filesystem", localWrite, fileTargets)],
   ["MultiEdit", binding("filesystem", localWrite, fileTargets)],
-  ["NotebookRead", binding("notebook", localRead)],
+  ["NotebookRead", binding("notebook", localRead, notebookTargets)],
   ["NotebookEdit", binding("notebook", localWrite, notebookTargets)],
   ["WebFetch", binding("web-access", networkRead)],
   ["WebSearch", binding("web-access", networkRead)],
@@ -176,6 +195,52 @@ export function createClaudeAgentWriteScopeGuard(args: {
       ) {
         return deny(
           `Blocked by agent write scope: ${query.targetPath} is outside the declared write roots.`,
+        );
+      }
+    }
+    return { behavior: "allow", updatedInput: input };
+  };
+}
+
+/** Enforce an invocation-local observation allowlist for native SDK read tools. */
+export function createClaudeAgentReadScopeGuard(args: {
+  agentReadScope: readonly string[];
+  cwd?: string;
+}): AgentCanUseTool {
+  const cwd = args.cwd ?? process.cwd();
+  const allowedRoots = args.agentReadScope
+    .map((path) => resolveScopePolicyPath(path, cwd))
+    .filter((path): path is string => path !== null);
+
+  return async (toolName, input): Promise<AgentPermissionResult> => {
+    const binding = CLAUDE_TOOL_POLICY_BINDINGS.get(toolName);
+    if (!binding) {
+      return deny(
+        `Blocked by agent read scope: Claude tool ${toolName} has no effect-aware policy binding.`,
+      );
+    }
+    const effect = binding.effect(input);
+    if (effect.kind !== "read" || effect.scope !== "local-fs") {
+      return { behavior: "allow", updatedInput: input };
+    }
+    const targets = resolveFilesystemTargets(
+      binding.resolveFilesystemTargets,
+      input,
+      { cwd: args.cwd },
+    );
+    if (targets.kind !== "known") {
+      return deny(
+        "Blocked by agent read scope: local filesystem reads require complete targets.",
+      );
+    }
+    for (const targetPath of targets.paths) {
+      const target = resolveScopePolicyPath(targetPath, cwd);
+      if (
+        target === null ||
+        !allowedRoots.some((root) => isScopePolicyPathWithin(root, target))
+      ) {
+        return deny(
+          `Blocked by agent read scope: ${targetPath} is outside the declared read roots.`,
         );
       }
     }

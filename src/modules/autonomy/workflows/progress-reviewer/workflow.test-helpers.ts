@@ -16,6 +16,7 @@ import {
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
 import type { RunContext } from "#core/workflow/run-context.js";
+import type { StoredRun } from "#core/workflow/run-state-database.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
   registerWorkflowDefinition,
@@ -76,16 +77,7 @@ export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string
   const dir = realpathSync.native(mkdtempSync(join(tmpdir(), `kota-${label}-`)));
   writeFileSync(
     join(dir, ".gitignore"),
-    [
-      "/.kota/*",
-      "!/.kota/runs/",
-      "/.kota/runs/*",
-      "!/.kota/runs/*/",
-      "/.kota/runs/*/*",
-      "!/.kota/runs/*/evidence/",
-      "!/.kota/runs/*/evidence/**",
-      "",
-    ].join("\n"),
+    "/.kota/\n",
   );
   writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
   mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
@@ -102,6 +94,7 @@ export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string
 export function makeProgressReviewRunContext(
   workspaceRoot: string,
   runId: string,
+  authorizedEvidenceRunIds: readonly string[] = [],
 ): RunContext {
   const runtimeDir = join(workspaceRoot, ".kota", "runtime", runId);
   const tempDir = join(runtimeDir, "temp");
@@ -112,11 +105,24 @@ export function makeProgressReviewRunContext(
     mkdirSync(dir, { recursive: true });
   }
   const signal = new AbortController().signal;
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
+  const evidenceRuns = authorizedEvidenceRunIds.map((evidenceRunId): StoredRun => ({
+    id: evidenceRunId,
+    scopeId,
+    workflow: "builder",
+    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
+    repository: "write",
+    state: "succeeded",
+    resources: [],
+    admittedAt: NOW.toISOString(),
+    attempt: 1,
+    processes: [],
+  }));
   return {
     runtimeStateDir: join(workspaceRoot, ".kota"),
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
     scope: {
-      id: deriveDirectoryScopeId(workspaceRoot),
+      id: scopeId,
       root: workspaceRoot,
     },
     workflow: "progress-reviewer",
@@ -157,6 +163,11 @@ export function makeProgressReviewRunContext(
       env: {},
     },
     signal,
+    runEvidence: {
+      getRun: (selectedRunId) =>
+        evidenceRuns.find((run) => run.id === selectedRunId) ?? null,
+      listRuns: () => evidenceRuns,
+    },
     processes: { register: () => {} },
     effects: {
       execute: async ({ execute }) => execute(),

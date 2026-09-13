@@ -108,3 +108,46 @@ test("rejects scope traversal, unavailable manifests and projection overflow wit
   expect(() => resolveRunArtifactHandoff(input.scopeRoot, { runId: "missing", manifestSha256: handoff.manifestSha256 })).toThrow(/absent/);
   expect(() => retainRunArtifacts({ ...input, roots: [{ name: "outside", path: resolve(input.scopeRoot, "..") }] })).toThrow(/Invalid evidence/);
 });
+
+test("grants an explicitly selected large review packet as a pageable content-addressed projection", () => {
+  const input = fixture();
+  const packetPath = join(input.scopeRoot, ".kota", "runs", input.runId, "progress-review-evidence.json");
+  const hiddenEvidenceId = "artifact:run-1:hidden-result.json";
+  const packet = JSON.stringify({
+    evidence: Array.from({ length: 2_000 }, (_, index) => ({
+      id: index === 1_999 ? hiddenEvidenceId : `event:${index}`,
+      summary: "systemic evidence ".repeat(8),
+    })),
+  });
+  mkdirSync(join(packetPath, ".."), { recursive: true });
+  writeFileSync(packetPath, packet);
+
+  const handoff = retainRunArtifacts({
+    ...input,
+    roots: [],
+    files: [{
+      source: "run/progress-review-evidence.json",
+      path: packetPath,
+      projectionLimit: "review",
+    }],
+  });
+  const entry = handoff.manifest.entries[0];
+  if (entry?.status !== "retained" || entry.projection.status !== "available") {
+    throw new Error("expected large review projection");
+  }
+  expect(entry.originalBytes).toBeGreaterThan(128 * 1024);
+  expect(entry.projection.bytes).toBeGreaterThan(128 * 1024);
+  const projectionPath = join(input.scopeRoot, entry.projection.ref);
+  expect(handoff.readOnlyPaths).toContain(projectionPath);
+  expect(projectionPath).toMatch(/\/projections\/[a-f0-9]{64}\.json$/);
+  expect(readFileSync(projectionPath, "utf8")).toContain(hiddenEvidenceId);
+  expect(resolveRunArtifactHandoff(input.scopeRoot, {
+    runId: input.runId,
+    manifestSha256: handoff.manifestSha256,
+  })).toEqual(handoff);
+  writeFileSync(projectionPath, "altered");
+  expect(() => resolveRunArtifactHandoff(input.scopeRoot, {
+    runId: input.runId,
+    manifestSha256: handoff.manifestSha256,
+  })).toThrow(/projection absent or altered/);
+});

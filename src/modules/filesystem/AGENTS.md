@@ -5,6 +5,9 @@ This directory contains the filesystem capability pack — a repo module that ow
 - This is the canonical home for file and directory tools. Do not add new filesystem tools to `src/core/tools/`.
 - Tools, helpers, and tests are co-located here, following the pattern established by `web-access/`.
 - Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified as safe in guardrails.
+- Glob patterns stay within their selected base; choose a different `path` or
+  `directory` instead of traversing through a pattern. Resolved matches that
+  escape through a symlink are excluded.
 - Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`, `file_watch`) are classified as moderate.
 - Editors preserve requested content, including unfinished syntax; final-result
   validation belongs to the publication workflow, not individual edits.

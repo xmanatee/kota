@@ -1,5 +1,8 @@
 import { resolve } from "node:path";
-import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
+import {
+  isConfinedGlobPattern,
+  type ToolFilesystemTargetResolver,
+} from "#core/tools/filesystem-targets.js";
 import { resolveToolPath } from "./path-resolver.js";
 /**
  * Filesystem module — file read, write, edit, search, and watch tools.
@@ -34,6 +37,26 @@ const fileTarget: ToolFilesystemTargetResolver = (input, context) =>
   typeof input.path === "string"
     ? { kind: "known", paths: [resolve(resolveToolPath(input.path, context))] }
     : { kind: "unknown" };
+const readRoot = (
+  field: "path" | "directory",
+  patternField?: "pattern",
+): ToolFilesystemTargetResolver =>
+  (input, context) => {
+    const value = input[field];
+    if (value !== undefined && typeof value !== "string") return { kind: "unknown" };
+    const pattern = patternField === undefined ? undefined : input[patternField];
+    if (
+      pattern !== undefined &&
+      (
+        typeof pattern !== "string" ||
+        !isConfinedGlobPattern(pattern)
+      )
+    ) {
+      return { kind: "unknown" };
+    }
+    const selected = typeof value === "string" && value.length > 0 ? value : ".";
+    return { kind: "known", paths: [resolve(resolveToolPath(selected, context))] };
+  };
 const editTargets: ToolFilesystemTargetResolver = (input, context) => {
   if (!Array.isArray(input.edits)) return { kind: "unknown" };
   const paths: string[] = [];
@@ -48,6 +71,7 @@ const tools: ToolDef[] = [
   {
     tool: fileReadTool,
     runner: runFileRead,
+    resolveFilesystemTargets: fileTarget,
     effect: readOnlyLocalEffect(),
   },
   {
@@ -78,11 +102,13 @@ const tools: ToolDef[] = [
   {
     tool: globTool,
     runner: runGlob,
+    resolveFilesystemTargets: readRoot("path", "pattern"),
     effect: readOnlyLocalEffect(),
   },
   {
     tool: grepTool,
     runner: runGrep,
+    resolveFilesystemTargets: readRoot("path"),
     effect: readOnlyLocalEffect(),
   },
   {
@@ -94,11 +120,13 @@ const tools: ToolDef[] = [
   {
     tool: filesOverviewTool,
     runner: runFilesOverview,
+    resolveFilesystemTargets: readRoot("path"),
     effect: readOnlyLocalEffect(),
   },
   {
     tool: repoMapTool,
     runner: runRepoMap,
+    resolveFilesystemTargets: readRoot("directory", "pattern"),
     effect: readOnlyLocalEffect(),
     group: "advanced_editing",
   },

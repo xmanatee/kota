@@ -23,7 +23,11 @@ import type { AgentBackoffManager } from "../agent-backoff.js";
 
 import type { WorkflowContinuationRepairEvidence } from "../continuation.js";
 import type { RepositoryAccess } from "../run-sandbox.js";
-import type { WorkflowRuntimeResources } from "../run-types.js";
+import type {
+  WorkflowAgentEvidenceSelection,
+  WorkflowAgentHarnessRunner,
+  WorkflowRuntimeResources,
+} from "../run-types.js";
 
 export type WorkflowStepOutput =
   | ToolResult
@@ -85,6 +89,10 @@ export type AgentStepConfig = {
   agentBackoff?: AgentBackoffManager;
   /** Run-level cancellation used to preserve the complete run on suppression. */
   agentBackoffAbortController?: AbortController;
+  /** Resolved by the step executor from the workflow's semantic selection. */
+  reviewEvidence?: WorkflowAgentEvidenceSelection;
+  /** Current run context owns evidence retention and scope authorization. */
+  reviewEvidenceRunner?: WorkflowAgentHarnessRunner;
 };
 
 export type ActiveAgentContinuationRuntime = Readonly<{

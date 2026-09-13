@@ -202,6 +202,22 @@ export async function executeStep(
 ): Promise<WorkflowStepOutput | AgentStepResult> {
   if (step.type === "tool") return executeToolStep(step, context);
   if (step.type === "agent") {
+    const reviewEvidence = step.reviewEvidence === undefined
+      ? undefined
+      : await step.reviewEvidence(context);
+    if (
+      reviewEvidence !== undefined &&
+      (!reviewEvidence || typeof reviewEvidence !== "object" || Array.isArray(reviewEvidence))
+    ) {
+      throw new Error(`Agent step "${step.id}" resolved invalid review evidence`);
+    }
+    const stepAgentConfig: AgentStepConfig = reviewEvidence === undefined
+      ? agentConfig
+      : {
+          ...agentConfig,
+          reviewEvidence,
+          reviewEvidenceRunner: context.runAgentHarness,
+        };
     const continuationPolicy = step.repairLoop?.continuation;
     let continuationRuntime: ActiveAgentContinuationRuntime | undefined;
     if (continuationPolicy !== undefined) {
@@ -221,7 +237,7 @@ export async function executeStep(
       const activeTrajectory: ActiveAgentContinuationRuntime["trajectory"][number][] = [];
       let observedVerificationCount = 0;
       let lastWorkspaceFingerprint = initialWorkspace.workspaceFingerprint;
-      let activeSessionId = agentConfig.resumeSessionIds?.[step.id];
+      let activeSessionId = stepAgentConfig.resumeSessionIds?.[step.id];
       let observation: Promise<void> | undefined;
       const observeBoundary = (
         message?: KotaAgentMessage,
@@ -296,15 +312,15 @@ export async function executeStep(
         pollEvidence: () => observeBoundary(),
       };
     }
-    let resumedSessionId = agentConfig.resumeSessionIds?.[step.id];
+    let resumedSessionId = stepAgentConfig.resumeSessionIds?.[step.id];
     let result: AgentStepResult;
     while (true) {
       const attemptConfig = resumedSessionId === undefined
-        ? agentConfig
+        ? stepAgentConfig
         : {
-            ...agentConfig,
+            ...stepAgentConfig,
             resumeSessionIds: {
-              ...agentConfig.resumeSessionIds,
+              ...stepAgentConfig.resumeSessionIds,
               [step.id]: resumedSessionId,
             },
           };
@@ -421,7 +437,7 @@ export async function executeStep(
         metadata,
         abortController,
         appendMessage,
-        agentConfig,
+        stepAgentConfig,
         recordContinuation,
       );
     } catch (error) {

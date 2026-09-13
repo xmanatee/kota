@@ -56,6 +56,9 @@ and publication.
   run store and grants bounded files containing only verified selected projections,
   never a directory containing unselected evidence. Disposable compiled trees
   belong in run temp; review roots retain the selected verification outputs.
+  Large workflow-selected packets use directly granted, content-addressed
+  projections so reviewers can page through them; smaller projections share
+  bounded review bundles.
   Linked snapshots require
   explicit selection and a same-scope run observation. Originals keep exact
   hashes; redacted or unavailable projections never stand in for original bytes.

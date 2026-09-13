@@ -29,14 +29,33 @@ export type LinkedRunArtifact = { runId: string; manifestSha256: string };
 export type RunArtifactHandoff = { manifestRef: string; manifestSha256: string; manifest: RunArtifactManifest; readOnlyPaths: string[] };
 export type RetainRunArtifactsInput = {
   scopeRoot: string; runId: string; sourceRevision?: string;
-  /** Runtime-selected roots only. These never come from an agent's path strings. */
+  /** Scope-owned roots selected by the runtime, never by agent path strings. */
   roots: Array<{ name: string; path: string; excludeSuffixes?: string[] }>;
+  /** Runtime-owned roots may live outside the scope workspace until cleanup. */
+  runtimeRoots?: Array<{ name: string; path: string; excludeSuffixes?: string[] }>;
+  /** Runtime-selected individual files, with stable manifest source labels. */
+  files?: Array<{
+    source: string;
+    path: string;
+    /** Allow a pageable projection up to the bounded review-file limit. */
+    projectionLimit?: "review";
+  }>;
 };
 export const retainRunArtifactsOperation = defineWorkflowBlockingOperation<RetainRunArtifactsInput, RunArtifactHandoff>(import.meta.url, "retainRunArtifacts");
 
 function hash(bytes: Uint8Array): string { return createHash("sha256").update(bytes).digest("hex"); }
 function access(scopeRoot: string, ref: string) {
-  if (isAbsolute(ref) || ref.split(/[\\/]/).some(part => part === ".." || part === "." || part === "")) throw new Error("Invalid evidence reference");
+  if (isAbsolute(ref)) throw new Error("Invalid evidence reference (absolute)");
+  const invalidSegment = ref.split(/[\\/]/).find(
+    (part) => part === ".." || part === "." || part === "",
+  );
+  if (invalidSegment !== undefined) {
+    throw new Error(
+      invalidSegment === ".."
+        ? "Invalid evidence reference (outside scope)"
+        : "Invalid evidence reference (empty segment)",
+    );
+  }
   return { rootPath: scopeRoot, boundaryDir: scopeRoot, filePath: join(scopeRoot, ref) };
 }
 function read(scopeRoot: string, ref: string): Buffer | null {
@@ -60,8 +79,8 @@ function classifyRecord(value: unknown): unknown {
   return value;
 }
 
-function project(bytes: Buffer, source: string): Buffer | null {
-  if (bytes.length > MAX_PROJECTION_BYTES) return null;
+function project(bytes: Buffer, source: string, maxProjectionBytes: number): Buffer | null {
+  if (bytes.length > maxProjectionBytes) return null;
   const text = bytes.toString("utf8");
   if (!Buffer.from(text).equals(bytes) || text.includes("\0")) return null;
   let value: unknown;
@@ -78,17 +97,23 @@ function project(bytes: Buffer, source: string): Buffer | null {
   return Buffer.from(JSON.stringify(projectEvidenceObject({ [source]: value }, "agent-context"), null, 2));
 }
 
-function retainAsset(input: RetainRunArtifactsInput, source: string, ref: string, prefix: string): RunArtifactEntry {
-  const bytes = read(input.scopeRoot, ref);
+function retainBytes(
+  input: RetainRunArtifactsInput,
+  source: string,
+  bytes: Buffer | null,
+  prefix: string,
+  maxProjectionBytes = MAX_PROJECTION_BYTES,
+): RunArtifactEntry {
   if (bytes === null) throw new Error("Selected artifact is absent");
   const originalSha256 = hash(bytes);
   const originalRef = `${prefix}/originals/${originalSha256}`;
   install(input.scopeRoot, originalRef, bytes);
   let projection: z.infer<typeof projectionSchema>;
   try {
-    const projected = project(bytes, source);
-    if (projected === null || projected.length > MAX_PROJECTION_BYTES) {
-      projection = { status: "unavailable", reason: "Exact original retained; binary or over the 128 KiB review projection limit" };
+    const projected = project(bytes, source, maxProjectionBytes);
+    if (projected === null || projected.length > maxProjectionBytes) {
+      const limit = maxProjectionBytes === MAX_REVIEW_BYTES ? "16 MiB" : "128 KiB";
+      projection = { status: "unavailable", reason: `Exact original retained; binary or over the ${limit} review projection limit` };
     } else {
       const sha256 = hash(projected);
       const projectedRef = `${prefix}/projections/${sha256}.json`;
@@ -103,6 +128,30 @@ function retainAsset(input: RetainRunArtifactsInput, source: string, ref: string
   return { status: "retained", source, originalRef, originalSha256, originalBytes: bytes.length, projection };
 }
 
+function retainAsset(input: RetainRunArtifactsInput, source: string, ref: string, prefix: string): RunArtifactEntry {
+  return retainBytes(input, source, read(input.scopeRoot, ref), prefix);
+}
+
+function retainRuntimeAsset(
+  input: RetainRunArtifactsInput,
+  source: string,
+  boundaryDir: string,
+  filePath: string,
+  prefix: string,
+): RunArtifactEntry {
+  return retainBytes(
+    input,
+    source,
+    readAnchoredBytes({
+      rootPath: boundaryDir,
+      boundaryDir,
+      filePath,
+      maxBytes: MAX_ASSET_BYTES,
+    }),
+    prefix,
+  );
+}
+
 /** Append-only, content-addressed snapshots in the existing run store. Safe to replay after restart. */
 export function retainRunArtifacts(input: RetainRunArtifactsInput): RunArtifactHandoff {
   validateWorkflowRunId(input.runId, "Run artifact retention");
@@ -112,7 +161,12 @@ export function retainRunArtifacts(input: RetainRunArtifactsInput): RunArtifactH
   let discovered = 0;
   for (const root of input.roots) {
     const rootRef = relative(scopeRoot, resolve(root.path)).split(sep).join("/");
-    access(scopeRoot, rootRef);
+    try { access(scopeRoot, rootRef); }
+    catch (error) {
+      throw new Error(
+        `Invalid artifact root "${root.name}": ${error instanceof Error ? error.message : "invalid reference"}`,
+      );
+    }
     if (!/^[a-z][a-z0-9-]*$/.test(root.name)) throw new Error("Invalid artifact root name");
     function visit(ref: string, source: string, depth: number): void {
       if (depth > 32) throw new Error("Artifact directory exceeds depth limit");
@@ -131,6 +185,52 @@ export function retainRunArtifacts(input: RetainRunArtifactsInput): RunArtifactH
     }
     try { visit(rootRef, root.name, 0); }
     catch (error) { entries.push({ status: "unavailable", source: root.name, reason: redactSensitiveText(error instanceof Error ? error.message : "Artifact discovery unavailable") }); }
+  }
+  for (const root of input.runtimeRoots ?? []) {
+    const boundaryDir = resolve(root.path);
+    if (!/^[a-z][a-z0-9-]*$/.test(root.name)) throw new Error("Invalid artifact root name");
+    function visit(directoryPath: string, source: string, depth: number): void {
+      if (depth > 32) throw new Error("Artifact directory exceeds depth limit");
+      for (const entry of listAnchoredDirectory({ rootPath: boundaryDir, boundaryDir, directoryPath })) {
+        if (++discovered > MAX_ASSETS) throw new Error("Artifact selection exceeds 4096 entries");
+        const childPath = join(directoryPath, entry.name);
+        const childSource = `${source}/${entry.name}`;
+        if (entry.kind === "directory") visit(childPath, childSource, depth + 1);
+        else {
+          if (root.excludeSuffixes?.some(suffix => entry.name.endsWith(suffix))) continue;
+          try { entries.push(retainRuntimeAsset({ ...input, scopeRoot }, childSource, boundaryDir, childPath, prefix)); }
+          catch (error) { entries.push({ status: "unavailable", source: childSource, reason: redactSensitiveText(error instanceof Error ? error.message : "Artifact unavailable") }); }
+        }
+      }
+    }
+    try { visit(boundaryDir, root.name, 0); }
+    catch (error) { entries.push({ status: "unavailable", source: root.name, reason: redactSensitiveText(error instanceof Error ? error.message : "Artifact discovery unavailable") }); }
+  }
+  for (const file of input.files ?? []) {
+    if (++discovered > MAX_ASSETS) throw new Error("Artifact selection exceeds 4096 entries");
+    try { access(scopeRoot, file.source); }
+    catch (error) {
+      throw new Error(
+        `Invalid artifact file source: ${error instanceof Error ? error.message : "invalid reference"}`,
+      );
+    }
+    const fileRef = relative(scopeRoot, resolve(file.path)).split(sep).join("/");
+    try { access(scopeRoot, fileRef); }
+    catch (error) {
+      throw new Error(
+        `Invalid artifact file path: ${error instanceof Error ? error.message : "invalid reference"}`,
+      );
+    }
+    try {
+      entries.push(retainBytes(
+        { ...input, scopeRoot },
+        file.source,
+        read(scopeRoot, fileRef),
+        prefix,
+        file.projectionLimit === "review" ? MAX_REVIEW_BYTES : MAX_PROJECTION_BYTES,
+      ));
+    }
+    catch (error) { entries.push({ status: "unavailable", source: file.source, reason: redactSensitiveText(error instanceof Error ? error.message : "Artifact unavailable") }); }
   }
   const manifest: RunArtifactManifest = { version: 1, scopeRoot, runId: input.runId, sourceRevision: input.sourceRevision ?? null, entries };
   const bytes = Buffer.from(JSON.stringify(manifest, null, 2));
@@ -180,6 +280,11 @@ export function resolveRunArtifactHandoff(scopeRoot: string, selected: LinkedRun
     // ancestor directory that could expose unselected snapshots and originals.
     if (included.has(entry.projection.ref)) continue;
     included.add(entry.projection.ref);
+    if (projected.length > MAX_PROJECTION_BYTES) {
+      flushReview();
+      readOnlyPaths.push(join(scopeRoot, entry.projection.ref));
+      continue;
+    }
     const record = Buffer.from(`${JSON.stringify({ projectionRef: entry.projection.ref, content: projected.toString("utf8") })}\n`);
     if (reviewBytes + record.length > MAX_REVIEW_BYTES) flushReview();
     review.push(record);

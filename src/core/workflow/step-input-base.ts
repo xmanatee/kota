@@ -2,6 +2,7 @@ import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js
 import type { ModelTier } from "#core/model/model-router.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
+  WorkflowAgentEvidenceSelection,
   WorkflowPredicate,
   WorkflowRepairLoopConfig,
   WorkflowStepContext,
@@ -135,6 +136,13 @@ export type WorkflowAgentStepInput = WorkflowProgressStep & {
    * supervision intent — there is no repo-wide default.
    */
   autonomyMode?: AutonomyMode;
+  /**
+   * Select retained run evidence for a read-only reviewer. The runtime projects
+   * and grants only integrity-checked evidence and forces deny-all write scope.
+   */
+  reviewEvidence?: (
+    context: WorkflowStepContext,
+  ) => WorkflowAgentEvidenceSelection | Promise<WorkflowAgentEvidenceSelection>;
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
   /**

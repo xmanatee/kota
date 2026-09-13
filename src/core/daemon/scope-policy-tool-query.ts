@@ -17,8 +17,11 @@ export function scopePolicyToolEffectQueries(
   targets: ToolFilesystemTargets = { kind: "none" },
 ): readonly ScopePolicyToolEffectQuery[] {
   const effects = [...(resolveOpaqueExecutionEffects(toolName, input) ?? [effect])];
-  // Mutation destinations are independent of the primary effect (e.g. a download).
-  if (targets.kind !== "none" && !effects.some((candidate) =>
+  // A local read target describes observation. Other target declarations are
+  // mutation destinations independent of the primary effect (e.g. a download).
+  if (targets.kind !== "none" &&
+    !(effect.kind === "read" && effect.scope === "local-fs") &&
+    !effects.some((candidate) =>
     candidate.scope === "local-fs" && candidate.kind !== "read")) {
     effects.push(localWriteEffect());
   }

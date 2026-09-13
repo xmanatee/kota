@@ -100,13 +100,14 @@ function normalizeEvidenceIds(args: {
     const knownId =
       (args.knownIds.has(id)
         ? id
-        : resolveCompactedChildEvidenceId(
+        : args.fullKnownIds?.has(id)
+          ? id
+          : resolveCompactedChildEvidenceId(
             id,
             args.evidence,
             args.knownIds,
             args.evidenceIds,
           )) ??
-      (args.fullKnownIds?.has(id) ? id : null) ??
       (args.fullEvidence && args.fullKnownIds
         ? resolveCompactedChildEvidenceId(
             id,

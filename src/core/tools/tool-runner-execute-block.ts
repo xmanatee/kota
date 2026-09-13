@@ -22,6 +22,7 @@ import {
 import { validateToolCallInputAgainstSchema } from "./tool-input-validation.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
+import { enforceAgentReadScope } from "./tool-runner-agent-read-scope.js";
 import { enforceAgentWriteScope } from "./tool-runner-agent-write-scope.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import { executeToolWithIdempotency } from "./tool-runner-idempotency.js";
@@ -209,6 +210,13 @@ export async function executeToolBlock(
 	};
 	const scopePolicySnapshot = options.getScopePolicySnapshot?.();
 	const scopePolicy = scopePolicySnapshot?.policy ?? options.scopePolicy;
+	const agentReadScopeResult = enforceAgentReadScope(
+		block,
+		options,
+		targets,
+		effect,
+	);
+	if (agentReadScopeResult) return agentReadScopeResult;
 	const agentWriteScopeResult = enforceAgentWriteScope(
 		block,
 		options,

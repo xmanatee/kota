@@ -64,9 +64,11 @@ export function buildAgentHarnessRunOptions(input: {
     tokenBudget,
   } = input;
   const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
-  const agentWriteScope = step.agentName === undefined
-    ? undefined
-    : agentConfig.resolveAgentDef?.(step.agentName)?.writeScope;
+  const agentWriteScope = agentConfig.reviewEvidence !== undefined
+    ? "deny-all"
+    : step.agentName === undefined
+      ? undefined
+      : agentConfig.resolveAgentDef?.(step.agentName)?.writeScope;
   const agentOutputDir = resolveAgentRunDir({
     metadata,
     scopeRoot: agentConfig.scopeRoot,

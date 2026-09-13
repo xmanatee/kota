@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { isScopePolicyPathWithin } from "#core/daemon/scope-policy-paths.js";
+import { isConfinedGlobPattern } from "#core/tools/filesystem-targets.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import {
   isProtectedScopePath,
@@ -81,6 +83,13 @@ export async function runRepoMap(
   const directory = resolveToolPath(rawDirectory, context);
   const pattern = (input.pattern as string) || "**/*.{ts,tsx,js,jsx,py}";
 
+  if (!isConfinedGlobPattern(pattern)) {
+    return {
+      content: "Error: pattern must stay within directory; select the parent with directory instead",
+      is_error: true,
+    };
+  }
+
   const files = await globFn(pattern, {
     cwd: directory,
     nodir: true,
@@ -92,10 +101,11 @@ export async function runRepoMap(
       ...protectedScopeGlobIgnores(context),
     ],
   });
-  const visibleFiles = files.filter((file) => !isProtectedScopePath(
-    join(directory, file),
-    context,
-  ));
+  const visibleFiles = files.filter((file) => {
+    const target = join(directory, file);
+    return isScopePolicyPathWithin(directory, target) &&
+      !isProtectedScopePath(target, context);
+  });
 
   if (visibleFiles.length === 0) {
     return { content: "No source files found." };

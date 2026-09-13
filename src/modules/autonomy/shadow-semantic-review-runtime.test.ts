@@ -10,6 +10,7 @@ import {
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import {
   buildShadowSemanticReviewPrompt,
   parseShadowSemanticReviewerResponse,
@@ -196,6 +197,21 @@ describe("shadow semantic review runtime", () => {
   });
 
   it("declares and launches the shadow reviewer through one resolved contract", async () => {
+    const adapterRun = vi.fn(async (_options: AgentHarnessRunOptions) => ({
+      text: JSON.stringify({
+        decision: "pass",
+        summary: "The declared target is sound.",
+        citedArtifacts: ["artifact:diff"],
+        findings: [],
+      }),
+      streamedText: "",
+      turns: 1,
+      usage: {
+        tokens: { state: "unknown" as const },
+        cost: { state: "unknown" as const },
+      },
+      isError: false,
+    }));
     const harness: AgentHarness = {
       name: "shadow-review-contract-fixture",
       description: "shadow review contract fixture",
@@ -206,16 +222,7 @@ describe("shadow semantic review runtime", () => {
       toolControl: "native",
       nativeAbortQuarantine: "confirmed-stop",
       unsupportedRunOptions: [],
-      run: async () => ({
-        text: "unused",
-        streamedText: "",
-        turns: 1,
-        usage: {
-          tokens: { state: "unknown" },
-          cost: { state: "unknown" },
-        },
-        isError: false,
-      }),
+      run: adapterRun,
     };
     registerAgentHarness(harness);
     const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
@@ -230,24 +237,12 @@ describe("shadow semantic review runtime", () => {
         effort: "high",
       },
     });
+    const runWithSharedDefaults = createWorkflowAgentHarnessRunner();
     const runAgentHarness = vi.fn(async (
-      _harness: AgentHarness,
-      _options: Omit<AgentHarnessRunOptions, "abortController">,
-    ): Promise<AgentHarnessResult> => ({
-      text: JSON.stringify({
-        decision: "pass",
-        summary: "The declared target is sound.",
-        citedArtifacts: ["artifact:diff"],
-        findings: [],
-      }),
-      streamedText: "",
-      turns: 1,
-      usage: {
-        tokens: { state: "unknown" },
-        cost: { state: "unknown" },
-      },
-      isError: false,
-    }));
+      selectedHarness: AgentHarness,
+      options: Omit<AgentHarnessRunOptions, "abortController">,
+    ): Promise<AgentHarnessResult> =>
+      runWithSharedDefaults(selectedHarness, options));
     const ctx = {
       ...makeShadowReviewContext(workspaceRoot, runDirPath),
       agentRuntime: runtime,
@@ -262,6 +257,7 @@ describe("shadow semantic review runtime", () => {
       model: "shadow-model",
       effort: "high",
       autonomyMode: "autonomous",
+      agentWriteScope: "deny-all",
       ownerQuestionAccess: "disabled",
     });
     expect(runAgentHarness).toHaveBeenCalledOnce();
@@ -269,9 +265,23 @@ describe("shadow semantic review runtime", () => {
       model: contract.model,
       effort: contract.effort,
       autonomyMode: contract.autonomyMode,
-      persistSession: false,
+      agentWriteScope: "deny-all",
       enableFileCheckpointing: false,
     });
+    expect(runAgentHarness.mock.calls[0]?.[1]).not.toHaveProperty("persistSession");
+    expect(adapterRun).toHaveBeenCalledOnce();
+    const adapterOptions = adapterRun.mock.calls[0]?.[0];
+    expect(adapterOptions).toMatchObject({
+      model: contract.model,
+      effort: contract.effort,
+      autonomyMode: contract.autonomyMode,
+      agentWriteScope: "deny-all",
+      persistSession: true,
+      enableFileCheckpointing: false,
+    });
+    expect(adapterOptions?.sessionStorageDir).toContain(
+      join(workspaceRoot, ".kota", "openai-tools-agent-harness", "sessions"),
+    );
     expect(contract.maxTurns).toBeUndefined();
     expect(runAgentHarness.mock.calls[0]?.[1].maxTurns).toBeUndefined();
   });

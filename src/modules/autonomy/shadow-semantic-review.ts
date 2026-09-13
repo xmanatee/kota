@@ -107,6 +107,7 @@ export function resolveShadowSemanticReviewRunContract(
     model: declaration.reviewer.model ?? runtime.tiers.capable,
     effort: declaration.reviewer.effort ?? runtime.effort,
     autonomyMode: "autonomous",
+    agentWriteScope: "deny-all",
     ownerQuestionAccess: "disabled",
     ...(harness?.toolControl === "kota"
       ? { disallowedTools: AUTONOMY_DISALLOWED_TOOLS }

@@ -8,6 +8,7 @@ import type {
 } from "#core/daemon/scope-policy.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
+  createClaudeAgentReadScopeGuard,
   createClaudeAgentWriteScopeGuard,
   createClaudeScopePolicyGuard,
 } from "./scope-policy-guard.js";
@@ -21,6 +22,7 @@ export function createClaudePermissionGuard(args: {
   cwd: string | undefined;
   sessionId: string | undefined;
   agentWriteScope: AgentWriteScope | undefined;
+  agentReadScope: readonly string[] | undefined;
   agentOutputDir: string | undefined;
 }): AgentCanUseTool | undefined {
   const scopePolicyGuard = args.scopePolicy
@@ -44,12 +46,19 @@ export function createClaudePermissionGuard(args: {
         ...(args.cwd ? { cwd: args.cwd } : {}),
       })
     : undefined;
+  const agentReadScopeGuard = args.agentReadScope === undefined
+    ? undefined
+    : createClaudeAgentReadScopeGuard({
+        agentReadScope: args.agentReadScope,
+        ...(args.cwd ? { cwd: args.cwd } : {}),
+      });
 
-  // The write-scope guard runs last so an earlier callback cannot rewrite an
-  // authorized output path into a sibling runtime-owned file.
+  // Machine scopes run last so an earlier callback cannot rewrite an
+  // authorized path into sibling runtime-owned state.
   const guards = [
     args.canUseTool,
     scopePolicyGuard,
+    agentReadScopeGuard,
     agentWriteScopeGuard,
   ].filter((guard): guard is AgentCanUseTool => guard !== undefined);
   return guards.length > 1 ? composeCanUseTools(...guards) : guards.at(0);

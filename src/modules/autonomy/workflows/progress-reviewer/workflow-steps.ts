@@ -2,7 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import type {
+  WorkflowAgentEvidenceSelection,
+  WorkflowStepContext,
+} from "#core/workflow/run-types.js";
 import {
   expectStructuredOutput,
   typedCodeStep,
@@ -68,6 +71,54 @@ function readProgressReviewEvidencePacket(
   return readProgressReviewEvidencePacketFromHandle(
     collectEvidence.outputRequired(ctx),
   );
+}
+
+const RETAINED_MANIFEST_FILE = /^evidence\/manifests\/([a-f0-9]{64})\.json$/;
+const RUN_PATH = /^\.kota\/runs\/([^/]+)\//;
+
+/** Select only retained projections connected to the review's bounded packet. */
+export function selectProgressReviewAgentEvidence(
+  ctx: WorkflowStepContext,
+): WorkflowAgentEvidenceSelection {
+  const packet = readProgressReviewEvidencePacket(ctx);
+  const reviewInput = prepareReviewInput.outputRequired(ctx);
+  const artifactsById = new Map(packet.artifacts.map((item) => [item.id, item]));
+  const selectedRunIds = new Set<string>();
+  for (const item of reviewInput.evidence) {
+    const artifact = artifactsById.get(item.id);
+    if (artifact !== undefined) selectedRunIds.add(artifact.runId);
+    const pathRunId = item.path?.match(RUN_PATH)?.[1];
+    if (pathRunId !== undefined) selectedRunIds.add(pathRunId);
+    if (item.kind === "run") {
+      const marker = item.id.lastIndexOf(":run:");
+      selectedRunIds.add(marker >= 0 ? item.id.slice(marker + 5) : item.id.slice(4));
+    }
+  }
+
+  const linked = packet.artifacts.flatMap((artifact) => {
+    if (!selectedRunIds.has(artifact.runId)) return [];
+    const digest = artifact.file.match(RETAINED_MANIFEST_FILE)?.[1];
+    return digest === undefined
+      ? []
+      : [{ runId: artifact.runId, manifestSha256: digest }];
+  }).filter((item, index, items) =>
+    items.findIndex((candidate) =>
+      candidate.runId === item.runId &&
+      candidate.manifestSha256 === item.manifestSha256
+    ) === index
+  );
+  const linkedRunIds = new Set(linked.map((item) => item.runId));
+  const unavailable = [...selectedRunIds]
+    .filter((runId) => !linkedRunIds.has(runId))
+    .map((runId) =>
+      `Selected run ${runId}: no retained review projection was available in the evidence window`
+    );
+
+  return {
+    currentRunReviewFiles: [PROGRESS_REVIEW_EVIDENCE_ARTIFACT],
+    linked,
+    unavailable,
+  };
 }
 
 export const inspectSemanticInput = typedCodeStep<ProgressReviewSemanticInput>({

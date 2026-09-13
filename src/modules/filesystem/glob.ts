@@ -2,6 +2,8 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { isScopePolicyPathWithin } from "#core/daemon/scope-policy-paths.js";
+import { isConfinedGlobPattern } from "#core/tools/filesystem-targets.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   isProtectedScopePath,
@@ -47,6 +49,12 @@ export async function runGlob(
   if (!pattern) {
     return { content: "Error: pattern is required", is_error: true };
   }
+  if (!isConfinedGlobPattern(pattern)) {
+    return {
+      content: "Error: pattern must stay within path; select the parent with path instead",
+      is_error: true,
+    };
+  }
 
   const files = (await globFn(pattern, {
     cwd: basePath,
@@ -57,7 +65,11 @@ export async function runGlob(
       "**/dist/**",
       ...protectedScopeGlobIgnores(context),
     ],
-  })).filter((file) => !isProtectedScopePath(join(basePath, file), context));
+  })).filter((file) => {
+    const target = join(basePath, file);
+    return isScopePolicyPathWithin(basePath, target) &&
+      !isProtectedScopePath(target, context);
+  });
 
   if (files.length === 0) {
     return { content: "No files matched." };

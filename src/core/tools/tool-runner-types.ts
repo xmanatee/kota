@@ -85,6 +85,7 @@ export type ToolCallExecutionOptions = {
 	resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
 	cwd?: string;
 	agentWriteScope?: AgentWriteScope;
+	agentReadScope?: readonly string[];
 	agentOutputDir?: string;
 	env?: Record<string, string>;
 	authorityConfigPath?: string;

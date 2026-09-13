@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -59,4 +59,22 @@ it("bounds long signatures without losing symbol identity", async () => {
   expect(result.content).toContain("fn process(");
   expect(result.content).toMatch(/\.\.\.$/);
   expect(result.content.split("\n")[1].length).toBeLessThan(90);
+});
+
+it("keeps patterns and resolved source files inside the selected directory", async () => {
+  file("private/secret.py", "private_value = 1\ndef private_value(): pass");
+  mkdirSync(join(root, "workspace"));
+  symlinkSync(join(root, "private", "secret.py"), join(root, "workspace", "alias.py"));
+
+  expect(await runRepoMap(
+    { directory: "workspace", pattern: "../private/**/*.py" },
+    { cwd: root },
+  )).toMatchObject({
+    is_error: true,
+    content: expect.stringContaining("pattern must stay within directory"),
+  });
+  expect(await runRepoMap(
+    { directory: "workspace", pattern: "**/*.py" },
+    { cwd: root },
+  )).toEqual({ content: "No source files found." });
 });

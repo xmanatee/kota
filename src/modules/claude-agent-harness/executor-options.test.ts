@@ -1,6 +1,7 @@
 import "./executor-test-support.js";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import { composeCanUseTools } from "#core/agent-harness/index.js";
 import {
   buildQueryOptions,
   executeWithAgentSDK,
@@ -16,6 +17,10 @@ import {
   mockSpawnSync,
   type RawSdkTestMessage,
 } from "./executor-test-support.js";
+import {
+  createClaudeAgentReadScopeGuard,
+  createClaudeAgentWriteScopeGuard,
+} from "./scope-policy-guard.js";
 
 describe("agent-sdk executor options and lifecycle", () => {
   it("keeps SDK permission callbacks enabled for protected session storage", () => {
@@ -111,6 +116,64 @@ describe("agent-sdk executor options and lifecycle", () => {
       permissionMode: "default",
       allowDangerouslySkipPermissions: false,
       canUseTool: expect.any(Function),
+    });
+  });
+
+  it("runs read scopes through the pre-tool hook before SDK auto-approval", async () => {
+    const canUseTool = composeCanUseTools(
+      createClaudeAgentReadScopeGuard({
+        cwd: "/workspace",
+        agentReadScope: ["/workspace", "/canonical/review.jsonl"],
+      }),
+      createClaudeAgentWriteScopeGuard({
+        cwd: "/workspace",
+        agentWriteScope: "deny-all",
+      }),
+    );
+    const options = buildQueryOptions({
+      cwd: "/workspace",
+      effort: "xhigh",
+      permissionMode: "default",
+      canUseTool,
+      agentReadScope: ["/workspace", "/canonical/review.jsonl"],
+    });
+    expect(options.sandbox?.autoAllowBashIfSandboxed).toBe(false);
+    const hook = options.hooks!.PreToolUse![0].hooks[0];
+    const input = {
+      hook_event_name: "PreToolUse" as const,
+      session_id: "session",
+      transcript_path: "native",
+      cwd: "/workspace",
+      tool_name: "Read",
+      tool_use_id: "read",
+      tool_input: { file_path: "/canonical/private.json" },
+    };
+
+    await expect(
+      hook(input, "read", { signal: new AbortController().signal }),
+    ).resolves.toMatchObject({
+      hookSpecificOutput: {
+        permissionDecision: "deny",
+        permissionDecisionReason: expect.stringContaining("outside the declared read roots"),
+      },
+    });
+    await expect(
+      hook({ ...input, tool_input: { file_path: "/canonical/review.jsonl" } }, "read", {
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({});
+    await expect(
+      hook({
+        ...input,
+        tool_name: "Bash",
+        tool_use_id: "bash",
+        tool_input: { command: "cat /canonical/private.json" },
+      }, "bash", { signal: new AbortController().signal }),
+    ).resolves.toMatchObject({
+      hookSpecificOutput: {
+        permissionDecision: "deny",
+        permissionDecisionReason: expect.stringContaining("local filesystem writes are denied"),
+      },
     });
   });
 

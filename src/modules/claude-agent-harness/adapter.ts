@@ -277,6 +277,7 @@ export const claudeAgentHarness: AgentHarness = {
       cwd: options.cwd,
       sessionId: sessionContext?.sessionId,
       agentWriteScope: options.agentWriteScope,
+      agentReadScope: options.agentReadScope,
       agentOutputDir: options.agentOutputDir,
     });
 

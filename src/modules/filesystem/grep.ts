@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { globSync } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { isScopePolicyPathWithin } from "#core/daemon/scope-policy-paths.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   isProtectedScopePath,
@@ -199,7 +200,9 @@ export async function runGrep(
     let outputBytes = 0;
     for (let offset = 0; offset < files.length; offset += 64) {
       const batch = files.slice(offset, offset + 64).filter((file) =>
-        !isProtectedScopePath(file, context) && statSync(file).isFile(),
+        isScopePolicyPathWithin(searchPath, file) &&
+        !isProtectedScopePath(file, context) &&
+        statSync(file).isFile(),
       );
       if (batch.length === 0) continue;
       const chunk = executeSearch(command, [...args, "--", pattern, ...batch]);

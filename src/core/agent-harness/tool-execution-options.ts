@@ -58,6 +58,9 @@ export function agentHarnessToolExecutionOptions(
 		...(options.agentWriteScope !== undefined
 			? { agentWriteScope: options.agentWriteScope }
 			: {}),
+		...(options.agentReadScope !== undefined
+			? { agentReadScope: options.agentReadScope }
+			: {}),
 		...(options.agentOutputDir !== undefined
 			? { agentOutputDir: options.agentOutputDir }
 			: {}),

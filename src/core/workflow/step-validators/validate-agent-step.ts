@@ -58,6 +58,21 @@ export function validateAgentStep(
       definitionPath,
     );
   }
+  const reviewEvidence = expectOptionalFunction(
+    step.reviewEvidence,
+    `${stepLabel}.reviewEvidence`,
+    definitionPath,
+  ) as WorkflowAgentStep["reviewEvidence"];
+  if (
+    reviewEvidence !== undefined &&
+    agentDef !== undefined &&
+    agentDef.writeScope !== "deny-all"
+  ) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.reviewEvidence requires an agent with deny-all write scope`,
+      definitionPath,
+    );
+  }
 
   const rawPromptPath = step.promptPath ?? agentDef?.promptPath;
   if (!rawPromptPath) {
@@ -191,6 +206,7 @@ export function validateAgentStep(
     disallowedTools: toolPolicy.policy.disallowed,
     harnessOptions,
     autonomyMode,
+    reviewEvidence,
     when: expectOptionalFunction(
       step.when,
       `${stepLabel}.when`,

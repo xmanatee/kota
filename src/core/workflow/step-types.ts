@@ -7,8 +7,10 @@ import type { ModelTier } from "#core/model/model-router.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
+  WorkflowAgentEvidenceSelection,
   WorkflowPredicate,
   WorkflowRepairLoopConfig,
+  WorkflowStepContext,
   WorkflowValueResolver,
 } from "./run-types.js";
 import type {
@@ -83,6 +85,10 @@ export type WorkflowAgentStep = WorkflowProgressStep & {
   harnessOptions?: Record<string, AgentHarnessStepOverrides>;
   /** Operator supervision mode applied to this agent step. */
   autonomyMode: AutonomyMode;
+  /** Runtime-selected evidence for this read-only reviewer. */
+  reviewEvidence?: (
+    context: WorkflowStepContext,
+  ) => WorkflowAgentEvidenceSelection | Promise<WorkflowAgentEvidenceSelection>;
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
   outputFormat?: "json";

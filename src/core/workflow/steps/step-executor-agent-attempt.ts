@@ -177,17 +177,25 @@ export async function runAgentAttempt(input: {
         ? { persistContinuationSession: true }
         : {}),
     });
-    const workflowHarnessRunner = createWorkflowAgentHarnessRunner(
-      agentConfig.onProcessSpawn,
-      agentConfig.agentBackoff,
-      agentConfig.scopeId,
-    );
+    const workflowHarnessRunner = agentConfig.reviewEvidence === undefined
+      ? createWorkflowAgentHarnessRunner(
+          agentConfig.onProcessSpawn,
+          agentConfig.agentBackoff,
+          agentConfig.scopeId,
+        )
+      : agentConfig.reviewEvidenceRunner;
+    if (workflowHarnessRunner === undefined) {
+      throw new Error("Review evidence requires the workflow run context");
+    }
     const runHarness = () => workflowHarnessRunner(
       resolvedHarness,
       harnessRunOptions.options,
       {
         signal: attemptAbortController.signal,
         writer: { write: () => true },
+        ...(agentConfig.reviewEvidence === undefined
+          ? {}
+          : { evidence: agentConfig.reviewEvidence }),
       },
     );
     const stopContinuationEvidenceMonitor = startContinuationEvidenceMonitor({

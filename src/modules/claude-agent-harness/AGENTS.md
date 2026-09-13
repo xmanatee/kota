@@ -41,6 +41,10 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
   Claude's effective built-in tool input against the declared scope roots
   plus the isolated per-run output directory, after caller and scope-policy
   callbacks have run, so neither can widen the destination.
+- Evidence-review read scope is also enforced through the pre-tool hook for
+  read built-ins and sandboxed Bash because the SDK may auto-approve those
+  without calling `canUseTool`. Opaque Bash remains a write-capable operation
+  and is denied for review-only invocations.
 - Claude command execution also runs in the SDK's fail-closed OS sandbox. The
   workspace stays writable while the machine-authority directory is denied;
   `canUseTool` text classification is defense in depth, not the authority

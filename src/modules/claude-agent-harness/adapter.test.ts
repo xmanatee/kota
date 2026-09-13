@@ -188,6 +188,58 @@ describe("claudeAgentHarness", () => {
     });
   });
 
+  it("enforces selected evidence reads in the effective SDK permission path", async () => {
+    const workspace = "/tmp/workspace";
+    const selected = "/tmp/canonical/.kota/runs/run-1/review.jsonl";
+    await claudeAgentHarness.run({
+      prompt: "review selected evidence",
+      effort: "xhigh",
+      cwd: workspace,
+      autonomyMode: "autonomous",
+      agentWriteScope: "deny-all",
+      agentReadScope: [workspace, selected],
+    });
+
+    const sdkOptions = executeWithAgentSDKMock.mock.calls[0]?.[1] as {
+      canUseTool?: AgentCanUseTool;
+      agentReadScope?: readonly string[];
+    };
+    expect(sdkOptions.agentReadScope).toEqual([workspace, selected]);
+    const context = {
+      signal: new AbortController().signal,
+      toolUseId: "read-isolation",
+    };
+    await expect(
+      sdkOptions.canUseTool?.("Read", { file_path: selected }, context),
+    ).resolves.toMatchObject({ behavior: "allow" });
+    await expect(
+      sdkOptions.canUseTool?.("Read", {
+        file_path: "/tmp/canonical/.kota/runs/run-1/evidence/originals/private",
+      }, context),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("outside the declared read roots"),
+    });
+    await expect(
+      sdkOptions.canUseTool?.("Glob", { path: workspace, pattern: "**/*.ts" }, context),
+    ).resolves.toMatchObject({ behavior: "allow" });
+    await expect(
+      sdkOptions.canUseTool?.("Glob", {
+        path: workspace,
+        pattern: "../private/**/*.json",
+      }, context),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("require complete targets"),
+    });
+    await expect(
+      sdkOptions.canUseTool?.("Skill", { skill: "unselected" }, context),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("require complete targets"),
+    });
+  });
+
   it("checks write scope after earlier permission callbacks rewrite input", async () => {
     const canUseTool: AgentCanUseTool = async (_toolName, input) => ({
       behavior: "allow",
