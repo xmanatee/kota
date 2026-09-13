@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Reconcile runtime issue observation and attribution verification
@@ -45,3 +44,40 @@ and received values. Follow the shared rules in
 `task-assess-fifty-percent-reduction-after-citation-and-reminder-followups`;
 report test, support, exclusions and production separately. This is a bounded
 correctness/proof repair, with no deletion quota or live-model dependency.
+
+## Verified Outcome
+
+Both reported failures were stale, time-sensitive fixture proofs rather than
+production behavior defects. Their fixed August timestamps had crossed the
+dead-letter store's 30-day retention boundary against the host clock. The store
+therefore omitted still-relevant fixture records from `list()`: partial dismissal
+looked like an aggregate clear, and reconciliation could no longer recover the
+changed item's run metadata, producing honest `contract/unattributed` and trigger
+fallback labels. Freezing only `Date` at the fixture's declared `NOW` keeps the
+records inside their production retention policy while leaving asynchronous
+timers real.
+
+The focused proof now asserts persisted issue state after partial dismissal,
+one aggregate clear after final dismissal, and the explicit unattributed result
+when run metadata is genuinely absent. The production-capture replay and restart
+journeys exercise the real store, projector, runtime, task writer and persisted
+reconciliation state; only host port allocation and process-table inspection are
+controlled because those OS facilities are unavailable in the managed test
+environment. The replay's resolved-state oracle also retains the terminal task
+link, matching the projector's provenance contract.
+
+Verification-LOC measurement with `scripts/count-verification-loc.py`:
+
+- Executable test: 266,525 → 266,656 (`+131` LOC; 1,271 files unchanged).
+- Authored test support: 21,075 → 21,075 (`0` LOC).
+- Generated/vendored exclusions: 15,799 → 15,799 (`0` LOC).
+- Production: `0` LOC changed.
+
+Behavioral proof:
+
+- `pnpm test:owner src/modules/autonomy/autonomy-issue-runtime-sources.test.ts`
+  passes all 4 focused source/projector cases.
+- `pnpm test:integration src/modules/autonomy/production-dead-letter-routing-replay.integration.test.ts`
+  passes the captured open, revision, generated-task and aggregate-clear journey.
+- `pnpm test:integration src/modules/autonomy/autonomy-issue-reconciliation.integration.test.ts`
+  passes all 3 cancellation, dead-letter replay and restart reconciliation journeys.

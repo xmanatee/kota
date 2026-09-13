@@ -9,6 +9,7 @@ import { deadLetterChangedEventPayload } from "#core/daemon/dead-letter-queue-ev
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { withShortBatchWindows } from "#core/workflow/testing/runtime-fixture.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
@@ -33,6 +34,52 @@ import {
   readJson,
   writeDeadLetterSnapshot,
 } from "./production-routing-replay.integration-test-helpers.js";
+
+// Observe only subprocesses launched by this test; the managed test environment
+// does not expose the host process table used by sandbox cleanup.
+vi.mock("node:child_process", async (original) => {
+  const actual = await original<typeof import("node:child_process")>();
+  const running = new Set<number>();
+  return {
+    ...actual,
+    spawn: (...args: Parameters<typeof actual.spawn>) => {
+      const child = actual.spawn(...args);
+      if (child.pid !== undefined) {
+        const pid = child.pid;
+        running.add(pid);
+        child.once("exit", () => running.delete(pid));
+      }
+      return child;
+    },
+    spawnSync: (command: string, args: string[], options: object) => {
+      if (command !== "/bin/ps") return actual.spawnSync(command, args, options);
+      const selected = args.includes("-p") ? [Number(args.at(-1))] : [...running];
+      return {
+        status: 0,
+        stdout: selected
+          .filter((pid) => running.has(pid))
+          .map((pid) => `${pid} ${pid} Sun Sep 13 00:00:00 2026 fixture-process`)
+          .join("\n"),
+        stderr: "",
+      };
+    },
+  };
+});
+
+vi.mock("#core/workflow/run-resources.js", async (original) => {
+  const actual = await original<typeof import("#core/workflow/run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(
+        store: RunStateDatabase,
+        options: import("#core/workflow/run-resources.js").RunResourceAllocatorOptions,
+      ) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -293,7 +340,7 @@ describe("production dead-letter routing replay", () => {
           semanticRevision: 2,
           disposition: { kind: "cleared" },
           links: {
-            taskIds: [],
+            taskIds: [readyTasks[0]!.id],
             ownerQuestionIds: [],
             deadLetterIds: capture.records.map((record) => record.id).sort(),
           },

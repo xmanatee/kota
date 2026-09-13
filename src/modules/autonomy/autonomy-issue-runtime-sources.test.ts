@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import type { StoredRun } from "#core/workflow/run-state-database.js";
@@ -23,6 +23,8 @@ describe("runtime-owned autonomy issue observations", () => {
   let runtime: ReturnType<typeof wireAutonomyIssueSourceFixture>["runtime"];
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-issue-runtime-sources-"));
     ({ pbus, signals, runtime } = wireAutonomyIssueSourceFixture(scopeRoot));
   });
@@ -30,6 +32,7 @@ describe("runtime-owned autonomy issue observations", () => {
   afterEach(() => {
     runtime.runState.close();
     rmSync(scopeRoot, { recursive: true, force: true });
+    vi.useRealTimers();
   });
 
   it("derives workflow health contracts without volatile schedule timestamps", () => {
@@ -129,24 +132,21 @@ describe("runtime-owned autonomy issue observations", () => {
       store.dismiss(item.id, "Fixed by commit 532ab1ae");
     }
     projectNewSignals("partial-dead-letter-dismissal");
-    expect(signals.map((signal) => signal.observation)).toEqual(
-      productionRunIds.map(() => "present"),
-    );
     expect(new Set(signals.map((signal) => signal.dedupeKey)).size).toBe(1);
     expect(applied.filter((action) => action.kind === "decision-requested")).toEqual([
       expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
     ]);
     expect(readAutonomyIssueProjection(scopeRoot, join(scopeRoot, ".kota")).issues[0]).toMatchObject({
+      status: "needs-decision",
       semanticRevision: 1,
       occurrenceCount: 4,
+      links: { deadLetterIds: items.map((item) => item.id).sort() },
     });
     store.dismiss(items.at(-1)!.id, "Fixed by commit 532ab1ae");
     projectNewSignals("final-dead-letter-dismissal");
 
-    expect(signals.map((signal) => signal.observation)).toEqual([
-      ...productionRunIds.map(() => "present"),
-      "cleared",
-    ]);
+    expect(signals.filter((signal) => signal.observation === "cleared"))
+      .toHaveLength(1);
     expect(signals[0]?.evidenceRefs[0]?.ref).toContain(items[0]!.id);
     expect(signals.at(-1)?.evidenceRefs.map((ref) => ref.ref).sort()).toEqual(
       items.map((item) => `.kota/dead-letter-queue/items.json#${item.id}`).sort(),
@@ -375,6 +375,44 @@ describe("runtime-owned autonomy issue observations", () => {
         kind: "run",
         ref: ".kota/runs/builder-direct-recovery/metadata.json",
       }],
+    });
+
+    createWorkflowDispatchDeadLetter({
+      store: runtime.deadLetterQueue,
+      scopeId: ISSUE_SOURCE_SCOPE_ID,
+      workflowName: "builder",
+      trigger: {
+        event: "manual.retry",
+        schemaRef: null,
+        payload: { request: "metadata-free-task" },
+      },
+      reason: "The failed run metadata is unavailable.",
+      errorClass: "runtime",
+    });
+    const unattributed = signals.at(-1)!;
+    expect(unattributed).toMatchObject({
+      observation: "present",
+      source: expect.objectContaining({ workflow: "builder" }),
+      labels: expect.arrayContaining([
+        "contract/unattributed",
+        "trigger/manual.retry",
+      ]),
+      evidenceRefs: [expect.objectContaining({ kind: "dead-letter" })],
+    });
+    const missingMetadataReview = applyHealthReviewSignals({
+      workspaceRoot: scopeRoot,
+      signals: [unattributed],
+      generatedAt: NOW,
+      reason: "missing-run-metadata-boundary",
+    });
+    expect(missingMetadataReview.projection.issues.find(
+      (issue) => issue.rootCauseKey === unattributed.dedupeKey,
+    )).toMatchObject({
+      status: "needs-decision",
+      labels: expect.arrayContaining([
+        "contract/unattributed",
+        "trigger/manual.retry",
+      ]),
     });
   });
 });

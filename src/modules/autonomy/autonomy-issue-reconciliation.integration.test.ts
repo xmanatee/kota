@@ -29,6 +29,52 @@ import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-he
 import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 import { autonomyHealthSignal, normalizeHealthSignal } from "./health-signal.js";
 
+// Observe only subprocesses launched by this test; the managed test environment
+// does not expose the host process table used by sandbox cleanup.
+vi.mock("node:child_process", async (original) => {
+  const actual = await original<typeof import("node:child_process")>();
+  const running = new Set<number>();
+  return {
+    ...actual,
+    spawn: (...args: Parameters<typeof actual.spawn>) => {
+      const child = actual.spawn(...args);
+      if (child.pid !== undefined) {
+        const pid = child.pid;
+        running.add(pid);
+        child.once("exit", () => running.delete(pid));
+      }
+      return child;
+    },
+    spawnSync: (command: string, args: string[], options: object) => {
+      if (command !== "/bin/ps") return actual.spawnSync(command, args, options);
+      const selected = args.includes("-p") ? [Number(args.at(-1))] : [...running];
+      return {
+        status: 0,
+        stdout: selected
+          .filter((pid) => running.has(pid))
+          .map((pid) => `${pid} ${pid} Sun Sep 13 00:00:00 2026 fixture-process`)
+          .join("\n"),
+        stderr: "",
+      };
+    },
+  };
+});
+
+vi.mock("#core/workflow/run-resources.js", async (original) => {
+  const actual = await original<typeof import("#core/workflow/run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(
+        store: RunStateDatabase,
+        options: import("#core/workflow/run-resources.js").RunResourceAllocatorOptions,
+      ) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
+
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
   return { ...actual, executeWithAgentSDK: vi.fn() };
