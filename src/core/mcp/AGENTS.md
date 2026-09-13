@@ -29,6 +29,12 @@ into the runtime tool list.
   configured credentials are redacted from the complete message before rendering.
   Both diagnostic and stderr publication use the common terminal-renderer control
   sanitizer; peer text and labels must never reach a provider or stream directly.
+  Stderr uses the client stream redactor after incremental UTF-8 decoding; retain
+  possible credential prefixes until subsequent bytes or stream completion settle
+  them. The credential set includes resolved OAuth clients as soon as registration
+  completes, while their private protocol values remain unchanged.
+  Preserve original response values for diagnostic redaction; normalize only for
+  protocol comparisons so case conversion cannot bypass credential matching.
   Protocol decoders return data; the client owns diagnostic publication.
 - Route locally assembled lifecycle and decoding errors through
   `McpClientBase.diagnosticError`. Typed request-error constructors redact the

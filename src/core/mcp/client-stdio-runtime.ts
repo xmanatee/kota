@@ -1,4 +1,3 @@
-import type { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
@@ -51,14 +50,21 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     });
 
     this.proc.stdin?.on("error", () => {});
-    this.proc.stderr?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString().trim();
+    const redactStderr = this.createDiagnosticStreamRedactor();
+    const publishStderr = (chunk: string, final = false) => {
+      const text = redactStderr(chunk, final).trim();
       if (!text) return;
       this.writeDiagnostic(
         `[mcp:${this.serverName}] ${text}\n`,
         "stderr",
       );
-    });
+    };
+    // Decode UTF-8 across byte boundaries before matching credentials. Drain on
+    // stream completion, not process exit: exit can precede the last data event.
+    this.proc.stderr?.setEncoding("utf8");
+    this.proc.stderr?.on("data", (chunk: string) => publishStderr(chunk));
+    this.proc.stderr?.once("end", () => publishStderr("", true));
+    this.proc.stderr?.once("close", () => publishStderr("", true));
 
     this.rl = createInterface({ input: this.proc.stdout! });
     this.rl.on("line", (line) => this.handleLine(line));

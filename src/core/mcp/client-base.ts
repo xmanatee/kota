@@ -433,6 +433,12 @@ export abstract class McpClientBase {
       if (subjectToken?.source.kind === "static") add(subjectToken.source.token);
       if (subjectToken?.source.kind === "env") add(process.env[subjectToken.source.name]);
     }
+    for (const client of this.oauthClients.values()) {
+      if (client.clientSecret !== undefined) {
+        add(client.clientSecret);
+        add(clientSecretBasicAuthorizationHeader(client.clientId, client.clientSecret));
+      }
+    }
     for (const assertion of this.oauthClientAssertions) add(assertion);
     add(this.oauthTokenBinding?.token.accessToken);
     add(this.oauthTokenBinding?.token.refreshToken);
@@ -445,6 +451,33 @@ export abstract class McpClientBase {
       redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
     }
     return redacted;
+  }
+
+  protected createDiagnosticStreamRedactor(): (chunk: string, final?: boolean) => string {
+    let pending = "";
+    return (chunk, final = false) => {
+      const values = this.sensitiveValuesForRedaction();
+      const text = pending + chunk;
+      let redacted = "";
+      let offset = 0;
+      while (offset < text.length) {
+        // Do not publish a possible credential prefix, even when a shorter
+        // credential already matches. Pending state is shorter than the longest
+        // credential, independent of line length. EOF settles incomplete matches.
+        if (!final && values.some((value) =>
+          value.length > text.length - offset && value.startsWith(text.slice(offset))
+        )) break;
+        const match = values.find((value) => text.startsWith(value, offset));
+        if (match !== undefined) {
+          redacted += "[redacted]";
+          offset += match.length;
+        } else {
+          redacted += text.charAt(offset++);
+        }
+      }
+      pending = text.slice(offset);
+      return redacted;
+    };
   }
 
   protected writeDiagnostic(message: string, destination: "warn" | "stderr"): void {

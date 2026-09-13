@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MCP_CURRENT_PROTOCOL_VERSION, MCP_TASKS_EXTENSION_ID, McpClient } from "./client.js";
+import { MCP_CURRENT_PROTOCOL_VERSION, MCP_TASKS_EXTENSION_ID, McpClient, mcpOAuthSecret } from "./client.js";
 import { McpAuthorizationError, mcpAuthorizationChallengeForRetry } from "./client-auth-types.js";
 import {
   jsonRpcHttpResponse,
@@ -14,6 +14,122 @@ function sseResponse(...messages: object[]): Response {
 }
 
 describe("MCP client diagnostic redaction", () => {
+  it.each(["token rejection", "operation echo"])("redacts acquired OAuth client secrets without rewriting token requests: %s", async (variant) => {
+    const secret = "SYNTHETIC-Dynamic-CREDENTIAL";
+    const basic = `Basic ${Buffer.from(`dynamic-client:${secret}`).toString("base64")}`;
+    const chunks: string[] = [];
+    const terminal = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      chunks.push(String(chunk));
+      return true;
+    });
+    const resource = "https://mcp.example.test/mcp";
+    const issuer = "https://auth.example.test";
+    const json = (value: object) => new Response(JSON.stringify(value), { headers: { "content-type": "Application/JSON" } });
+    const http = mockClientHttpFetch((request) => {
+      if (request.url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+        return json({ resource, authorization_servers: [issuer], scopes_supported: ["files:read"] });
+      }
+      if (request.url === `${issuer}/.well-known/oauth-authorization-server`) {
+        return json({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`,
+          registration_endpoint: `${issuer}/register`, code_challenge_methods_supported: ["S256"],
+          scopes_supported: ["files:read"], authorization_response_iss_parameter_supported: true });
+      }
+      if (request.url === `${issuer}/register`) return json({ client_id: "dynamic-client", client_secret: secret });
+      if (request.url === `${issuer}/token`) {
+        expect(request.form.get("client_secret")).toBe(secret);
+        expect(request.form.get("client_id")).toBe("dynamic-client");
+        if (variant === "operation echo") return json({ access_token: "synthetic-access-token", token_type: "Bearer", scope: "files:read" });
+        return new Response("denied", { headers: { "content-type": `text/${secret}` } });
+      }
+      if (request.headers.get("authorization") === "Bearer synthetic-access-token") {
+        if (request.body.method === "server/discover") return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION], capabilities: { tools: {} },
+        });
+        return sseResponse(
+          { jsonrpc: "2.0", method: "notifications/progress", params: { progressToken: `${secret} ${basic}`, progress: 1 } },
+          { jsonrpc: "2.0", id: request.body.id, error: { code: -32000, message: `denied ${secret} ${basic}` } },
+        );
+      }
+      return new Response("missing bearer", { status: 401, headers: {
+        "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp", scope="files:read"',
+      } });
+    });
+    const client = new McpClient({ type: "http", url: resource, authorization: {
+      type: "oauth", issuer, redirectUri: "https://client.example.test/callback", scopes: ["files:read"],
+      client: { kind: "dynamic", clientName: "kota-client", dynamicClientRegistration: { enabled: true } },
+    } }, "dynamic-peer", { authorizationResolver: async (request) => ({
+      callbackUrl: mcpOAuthSecret(`https://client.example.test/callback?code=code-1&state=${request.state}&iss=${encodeURIComponent(issuer)}`),
+    }) });
+    try {
+      const invoke = async () => {
+        await client.connect();
+        await client.callTool("work", {});
+      };
+      const error = await invoke().catch((caught: unknown) => caught);
+      if (!(error instanceof Error)) throw new Error("Expected credential echo rejection");
+      expect(http.requests.some((request) => request.url === `${issuer}/token`)).toBe(true);
+      expect(error.message).toContain(variant === "token rejection"
+        ? 'unsupported response content-type "text/[redacted]"'
+        : "denied [redacted] [redacted]");
+      if (variant === "operation echo") expect(chunks.join("")).toContain('inactive token "[redacted] [redacted]"');
+      for (const credential of [secret, secret.toLowerCase(), basic]) {
+        expect([error.message, error.stack, JSON.stringify(error), chunks.join("")].join("\n")).not.toContain(credential);
+      }
+    } finally {
+      await client.close();
+      http.mockRestore();
+      terminal.mockRestore();
+    }
+  });
+
+  it.each(["operation", "subscription", "resource metadata"])("redacts original Content-Type credentials from %s diagnostics", async (variant) => {
+    const secret = "SYNTHETIC-Header-CREDENTIAL";
+    const chunks: string[] = [];
+    const terminal = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      chunks.push(String(chunk));
+      return true;
+    });
+    const http = mockClientHttpFetch((request) => {
+      if (variant === "resource metadata" && request.method !== "GET") {
+        return new Response("missing bearer", { status: 401, headers: {
+          "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+        } });
+      }
+      if (request.body.method === "server/discover") {
+        const response = jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: variant === "subscription" } },
+        });
+        response.headers.set("content-type", "Application/JSON");
+        return response;
+      }
+      return new Response("unsupported", { headers: { "content-type": `Text/${secret}` } });
+    });
+    const client = new McpClient({ type: "http", url: "https://mcp.example.test/mcp", headers: { "X-Api-Key": secret } });
+    try {
+      if (variant === "subscription") {
+        await client.connect();
+        await waitForAssertion(() => expect(chunks.join("")).toContain('unsupported response content-type "Text/[redacted]"'));
+      } else {
+        const invoke = async () => {
+          await client.connect();
+          await client.callTool("work", {});
+        };
+        const error = await invoke().catch((caught: unknown) => caught);
+        if (!(error instanceof Error)) throw new Error("Expected Content-Type rejection");
+        const diagnostic = [error.message, error.stack, JSON.stringify(error)].join("\n");
+        expect(diagnostic).toContain('unsupported response content-type');
+        expect(diagnostic).toContain("Text/[redacted]");
+        chunks.push(diagnostic);
+      }
+      for (const credential of [secret, secret.toLowerCase()]) expect(chunks.join("")).not.toContain(credential);
+    } finally {
+      await client.close();
+      http.mockRestore();
+      terminal.mockRestore();
+    }
+  });
+
   it.each(["tools/call", "resources/read", "prompts/get", "tasks/get"] as const)(
     "redacts %s decoder errors without changing valid protocol keys",
     async (method) => {

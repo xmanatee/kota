@@ -889,8 +889,8 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
           `${label} failed: HTTP ${response.status}`,
         );
       }
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("application/json")) {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().includes("application/json")) {
         throw this.authorizationFlowError(
           resource,
           issuer,

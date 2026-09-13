@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -887,3 +886,88 @@ excerpt:
 >     `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
 >     "error",
 >   );
+
+
+## Fragmented stderr and acquired OAuth credential resolution
+
+Revalidated both new variants at the existing MCP client diagnostic owner. The
+stdio process already receives its configured environment; this variant disclosed
+its credential through independent stderr chunk publication. Dynamic registration
+added a distinct credential source absent from the redaction set. Earlier claims,
+exploit preconditions and resolutions remain preserved above.
+
+The client now incrementally decodes UTF-8 stderr and withholds a suffix only while
+it could become a configured credential. Pending text is shorter than the longest
+credential; ordinary output does not wait for a newline. Longer credentials take
+precedence over matching shorter prefixes. Stream end or close settles remaining
+text, while process exit does not prematurely flush bytes still in transit.
+Complete terminal messages still use the existing client redaction boundary,
+including peer labels. Resolved OAuth clients contribute their client secrets and
+Basic authorization representation to the same sensitive-value set before later
+requests or diagnostics. Private protocol values remain unchanged.
+
+Verification in builder run `2026-09-13T21-42-20-881Z-builder-esjduj`:
+
+- `diagnostics-before.log` records four failing public-client regressions before
+  the repair: split and bytewise stderr disclosure, premature partial-prefix
+  publication, and an acquired client secret echoed by token-endpoint Content-Type.
+- `pnpm test src/core/mcp src/core/outbound-http/transport-errors.test.ts` passed
+  all 160 tests in 14 files (`mcp-tests.log`). Spawned stdio peers exercise actual
+  stderr rendering across separate writes, multibyte UTF-8 fragmentation, repeated
+  credentials, a shorter matching credential, incomplete EOF suffixes and close.
+  A 100,000-character line publishes before EOF while its possible credential
+  suffix waits, distinguishing bounded retention from buffering whole lines.
+  Controlled HTTP responses exercise dynamic registration, the unchanged outgoing
+  client secret, token-error projection, and successful authorization followed by
+  credential echoes in operation errors and progress warnings. Messages, stacks,
+  serialized errors and captured terminal output exclude the acquired raw secret
+  and its Basic representation. Existing HTTP/OAuth, notification, decoder,
+  lifecycle, negotiation, catalog and manager regressions also pass.
+- `pnpm check:fast` passed (`check-fast.log`): production/test types, lint, task
+  validation, generated client bindings and bundled-module admission. Final
+  archive notes were separately checked with `pnpm validate-tasks`
+  (`final-task-validation.log`); scoped `git diff --check` passed.
+
+An interrupted first post-fix invocation encountered a removed invocation TMPDIR
+before tests could run (`diagnostics-after.log`). Validation resumed using fresh
+subdirectories of the retained run scratch directory; the focused rerun passed
+32 tests (`diagnostics-after-resume.log`) before final coverage was expanded.
+Only synthetic credentials were used. No live external service, model evaluation
+or deployment observation was required for these deterministic client boundaries.
+
+
+## Critic repair: preserve credential case in Content-Type diagnostics
+
+The critic correctly reproduced a remaining disclosure when the dynamically
+registered client secret contained uppercase characters. OAuth response handling
+lowercased Content-Type before diagnostic publication, so the original credential
+no longer matched the redaction set. The earlier lowercase-only regression did
+not justify completion for this input.
+
+OAuth JSON responses, protected-resource metadata, HTTP operations and subscription
+responses now preserve the original header in diagnostics and lowercase only for
+media-type comparisons. This repairs the same transformation at every MCP
+Content-Type diagnostic consumer without changing accepted protocol formats or
+private credential values. The scoped guidance records this publication rule.
+
+Repair verification:
+
+- `repair-case-before.log` reproduces four public-boundary failures: the acquired
+  mixed-case secret in an OAuth token error, a configured mixed-case credential in
+  an HTTP operation error and terminal subscription warning, and its appearance in
+  serialized protected-resource metadata errors.
+- The repaired focused diagnostic suite passed all 29 tests
+  (`repair-case-after.log`). Assertions reject both original and lowercased secret
+  echoes in error messages, stacks, serialized errors and terminal output. Valid
+  mixed-case JSON Content-Type values still permit discovery, OAuth registration
+  and token exchange; outgoing credentials retain their original case.
+- `pnpm test src/core/mcp src/core/outbound-http/transport-errors.test.ts` passed
+  all 163 tests in 14 files (`repair-mcp-tests.log`), preserving the stdio streaming
+  repair and earlier HTTP, OAuth, notification, decoder and manager protections.
+- `pnpm check:fast` passed (`repair-check-fast.log`), covering production/test
+  types, lint, task validation, generated bindings and module admission. Final
+  repair notes passed `pnpm validate-tasks` (`repair-task-validation.log`), and
+  scoped `git diff --check` passed.
+
+These probes use synthetic credentials and controlled network responses through
+the production client. No live service, credential or model evaluation was needed.

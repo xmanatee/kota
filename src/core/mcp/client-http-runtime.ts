@@ -172,8 +172,8 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     const authorizationError = await this.authorizationErrorForHttpResponse(response, method);
     if (authorizationError) throw authorizationError;
 
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (!contentType.includes("application/json") && !contentType.includes("text/event-stream")) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("application/json") && !contentType.toLowerCase().includes("text/event-stream")) {
       const text = !response.ok
         ? await this.readMcpHttpResponseText(response, method, "MCP HTTP error response")
         : "";
@@ -189,7 +189,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       );
     }
     let responseText: string | null = null;
-    const message = contentType.includes("text/event-stream")
+    const message = contentType.toLowerCase().includes("text/event-stream")
       ? await this.decodeHttpSseResponse(response, method, requestId)
       : this.parseJsonRpcHttpMessage(
           (responseText = await this.readMcpHttpResponseText(
@@ -479,8 +479,8 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       "subscriptions/listen",
     );
     if (authorizationError) throw authorizationError;
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (!contentType.includes("text/event-stream")) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("text/event-stream")) {
       throw this.requestErrorForMethod(
         "subscriptions/listen",
         `unsupported response content-type "${contentType || "(missing)"}"`,

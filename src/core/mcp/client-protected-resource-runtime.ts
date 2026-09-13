@@ -125,8 +125,8 @@ export abstract class McpClientProtectedResourceRuntime extends McpClientNotific
         };
       }
 
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("application/json")) {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().includes("application/json")) {
         return {
           status: "unavailable",
           attemptedUrls: [url],
