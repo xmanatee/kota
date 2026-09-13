@@ -8,11 +8,11 @@ import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-d
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import type { CaptureTarget } from "#modules/capture/client.js";
 import { captureCommandReply } from "#modules/capture/commands.js";
-import { renderHistorySearchPlain } from "#modules/history/render.js";
-import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
-import { renderMemorySearchPlain } from "#modules/memory/render.js";
-import { renderRecallHitsPlain } from "#modules/recall/render.js";
-import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import { historyCommandReply } from "#modules/history/commands.js";
+import { knowledgeCommandReply } from "#modules/knowledge/commands.js";
+import { memoryCommandReply } from "#modules/memory/commands.js";
+import { recallCommandReply } from "#modules/recall/commands.js";
+import { tasksCommandReply } from "#modules/repo-tasks/commands.js";
 import type { RetractTarget } from "#modules/retract/client.js";
 import { retractCommandReply } from "#modules/retract/commands.js";
 import { callTelegramApi, splitMessage } from "./client.js";
@@ -160,92 +160,32 @@ export async function handleResolvedTelegramStatusCommand(
     return true;
   }
   if (commandMatches(text, "/knowledge")) {
-    const query = text === "/knowledge" ? "" : text.slice("/knowledge ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /knowledge <query>");
-      return true;
-    }
-    const result = await scope.knowledge.search(query, { semantic: true, limit: 10 });
-    if (!result.ok) {
-      await sendPlain("Semantic knowledge search requires an embedding-backed knowledge provider.");
-      return true;
-    }
     await sendPlain(
-      result.entries.length === 0
-        ? "No matching knowledge entries."
-        : truncateForTelegram(renderKnowledgeSearchPlain(result.entries)),
+      truncateForTelegram(await knowledgeCommandReply(scope.knowledge, commandBody(text, "/knowledge"))),
     );
     return true;
   }
   if (commandMatches(text, "/memory")) {
-    const query = text === "/memory" ? "" : text.slice("/memory ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /memory <query>");
-      return true;
-    }
-    const result = await scope.memory.search(query, { semantic: true, limit: 10 });
-    if (!result.ok) {
-      await sendPlain("Semantic memory search requires an embedding-backed memory provider.");
-      return true;
-    }
     await sendPlain(
-      result.entries.length === 0
-        ? "No matching memory entries."
-        : truncateForTelegram(renderMemorySearchPlain(result.entries)),
+      truncateForTelegram(await memoryCommandReply(scope.memory, commandBody(text, "/memory"))),
     );
     return true;
   }
   if (commandMatches(text, "/history")) {
-    const query = text === "/history" ? "" : text.slice("/history ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /history <query>");
-      return true;
-    }
-    const result = await scope.history.search(query, { semantic: true, limit: 10 });
-    if (!result.ok) {
-      await sendPlain("Semantic conversation search requires an embedding-backed history provider.");
-      return true;
-    }
     await sendPlain(
-      result.conversations.length === 0
-        ? "No matching conversations."
-        : truncateForTelegram(renderHistorySearchPlain(result.conversations)),
+      truncateForTelegram(await historyCommandReply(scope.history, commandBody(text, "/history"))),
     );
     return true;
   }
   if (commandMatches(text, "/tasks")) {
-    const query = text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /tasks <query>");
-      return true;
-    }
-    const result = await scope.tasks.search(query, { semantic: true, limit: 10 });
-    if (!result.ok) {
-      await sendPlain("Semantic task search requires an embedding-backed repo-tasks provider.");
-      return true;
-    }
     await sendPlain(
-      result.tasks.length === 0
-        ? "No matching tasks."
-        : truncateForTelegram(renderRepoTaskSearchPlain(result.tasks)),
+      truncateForTelegram(await tasksCommandReply(scope.tasks, commandBody(text, "/tasks"))),
     );
     return true;
   }
   if (commandMatches(text, "/recall")) {
-    const query = text === "/recall" ? "" : text.slice("/recall ".length).trim();
-    if (!query) {
-      await sendPlain("Usage: /recall <query>");
-      return true;
-    }
-    const result = await scope.recall.recall(query);
-    if (!result.ok) {
-      await sendPlain("Cross-store recall is not configured: no contributors are registered.");
-      return true;
-    }
     await sendPlain(
-      result.hits.length === 0
-        ? "No matching items."
-        : truncateForTelegram(renderRecallHitsPlain(result.hits)),
+      truncateForTelegram(await recallCommandReply(scope.recall, commandBody(text, "/recall"))),
     );
     return true;
   }

@@ -26,15 +26,15 @@ import {
 import type { CaptureClient, CaptureTarget } from "#modules/capture/client.js";
 import { captureCommandReply } from "#modules/capture/commands.js";
 import type { HistoryClient } from "#modules/history/client.js";
-import { renderHistorySearchPlain } from "#modules/history/render.js";
+import { historyCommandReply } from "#modules/history/commands.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
-import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
+import { knowledgeCommandReply } from "#modules/knowledge/commands.js";
 import type { MemoryClient } from "#modules/memory/client.js";
-import { renderMemorySearchPlain } from "#modules/memory/render.js";
+import { memoryCommandReply } from "#modules/memory/commands.js";
 import type { RecallClient } from "#modules/recall/client.js";
-import { renderRecallHitsPlain } from "#modules/recall/render.js";
+import { recallCommandReply } from "#modules/recall/commands.js";
 import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
-import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import { tasksCommandReply } from "#modules/repo-tasks/commands.js";
 import type { RetractClient, RetractTarget } from "#modules/retract/client.js";
 import { retractCommandReply } from "#modules/retract/commands.js";
 import { callSlackApi, splitText } from "./client.js";
@@ -94,9 +94,6 @@ const RETRACT_COMMANDS: Record<string, RetractTarget> = {
   "/retract-inbox": "inbox",
 };
 
-/** Default page size for the per-store semantic-search seams. Matches Telegram. */
-const SEARCH_DEFAULT_LIMIT = 10;
-
 /**
  * Parse a Slack DM into a slash command. Tolerates leading whitespace, a
  * leading bot mention prefix (e.g. `<@U12345> /recall foo`), and matches
@@ -122,152 +119,6 @@ async function postReply(
       text: chunk,
     });
   }
-}
-
-async function handleRecall(
-  token: string,
-  channelId: string,
-  body: string,
-  recall: RecallClient,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /recall <query>");
-    return;
-  }
-  const result = await recall.recall(body);
-  if (!result.ok) {
-    await postReply(
-      token,
-      channelId,
-      "Cross-store recall is not configured: no contributors are registered.",
-    );
-    return;
-  }
-  if (result.hits.length === 0) {
-    await postReply(token, channelId, "No matching items.");
-    return;
-  }
-  await postReply(token, channelId, renderRecallHitsPlain(result.hits));
-}
-
-async function handleMemory(
-  token: string,
-  channelId: string,
-  body: string,
-  memory: Pick<MemoryClient, "search">,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /memory <query>");
-    return;
-  }
-  const result = await memory.search(body, {
-    semantic: true,
-    limit: SEARCH_DEFAULT_LIMIT,
-  });
-  if (!result.ok) {
-    await postReply(
-      token,
-      channelId,
-      "Semantic memory search requires an embedding-backed memory provider.",
-    );
-    return;
-  }
-  if (result.entries.length === 0) {
-    await postReply(token, channelId, "No matching memory entries.");
-    return;
-  }
-  await postReply(token, channelId, renderMemorySearchPlain(result.entries));
-}
-
-async function handleKnowledge(
-  token: string,
-  channelId: string,
-  body: string,
-  knowledge: Pick<KnowledgeClient, "search">,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /knowledge <query>");
-    return;
-  }
-  const result = await knowledge.search(body, {
-    semantic: true,
-    limit: SEARCH_DEFAULT_LIMIT,
-  });
-  if (!result.ok) {
-    await postReply(
-      token,
-      channelId,
-      "Semantic knowledge search requires an embedding-backed knowledge provider.",
-    );
-    return;
-  }
-  if (result.entries.length === 0) {
-    await postReply(token, channelId, "No matching knowledge entries.");
-    return;
-  }
-  await postReply(token, channelId, renderKnowledgeSearchPlain(result.entries));
-}
-
-async function handleHistory(
-  token: string,
-  channelId: string,
-  body: string,
-  history: Pick<HistoryClient, "search">,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /history <query>");
-    return;
-  }
-  const result = await history.search(body, {
-    semantic: true,
-    limit: SEARCH_DEFAULT_LIMIT,
-  });
-  if (!result.ok) {
-    await postReply(
-      token,
-      channelId,
-      "Semantic conversation search requires an embedding-backed history provider.",
-    );
-    return;
-  }
-  if (result.conversations.length === 0) {
-    await postReply(token, channelId, "No matching conversations.");
-    return;
-  }
-  await postReply(
-    token,
-    channelId,
-    renderHistorySearchPlain(result.conversations),
-  );
-}
-
-async function handleTasks(
-  token: string,
-  channelId: string,
-  body: string,
-  tasks: Pick<RepoTasksClient, "search">,
-): Promise<void> {
-  if (body.length === 0) {
-    await postReply(token, channelId, "Usage: /tasks <query>");
-    return;
-  }
-  const result = await tasks.search(body, {
-    semantic: true,
-    limit: SEARCH_DEFAULT_LIMIT,
-  });
-  if (!result.ok) {
-    await postReply(
-      token,
-      channelId,
-      "Semantic task search requires an embedding-backed repo-tasks provider.",
-    );
-    return;
-  }
-  if (result.tasks.length === 0) {
-    await postReply(token, channelId, "No matching tasks.");
-    return;
-  }
-  await postReply(token, channelId, renderRepoTaskSearchPlain(result.tasks));
 }
 
 async function handleAttention(
@@ -306,7 +157,7 @@ export async function dispatchSlackSlashCommand(args: {
   const { token, channelId, parsed, clients } = args;
   switch (parsed.command) {
     case "/recall":
-      await handleRecall(token, channelId, parsed.body, clients.recall);
+      await postReply(token, channelId, await recallCommandReply(clients.recall, parsed.body));
       return true;
     case "/answer":
       await postReply(token, channelId, await answerCommandReply(clients.answer, parsed.body));
@@ -321,16 +172,16 @@ export async function dispatchSlackSlashCommand(args: {
       await postReply(token, channelId, await captureCommandReply(clients.capture, parsed.body));
       return true;
     case "/memory":
-      await handleMemory(token, channelId, parsed.body, clients.memory);
+      await postReply(token, channelId, await memoryCommandReply(clients.memory, parsed.body));
       return true;
     case "/knowledge":
-      await handleKnowledge(token, channelId, parsed.body, clients.knowledge);
+      await postReply(token, channelId, await knowledgeCommandReply(clients.knowledge, parsed.body));
       return true;
     case "/history":
-      await handleHistory(token, channelId, parsed.body, clients.history);
+      await postReply(token, channelId, await historyCommandReply(clients.history, parsed.body));
       return true;
     case "/tasks":
-      await handleTasks(token, channelId, parsed.body, clients.tasks);
+      await postReply(token, channelId, await tasksCommandReply(clients.tasks, parsed.body));
       return true;
     case "/attention":
       await handleAttention(token, channelId, clients.attention);

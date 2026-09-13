@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Share semantic read-command outcomes across Telegram and Slack
@@ -56,3 +55,44 @@ This bounded opportunity does not promise to close the 100,324-line gap and has
 no local deletion quota. Preserve useful behavior and protections; do not move
 tests into support, minify or disable them. Local completion is the demonstrated
 shared behavior and preserved consumer outcomes, not aggregate goal achievement.
+
+## Completion Evidence
+
+Memory, knowledge, history, repo-tasks and recall now each own their chat
+request/reply policy in `commands.ts`. Both channel dispatchers delegate to
+those owners with the selected client. The four search commands require semantic
+ranking with limit 10; recall calls only its existing cross-store seam. Domain
+result unions and renderers remain intact. CLI/tool inputs retain their distinct
+filter, limit, error and structured-output behavior.
+
+Removed both copies of the five request/result branches and Slack's redundant
+page-limit declaration. Replaced repeated adapter empty-input checks with owner
+coverage while retaining routing, parsing, admission and delivery checks. Added
+explicit read-reply truncation/segmentation and failed-delivery checks.
+
+Validation in builder run `2026-09-13T08-43-01-832Z-builder-1wa0ca`:
+
+- `pnpm check:fast` completed, including production/test types, lint, task
+  validation, generated binding checks and admission of 90 bundled modules.
+- Focused owner/adapter/admission tests passed: 27 tests initially, followed by
+  15 tests in the two updated adapter suites after adding delivery coverage
+  (29 distinct final tests across the nine selected files). Domain tests cover
+  blank/trimmed input, semantic defaults, unavailable/empty/nonempty results and
+  transport failure. Slack admission checks reject unauthorized routes.
+- The existing Telegram scope integration file passed both tests, distinguishing
+  selected-scope routing from default leakage, unbound routing and draining-scope
+  rejection.
+- `read-command-transcript.json` in the run directory records 13 actual dispatcher
+  exchanges through controlled client and HTTP ports, including unavailable and
+  empty replies, readable results, single-seam recall, usage, and an unbound chat
+  with zero search calls. `read-command-probe.mjs` retains the executable probe.
+  No live chat messages were sent.
+
+`local-deltas.json` records scoped physical-line counts versus the writer's HEAD
+(including blank lines/comments): production 687 → 563 (−124), executable test
+files 256 → 421 (+165), repository support 0, exclusions 0. The existing channel
+suites had no large duplicate result matrix to delete. The run-only probe is
+separate evidence, not relocated tests or repository support. No aggregate
+50%/70% reduction achievement is claimed. Native contracts, stores, ranking,
+sessions and runtime lifecycle did not change; full release/live evaluations
+were not selected for this bounded chat-policy change.

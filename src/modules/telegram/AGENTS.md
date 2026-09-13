@@ -34,6 +34,10 @@ notification forwarding.
 - Answer commands use the answer owner's shared command replies with the selected
   scope client. Telegram owns command parsing, truncation and detail segmentation.
   The seam owns retrieval, synthesis, citation parsing and retries; Telegram adds no prompt, parser or budget.
+- Semantic read commands delegate query validation, request defaults and reply
+  selection to each domain's `commands.ts`, using the selected scope client.
+  Channels retain parsing, admission and output limits; recall uses only its
+  cross-store client seam.
 - Capture and retract commands delegate empty-input handling, request construction
   and replies to their capability owners. Telegram retains target mapping,
   parsing and output limits; the umbrella `/retract` only prints help.

@@ -70,19 +70,42 @@ describe("Telegram status command delivery", () => {
     expect(callTelegramApi).not.toHaveBeenCalled();
   });
 
-  it("trims a search query and sends its result as plain Telegram text", async () => {
-    const memory = { ...scope().memory, search: vi.fn(async () => ({ ok: true as const, entries: [] })) };
-    await command("/memory   two words  ", { ...scope(), memory });
-    expect(memory.search).toHaveBeenCalledExactlyOnceWith("two words", { semantic: true, limit: 10 });
-    expect(callTelegramApi).toHaveBeenCalledExactlyOnceWith("token", "sendMessage", {
-      chat_id: 99, text: "No matching memory entries.",
-    });
+  it("routes every read command to its namespace with trimmed arguments and plain delivery", async () => {
+    const selected = scope();
+    const search = vi.fn(async () => ({ ok: false as const, reason: "semantic_unavailable" as const }));
+    for (const store of ["memory", "knowledge", "history", "tasks"] as const) {
+      search.mockClear();
+      vi.mocked(callTelegramApi).mockClear();
+      await command(`/${store}   two words  `, { ...selected, [store]: { ...selected[store], search } });
+      expect(search).toHaveBeenCalledExactlyOnceWith("two words", { semantic: true, limit: 10 });
+      expect(callTelegramApi).toHaveBeenCalledExactlyOnceWith("token", "sendMessage", {
+        chat_id: 99, text: expect.stringContaining("embedding-backed"),
+      });
+    }
+    const recall = vi.fn(async () => ({ ok: true as const, hits: [] }));
+    await command("/recall   two words  ", { ...selected, recall: { recall } });
+    expect(recall).toHaveBeenCalledExactlyOnceWith("two words");
+  });
+
+  it("truncates read replies and lets failed delivery reach the channel error handler", async () => {
+    const recall = { recall: vi.fn(async () => ({ ok: true as const, hits: [{
+      source: "history" as const, id: "chat-1", score: 1,
+      title: "x".repeat(5000), cwd: "/scope", updatedAt: "2026-09-13",
+    }] })) };
+    await command("/recall query", { ...scope(), recall });
+    expect(callTelegramApi).toHaveBeenCalledOnce();
+    const text = String(vi.mocked(callTelegramApi).mock.calls[0]?.[2]?.text);
+    expect(text).toContain("chat-1");
+    expect(text.length).toBeLessThanOrEqual(4096);
+    const error = new Error("delivery disconnected");
+    vi.mocked(callTelegramApi).mockRejectedValueOnce(error);
+    await expect(command("/recall query", { ...scope(), recall })).rejects.toBe(error);
   });
 
   it("short-circuits missing command arguments before calling a client namespace", async () => {
     // Unconfigured client methods throw, so an accidental namespace call fails.
     for (const text of [
-      "/knowledge", "/memory  ", "/history", "/tasks ", "/recall ",
+      "/memory  ",
       "/capture ", "/capture-to-memory ",
       "/retract-memory ", "/retract",
     ]) {

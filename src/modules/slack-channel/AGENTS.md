@@ -25,6 +25,10 @@ This directory owns the bidirectional Slack bot channel for KOTA.
   `KotaClient` namespace (or attention/digest snapshot), and reuse the
   same module-owned plain-text renderers Telegram uses, so a Slack reply
   matches the Telegram reply byte-for-byte for the same envelope.
+- Semantic read commands delegate query validation, request defaults and reply
+  selection to each domain's `commands.ts`, using the selected scope client.
+  Channels retain parsing, admission and output limits; recall uses only its
+  cross-store client seam.
 - Capture and retract commands use their capability owners for empty-input
   handling, request construction and replies, with the selected scope client.
 - Answer commands delegate request validation, defaults and reply text to the

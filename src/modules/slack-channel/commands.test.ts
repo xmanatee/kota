@@ -52,9 +52,6 @@ describe("Slack command parsing and delivery", () => {
     for (const store of ["memory", "knowledge", "history", "tasks"] as const) {
       await dispatch(`/${store}  boundary query `, ports);
       expect(ports[store].search).toHaveBeenCalledWith("boundary query", { semantic: true, limit: 10 });
-      vi.mocked(ports[store].search).mockClear();
-      await dispatch(`/${store}  `, ports);
-      expect(ports[store].search).not.toHaveBeenCalled();
     }
     await dispatch("/recall  boundary query ", ports);
     expect(ports.recall.recall).toHaveBeenCalledWith("boundary query");
@@ -66,12 +63,27 @@ describe("Slack command parsing and delivery", () => {
     expect(ports.answer.log).toHaveBeenCalledWith({ limit: 3 });
   });
 
-  it("rejects empty capture, recall and retract input before domain calls", async () => {
+  it("segments read replies and propagates failed delivery", async () => {
     const ports = clients();
-    for (const command of ["/recall", "/capture", "/retract-memory"]) {
+    vi.mocked(ports.recall.recall).mockResolvedValue({ ok: true, hits: [{
+      source: "history", id: "chat-1", score: 1,
+      title: "x".repeat(9000), cwd: "/scope", updatedAt: "2026-09-13",
+    }] });
+    await dispatch("/recall query", ports);
+    const chunks = vi.mocked(callSlackApi).mock.calls.map(([, , body]) => body as { channel: string; text: string });
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every(chunk => chunk.channel === "D-OWNER" && chunk.text.length <= 3000)).toBe(true);
+    expect(chunks.map(chunk => chunk.text).join("")).toBe(`history  1.000  chat-1  ${"x".repeat(9000)}`);
+    const error = new Error("delivery disconnected");
+    vi.mocked(callSlackApi).mockRejectedValueOnce(error);
+    await expect(dispatch("/recall query", ports)).rejects.toBe(error);
+  });
+
+  it("rejects empty capture and retract input before domain calls", async () => {
+    const ports = clients();
+    for (const command of ["/capture", "/retract-memory"]) {
       await dispatch(`${command}  `, ports);
     }
-    expect(ports.recall.recall).not.toHaveBeenCalled();
     expect(ports.capture.capture).not.toHaveBeenCalled();
     expect(ports.retract.retract).not.toHaveBeenCalled();
   });
