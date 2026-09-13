@@ -2,7 +2,6 @@ import type { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import { writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { generatedProgressToken } from "./client-decode-utils.js";
 import { McpClientHttpRuntime } from "./client-http-runtime.js";
@@ -55,8 +54,9 @@ export abstract class McpClientStdioRuntime extends McpClientHttpRuntime {
     this.proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString().trim();
       if (!text) return;
-      writeTerminalStderr(
-        `[mcp:${this.serverName}] ${this.redactSensitiveErrorMessage(text)}\n`,
+      this.writeDiagnostic(
+        `[mcp:${this.serverName}] ${text}\n`,
+        "stderr",
       );
     });
 

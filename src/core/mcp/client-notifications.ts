@@ -1,4 +1,3 @@
-import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { McpClientBase } from "./client-base.js";
 import {
   formatJsonRpcId,
@@ -108,7 +107,7 @@ export abstract class McpClientNotifications extends McpClientBase {
       this.toolListSubscriptionId = null;
     }
     if (msg.error) {
-      printTerminalDiagnostic(
+      this.writeDiagnostic(
         `[kota] Warning: MCP server "${this.serverName}" failed to open subscription: MCP error ${msg.error.code}: ${msg.error.message}`,
         "warn",
       );
@@ -318,7 +317,7 @@ export abstract class McpClientNotifications extends McpClientBase {
   ): void {
     if (this.deprecatedCapabilityWarnings.has(feature)) return;
     this.deprecatedCapabilityWarnings.add(feature);
-    printTerminalDiagnostic(
+    this.writeDiagnostic(
       `[kota] Warning: MCP server "${this.serverName}" negotiated deprecated MCP ` +
         `capability feature "${feature}" using protocol ${protocolVersion}; ` +
         `${source} is compatibility-only during the SEP-2577 deprecation window.`,
@@ -328,12 +327,12 @@ export abstract class McpClientNotifications extends McpClientBase {
 
   protected warnProgress(message: string): void {
     if (this.progressWarningCount < MAX_PROGRESS_WARNINGS) {
-      printTerminalDiagnostic(
+      this.writeDiagnostic(
         `[kota] Warning: MCP server "${this.serverName}" ${message}`,
         "warn",
       );
     } else if (this.progressWarningCount === MAX_PROGRESS_WARNINGS) {
-      printTerminalDiagnostic(
+      this.writeDiagnostic(
         `[kota] Warning: MCP server "${this.serverName}" suppressed further progress warnings`,
         "warn",
       );

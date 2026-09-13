@@ -1,4 +1,3 @@
-import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import { McpClientAuthorizationRuntime } from "./client-authorization-runtime.js";
 import {
@@ -435,7 +434,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       this.httpListSubscriptionAbort = null;
       this.toolListSubscriptionId = null;
       const message = err instanceof Error ? err.message : String(err);
-      printTerminalDiagnostic(
+      this.writeDiagnostic(
         `[kota] Warning: MCP server "${this.serverName}" failed to open subscription: ${message}`,
         "warn",
       );

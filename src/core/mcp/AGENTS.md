@@ -25,3 +25,6 @@ into the runtime tool list.
   those decode seams and return typed results to the rest of core.
 - Exact MCP methods, capability flags, and payload shapes belong in source
   and protocol tests. Do not maintain a parallel catalog in `docs/`.
+- Publish client terminal diagnostics through `McpClientBase.writeDiagnostic` so
+  configured credentials are redacted from the complete message before rendering.
+  Protocol decoders return data; the client owns diagnostic publication.

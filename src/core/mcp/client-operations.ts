@@ -54,7 +54,6 @@ import {
 } from "./client-result-decoders.js";
 import {
   decodeListToolsResult,
-  warnRejectedTool,
 } from "./client-tool-list-decoders.js";
 
 export abstract class McpClientOperations extends McpClientConnection {
@@ -81,7 +80,11 @@ export abstract class McpClientOperations extends McpClientConnection {
       );
     }
     for (const rejected of page.rejectedTools) {
-      warnRejectedTool(this.serverName, rejected);
+      const toolLabel = rejected.toolName ? `tool "${rejected.toolName}"` : "tool definition";
+      this.writeDiagnostic(
+        `[kota] Warning: rejected MCP ${toolLabel} from server "${this.serverName}": ${rejected.reason}`,
+        "warn",
+      );
     }
     this.cacheHeaderParameters(page.tools);
     return page;

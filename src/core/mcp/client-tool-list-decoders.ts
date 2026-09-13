@@ -1,6 +1,5 @@
 import { Buffer } from "node:buffer";
 import type { KotaJsonObject, KotaJsonValue, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
-import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
 import {
   decodeCacheHints,
@@ -276,16 +275,6 @@ export function decodeListToolsResult(value: JsonRpcResponse["result"]): McpList
     cache: decodeCacheHints(object, "tools/list"),
     ...(nextCursor !== undefined ? { nextCursor } : {}),
   };
-}
-
-export function warnRejectedTool(serverName: string, rejected: McpRejectedToolDefinition): void {
-  const toolLabel = rejected.toolName
-    ? `tool "${rejected.toolName}"`
-    : "tool definition";
-  printTerminalDiagnostic(
-    `[kota] Warning: rejected MCP ${toolLabel} from server "${serverName}": ${rejected.reason}`,
-    "warn",
-  );
 }
 
 export function isPlainMcpParamHeaderValue(value: string): boolean {

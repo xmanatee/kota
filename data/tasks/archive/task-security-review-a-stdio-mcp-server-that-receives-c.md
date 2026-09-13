@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -246,3 +245,35 @@ excerpt:
 >       redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
 >     }
 >     return redacted;
+
+
+## Notification variant resolution
+
+The family nomination is confirmed: stdio env echoes and HTTP bearer echoes
+violate the same client diagnostic invariant and use the same client-owned
+credential set. The earlier stderr repair remains present (now in
+`client-stdio-runtime.ts`); the subscription and progress disclosures were new
+publication paths, not a reintroduction of the earlier sink. Historical findings
+and predecessor verification above are retained.
+
+`McpClientBase.writeDiagnostic` now redacts complete messages before terminal
+publication, including server labels. Notification warnings, subscription response
+errors, asynchronous subscription stream failures, rejected-tool diagnostics,
+and stdio stderr use that boundary. Decoder-owned terminal publication was
+removed; credential collection, protocol handling, and warning limits are unchanged.
+
+Verification in builder run `2026-09-13T07-40-09-121Z-builder-lmbyg2`:
+
+- `pnpm test:protocol src/core/mcp/client-diagnostic-redaction.test.ts src/core/mcp/stdio-stderr-redaction.test.ts src/core/mcp/client.test.ts`
+  passed: 38 tests across three files. The new tests drive the public client
+  through HTTP/SSE subscription responses, broken subscription streams, and
+  request progress notifications, capturing actual terminal output. Synthetic
+  bearer headers and bare tokens are removed from diagnostics while contextual
+  warnings, valid progress callbacks, and successful tool results remain intact.
+  The existing spawned stdio peer proves configured env stderr redaction remains.
+- Before repair, subscription-response and stream-error tests reproduced cleartext
+  synthetic credential output. The final tests cover the reported progress path
+  as well. No live credentials or external HTTP peers were needed.
+- `pnpm check:fast` passed: production/test TypeScript, lint, task validation,
+  generated client bindings, and module admission. The complete static-gate log
+  is this run's `check-fast.log`; behavioral output is in `mcp-tests.log`.

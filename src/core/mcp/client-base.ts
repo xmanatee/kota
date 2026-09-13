@@ -1,6 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import type { Interface } from "node:readline";
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
+import { printTerminalDiagnostic, writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import type {
   McpAuthorizationResolver,
   McpClientOptions,
@@ -422,6 +423,15 @@ export abstract class McpClientBase {
       redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
     }
     return redacted;
+  }
+
+  protected writeDiagnostic(message: string, destination: "warn" | "stderr"): void {
+    const redacted = this.redactSensitiveErrorMessage(message);
+    if (destination === "stderr") {
+      writeTerminalStderr(redacted);
+    } else {
+      printTerminalDiagnostic(redacted, destination);
+    }
   }
 
   protected requestErrorForMethod(method: string, message: string): Error {
