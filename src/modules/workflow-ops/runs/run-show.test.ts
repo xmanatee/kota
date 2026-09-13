@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import { renderContext } from "#modules/rendering/render.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
-import { buildChainNode, type ChainNode, formatRepairLine, formatWarningsSection } from "./run-show.js";
+import { buildChainNode, type ChainNode, formatWarningsSection } from "./run-show.js";
 
 // ---------------------------------------------------------------------------
 // formatWarningsSection
@@ -28,112 +27,6 @@ describe("formatWarningsSection", () => {
 
   it("returns empty array for no warnings", () => {
     expect(formatWarningsSection([])).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// extractRepairSummary
-// ---------------------------------------------------------------------------
-
-describe("extractRepairSummary", () => {
-  it("returns null for null output", () => {
-    expect(extractRepairSummary(null)).toBeNull();
-  });
-
-  it("returns null when repairIterations is absent", () => {
-    expect(extractRepairSummary({ content: "done" })).toBeNull();
-  });
-
-  it("returns null when repairIterations is empty", () => {
-    expect(extractRepairSummary({ repairIterations: [] })).toBeNull();
-  });
-
-  it("returns summary for a single repair iteration", () => {
-    const output = {
-      repairIterations: [
-        {
-          attempt: 1,
-          failures: [{ id: "check-lint", passed: false, output: "lint error" }],
-        },
-      ],
-    };
-    const summary = extractRepairSummary(output);
-    expect(summary).not.toBeNull();
-    expect(summary!.attempts).toBe(1);
-    expect(summary!.failedChecksByAttempt).toEqual([["check-lint"]]);
-  });
-
-  it("returns summary for multiple repair iterations", () => {
-    const output = {
-      repairIterations: [
-        {
-          attempt: 1,
-          failures: [
-            { id: "check-lint", passed: false, output: "lint error" },
-            { id: "check-typecheck", passed: false, output: "type error" },
-          ],
-        },
-        {
-          attempt: 2,
-          failures: [{ id: "check-lint", passed: false, output: "lint error" }],
-        },
-      ],
-    };
-    const summary = extractRepairSummary(output);
-    expect(summary).not.toBeNull();
-    expect(summary!.attempts).toBe(2);
-    expect(summary!.failedChecksByAttempt).toEqual([
-      ["check-lint", "check-typecheck"],
-      ["check-lint"],
-    ]);
-  });
-
-  it("handles iteration with no failures (all passed in last repair)", () => {
-    const output = {
-      repairIterations: [
-        {
-          attempt: 1,
-          failures: [],
-        },
-      ],
-    };
-    const summary = extractRepairSummary(output);
-    expect(summary).not.toBeNull();
-    expect(summary!.failedChecksByAttempt).toEqual([[]]);
-  });
-
-});
-
-// ---------------------------------------------------------------------------
-// formatRepairLine
-// ---------------------------------------------------------------------------
-
-describe("formatRepairLine", () => {
-  it("formats a single repair", () => {
-    const line = formatRepairLine({
-      attempts: 1,
-      failedChecksByAttempt: [["check-lint"]],
-    });
-    expect(line).toContain("1 repair");
-    expect(line).toContain("[1] check-lint");
-  });
-
-  it("formats multiple repairs", () => {
-    const line = formatRepairLine({
-      attempts: 2,
-      failedChecksByAttempt: [["check-lint", "check-typecheck"], ["check-lint"]],
-    });
-    expect(line).toContain("2 repairs");
-    expect(line).toContain("[1] check-lint, check-typecheck");
-    expect(line).toContain("[2] check-lint");
-  });
-
-  it("shows 'passed' when iteration had no failures", () => {
-    const line = formatRepairLine({
-      attempts: 1,
-      failedChecksByAttempt: [[]],
-    });
-    expect(line).toContain("[1] passed");
   });
 });
 

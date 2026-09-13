@@ -3,17 +3,8 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
-import {
-  parseWorkflowRunMetadata,
-  WORKFLOW_RUN_METADATA_VERSION,
-} from "#core/workflow/run-metadata.js";
-import type { RepairSummary } from "#core/workflow/run-store-snapshot.js";
-import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import type {
   WorkflowDeliveryDisposition,
-  WorkflowRunMetadata,
-  WorkflowStepResult,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
 import {
@@ -45,14 +36,6 @@ export function formatSkipReason(reason: WorkflowStepSkipReason): string {
 
 export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {
   return warnings.map((w) => `  [${w.type}] ${w.message}`);
-}
-
-export function formatRepairLine(summary: RepairSummary): string {
-  const noun = summary.attempts === 1 ? "repair" : "repairs";
-  const parts = summary.failedChecksByAttempt.map(
-    (failures, i) => `[${i + 1}] ${failures.length > 0 ? failures.join(", ") : "passed"}`,
-  );
-  return `Repairs: ${summary.attempts} ${noun} — ${parts.join(" / ")}`;
 }
 
 export type ChainNode = {
@@ -203,19 +186,20 @@ function formatDeliveryDisposition(delivery: WorkflowDeliveryDisposition): { tex
 }
 
 function buildRunHeader(
-  metadata: WorkflowRunMetadata,
+  run: WorkflowRunDetail,
   showPayload: boolean,
-  continuation?: WorkflowRunDetail["continuation"],
 ): RenderNode {
-  const delivery = metadata.delivery ?? deriveWorkflowRunDelivery(metadata);
-  const deliveryInfo = formatDeliveryDisposition(delivery);
+  const deliveryInfo = run.delivery === undefined
+    ? { text: "— unavailable", role: "muted" as const }
+    : formatDeliveryDisposition(run.delivery);
+  const continuation = run.continuation;
   const entries: KVEntry[] = [
-    { label: "Run", value: metadata.id, role: "accent" },
-    { label: "Workflow", value: metadata.workflow },
+    { label: "Run", value: run.id, role: "accent" },
+    { label: "Workflow", value: run.workflow },
     {
       label: "Status",
-      value: `${statusIcon(metadata.status)} ${metadata.status}`,
-      role: chainNodeRole(metadata.status),
+      value: `${statusIcon(run.status)} ${run.status}`,
+      role: chainNodeRole(run.status),
     },
     {
       label: "Delivery",
@@ -223,25 +207,25 @@ function buildRunHeader(
       role: deliveryInfo.role,
     },
   ];
-  if (metadata.retryOf) entries.push({ label: "Retry of", value: metadata.retryOf, role: "muted" });
-  if (metadata.resumedFromRunId) {
-    entries.push({ label: "Resumed from", value: metadata.resumedFromRunId, role: "muted" });
+  if (run.retryOf) entries.push({ label: "Retry of", value: run.retryOf, role: "muted" });
+  if (run.resumedFromRunId) {
+    entries.push({ label: "Resumed from", value: run.resumedFromRunId, role: "muted" });
   }
-  entries.push({ label: "Trigger", value: metadata.trigger.event });
-  if (metadata.tags && metadata.tags.length > 0) {
-    entries.push({ label: "Tags", value: metadata.tags.join(", "), role: "muted" });
+  entries.push({ label: "Trigger", value: run.triggerEvent });
+  if (run.tags && run.tags.length > 0) {
+    entries.push({ label: "Tags", value: run.tags.join(", "), role: "muted" });
   }
-  entries.push({ label: "Started", value: new Date(metadata.startedAt).toLocaleString(), role: "muted" });
-  if (metadata.completedAt) {
-    entries.push({ label: "Finished", value: new Date(metadata.completedAt).toLocaleString(), role: "muted" });
+  entries.push({ label: "Started", value: new Date(run.startedAt).toLocaleString(), role: "muted" });
+  if (run.completedAt) {
+    entries.push({ label: "Finished", value: new Date(run.completedAt).toLocaleString(), role: "muted" });
   }
-  if (metadata.durationMs != null) {
-    entries.push({ label: "Duration", value: formatDuration(metadata.durationMs) });
+  if (run.durationMs != null) {
+    entries.push({ label: "Duration", value: formatDuration(run.durationMs) });
   }
-  if (metadata.usage !== undefined) {
+  if (run.usage !== undefined) {
     entries.push({
       label: "Cost",
-      value: formatUsageCost(metadata.usage),
+      value: formatUsageCost(run.usage),
       role: "muted",
     });
   }
@@ -260,78 +244,25 @@ function buildRunHeader(
   const nodes: RenderNode[] = [kvBlock(entries)];
   if (
     showPayload &&
-    metadata.trigger.payload &&
-    Object.keys(metadata.trigger.payload).length > 0
+    run.triggerPayload &&
+    Object.keys(run.triggerPayload).length > 0
   ) {
-    nodes.push(json(metadata.trigger.payload, "Payload:"));
+    nodes.push(json(run.triggerPayload, "Payload:"));
   }
   return stack(...nodes);
 }
 
-function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
+function buildStepSpans(step: WorkflowRunDetail["steps"][number]): {
   header: LineNode;
   detail: LineNode[];
 } {
   const dur = formatDuration(step.durationMs);
-  const iconStr =
-    step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
-  const reusedSuffix = (step as { reused?: boolean }).reused ? " (reused)" : "";
-  const suffix =
-    step.status === "failed" && step.continueOnFailure ? " (continued)" : reusedSuffix;
+  const cost = step.type === "parallel" ? "" : step.usage === undefined ? " —" : ` ${formatUsageCost(step.usage)}`;
+  const header = line(plain(`  ${statusIcon(step.status)} ${step.id} [${step.type}] ${dur}${cost}`));
   const detail: LineNode[] = [];
-
-  if (step.type === "parallel") {
-    const header = line(plain(`  ${iconStr} ${step.id} [parallel] ${dur}${suffix}`));
-    if (step.error) detail.push(line(plain(`      Error: ${step.error}`)));
-    if (step.status === "skipped" && step.skipReason) {
-      detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
-    }
-    const inner = (step.output as { steps?: WorkflowStepResult[] } | null)
-      ?.steps ?? [];
-    for (const childStep of inner) {
-      const childIcon =
-        childStep.status === "failed" && childStep.continueOnFailure
-          ? "⚠"
-          : statusIcon(childStep.status);
-      const childSuffix =
-        childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
-      const childCost =
-        childStep.usage === undefined
-          ? " —"
-          : ` ${formatUsageCost(childStep.usage)}`;
-      detail.push(
-        line(
-          plain(
-            `    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childCost}${childSuffix}`,
-          ),
-        ),
-      );
-      if (childStep.error) {
-        detail.push(line(plain(`          Error: ${childStep.error}`)));
-      }
-    }
-    return { header, detail };
-  }
-
-  const repairSummary = extractRepairSummary(step.output);
-  const cost = step.usage === undefined ? " —" : ` ${formatUsageCost(step.usage)}`;
-  const header = line(plain(`  ${iconStr} ${step.id} [${step.type}] ${dur}${cost}${suffix}`));
   if (step.error) detail.push(line(plain(`      Error: ${step.error}`)));
   if (step.status === "skipped" && step.skipReason) {
     detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
-  }
-  if (step.type === "agent" && (step.harness || step.model)) {
-    const parts: string[] = [];
-    if (step.harness) parts.push(step.harness);
-    if (step.model) parts.push(step.model);
-    detail.push(line(plain(`      Harness: ${parts.join(" / ")}`)));
-  }
-  if (repairSummary) detail.push(line(plain(`      ${formatRepairLine(repairSummary)}`)));
-  if (step.output !== undefined && step.output !== null) {
-    const outputSummary = JSON.stringify(step.output);
-    const trimmed =
-      outputSummary.length > 120 ? `${outputSummary.slice(0, 120)}…` : outputSummary;
-    detail.push(line(plain(`      Output: ${trimmed}`)));
   }
   return { header, detail };
 }
@@ -340,56 +271,16 @@ function errorSpans(message: string): TextSpan[] {
   return [span(message, "error")];
 }
 
-/**
- * Project a daemon `WorkflowRunDetail` onto the `WorkflowRunMetadata` shape
- * that the local rendering helpers consume. The two representations overlap
- * in everything the CLI shows; daemon-only fields like step `startedAt` /
- * `completedAt` come from the run start time as a best-effort placeholder.
- */
-function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
-  return parseWorkflowRunMetadata({
-    metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
-    id: run.id,
-    workflow: run.workflow,
-    definitionPath: "",
-    trigger: {
-      event: run.triggerEvent,
-      schemaRef: run.triggerSchemaRef,
-      payload: run.triggerPayload ?? {},
-    },
-    startedAt: run.startedAt,
-    status: run.status,
-    delivery: run.delivery,
-    runDir: "",
-    steps: run.steps.map((s) => ({
-      id: s.id,
-      type: s.type,
-      status: s.status,
-      startedAt: run.startedAt,
-      completedAt: run.completedAt ?? run.startedAt,
-      durationMs: s.durationMs,
-      ...(s.error !== undefined && { error: s.error }),
-      ...(s.usage !== undefined && { usage: s.usage }),
-      ...(s.skipReason !== undefined && { skipReason: s.skipReason }),
-    })),
-    ...(run.completedAt != null && { completedAt: run.completedAt }),
-    ...(run.durationMs != null && { durationMs: run.durationMs }),
-    ...(run.usage !== undefined && { usage: run.usage }),
-    ...(run.triggeredByRunId != null && { triggeredByRunId: run.triggeredByRunId }),
-    ...(run.causedBy != null && { causedBy: run.causedBy }),
-    ...(run.retryOf != null && { retryOf: run.retryOf }),
-    ...(run.resumedFromRunId != null && { resumedFromRunId: run.resumedFromRunId }),
-    ...(run.warnings && run.warnings.length > 0 && { warnings: run.warnings }),
-  }, "workflow run detail");
-}
-
-function formatUsageCost(usage: NonNullable<WorkflowRunMetadata["usage"]>): string {
+function formatUsageCost(usage: NonNullable<WorkflowRunDetail["usage"]>): string {
   return usage.cost.state === "complete"
     ? `$${usage.cost.usd.toFixed(4)}`
     : usage.cost.state;
 }
 
-export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void {
+export function registerRunShowCommand(
+  wfCmd: Command,
+  ctx: { cwd: ModuleContext["cwd"]; client: Pick<ModuleContext["client"], "workflow"> },
+): void {
   wfCmd
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
@@ -425,26 +316,12 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
       // down, so the CLI does not branch on daemon presence here. `--step`
       // needs the full step output (including the `output` field, which the
       // daemon summary trims) so that path always reads the artifact.
-      let metadata: WorkflowRunMetadata;
-      let continuation: WorkflowRunDetail["continuation"];
       if (stepId !== undefined) {
-        const diskMeta = store.getRun(resolvedId);
-        if (!diskMeta) {
+        const metadata = store.getRun(resolvedId);
+        if (!metadata) {
           print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
           process.exit(1);
         }
-        metadata = diskMeta;
-      } else {
-        const result = await ctx.client.workflow.getRun(resolvedId);
-        if (!result.found) {
-          print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
-          process.exit(1);
-        }
-        metadata = metadataFromDetail(result.run);
-        continuation = result.run.continuation;
-      }
-
-      if (stepId !== undefined) {
         const step = metadata.steps.find((s) => s.id === stepId);
         if (!step) {
           print(line(...errorSpans(`Step "${stepId}" not found in run "${resolvedId}".`)));
@@ -458,11 +335,18 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
         return;
       }
 
+      const result = await ctx.client.workflow.getRun(resolvedId);
+      if (!result.found) {
+        print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
+        process.exit(1);
+      }
+      const run = result.run;
+
       if (showChain) {
         // Walk up causedBy chain to find the highest reachable ancestor
         const MAX_DEPTH = 5;
         let rootId = resolvedId;
-        let current: { causedBy?: { runId: string; workflow: string } } | null = metadata;
+        let current: { causedBy?: { runId: string; workflow: string } } | null = run;
         let depth = 0;
         while (current?.causedBy && depth < MAX_DEPTH) {
           const parent = await fetchRunSummary(ctx.client.workflow, current.causedBy.runId);
@@ -484,7 +368,7 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
       const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
 
       const children: RenderNode[] = [
-        buildRunHeader(metadata, showPayload === true, continuation),
+        buildRunHeader(run, showPayload === true),
       ];
       if (errorText !== null) {
         children.push(blank());
@@ -493,10 +377,10 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
           children.push(line(plain(errorLine)));
         }
       }
-      if (metadata.warnings && metadata.warnings.length > 0) {
+      if (run.warnings && run.warnings.length > 0) {
         children.push(blank());
         children.push(line(plain("Warnings:")));
-        for (const warningLine of formatWarningsSection(metadata.warnings)) {
+        for (const warningLine of formatWarningsSection(run.warnings)) {
           children.push(line(plain(warningLine)));
         }
       }
@@ -521,10 +405,10 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
         }
       }
 
-      if (metadata.steps.length > 0) {
+      if (run.steps.length > 0) {
         children.push(blank());
-        children.push(line(plain(`Steps (${metadata.steps.length}):`)));
-        for (const step of metadata.steps) {
+        children.push(line(plain(`Steps (${run.steps.length}):`)));
+        for (const step of run.steps) {
           const { header, detail } = buildStepSpans(step);
           children.push(header);
           for (const d of detail) children.push(d);

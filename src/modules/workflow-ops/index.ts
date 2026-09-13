@@ -35,6 +35,7 @@ import {
 import {
   buildOperatorTriggerRequestBody,
 } from "#core/workflow/operator-trigger.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import {
   readRunOperationalProjection,
   readWorkflowOperationalState,
@@ -295,9 +296,9 @@ const workflowModule: KotaModule = {
       },
       async getRun(id) {
         const store = localWorkflowRunStore(ctx);
-        const meta = readRunMetadata(store, id);
+        const meta = store.getRun(id);
         if (!meta) return { found: false };
-        return { found: true, run: runDetailFromMetadata(meta) };
+        return { found: true, run: runDetailFromMetadata(meta, store.runsDir) };
       },
       async listDefinitions() {
         const definitions = getValidatedWorkflowDefinitions(ctx);
@@ -776,27 +777,9 @@ async function readWorkflowRouteError(
   }
 }
 
-/**
- * Read a single run's `metadata.json`. The CLI's `run show` and chain-tree
- * code accept either daemon `WorkflowRunDetail` or store `WorkflowRunMetadata`,
- * so the local handler returns the metadata file as-is and the caller maps it
- * onto the contract's discriminated result.
- */
-function readRunMetadata(
-  store: WorkflowRunStore,
-  id: string,
-): WorkflowRunMetadata | null {
-  return store.getRun(id);
-}
-
-/**
- * Project a stored `WorkflowRunMetadata` onto the daemon-shaped
- * `WorkflowRunDetail` so callers consume one shape regardless of source.
- * Step `error`/`costUsd`/`skipReason` round-trip; `definitionPath` and the
- * step `startedAt`/`completedAt` timestamps are not part of `WorkflowRunDetail`
- * so they drop out of the projection.
- */
-function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
+/** Project stored evidence once at the client boundary. */
+function runDetailFromMetadata(meta: WorkflowRunMetadata, runsDir: string): WorkflowRunDetail {
+  const delivery = deriveWorkflowRunDelivery(meta, { runsDir });
   const steps = meta.steps.map((step) => ({
     id: step.id,
     type: step.type,
@@ -814,6 +797,11 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     id: meta.id,
     workflow: meta.workflow,
     status: meta.status,
+    delivery: {
+      ...delivery,
+      ...("reason" in delivery && delivery.reason != null && { reason: redactSensitiveText(delivery.reason) }),
+      ...("blocker" in delivery && delivery.blocker != null && { blocker: redactSensitiveText(delivery.blocker) }),
+    },
     triggerEvent: meta.trigger.event,
     triggerSchemaRef: meta.trigger.schemaRef,
     startedAt: meta.startedAt,

@@ -15,6 +15,10 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 ## Boundaries
 
 - No change to command names, flags, aliases, or output without updating docs.
+- `workflow show` renders the client detail directly, including tags and the
+  supplied delivery and continuation state. Missing delivery displays as
+  unavailable. Local clients derive delivery at the evidence boundary;
+  `--step` retains full artifact output under canonical run authority.
 - Retry eligibility comes from durable runtime state, not step-result status:
   successful steps may still have a retained integration failure. CLI and HTTP
   clients submit retry intent to the same admission owner.
