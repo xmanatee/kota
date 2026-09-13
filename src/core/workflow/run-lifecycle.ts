@@ -132,16 +132,18 @@ function stageChanges(cwd: string): void {
     throw new Error("Runtime evidence cannot be published as repository content; write proof under KOTA_RUN_DIR or KOTA_RUN_ARTIFACT_DIR");
   }
 
-  // Resolve exclusions before add: Git rejects explicitly ignored pathspecs even
-  // when they are exclusions. NUL-delimited literal paths also preserve filenames.
-  const paths = execFileSync("git", [
-    "ls-files", "-z", "--modified", "--deleted", "--others", "--exclude-standard",
-    "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`,
-  ], { cwd, env: gitEnvironment, maxBuffer: 10 * 1024 * 1024 });
-  if (paths.length === 0) return;
-  execFileSync("git", [
-    "--literal-pathspecs", "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul",
-  ], { cwd, env: gitEnvironment, input: paths, stdio: ["pipe", "pipe", "pipe"] });
+  // Update tracked files separately: add -A rejects deletions beneath ignored
+  // directories. --modified includes deletions; new files still obey ignore rules.
+  for (const [selection, mode] of [["--modified", "--update"], ["--others", "--all"]] as const) {
+    const paths = execFileSync("git", [
+      "ls-files", "-z", selection, "--exclude-standard",
+      "--", ".", `:(exclude)${PROTECTED_CONVERSATION_DIRECTORY}`,
+    ], { cwd, env: gitEnvironment, maxBuffer: 10 * 1024 * 1024 });
+    if (paths.length === 0) continue;
+    execFileSync("git", [
+      "--literal-pathspecs", "add", mode, "--pathspec-from-file=-", "--pathspec-file-nul",
+    ], { cwd, env: gitEnvironment, input: paths, stdio: ["pipe", "pipe", "pipe"] });
+  }
 }
 
 function isCommitAncestor(cwd: string, ancestor: string | undefined, descendant: string): boolean {

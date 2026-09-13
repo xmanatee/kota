@@ -943,6 +943,29 @@ describe("RunLifecycle", () => {
 });
 
 
+test("publication retires tracked ignored evidence without losing ordinary edits", async () => {
+  const value = fixture("retire-evidence", "write");
+  const packet = ".kota/runs/historical/evidence.txt";
+  write(value.root, packet, "historical proof\n");
+  git(value.root, "add", "--force", packet);
+  git(value.root, "commit", "-qm", "historical capture");
+  const historicalHead = git(value.root, "rev-parse", "HEAD");
+
+  const outcome = await lifecycle(value, async context => {
+    rmSync(join(context.sandbox.workspaceDir, packet));
+    write(context.sandbox.workspaceDir, "shared.txt", "updated consumer\n");
+    write(context.sandbox.workspaceDir, "consumer.txt", "maintained behavior\n");
+    return { kind: "completed", commitMessage: "retire historical capture" };
+  }).execute(value.run, new AbortController().signal);
+
+  expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
+  expect(existsSync(join(value.root, packet))).toBe(false);
+  expect(readFileSync(join(value.root, "shared.txt"), "utf8")).toBe("updated consumer\n");
+  expect(readFileSync(join(value.root, "consumer.txt"), "utf8")).toBe("maintained behavior\n");
+  expect(git(value.root, "show", `${historicalHead}:${packet}`)).toBe("historical proof");
+  expect(value.store.getRun(value.run.id)?.sandbox).toBeUndefined();
+});
+
 test("publication rejects a copied runtime packet even when a scope still allows it in Git", async () => {
   const value = fixture("copied-evidence", "write");
   const base = git(value.root, "rev-parse", "HEAD");
