@@ -8,9 +8,9 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import autonomyModule from "./index.js";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-export const CAPTURE_DIR = join(
+export const ROUTING_REPLAY_FIXTURE_DIR = join(
   REPO_ROOT,
-  ".kota/runs/2026-08-13T10-59-08-563Z-builder-tq9ibo/evidence/artifacts/production-routing-source",
+  "src/modules/autonomy/fixtures/production-routing-replay",
 );
 export const REMOVED_ESCALATORS = [
   "owner-intervention-escalator",
@@ -33,6 +33,7 @@ export type CompletionRow = {
 };
 
 export type CompletionCapture = {
+  provenance: RoutingReplayFixtureProvenance;
   rows: CompletionRow[];
   verification: {
     rowCount: number;
@@ -40,6 +41,12 @@ export type CompletionCapture = {
     workflowCounts: Record<string, number>;
     removedEscalatorRuns: number;
   };
+};
+
+type RoutingReplayFixtureProvenance = {
+  sourceRunId: string;
+  firstRepositoryRevision: string;
+  projection: string;
 };
 
 type DeadLetterDisposition = {
@@ -50,6 +57,7 @@ type DeadLetterDisposition = {
 };
 
 export type DeadLetterCapture = {
+  provenance: RoutingReplayFixtureProvenance;
   records: DeadLetterItem[];
   dispositions: DeadLetterDisposition[];
   verification: {

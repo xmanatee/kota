@@ -1,2 +1,0 @@
-pnpm exec tsc -p tsconfig.build.json --outDir <run>/repair-final-compiled
-Observed exit code: 0 (no compiler diagnostics).

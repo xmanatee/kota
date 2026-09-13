@@ -1,1 +1,0 @@
-Render daemon shared UI natively on Android with strict platform ownership

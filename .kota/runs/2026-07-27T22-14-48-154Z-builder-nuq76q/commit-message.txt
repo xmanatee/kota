@@ -1,1 +1,0 @@
-Harden daemon state root and scoped runtime queues

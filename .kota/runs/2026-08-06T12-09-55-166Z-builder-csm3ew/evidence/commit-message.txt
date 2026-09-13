@@ -1,1 +1,0 @@
-Harden task claim storage against symlink escapes

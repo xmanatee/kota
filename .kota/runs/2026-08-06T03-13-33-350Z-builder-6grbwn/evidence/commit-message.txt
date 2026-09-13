@@ -1,1 +1,0 @@
-fix(builder): defer protected task staging to workflow host

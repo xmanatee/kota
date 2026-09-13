@@ -1,1 +1,0 @@
-Secure Playwright traffic with DNS-pinned network policy

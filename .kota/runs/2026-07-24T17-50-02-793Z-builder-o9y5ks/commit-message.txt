@@ -1,1 +1,0 @@
-Harden Git parsing against file-write option confusion

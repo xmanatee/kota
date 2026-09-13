@@ -1,1 +1,0 @@
-Harden MCP OAuth metadata endpoint trust policy

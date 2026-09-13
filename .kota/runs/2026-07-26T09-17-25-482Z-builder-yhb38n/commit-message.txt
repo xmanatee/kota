@@ -1,1 +1,0 @@
-Isolate executable eval scorers and harden Git predicates

@@ -1,3 +1,0 @@
-Fix macOS computer-use AppleScript injection
-
-Pass keystroke text through argv, add adversarial regressions, and align evidence JSON types for strict builds.

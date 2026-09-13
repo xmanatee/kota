@@ -1,1 +1,0 @@
-Harden merge resolver against worktree MCP bootstrap

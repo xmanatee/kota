@@ -1,1 +1,0 @@
-Recognize tool-effect evidence and publish task claims atomically

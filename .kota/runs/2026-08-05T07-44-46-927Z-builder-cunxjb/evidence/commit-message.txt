@@ -1,1 +1,0 @@
-security: fail closed for direct native workflow harnesses

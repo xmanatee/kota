@@ -1,1 +1,0 @@
-Enforce scope external-write owner policy

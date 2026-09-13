@@ -1,1 +1,0 @@
-chore(autonomy): block inaccessible stale-worktree recovery

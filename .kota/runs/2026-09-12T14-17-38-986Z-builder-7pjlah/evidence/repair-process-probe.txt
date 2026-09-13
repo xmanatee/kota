@@ -1,9 +1,0 @@
-{
-  "status": "spawn-failed",
-  "attemptedAt": "2026-09-12T15:42:06.193Z",
-  "commandHash": "bbc9c0ca6077ad92f28aa882efad641caadbf899ea179337e81a4b74d021f7ca",
-  "error": {
-    "message": "spawnSync /bin/ps EPERM",
-    "code": "EPERM"
-  }
-}

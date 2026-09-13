@@ -1,1 +1,0 @@
-Anchor project config directory creation

@@ -1,3 +1,0 @@
-Add builder feature-slice fixture and runtime safeguards
-
-Harden the fixture verifier against catalog-bypass shortcuts.

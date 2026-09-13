@@ -1,1 +1,0 @@
-Harden resource-budget canaries against shortcut candidates

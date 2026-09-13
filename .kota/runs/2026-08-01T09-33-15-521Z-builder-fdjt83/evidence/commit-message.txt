@@ -1,1 +1,0 @@
-Generate daemon UI client bindings

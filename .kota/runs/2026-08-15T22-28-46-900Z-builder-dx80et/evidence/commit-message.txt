@@ -1,1 +1,0 @@
-workflow: revalidate restored runs without collapsing bursts

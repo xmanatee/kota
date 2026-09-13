@@ -1,3 +1,0 @@
-Resolved: canonical `git add -A` completed successfully after validation. The
-secret-storage implementation, regression coverage, task transition, and run
-evidence are staged for the workflow commit step.

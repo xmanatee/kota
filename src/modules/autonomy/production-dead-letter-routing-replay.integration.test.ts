@@ -29,8 +29,8 @@ import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 import {
   asOpenDeadLetter,
   autonomyWorkflowInputs,
-  CAPTURE_DIR,
   type DeadLetterCapture,
+  ROUTING_REPLAY_FIXTURE_DIR,
   readJson,
   writeDeadLetterSnapshot,
 } from "./production-routing-replay.integration-test-helpers.js";
@@ -123,7 +123,7 @@ describe("production dead-letter routing replay", () => {
     { timeout: 90_000 },
     async () => {
       const capture = readJson<DeadLetterCapture>(
-        join(CAPTURE_DIR, "progress-reviewer-dead-letters.json"),
+        join(ROUTING_REPLAY_FIXTURE_DIR, "progress-reviewer-dead-letters.json"),
       );
       expect(capture.records).toHaveLength(4);
       expect(capture.records.map((record) => record.source.kind === "workflow-dispatch"

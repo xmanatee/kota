@@ -18,12 +18,12 @@ import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import {
   autonomyWorkflowInputs,
-  CAPTURE_DIR,
   type CompletionCapture,
   completionEnvelope,
   invocationFromTrigger,
   REMOVED_ESCALATORS,
   REPO_ROOT,
+  ROUTING_REPLAY_FIXTURE_DIR,
   type RoutedInvocation,
   readJson,
 } from "./production-routing-replay.integration-test-helpers.js";
@@ -45,7 +45,7 @@ describe("production completion routing replay", () => {
 
   it("routes the exact latest-200 capture without completion-wide escalator or improver runs", async () => {
     const capture = readJson<CompletionCapture>(
-      join(CAPTURE_DIR, "latest-200-workflow-completions.json"),
+      join(ROUTING_REPLAY_FIXTURE_DIR, "latest-200-workflow-completions.json"),
     );
     expect(capture.rows).toHaveLength(200);
     expect(capture.verification.rowCount).toBe(capture.rows.length);

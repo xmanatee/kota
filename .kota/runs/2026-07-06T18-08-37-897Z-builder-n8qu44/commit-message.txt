@@ -1,1 +1,0 @@
-Replace navigator with daemon-backed operator console

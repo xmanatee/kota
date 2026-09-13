@@ -1,3 +1,0 @@
-Fix frontmatter bracket scalar serialization
-
-Quote flat frontmatter string scalars that would otherwise parse as arrays, and parse double-quoted scalars before bracket-array syntax. Add progress-reviewer regression coverage for generated title, area, and summary bracket values.

@@ -1,1 +1,0 @@
-Render shared UI surfaces with graph-owned operator actions

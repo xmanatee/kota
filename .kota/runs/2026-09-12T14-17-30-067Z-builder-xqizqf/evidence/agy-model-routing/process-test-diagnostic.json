@@ -1,7 +1,0 @@
-{
-  "status": null,
-  "stdout": "",
-  "stderr": "",
-  "runtimeDetail": "container image \"kota-eval:latest\" via \"/private/var/folders/t4/jr0r_vd10sq3tbdzf9d2g9400000gn/T/kota-native-cli-Hn0LUc/tool-runtime/kota-agy-diagnostic-6AKZyk/fake-container.mjs\"",
-  "errorMessage": "spawnSync /bin/ps EPERM"
-}

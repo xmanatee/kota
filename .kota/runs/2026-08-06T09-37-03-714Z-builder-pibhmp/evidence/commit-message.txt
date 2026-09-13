@@ -1,1 +1,0 @@
-security: harden decomposer task path handling

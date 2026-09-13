@@ -1,1 +1,0 @@
-Sanitize shared terminal UI text controls

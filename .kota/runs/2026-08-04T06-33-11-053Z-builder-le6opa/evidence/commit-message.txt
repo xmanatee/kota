@@ -1,1 +1,0 @@
-security: close decomposer write-scope bypasses
