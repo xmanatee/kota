@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import {
@@ -6,6 +7,7 @@ import {
 } from "./awaits-store.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
+import { matchesFilter } from "./run-executor-utils.js";
 import {
   WorkflowRunMetadataAuthorityError,
   WorkflowRunMetadataEnumerationError,
@@ -139,6 +141,24 @@ export function startRuntime(
     onScheduled: () => maybeStartNext(state),
     disposers: state.awaitResumeDisposers,
   });
+
+  state.awaitResumeDisposers.push(state.runCoordinator.registerContinuationAdmission(state.scopeId, (resources) => {
+    for (const definition of state.definitions) {
+      if (!definition.enabled || !definition.availableWork) continue;
+      const candidates = definition.availableWork({
+        scopeRoot: state.scopeRoot, stateDir: state.store.rootDir,
+        runtimeStateDir: dirname(state.runState.path), scopeId: state.scopeId,
+        capacity: state.runCoordinator.capacity, resources,
+        scopePolicySnapshot: state.runtimeConfig.scopePolicyAuthority?.getSnapshot(state.scopeId) ?? null,
+      });
+      for (const candidate of candidates) {
+        const trigger = definition.triggers.find((trigger) => !trigger.batch &&
+          trigger.event === candidate.event && matchesFilter(trigger.filter, candidate.payload));
+        if (!trigger) throw new Error(`Available work for ${definition.name} has no matching trigger`);
+        state.wfQueue.enqueue(definition, trigger, candidate);
+      }
+    }
+  }));
 
   if (!state.dispatchPaused) {
     state.runCoordinator.resumeScopeAdmission(state.scopeId);

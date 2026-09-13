@@ -147,6 +147,13 @@ export function assembleWorkflowDefinition(
       }
       return definition.triggerAdmission;
     })(),
+    availableWork: (() => {
+      if (definition.availableWork === undefined) return undefined;
+      if (typeof definition.availableWork !== "function" || isAsyncFunction(definition.availableWork)) {
+        throw new WorkflowDefinitionError("availableWork must be a synchronous function", definitionPath);
+      }
+      return definition.availableWork;
+    })(),
     recovery: (() => {
       if (definition.recovery === undefined) return undefined;
       if (typeof definition.recovery !== "function") {

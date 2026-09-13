@@ -1,3 +1,4 @@
+import type { ScopePolicySnapshot } from "#core/daemon/scope-policy-authority.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { RunEvidenceReader, TransactionalRunState } from "./run-context.js";
 import type { RepositoryAccess } from "./run-sandbox.js";
@@ -56,6 +57,8 @@ export type WorkflowDefinitionInput = {
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
   /** Pure domain assessment used only by the retained run's recovery owner. */
   recovery?: WorkflowRecoveryResolver;
+  /** Resolve fresh domain supply for resources requested by a deliberate yield. */
+  availableWork?: WorkflowAvailableWorkResolver;
   /**
    * Optional JSON Schema object describing the expected shape of trigger payloads.
    * When present, the runtime validates each trigger payload against this schema
@@ -238,6 +241,8 @@ export type WorkflowDefinition = {
   /** Definition-owned pre-queue semantic replay admission. */
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
   recovery?: WorkflowRecoveryResolver;
+  /** Resolve fresh domain supply for resources requested by a deliberate yield. */
+  availableWork?: WorkflowAvailableWorkResolver;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
   inputSchema?: Record<string, unknown>;
   /** Optional JSON Schema for validating the last step output on successful completion. */
@@ -258,3 +263,14 @@ export type WorkflowDefinition = {
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];
 };
+
+/** Domain supplies candidates; the ordinary trigger queue retains admission authority. */
+export type WorkflowAvailableWorkResolver = (input: Readonly<{
+  scopeRoot: string;
+  stateDir: string;
+  runtimeStateDir: string;
+  scopeId: string;
+  capacity: number;
+  resources: readonly string[];
+  scopePolicySnapshot: ScopePolicySnapshot | null;
+}>) => readonly WorkflowRunTrigger[];

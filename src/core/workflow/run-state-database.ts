@@ -726,8 +726,8 @@ export class RunStateDatabase {
     })();
   }
 
-  /** Priority yields defer to runnable work, not to the completion of blocked work. */
-  resumeSatisfiedContinuationRuns(resumedAt: string): string[] {
+  /** Durable yield intent, without domain interpretation. */
+  listContinuationWaits(): Array<{ runId: string; scopeId: string; blockerResources: string[] }> {
     const rows = this.database
       .prepare(
         `SELECT id, scope_id, wait_json FROM runs
@@ -735,6 +735,22 @@ export class RunStateDatabase {
          ORDER BY admitted_at, rowid`,
       )
       .all() as Array<{ id: string; scope_id: string; wait_json: string }>;
+    return rows.flatMap((row) => {
+      const wait: unknown = JSON.parse(row.wait_json);
+      if (wait === null || typeof wait !== "object" || Array.isArray(wait)) return [];
+      const record = wait as Record<string, unknown>;
+      if (record.kind !== "continuation" || record.decision !== "preserve-yield" ||
+        typeof record.decidedAt !== "string" || !Array.isArray(record.blockerResources) ||
+        record.blockerResources.length === 0 || !record.blockerResources.every(
+          (resource): resource is string => typeof resource === "string" && resource.length > 0,
+        )) return [];
+      return [{ runId: row.id, scopeId: row.scope_id, blockerResources: record.blockerResources }];
+    });
+  }
+
+  /** Priority yields defer to runnable work, not to the completion of blocked work. */
+  resumeSatisfiedContinuationRuns(resumedAt: string, excludedScopeIds: readonly string[] = []): string[] {
+    const waits = this.listContinuationWaits().filter((wait) => !excludedScopeIds.includes(wait.scopeId));
     const currentBlockers = this.database.prepare(
       `SELECT blocker.id, blocker.state
        FROM run_resource_requests AS request
@@ -745,32 +761,12 @@ export class RunStateDatabase {
     );
     const resumed: string[] = [];
     this.database.transaction(() => {
-      for (const row of rows) {
-        let wait: unknown;
-        try {
-          wait = JSON.parse(row.wait_json) as unknown;
-        } catch {
-          continue;
-        }
-        if (wait === null || typeof wait !== "object" || Array.isArray(wait)) continue;
-        const record = wait as Record<string, unknown>;
-        if (
-          record.kind !== "continuation" ||
-          record.decision !== "preserve-yield" ||
-          typeof record.decidedAt !== "string" ||
-          !Array.isArray(record.blockerResources) ||
-          record.blockerResources.length === 0 ||
-          !record.blockerResources.every(
-            (resource): resource is string => typeof resource === "string" && resource.length > 0,
-          )
-        ) {
-          continue;
-        }
+      for (const wait of waits) {
         const runnable = new Set(this.listDispatchableRuns({
           now: resumedAt, limit: Number.MAX_SAFE_INTEGER, excludedScopeIds: [],
         }).map((run) => run.id));
-        const satisfied = record.blockerResources.every((resource) => {
-          const blockers = currentBlockers.all(this.scopeResourceKey(row.scope_id, resource), row.id) as
+        const satisfied = wait.blockerResources.every((resource) => {
+          const blockers = currentBlockers.all(this.scopeResourceKey(wait.scopeId, resource), wait.runId) as
             Array<{ id: string; state: DurableRunState }>;
           return !blockers.some((blocker) => blocker.state !== "queued" || runnable.has(blocker.id));
         });
@@ -780,8 +776,8 @@ export class RunStateDatabase {
            SET state = 'queued', not_before_at = ?,
                finished_at = NULL, last_error = NULL
            WHERE id = ? AND state = 'waiting'`,
-        ).run(resumedAt, row.id);
-        if (updated.changes === 1) resumed.push(row.id);
+        ).run(resumedAt, wait.runId);
+        if (updated.changes === 1) resumed.push(wait.runId);
       }
     })();
     return resumed;

@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
@@ -11,13 +12,17 @@ import { OutboundHttpTransport, outboundHttp } from "#core/outbound-http/index.j
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { clearCustomTools, deregisterTool, registerTool } from "#core/tools/index.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { AGENT_OK_RESULT } from "#core/workflow/run-executor-test-fixture.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import { builderTaskResources, readBuilderTaskPayload } from "#modules/autonomy/workflows/builder/task-contract.js";
+import * as workflowCommands from "#core/workflow/workflow-command.js";
+import { collectAutonomyContinuationContext } from "#modules/autonomy/continuation.js";
+import { resolveAvailableBuilderWork } from "#modules/autonomy/workflows/builder/available-work.js";
+import { builderTaskResources, listBuilderTaskDispatches, readBuilderTaskPayload } from "#modules/autonomy/workflows/builder/task-contract.js";
 import dispatcher from "#modules/autonomy/workflows/dispatcher/workflow.js";
 import { decodeExplorerState, EXPLORER_STATE_KEY, type ExplorerState } from "#modules/autonomy/workflows/explorer/explorer-state.js";
 import type { refreshExplorerSources } from "#modules/autonomy/workflows/explorer/source-evidence.js";
@@ -447,3 +452,167 @@ it("dispatches only independent unclaimed work while preserving retained owners 
     bus.clear();
   }
 });
+
+// Consumer: deliberate priority yields. Owners: published task supply, trigger admission,
+// coordinator and lifecycle. Detects unadmitted work losing the released slot, including
+// a restart in that gap; stale supply must not become a permanent dependency.
+it.each(["live", "restart", "blocked", "completed", "removed", "rejected", "disabled"] as const)(
+  "hands a preserved slot to fresh admissible supply (%s)", async (scenario) => {
+    const root = mkdtempSync(join(tmpdir(), "kota-priority-handoff-"));
+    roots.push(root);
+    const stateDir = join(root, ".kota");
+    const scopeId = deriveDirectoryScopeId(root);
+    const now = () => new Date().toISOString();
+    const taskPath = join(root, "data/tasks/task-urgent.md");
+    mkdirSync(join(root, "data/tasks"), { recursive: true });
+    writeFileSync(join(root, ".gitignore"), ".kota/\n");
+    writeFileSync(join(root, "data/prompt.md"), "Complete the current task.\n");
+    writeFileSync(taskPath, "---\nstatus: open\npriority: p1\n---\n# Urgent work\n\nRepair urgent behavior.\n");
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+    git("init", "--quiet", "-b", "main");
+    git("config", "user.name", "KOTA Test");
+    git("config", "user.email", "test@example.com");
+    const publish = () => { git("add", "data", ".gitignore"); git("commit", "--quiet", "-m", "published intent"); };
+    publish();
+    let database = new RunStateDatabase(stateDir);
+    database.registerScope({ id: scopeId, rootPath: root, createdAt: now() });
+    let epoch = database.beginDaemonSession(now()).epoch;
+    const bus = new EventBus();
+    const pbus = new ScopedEventBus(bus, scopeId);
+    let runtime!: WorkflowRuntime;
+    let coordinator!: RunCoordinator;
+    const order: string[] = [];
+    const sessions: Array<string | undefined> = [];
+    const workspaces: string[] = [];
+    let decisions = 0;
+    let currentRunId = "";
+    const harness = `priority-handoff-${scenario}`;
+    registerAgentHarness({
+      name: harness, description: "controlled model port for composed yield admission",
+      supportsMultiTurn: true, supportedHookKinds: [], askOwnerToolName: null,
+      emitsAgentMessageStream: true, toolControl: "native", nativeAbortQuarantine: "confirmed-stop",
+      run: async (options) => {
+        order.push("current");
+        sessions.push(options.resumeSessionId);
+        workspaces.push(options.cwd!);
+        options.onSessionId?.("preserved-session");
+        if (sessions.length === 1) writeFileSync(join(options.cwd!, "retained.txt"), "preserved progress\n");
+        else expect(readFileSync(join(options.cwd!, "retained.txt"), "utf8")).toBe("preserved progress\n");
+        writeFileSync(join(options.env!.KOTA_RUN_DIR, "commit-message.txt"), "Complete preserved priority work\n");
+        options.abortQuarantine?.register(async () => {});
+        await options.onMessage?.({ type: "text", text: "Progress checkpoint", sessionId: "preserved-session" });
+        return AGENT_OK_RESULT;
+      },
+    });
+    let validations = 0;
+    // Control the validator subprocess port; real lifecycle, Git reconciliation and publication remain composed.
+    vi.spyOn(workflowCommands, "createWorkflowCommandRunner").mockImplementation((options) => async (input) => {
+      expect(input.command).toBe(process.execPath);
+      expect(input.args).toEqual(["-e", "process.exit(0)"]);
+      expect(readFileSync(join(input.cwd ?? options.cwd, "retained.txt"), "utf8")).toBe("preserved progress\n");
+      validations++;
+      return successfulWorkflowCommandRun({ ...input, cwd: input.cwd ?? options.cwd });
+    });
+    const start = () => {
+      coordinator = new RunCoordinator({
+        store: database, daemonEpoch: epoch, concurrency: 1,
+        execute: (run, signal) => runtime.executeAdmittedRun(run, signal),
+        deliverPublication: (publication) => runtime.deliverPublication(publication),
+      });
+      runtime = new WorkflowRuntime({
+        bus, pbus, scopeRoot: root, scopeId, runState: database, runCoordinator: coordinator, daemonEpoch: epoch,
+        scopePolicyAuthority: { getSnapshot: () => scopePolicySnapshotForTest(root), subscribeRestrictiveChanges: () => () => {} },
+        workflows: [{
+          name: "priority-writer", repository: "write", moduleRoot: root,
+          definitionPath: "priority-writer.scenario.ts", defaultAutonomyMode: "autonomous",
+          integration: { validationCommand: [process.execPath, "-e", "process.exit(0)"] },
+          resources: () => ["task:task-current"], triggers: [{ event: "current.ready" }],
+          steps: [{ id: "work", type: "agent", promptPath: "data/prompt.md", harness, model: "test-model", effort: "high",
+            repairLoop: {
+              checks: [{ id: "complete", type: "code", run: () => "ok" }],
+              continuation: {
+                collectContext: () => collectAutonomyContinuationContext({
+                  id: "task-current", priority: "p2", taskContract: "Finish current work",
+                  workSupplyInput: { workspaceRoot: root, scopeRoot: root, stateDir, capacity: 1 },
+                }),
+                decide: (_ctx, _step, packet) => {
+                  decisions++;
+                  expect(packet.higherPriorityWork.map((item) => item.id)).toEqual(["task-urgent"]);
+                  expect(database.listRuns(scopeId).some((run) => run.workflow === "supply-consumer")).toBe(false);
+                  if (scenario !== "live") coordinator.pauseGlobalAdmission();
+                  return { decision: "preserve-yield", rationale: "Preserve progress for urgent admissible work", nextAction: "Finish preserved progress" };
+                },
+                resolveAgentContract: (parent) => ({ harness: parent.harness, model: parent.model, effort: parent.effort,
+                  autonomyMode: "autonomous", ownerQuestionAccess: "disabled" }),
+              },
+            },
+          }],
+        }, {
+          name: "supply-consumer", repository: "none", moduleRoot: process.cwd(),
+          definitionPath: "supply-consumer.scenario.ts", resources: builderTaskResources,
+          availableWork: resolveAvailableBuilderWork, enabled: scenario !== "disabled",
+          triggerAdmission: () => scenario === "rejected" ? { admitted: false, reason: "Unavailable prerequisite" } : { admitted: true },
+          triggers: [{ event: "autonomy.queue.available", queueMode: "all" }],
+          steps: [{ id: "consume", type: "code", run: () => {
+            order.push("urgent");
+            expect(database.getRun(currentRunId)).toMatchObject({ state: "waiting", attempt: 1, resources: ["task:task-current"] });
+            expect(readFileSync(join(workspaces[0], "retained.txt"), "utf8")).toBe("preserved progress\n");
+            // Repeated ordinary dispatch cannot duplicate the handoff admission.
+            const contract = listBuilderTaskDispatches(root)[0];
+            pbus.emit("autonomy.queue.available", { ...contract, dependsOn: [...contract.dependsOn] });
+            return "urgent completed";
+          } }],
+        }],
+      });
+      runtime.start();
+    };
+    start();
+    try {
+      await runtime.enqueuePendingRun("priority-writer");
+      currentRunId = database.listRuns(scopeId).find((run) => run.workflow === "priority-writer")!.id;
+      if (scenario !== "live") {
+        await expect.poll(() => database.getRun(currentRunId)?.state).toBe("waiting");
+        await coordinator.whenIdle();
+        const before = database.getRun(currentRunId)!;
+        await runtime.stop();
+        await coordinator.dispose();
+        database.close();
+        if (scenario === "blocked") {
+          writeFileSync(taskPath, "---\nstatus: blocked\npriority: p1\n---\n# Urgent work\n\n## Blocked on\nkind: operator-capture\npath: evidence/operator-run.txt\ndescription: Await external evidence.\n");
+          publish();
+        } else if (scenario === "removed") { rmSync(taskPath); publish(); }
+        else if (scenario === "completed") {
+          mkdirSync(join(root, "data/tasks/archive"));
+          rmSync(taskPath);
+          writeFileSync(join(root, "data/tasks/archive/task-urgent.md"), "---\nstatus: done\n---\n# Urgent work\n\nCompleted.\n");
+          publish();
+        }
+        database = RunStateDatabase.openExisting(stateDir);
+        epoch = database.beginDaemonSession(now()).epoch;
+        expect(database.getRun(currentRunId)).toMatchObject({ state: "waiting", sandbox: before.sandbox, wait: before.wait, resources: before.resources });
+        start();
+      }
+      await expect.poll(() => {
+        const run = database.getRun(currentRunId);
+        return JSON.stringify({ state: run?.state, error: run?.lastError, order, decisions });
+      }, { timeout: 15_000 }).toContain('"state":"succeeded"');
+      await coordinator.whenIdle();
+      const handedOff = scenario === "live" || scenario === "restart";
+      expect(order).toEqual(handedOff ? ["current", "urgent", "current"] : ["current", "current"]);
+      expect(sessions).toEqual([undefined, "preserved-session"]);
+      expect(workspaces[1]).toBe(workspaces[0]);
+      expect(decisions).toBe(1);
+      expect(validations).toBeGreaterThan(0);
+      expect(database.listRuns(scopeId).filter((run) => run.workflow === "supply-consumer")).toHaveLength(handedOff ? 1 : 0);
+      expect(database.getRun(currentRunId)).toMatchObject({ state: "succeeded", attempt: 2, resources: [] });
+      expect(readFileSync(join(root, "retained.txt"), "utf8")).toBe("preserved progress\n");
+      process.stdout.write(`Priority handoff ${scenario}: ${order.join(" -> ")}; same session, workspace and run; one judgment.\n`);
+    } finally {
+      coordinator!.pauseGlobalAdmission();
+      await runtime!.stop();
+      await coordinator!.dispose();
+      database.close();
+      bus.clear();
+    }
+  }, 25_000,
+);

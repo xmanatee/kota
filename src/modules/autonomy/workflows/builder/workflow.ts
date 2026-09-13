@@ -16,6 +16,7 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
+import { resolveAvailableBuilderWork } from "./available-work.js";
 import { builderContinuationPolicy } from "./continuation.js";
 import {
   builderHarnessPreflightStep,
@@ -50,6 +51,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     postReconcile: verifyBuilderTaskContractAfterReconcile,
   }),
   resources: builderTaskResources,
+  availableWork: resolveAvailableBuilderWork,
   recovery: assessBuilderRecovery,
   inputSchema: {
     type: "object",

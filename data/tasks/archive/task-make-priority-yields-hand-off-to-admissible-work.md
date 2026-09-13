@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make priority yields hand off capacity to admissible work
 
@@ -42,3 +41,27 @@ Use an existing composed dispatch/continuation scenario for the unadmitted-work
 race and restart behavior, with small owner tests only for distinct policy.
 Do not add clocks, a second continuation state machine or repeated steering
 tasks. The parity task itself remains owned by its existing builder.
+
+## Result
+
+The shared coordinator now reconciles fresh published supply through ordinary
+trigger admission before resuming a deliberate priority yield. Autonomy owns
+published task eligibility and scope authority; the generic runtime retains
+admission, deduplication, capacity and preserved-run ownership. Dispatcher and
+handoff admission share the same builder supply filter.
+
+The composed work-supply journey passed eight cases, including live handoff,
+restart without duplicate admission, and blocked/completed/removed/rejected or
+disabled preferred work. It verifies retained changes, identical run/session/
+workspace, exclusive task ownership, one continuation judgment and eventual
+publication. The coordinator, database, lifecycle and queue-restoration suites
+passed 100 tests. Additional continuation/executor/dispatcher coverage passed
+47 tests; five further runtime-dispatch tests passed, while seven failures
+reproduced with the original coordinator/database/lifecycle sources.
+
+Static checks passed. The final normal build rerun could not clean protected
+existing dist directories; production compilation was checked separately under
+the run directory. Run artifacts retain commands, results and limitations.
+The captured incident metadata confirms the cited continuation decision and
+same-run lineage; the exact journal event pair was not independently available
+in the scoped export. The parity task and its existing owner were untouched.

@@ -7,15 +7,14 @@ import {
   type RepoWorkSupply,
   type RepoWorkSupplyInput,
 } from "#modules/repo-tasks/work-supply.js";
-import {
-  type BuilderTaskDispatchPayload,
-  listBuilderTaskDispatches,
+import { listAvailableBuilderTasks } from "../builder/available-work.js";
+import type {
+  BuilderTaskDispatchPayload,
 } from "../builder/task-contract.js";
 import {
   inspectResearchRetryAvailability,
   type ResearchRetryAvailability,
 } from "../research-retry/precondition.js";
-import { resolveScopeImprovementAuthority } from "../scope-improver/scope-improvement-authority.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import {
   inspectSecurityReviewDue,
@@ -51,19 +50,6 @@ export function inspectDispatcherStateInWorker(
   input: DispatcherInspectionInput,
 ): DispatcherInspection {
   const now = new Date(input.nowIso);
-  let builderEnabled = false;
-  if (input.scopePolicySnapshot !== null) {
-    try {
-      builderEnabled = resolveScopeImprovementAuthority({
-        scopeRoot: input.scopeRoot,
-        stateDir: input.stateDir,
-        policy: input.scopePolicySnapshot.policy,
-      }).builder === "enabled";
-    } catch {
-      // Malformed scope-owned configuration is surfaced by scopeBoundary and
-      // must fail closed for builder admission without stopping other routing.
-    }
-  }
   // Repository-free observers still reflect scope policy, but cannot publish work from editor files.
   const published = input.securityReviewGitEvidence.currentHead.kind === "unavailable"
     ? null : readPublishedRepoTaskQueue(input.workspaceRoot);
@@ -73,11 +59,9 @@ export function inspectDispatcherStateInWorker(
     capacity: input.workSupplyInput.capacity,
     availableTaskIds: [], owners: [], runningCount: 0, queuedCount: 0, retainedCount: 0, availableCount: 0,
   };
-  const available = new Set(queue.availableTaskIds);
   return {
     queue,
-    builderTasks: builderEnabled && published ? listBuilderTaskDispatches(input.workspaceRoot, published)
-      .filter((task) => available.has(task.taskId)) : [],
+    builderTasks: published ? listAvailableBuilderTasks({ ...input, published, supply: queue }) : [],
     researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot, published?.tasks ?? []),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,

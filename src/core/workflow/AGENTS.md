@@ -45,7 +45,9 @@ and publication.
   never creates a reviewer cadence. Resumable harnesses establish their session
   before checkpoint polling. Preserved runs retain workspaces and resources,
   release capacity, and defer to actually runnable higher-priority work. Blocked,
-  deferred or unadmitted work does not become a hard completion dependency.
+  deferred or stale work does not become a hard completion dependency. Before
+  resuming a yield, loaded definitions resolve fresh resource-bound supply through
+  ordinary trigger admission, including after restart; SQLite does not interpret tasks.
 - Nested critic, semantic-gate, and continuation judges are filesystem
   read-only; they inspect unpublished work without becoming mutation owners.
   The step context snapshots runtime-selected artifact roots into the existing

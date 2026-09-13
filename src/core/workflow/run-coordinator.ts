@@ -122,6 +122,8 @@ export class RunCoordinator {
   private publicationDrain: Promise<void> | null = null;
   private publicationDrainRequested = false;
   private publicationRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private refilling = false;
+  private readonly continuationAdmissions = new Map<string, (resources: readonly string[]) => void>();
   private phase: CoordinatorPhase = "active";
   private disposal: Promise<void> | null = null;
 
@@ -222,36 +224,64 @@ export class RunCoordinator {
     return this.refill();
   }
 
+  registerContinuationAdmission(scopeId: string, admit: (resources: readonly string[]) => void): () => void {
+    if (this.continuationAdmissions.has(scopeId)) throw new Error(`Continuation admission already registered for ${scopeId}`);
+    this.continuationAdmissions.set(scopeId, admit);
+    return () => { this.continuationAdmissions.delete(scopeId); };
+  }
+
   /** Starts as many eligible durable queued runs as the global limit permits. */
   refill(): number {
-    if (this.phase !== "active") return 0;
-    this.clearEligibilityTimer();
-    this.grantCapacityWaiters();
-    const observedAt = this.now();
-    if (!this.globalAdmissionPaused) {
-      this.store.resumeSatisfiedContinuationRuns(observedAt);
-    }
-    let started = this.startCandidates(
-      this.store.listDispatchableRuns({
-        now: observedAt,
-        limit: this.concurrency - this.countOccupiedCapacity(),
-        excludedScopeIds: [],
-        includedRunIds: [...this.dependencyRunIds],
-      }),
-      observedAt,
-    );
-    if (!this.globalAdmissionPaused) {
-      started += this.startCandidates(
+    if (this.phase !== "active" || this.refilling) return 0;
+    this.refilling = true;
+    try {
+      this.clearEligibilityTimer();
+      this.grantCapacityWaiters();
+      let observedAt = this.now();
+      if (!this.globalAdmissionPaused) {
+        const excluded = new Set(this.pausedScopeIds.keys());
+        const requests = new Map<string, Set<string>>();
+        for (const wait of this.store.listContinuationWaits()) {
+          if (excluded.has(wait.scopeId)) continue;
+          const resources = requests.get(wait.scopeId) ?? new Set<string>();
+          for (const resource of wait.blockerResources) resources.add(resource);
+          requests.set(wait.scopeId, resources);
+        }
+        for (const [scopeId, resources] of requests) {
+          try {
+            this.continuationAdmissions.get(scopeId)?.([...resources]);
+          } catch (error) {
+            // Unavailable domain evidence cannot establish that a handoff is satisfied.
+            excluded.add(scopeId);
+            const run = this.store.listRuns(scopeId, ["waiting"])[0];
+            if (run) this.onError(error, run);
+          }
+        }
+        observedAt = this.now();
+        this.store.resumeSatisfiedContinuationRuns(observedAt, [...excluded]);
+      }
+      let started = this.startCandidates(
         this.store.listDispatchableRuns({
           now: observedAt,
           limit: this.concurrency - this.countOccupiedCapacity(),
-          excludedScopeIds: [...this.pausedScopeIds.keys()],
+          excludedScopeIds: [],
+          includedRunIds: [...this.dependencyRunIds],
         }),
         observedAt,
       );
-    }
-    this.scheduleNextEligibility(observedAt);
-    return started;
+      if (!this.globalAdmissionPaused) {
+        started += this.startCandidates(
+          this.store.listDispatchableRuns({
+            now: observedAt,
+            limit: this.concurrency - this.countOccupiedCapacity(),
+            excludedScopeIds: [...this.pausedScopeIds.keys()],
+          }),
+          observedAt,
+        );
+      }
+      this.scheduleNextEligibility(observedAt);
+      return started;
+    } finally { this.refilling = false; }
   }
 
   /** Owns cancellation and shutdown of assessment work outside an active attempt. */
