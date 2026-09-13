@@ -102,3 +102,5 @@ publication, or deployment observation.
 The retained changes are independently verified by the static gate and scoped
 runtime cases. Detailed qualification, command logs and preflight projections
 remain in this run's `agent/` artifacts, including `qualification.md`.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-13T00:32:05.276Z -->

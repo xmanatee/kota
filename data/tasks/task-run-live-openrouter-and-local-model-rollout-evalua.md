@@ -136,3 +136,5 @@ result); they are not claimed as passes. Details and logs are in this run's
 These synthetic subprocess failures do not establish a live credential or
 Docker prerequisite. The open public-preflight follow-up above owns diagnosis
 and correction; do not call them environmental without identifying the cause.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-13T00:32:05.276Z -->
