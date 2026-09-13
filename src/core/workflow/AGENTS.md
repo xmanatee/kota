@@ -47,7 +47,8 @@ and publication.
 - Nested critic, semantic-gate, and continuation judges are filesystem
   read-only; they inspect unpublished work without becoming mutation owners.
   The step context snapshots runtime-selected artifact roots into the existing
-  run store and grants individual verified projections. Linked snapshots require
+  run store and grants bounded files containing only verified selected projections,
+  never a directory containing unselected evidence. Linked snapshots require
   explicit selection and a same-scope run observation. Originals keep exact
   hashes; redacted or unavailable projections never stand in for original bytes.
   Cleanup atomically moves private runtime originals into the existing run store;

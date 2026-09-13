@@ -105,7 +105,7 @@ test.for(["process", "native"])("builder reviews unpublished evidence with %s is
               const fs = require('node:fs');
               const assert = require('node:assert/strict');
               const paths = ${JSON.stringify(paths)};
-              const text = paths.filter(p => p.includes('/projections/')).map(p => fs.readFileSync(p, 'utf8')).join('\\n');
+              const text = paths.filter(p => p.endsWith('.jsonl')).map(p => fs.readFileSync(p, 'utf8')).join('\\n');
               for (const value of ['Operator: report', 'report ready', "export const route", 'packet approved earlier']) assert.ok(text.includes(value), value);
               for (const value of ['private-secret', 'undisclosed-analysis-words']) assert.ok(!text.includes(value), value);
               if (${JSON.stringify(mode)} === "native") {

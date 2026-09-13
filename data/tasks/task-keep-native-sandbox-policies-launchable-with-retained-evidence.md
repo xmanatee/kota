@@ -16,13 +16,24 @@ that subsequent judges or long-running sessions avoid this failure.
 
 ## Outcome
 
-Trace the effective filesystem policy through the existing native adapter,
-native-cli sandbox, evidence handoff and agent-judge owners. Identify which
-layer produces the oversized policy before changing it: the native Codex
-helper and KOTA's outer machine-authority sandbox are different boundaries.
-Measure path count and encoded policy size without retaining private path
-inventories or credentials. Compare ordinary steps, critics and continuation
-judges on the same run contract.
+The September 13 monitor reproduced the failure in Codex's generated permission
+profile, not KOTA's outer sandbox. The retained zonxlu manifest contained 4,016
+available projections, largely copied compiled output. Individual evidence
+grants produced 4,017 paths and 772,250 configuration bytes; native policy
+compilation failed before any model turn.
+
+The shared handoff now preserves and verifies those immutable projections but
+delivers their selected content in bounded, content-addressed review files.
+The actual retained snapshot produced two grants and 1,367 configuration bytes;
+native Codex execution succeeded while direct raw-original access was denied.
+The eight owner cases and both existing process/native composed evidence cases
+passed. Do not repeat this policy repair or invent a second evidence protocol.
+
+Remaining work is the technical-failure classification below and confirming
+ordinary, critic and continuation calls use this corrected shared boundary.
+Avoid retaining generated compiled trees as review evidence when the existing
+artifact selector can identify the actual verification output. Preserve required
+originals and citations through their existing owner.
 
 Remove redundant grants and unnecessary per-file expansion at their owner,
 or use the existing isolated evidence projection where exact authorization

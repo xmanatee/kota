@@ -1,6 +1,5 @@
 ---
-status: blocked
-priority: p2
+status: done
 ---
 # Add cross-preset runtime parity gate
 
@@ -84,23 +83,17 @@ skips (Claude/Gemini) and one visible Codex login-probe error; no inference ran.
 The OpenAI API key was not exposed to this agent environment, and sandbox denial
 prevents a conclusion about host native login availability.
 
-## Blocked on
+## Final Verification
 
-kind: operator-capture
-path: .kota/runs/
-description: Attributable current-source disposable CLI boot evidence from an authorized execution boundary permitting its loopback listener.
-
-The explicitly required disposable built-CLI boot acceptance needs an
-attributable execution through a permitted loopback boundary. The current
-builder sandbox rejects that listener; no exposed scoped execution alternative
-was available. Resume this same retained run with the ordinary no-inference
-command once that execution prerequisite is available, inspect registration and
-cleanup, and address any subsequent visible failure. This does not require all
-presets to authenticate, successful live inference, parent-daemon control,
-publication, or deployment observation.
+At September 13, 02:26 UTC the monitor ran the complete
+`pnpm test:integration src/preset-parity.integration.test.ts` against the refreshed
+production build on the authorized host. All eight cases passed, including the
+disposable built-CLI journey (3.91 seconds total). This verifies the previously
+unperformed boot/registration boundary for implementation commit `dd34240ef`.
+No live inference or all-preset live parity is claimed. The external
+qualification limits above remain explicit and do not block this gate's
+authorized deterministic acceptance.
 
 The retained changes are independently verified by the static gate and scoped
 runtime cases. Detailed qualification, command logs and preflight projections
 remain in this run's `agent/` artifacts, including `qualification.md`.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-13T00:32:05.276Z -->

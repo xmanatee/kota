@@ -8,6 +8,7 @@ import { validateWorkflowRunId } from "./run-io.js";
 
 const MAX_ASSET_BYTES = 32 * 1024 * 1024;
 const MAX_PROJECTION_BYTES = 128 * 1024;
+const MAX_REVIEW_BYTES = 16 * 1024 * 1024;
 const MAX_ASSETS = 4096;
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const projectionSchema = z.discriminatedUnion("status", [
@@ -154,6 +155,18 @@ export function resolveRunArtifactHandoff(scopeRoot: string, selected: LinkedRun
   const manifest = runArtifactManifestSchema.parse(JSON.parse(bytes.toString("utf8")));
   if (manifest.scopeRoot !== resolve(scopeRoot) || manifest.runId !== selected.runId) throw new Error("Evidence manifest belongs to another scope or run");
   const readOnlyPaths = [join(scopeRoot, manifestRef)];
+  const included = new Set<string>();
+  let review: Buffer[] = [];
+  let reviewBytes = 0;
+  const flushReview = () => {
+    if (reviewBytes === 0) return;
+    const bytes = Buffer.concat(review);
+    const ref = `${prefix}/reviews/${hash(bytes)}.jsonl`;
+    install(scopeRoot, ref, bytes);
+    readOnlyPaths.push(join(scopeRoot, ref));
+    review = [];
+    reviewBytes = 0;
+  };
   for (const entry of manifest.entries) {
     if (entry.status !== "retained") continue;
     if (entry.originalRef !== `${prefix}/originals/${entry.originalSha256}`) throw new Error("Invalid original reference");
@@ -163,8 +176,16 @@ export function resolveRunArtifactHandoff(scopeRoot: string, selected: LinkedRun
     if (entry.projection.ref !== `${prefix}/projections/${entry.projection.sha256}.json`) throw new Error("Invalid projection reference");
     const projected = read(scopeRoot, entry.projection.ref);
     if (!projected || hash(projected) !== entry.projection.sha256 || projected.length !== entry.projection.bytes) throw new Error("Evidence projection absent or altered");
-    readOnlyPaths.push(join(scopeRoot, entry.projection.ref));
+    // Grant selected evidence files, not thousands of individual paths or an
+    // ancestor directory that could expose unselected snapshots and originals.
+    if (included.has(entry.projection.ref)) continue;
+    included.add(entry.projection.ref);
+    const record = Buffer.from(`${JSON.stringify({ projectionRef: entry.projection.ref, content: projected.toString("utf8") })}\n`);
+    if (reviewBytes + record.length > MAX_REVIEW_BYTES) flushReview();
+    review.push(record);
+    reviewBytes += record.length;
   }
+  flushReview();
   return { manifestRef, manifestSha256: selected.manifestSha256, manifest, readOnlyPaths };
 }
 

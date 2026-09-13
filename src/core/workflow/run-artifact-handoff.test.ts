@@ -29,7 +29,15 @@ test("retains exact binary and structured bytes across restart while separating 
     { type: "raw", adapter: "provider", payload: { opaque: "hidden provider internals" } },
   ].map(record => JSON.stringify(record)).join("\n"));
   const first = retainRunArtifacts(input);
-  const delivered = first.readOnlyPaths.filter(path => path.includes("/projections/")).map(path => readFileSync(path, "utf8")).join("\n");
+  expect(first.readOnlyPaths).toHaveLength(2);
+  const reviews = first.readOnlyPaths.filter(path => path.endsWith(".jsonl"));
+  const delivered = reviews.map(path => readFileSync(path, "utf8")).join("\n");
+  for (const line of delivered.trim().split("\n")) {
+    const record = JSON.parse(line);
+    const entry = first.manifest.entries.find(entry => entry.status === "retained" && entry.projection.status === "available" && entry.projection.ref === record.projectionRef);
+    if (entry?.status !== "retained" || entry.projection.status !== "available") throw new Error("Unselected review projection");
+    expect(createHash("sha256").update(record.content).digest("hex")).toBe(entry.projection.sha256);
+  }
   expect(delivered).toContain("visible result");
   expect(delivered).not.toContain("hidden deliberation");
   expect(delivered).not.toContain("hidden provider internals");
@@ -56,7 +64,7 @@ test("retains exact binary and structured bytes across restart while separating 
   rmSync(source, { recursive: true });
   expect(resolveRunArtifactHandoff(input.scopeRoot, { runId: input.runId, manifestSha256: first.manifestSha256 })).toEqual(first);
   writeFileSync(first.readOnlyPaths.at(-1)!, "altered");
-  expect(() => resolveRunArtifactHandoff(input.scopeRoot, { runId: input.runId, manifestSha256: first.manifestSha256 })).toThrow(/altered/);
+  expect(() => resolveRunArtifactHandoff(input.scopeRoot, { runId: input.runId, manifestSha256: first.manifestSha256 })).toThrow(/integrity mismatch/);
 });
 
 test.each(["json", "jsonl", "txt"])("preserves source privacy classification for %s review projections", extension => {
