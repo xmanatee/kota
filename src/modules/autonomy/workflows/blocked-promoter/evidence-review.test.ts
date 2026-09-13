@@ -6,14 +6,21 @@ import { registerAgentHarness, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/i
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import * as probeSandbox from "#core/agent-harness/task-probe-sandbox.js";
 import { agentHarnessToolExecutionOptions } from "#core/agent-harness/tool-execution-options.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
 import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
+import { enforceAgentReadScope } from "#core/tools/tool-runner-agent-read-scope.js";
 import { enforceAgentWriteScope } from "#core/tools/tool-runner-agent-write-scope.js";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import type { RunArtifactManifest } from "#core/workflow/run-artifact-handoff.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { createStepContext } from "#core/workflow/steps/step-context.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { reviewBlockedTasks } from "./evidence-review.js";
 
 const roots: string[] = [];
@@ -28,6 +35,7 @@ it("recollects corrected probe source and newly trusted declarations before reus
   const root = mkdtempSync(join(tmpdir(), "blocked-probe-review-"));
   roots.push(root);
   mkdirSync(join(root, "data/tasks"), { recursive: true });
+  mkdirSync(join(root, ".kota/runs"), { recursive: true });
   const taskPath = join(root, "data/tasks/task-probe.md");
   const task = "---\nstatus: blocked\npriority: p1\n---\n# Probe\n\n## Runtime Probe\ncommand: pnpm run probe\ntimeoutMs: 5000\n\n## Blocked on\nkind: operator-capture\npath: .kota/runs\ndescription: Positive and negative results required\n";
   writeFileSync(taskPath, task);
@@ -79,7 +87,7 @@ it("recollects corrected probe source and newly trusted declarations before reus
     },
     runAgentHarness: async () => {
       judges += 1;
-      const pinned = JSON.parse(readFileSync(join(root, "agent/task-probe.evidence.json"), "utf8"));
+      const pinned = JSON.parse(readFileSync(join(root, ".kota/runs/review/task-probe.evidence.json"), "utf8"));
       expect(pinned.sourceRevision).toMatch(/^[a-f0-9]{64}$/);
       expect(pinned.probe.execution).toBe("os-contained-command");
       expect(pinned.provenance.status).toBe("trusted");
@@ -113,8 +121,9 @@ it("recollects corrected probe source and newly trusted declarations before reus
 it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains unchanged rejected evidence and reopens on changed proof: %s", async (linkage) => {
   const root = mkdtempSync(join(tmpdir(), "blocked-review-"));
   roots.push(root);
-  const taskPath = join(root, "data/tasks/task-evidence.md");
-  mkdirSync(join(root, "data/tasks"), { recursive: true });
+  const workspaceRoot = join(root, "writer");
+  const taskPath = join(workspaceRoot, "data/tasks/task-evidence.md");
+  mkdirSync(join(workspaceRoot, "data/tasks"), { recursive: true });
   const artifactDir = join(root, ".kota/runs/capture");
   mkdirSync(artifactDir, { recursive: true });
   const artifactPath = join(artifactDir, "result.json");
@@ -122,6 +131,13 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
   const hint = linkage === "narrow-hint" ? ".kota/runs/capture" : ".kota/runs";
   writeFileSync(taskPath, `---\nstatus: blocked\npriority: p1\n---\n# Evidence\n\n## Blocked on\nkind: operator-capture\npath: ${hint}\ndescription: Attributable positive and negative results\n${linkage === "cited-export" ? "\nExisting evidence: .kota/runs/capture\n" : ""}`);
   writeFileSync(artifactPath, JSON.stringify({ ...taskLink, outcome: "success", provenance: "missing", capturedAt: "2026-09-10T01:00:00Z" }));
+  // A representative collection exceeds the ordinary 128 KiB projection.
+  // Clearing and contradictory records must both survive the selected handoff.
+  for (let index = 0; index < 56; index += 1) {
+    writeFileSync(join(artifactDir, `positive-${index}.json`), JSON.stringify({
+      ...taskLink, source: "contained execution", positive: "pass", detail: "observed positive outcome ".repeat(420),
+    }));
+  }
   const state = createTestTransactionalRunState(root);
   const store = RunStateDatabase.openExisting(state.stateDir);
   store.admitRun({
@@ -149,10 +165,9 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
     toolControl: linkage === "narrow-hint" ? "native" : "kota",
     run: async () => { throw new Error("Use the scoped runner port"); },
   });
-  let verdict: "pass" | "fail" = "fail";
   let calls = 0;
   const ctx: Parameters<typeof reviewBlockedTasks>[0] = {
-    workspaceRoot: root, scopeRoot: root, state, agentRuntime: runtime,
+    workspaceRoot, scopeRoot: root, state, agentRuntime: runtime,
     scopeId: state.scopeId, runtimeStateDir: state.stateDir,
     runEvidence: { getRun: (id) => store.getRun(id), listRuns: () => store.listRuns(state.scopeId) },
     workflow: { name: "blocked-promoter", runId: "review", runDir: ".kota/runs/review", runDirPath: join(root, ".kota/runs/review"), definitionPath: "workflow.ts" },
@@ -162,8 +177,27 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
     runAgentHarness: async (_harness, options) => {
       // Exercise the actual shared write boundary with the reviewer's resolved
       // options, including the native projection that has no canUseTool callback.
+      expect(options.prompt).toContain("Runtime evidence handoff");
+      const readable = options.readOnlyHostRoots ?? [];
+      expect(readable.some((path) => path.includes("/originals/"))).toBe(false);
+      expect(readable).not.toContain(root);
+      expect(readable).not.toContain(artifactDir);
+      const manifests = readable.filter((path) => path.includes("/manifests/"))
+        .map((path) => JSON.parse(readFileSync(path, "utf8")) as RunArtifactManifest);
+      const entry = manifests.flatMap((manifest) => manifest.entries)
+        .find((entry) => entry.source === "run/task-evidence.evidence.json");
+      if (entry?.status !== "retained" || entry.projection.status !== "available") throw new Error("Missing selected projection");
+      expect(entry.projection.bytes).toBeGreaterThan(600_000);
+      const projectionPath = join(root, entry.projection.ref);
+      expect(readable).toContain(projectionPath);
+      const packet = JSON.parse(readFileSync(projectionPath, "utf8"))[entry.source].content;
+      expect(packet.task).toContain("Attributable positive and negative results");
+      expect(packet.evidence.artifacts).toHaveLength(57);
+      expect(packet.evidence.artifacts.some((artifact: { content: { positive?: string } }) => artifact.content.positive === "pass")).toBe(true);
+      const outcome = packet.evidence.artifacts.find((artifact: { path: string }) => artifact.path.endsWith("/result.json")).content;
+      const verdict = outcome.provenance === "scoped-execution" && outcome.negative === "rejected" ? "pass" : "fail";
       const write = validateToolCallInput("reviewer_write", { path: join(root, "unrelated.ts") });
-      const read = validateToolCallInput("reviewer_read", { path: artifactPath });
+      const read = validateToolCallInput("reviewer_read", { path: projectionPath });
       if (!write.ok || !read.ok) throw new Error("Invalid controlled tool input");
       const toolOptions = agentHarnessToolExecutionOptions(options, { resultLimit: 1000 });
       expect(enforceAgentWriteScope({
@@ -174,8 +208,14 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
         type: "tool_use", id: "reviewer-evidence-read", name: "reviewer_read",
         input: read.input,
       }, toolOptions, { kind: "none" }, { kind: "read", scope: "local-fs", idempotent: true, openWorld: false })).toBeNull();
+      if (_harness.toolControl === "kota") {
+        const block = { type: "tool_use" as const, id: "read", name: "reviewer_read", input: read.input };
+        const effect = { kind: "read" as const, scope: "local-fs" as const, idempotent: true, openWorld: false };
+        expect(enforceAgentReadScope(block, toolOptions, { kind: "known", paths: [projectionPath] }, effect)).toBeNull();
+        expect(enforceAgentReadScope(block, toolOptions, { kind: "known", paths: [artifactPath] }, effect)).toMatchObject({ is_error: true });
+      }
       expect(projectNativeCliScope({
-        cwd: root, autonomyMode: options.autonomyMode, scopePolicy: undefined,
+        cwd: workspaceRoot, autonomyMode: options.autonomyMode, scopePolicy: undefined,
         agentWriteScope: options.agentWriteScope,
       })).toEqual({ executionMode: "plan", writableRoots: [] });
       calls += 1;
@@ -186,21 +226,33 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
       };
     },
   };
+  const bus = new EventBus();
+  const trigger = { event: "manual", schemaRef: null, payload: {} };
+  ctx.runAgentHarness = createStepContext({
+    id: "review", workflow: "blocked-promoter", definitionPath: "workflow.ts", trigger,
+    startedAt: new Date().toISOString(), status: "running", runDir: ".kota/runs/review", steps: [],
+  }, trigger, undefined, {}, {}, [], {
+    workspaceRoot, scopeRoot: root, bus, pbus: new ScopedEventBus(bus, state.scopeId),
+    store: new WorkflowRunStore(root), readRuntimeState: readEmptyTestWorkflowRuntimeState,
+    runAgentHarness: ctx.runAgentHarness, currentStepId: "review-blocked-evidence",
+  }).runAgentHarness;
   try {
     expect((await reviewBlockedTasks(ctx)).reviews[0]?.promoted).toBe(false);
     expect(readFileSync(taskPath, "utf8")).toContain("status: blocked");
     expect((await reviewBlockedTasks(ctx)).reviews).toEqual([]);
     expect(calls).toBe(1);
+    writeFileSync(join(root, "AGENTS.md"), "# Evidence review\nRead the selected pageable collection and report counterevidence.\n");
+    expect((await reviewBlockedTasks(ctx)).reviews[0]?.promoted).toBe(false);
+    expect(calls).toBe(2);
     const unrelated = join(root, ".kota/runs/daily-digest");
     mkdirSync(unrelated, { recursive: true });
     writeFileSync(join(unrelated, "metadata.json"), JSON.stringify({ workflow: "daily-digest", status: "success" }));
     writeFileSync(artifactPath, JSON.stringify({ capturedAt: "2026-09-10T02:00:00Z", provenance: "missing", outcome: "success", ...taskLink }));
     expect((await reviewBlockedTasks(ctx)).reviews).toEqual([]);
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     writeFileSync(artifactPath, JSON.stringify({ ...taskLink, outcome: "success", provenance: "scoped-execution", positive: "pass", negative: "rejected" }));
-    verdict = "pass";
     expect((await reviewBlockedTasks(ctx)).reviews[0]?.promoted).toBe(true);
     expect(readFileSync(taskPath, "utf8")).toContain("status: open");
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
   } finally { store.close(); }
 });

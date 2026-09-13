@@ -52,8 +52,9 @@ export function relevantBlockedEvidence(
       content.includes(JSON.stringify(`data/tasks/${task.id}.md`))) linked.add(cohort(artifact.path));
   }
   const artifacts = collection.artifacts.filter((artifact) => linked.has(cohort(artifact.path)));
-  const unavailable = collection.unavailable.filter((diagnostic) =>
-    [...linked].some((path) => diagnostic.startsWith(`${path}/`) || diagnostic.startsWith(`${path}:`)));
+  // Collection already selects scoped cohorts. Keep diagnostics even when all
+  // files in a selected cohort are missing or unreadable and cannot link it.
+  const unavailable = [...collection.unavailable];
   if (artifacts.length === 0) unavailable.push("No task-linked scoped evidence observed; retain task or cited run provenance in an authorized export");
   return { artifacts, unavailable };
 }

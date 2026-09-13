@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -56,6 +56,38 @@ afterEach(() => {
 });
 
 describe("createStepContext", () => {
+  it.each(["missing", "unprojectable"])("rejects %s selected review input before launching and accepts its repaired handoff", async (failure) => {
+    const workspaceRoot = tempScope();
+    try {
+      const bus = new EventBus();
+      const runDir = join(workspaceRoot, ".kota/runs/run-1");
+      mkdirSync(runDir, { recursive: true });
+      const path = join(runDir, "assessment.json");
+      if (failure === "unprojectable") writeFileSync(path, "\0private binary");
+      const run = vi.fn(async () => ({ text: "reviewed", streamedText: "reviewed", turns: 1, usage: UNKNOWN_AGENT_USAGE, isError: false }));
+      const harness: AgentHarness = {
+        name: "review-input", description: "Controlled model port", supportsMultiTurn: false,
+        supportedHookKinds: [], askOwnerToolName: null, emitsAgentMessageStream: false, toolControl: "kota", run,
+      };
+      const context = createStepContext(makeMetadata(), trigger, undefined, {}, {}, [], {
+        workspaceRoot, scopeRoot: workspaceRoot, bus, pbus: new ScopedEventBus(bus, "scope-a"),
+        store: new WorkflowRunStore(workspaceRoot), readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        runAgentHarness: async (_harness, options) => {
+          expect(options.readOnlyHostRoots?.some((path) => path.includes("/originals/"))).toBe(false);
+          return run();
+        },
+      });
+      const review = () => context.runAgentHarness(harness, {
+        prompt: "Assess selected input", effort: "low", cwd: workspaceRoot, agentWriteScope: "deny-all", autonomyMode: "autonomous",
+      }, { evidence: { currentRunReviewFiles: ["assessment.json"] } });
+      await expect(review()).rejects.toThrow(/Required review evidence.*unavailable/);
+      expect(run).not.toHaveBeenCalled();
+      writeFileSync(path, JSON.stringify({ outcome: "positive and negative observed" }));
+      await expect(review()).resolves.toMatchObject({ text: "reviewed" });
+      expect(run).toHaveBeenCalledOnce();
+    } finally { rmSync(workspaceRoot, { recursive: true, force: true }); }
+  });
+
   it.each(["registered", "injected"])("returns tool failures while preserving fatal errors and cancellation with the %s runner", async (runnerKind) => {
     const workspaceRoot = tempScope();
     const toolName = "step_context_failure_fixture";

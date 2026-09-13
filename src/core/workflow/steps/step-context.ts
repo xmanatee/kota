@@ -248,7 +248,7 @@ export function createStepContext(
           ...(projectionLimit === undefined ? {} : { projectionLimit }),
         };
       });
-      handoffs.push(await runWorkflowBlockingOperation(retainRunArtifactsOperation, {
+      const currentHandoff = await runWorkflowBlockingOperation(retainRunArtifactsOperation, {
         scopeRoot: deps.scopeRoot, runId: metadata.id,
         sourceRevision: deps.runContext?.sandbox.baseCommit,
         roots: [
@@ -259,7 +259,19 @@ export function createStepContext(
           ...(deps.runtimeResources?.artifactRoot ? [{ name: "artifacts", path: deps.runtimeResources.artifactRoot }] : []),
         ],
         files: currentRunFiles,
-      }, { signal: execution.signal, onProcessSpawn: deps.runContext?.processes.register }));
+      }, { signal: execution.signal, onProcessSpawn: deps.runContext?.processes.register });
+      // Explicit current-run inputs are required to assess this invocation.
+      // Do not turn transport/retention failure into a substantive judge verdict.
+      for (const file of currentRunFiles) {
+        const entry = currentHandoff.manifest.entries.find((entry) => entry.source === file.source);
+        if (entry?.status !== "retained" || entry.projection.status !== "available") {
+          const reason = entry?.status === "unavailable" ? entry.reason
+            : entry?.status === "retained" && entry.projection.status === "unavailable"
+              ? entry.projection.reason : "Selected artifact is absent";
+          throw new Error(`Required review evidence ${file.source} unavailable: ${reason}`);
+        }
+      }
+      handoffs.push(currentHandoff);
       for (const selected of execution.evidence.linked ?? []) {
         const run = deps.runContext?.runEvidence?.getRun(selected.runId);
         if (!run || run.scopeId !== deps.pbus.getScopeId()) {

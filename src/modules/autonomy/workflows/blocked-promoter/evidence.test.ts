@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { collectBlockedEvidence } from "./evidence.js";
-import { recoveryEvidenceOutcomes } from "./evidence-relevance.js";
+import { recoveryEvidenceOutcomes, relevantBlockedEvidence } from "./evidence-relevance.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -58,6 +58,8 @@ describe("scoped blocked evidence collection", () => {
     const blocked = await collectBlockedEvidence(root, ".kota/runs");
     expect(blocked.artifacts).toEqual([]);
     expect(blocked.unavailable).toContainEqual(expect.stringContaining("linked evidence"));
+    expect(relevantBlockedEvidence(blocked, { id: "task-target", body: "Evidence .kota/runs/result", hint: ".kota/runs" }).unavailable)
+      .toContainEqual(expect.stringContaining("linked evidence"));
     expect((await collectBlockedEvidence(root, secret)).artifacts).toEqual([]);
     writeFileSync(join(root, ".kota/runs/result/self.json"), JSON.stringify({ outcome: "pass" }));
     expect((await collectBlockedEvidence(root, ".kota/runs", ["result"])).artifacts).toEqual([]);

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Make blocked-task evidence review readable and proportional to changed inputs
@@ -68,3 +67,25 @@ The monitor owns deployment and observing a subsequent real blocked review.
 Do not mark the five existing tasks complete or lower their security requirements
 merely to produce queue movement; reopen only when their actual prerequisites
 clear, and continue independent implementation meanwhile.
+
+## Completion
+
+Blocked review now selects its pinned collection through the existing pageable
+runtime evidence handoff. Required current-run projections fail before judge
+launch when unavailable, so failed delivery cannot publish an assessment
+fingerprint. Updated reviewer policy invalidates the old unavailable assessment.
+Selected-cohort diagnostics remain visible even when no artifact is readable.
+
+Task enumeration reads only requested active/archive containers, and empty
+predecessor checks avoid task-history reads. Fresh bounded evidence collection,
+probe provenance/source/capability checks and semantic fingerprinting remain.
+
+The builder run `2026-09-13T08-43-01-820Z-builder-t8cv1g` retains the operator probe,
+benchmark and validation logs. Its 632 KB, 57-artifact collection reached the
+reviewer with clearing and contradictory outcomes; contradiction kept the task
+blocked, unchanged input skipped judgment, and corrected proof reopened it.
+Original reads remained denied. The representative history benchmark reduced
+history-read helpers from 12 to 1 while retaining all selected evidence reads.
+Focused owner tests and handoff-failure/recovery tests passed. Broader workflow
+publication tests encountered the sandbox's `/bin/ps` denial; deployment and
+subsequent real blocked-review observation remain with the runtime and monitor.

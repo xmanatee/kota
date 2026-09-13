@@ -22,6 +22,9 @@ cleared.
   do not repeat the review. Broad discovery uses task-linked run/export cohorts;
   unrelated activity and attempt bookkeeping do not admit retries. Keep task
   or cited run provenance in exports so equivalent captures remain discoverable.
+  Select the pinned collection through the shared pageable review handoff;
+  provenance paths do not grant read authority. Failed handoffs do not complete
+  an assessment or publish its fingerprint.
   Review outcomes reopen work, never mark it done.
   Review agents declare deny-all filesystem authority through the shared launch
   contract; task mutations belong to the workflow after the assessment.

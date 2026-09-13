@@ -58,7 +58,9 @@ and publication.
   belong in run temp; review roots retain the selected verification outputs.
   Large workflow-selected packets use directly granted, content-addressed
   projections so reviewers can page through them; smaller projections share
-  bounded review bundles.
+  bounded review bundles. Explicit current-run file selections must have
+  readable projections before launching a reviewer; failed delivery is not a
+  substantive verdict.
   Linked snapshots require
   explicit selection and a same-scope run observation. Originals keep exact
   hashes; redacted or unavailable projections never stand in for original bytes.

@@ -227,6 +227,7 @@ export function listVerifiedFullRepoTasks(
   const wanted = new Set(states);
   const result: VerifiedRepoTaskFullRecord[] = [];
   for (const container of taskContainers(repoRoot)) {
+    if (!states.some((state) => isArchivedRepoTaskState(state) === container.archived)) continue;
     for (const entry of listVerifiedRepoMarkdownFiles({
       repoRoot,
       rootDir: getRepoTasksDir(repoRoot),
@@ -326,6 +327,7 @@ export function getUnfinishedTaskDependencies(
   repoRoot: string,
   dependencies: readonly string[],
 ): string[] {
+  if (dependencies.length === 0) return [];
   const stateByTaskId = new Map(
     listFullRepoTasks(repoRoot).map((task) => [task.id, task.state]),
   );
