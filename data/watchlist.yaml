@@ -450,7 +450,11 @@ resources:
   - url: https://github.com/letta-ai/letta-code
     added: "2026-09-12"
     refresh: weekly
-    notes: "The September 12 runtime observation of letta-ai/letta identifies this as its active source for the harness, terminal UI, App Server, channels and app runtime. Monitor current memory-continuity and client/server development here; this new source has not yet been fetched by the watchlist runtime."
+    notes: "The September 12 runtime observation of letta-ai/letta identifies this as its active source for the harness, terminal UI, App Server, channels and app runtime. Monitor current memory-continuity and client/server development here; the watchlist runtime first observed this source on September 13."
+    snapshot:
+      fingerprint: sha256:40bea84712d9c6040ade44f1dd5f9d7d
+      summary: "The README describes persistent agent memory and conversation search, Git-tracked context through MemFS, scoped skills, hooks and schedules, shared agents across CLI, desktop and messaging clients, and routing cloud-stored agents to connected computers. AgentFile import/export is deprecated and removed; memory and conversation transcript exports remain available."
+      last_seen_at: "2026-09-13T07:25:16.944Z"
   - url: https://github.com/modelcontextprotocol/modelcontextprotocol/releases
     added: "2026-09-13"
     refresh: weekly
