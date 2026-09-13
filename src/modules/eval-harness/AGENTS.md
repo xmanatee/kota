@@ -111,6 +111,11 @@ harness turns attributed to their workflow run. Daemon session chat uses
 ModelClient and cannot supply harness permission observations. The model sweep
 has independent owner tests.
 
+Boot waits for the workflow runtime's loaded-definition observation before
+checking probe registration; a reachable control listener establishes liveness
+before workflows activate. Required runtime and login-probe errors take precedence
+over missing API authentication when qualifying an unexecuted live row.
+
 Per-preset transcripts, calls, workflow selections and cleanup evidence live under
 `.kota/runs/<run-id>/preset-parity/` (or the supplied run artifact directory).
 Missing authentication is an explicit unexecuted row. Other readiness errors and

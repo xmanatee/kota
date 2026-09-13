@@ -103,6 +103,13 @@ describe("preset parity — composed daemon scenario", () => {
         // Only established missing auth may skip. Probe errors, unsupported
         // selections, and broken runtimes must fail visibly.
         const auth = preflight.readiness.auth;
+        const adapter = preflight.readiness.adapter;
+        const runtimeFailure = [adapter.localRuntime, adapter.modelEffort, ...adapter.optionalRuntimes]
+          .find((probe) => probe?.required && probe.status !== "ready");
+        if (runtimeFailure) throw new Error(`${message}\n${runtimeFailure.summary}`);
+        if (auth.mode === "harness-managed-login" && ["error", "unverifiable"].includes(auth.probe.status)) {
+          throw new Error(`${message}\n${auth.summary}`);
+        }
         if ((preflight.missing.length > 0) ||
           (auth.mode === "harness-managed-login" && ["missing", "stale"].includes(auth.probe.status))) {
           context.skip(message);

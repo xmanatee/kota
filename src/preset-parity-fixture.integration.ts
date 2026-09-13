@@ -26,6 +26,27 @@ function requireOutcome(condition: unknown, message: string): asserts condition 
   if (!condition) throw new Error(message);
 }
 
+/** The control listener opens before workflow startup. Its running flag is
+ * liveness; the runtime's loaded observation establishes definition readiness.
+ * Once loaded, a missing probe is a registration failure, not a reason to retry.
+ */
+export async function waitForPresetParityWorkflows(request: (path: string) => Promise<unknown>) {
+  const deadline = Date.now() + 30_000;
+  const statusSchema = z.object({ definitionsLoadedAt: z.iso.datetime().optional() });
+  while (true) {
+    const status = statusSchema.parse(await request("/workflow/status"));
+    if (status.definitionsLoadedAt !== undefined) break;
+    requireOutcome(Date.now() < deadline, "Timed out waiting for workflow definitions to load");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const { definitions } = z.object({ definitions: z.array(z.object({ name: z.string() })) })
+    .parse(await request("/workflow/definitions"));
+  for (const name of ["preset-parity-single-turn", "preset-parity-tool-turn", "preset-parity-workflow", "preset-parity-autonomy"]) {
+    requireOutcome(definitions.some((definition) => definition.name === name), `Missing workflow ${name}`);
+  }
+  return definitions;
+}
+
 /** Operator setup for the API-backed capture/answer surfaces. Native login
  * authenticates the agent harness only; it does not configure ModelClient.
  * Keep model IDs entirely in the preset and store only secret references here.
@@ -103,7 +124,7 @@ export class PresetParityFixture {
     for (const args of [["init"], ["config", "user.name", "Parity Fixture"], ["config", "user.email", "parity@example.invalid"], ["add", "."], ["commit", "-m", "Read-only parity fixture"]]) {
       execFileSync("git", args, { cwd: this.scopeRoot, stdio: "ignore" });
     }
-    const args = [join(this.repoRoot, "dist/cli.js"), "daemon", "--preset", this.preset.id, "--scope-root", this.scopeRoot, "--log-format", "json"];
+    const args = [join(this.repoRoot, "dist/cli.js"), "daemon", "--preset", this.preset.id, "--scope-root", this.scopeRoot, "--log-format", "json", "--verbose"];
     this.artifact("invocation.json", { command: process.execPath, args, scopeRoot: this.scopeRoot });
     this.child = spawn(process.execPath, args, {
       cwd: this.scopeRoot,
@@ -121,13 +142,10 @@ export class PresetParityFixture {
     catch (error) { throw new Error(`${error instanceof Error ? error.message : String(error)}\n${this.logs.join("")}`); }
     const status = z.object({ running: z.boolean() }).parse(await this.request("/status"));
     requireOutcome(status.running, "Daemon did not report ready");
-    const definitions = z.object({ definitions: z.array(z.object({ name: z.string() })) }).parse(await this.request("/workflow/definitions"));
-    for (const name of ["preset-parity-single-turn", "preset-parity-tool-turn", "preset-parity-workflow", "preset-parity-autonomy"]) {
-      requireOutcome(definitions.definitions.some((definition) => definition.name === name), `Missing workflow ${name}`);
-    }
+    const definitions = await waitForPresetParityWorkflows((path) => this.request(path));
     // Keep this disposable daemon's unrelated background fleet idle. Public
     // operator controls do not mutate the daemon that launched the test.
-    for (const definition of definitions.definitions) {
+    for (const definition of definitions) {
       if (!definition.name.startsWith("preset-parity-")) await this.request(`/workflow/definitions/${encodeURIComponent(definition.name)}/disable`, {});
     }
     const evidence = await this.evidence();

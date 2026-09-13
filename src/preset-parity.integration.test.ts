@@ -7,10 +7,12 @@ import { expect, it } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { loadConfigWithDiagnostics } from "#core/config/config.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { modelProviderSelectionFromConfig } from "#core/model/model-client.js";
 import { getPreset } from "#core/model/preset.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { createTestWorkflowRuntime, type TestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { agent as builderAgent } from "#modules/autonomy/workflows/builder/workflow.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
@@ -21,7 +23,7 @@ import { observeParityHarness } from "#modules/eval-harness/preset-parity-observ
 import { geminiAgentHarness } from "#modules/gemini-agent-harness/adapter.js";
 import { modelProviderConfigSlice } from "#modules/model-clients/config-slice.js";
 import { createModelClientImpl } from "#modules/model-clients/factory.js";
-import { PresetParityFixture, presetParityScopeConfig } from "./preset-parity-fixture.integration.js";
+import { PresetParityFixture, presetParityScopeConfig, waitForPresetParityWorkflows } from "./preset-parity-fixture.integration.js";
 
 it("boots the built CLI with the parity observer and registered workflow probes, without inference", async () => {
   const dispose = registerAgentHarness(codexAgentHarness);
@@ -42,11 +44,12 @@ it("boots the built CLI with the parity observer and registered workflow probes,
   }
 }, 60_000);
 
-// This catches incompatible probe declarations before the network-dependent
-// journey: production compilation joins the shipped builder and preset tiers.
-it.each(["claude", "codex", "gemini"])("compiles the live probes against preset %s and the shipped builder", (id) => {
+// Reproduce the control-listener/startup gap with the real workflow runtime.
+// Only HTTP transport is replaced; compilation, readiness and activation are real.
+it.each(["claude", "codex", "gemini"])("waits for preset %s probe activation with the shipped builder", async (id) => {
   const root = mkdtempSync(join(tmpdir(), "kota-parity-contract-"));
   const disposers = [claudeAgentHarness, codexAgentHarness, geminiAgentHarness].map(registerAgentHarness);
+  let host: TestWorkflowRuntime | undefined;
   try {
     writeFileSync(join(root, "parity-single-turn.md"), "Reply OK");
     writeFileSync(join(root, "parity-tool-turn.md"), "Read parity-input.txt using file_read");
@@ -55,17 +58,44 @@ it.each(["claude", "codex", "gemini"])("compiles the live probes against preset 
     const preset = getPreset(id);
     const inputs = createPresetParityModule().workflows;
     if (!Array.isArray(inputs)) throw new Error("Expected parity workflow contributions");
-    const definitions = validateWorkflowDefinitions(inputs.map((input) => registerWorkflowDefinition("parity.ts", input)), root, {
-      preset, defaultAgentHarness: preset.harness,
+    host = createTestWorkflowRuntime({
+      bus: new EventBus(), scopeRoot: root,
+      config: { defaultPreset: preset.id, defaultAgentHarness: preset.harness },
+      workflows: inputs.map((input) => registerWorkflowDefinition("parity.ts", input)),
       resolveAgentDef: (name) => name === builderAgent.name ? builderAgent : undefined,
     });
+    const { runtime } = host;
+    runtime.validateDefinitions();
+    expect(runtime.getDefinitions()).toEqual([]);
+    let observedStatus!: () => void;
+    const firstStatus = new Promise<void>((resolve) => { observedStatus = resolve; });
+    const request = async (path: string) => {
+      if (path === "/workflow/status") {
+        const status = runtime.getState();
+        observedStatus();
+        return status;
+      }
+      if (path === "/workflow/definitions") return { definitions: runtime.getDefinitions() };
+      throw new Error(`Unexpected parity request: ${path}`);
+    };
+    const waiting = waitForPresetParityWorkflows(request);
+    await firstStatus;
+    runtime.start("paused");
+    const registered = await waiting;
+    expect(registered.map((definition) => definition.name)).toEqual(expect.arrayContaining(inputs.map((input) => input.name)));
+    const definitions = runtime.getDefinitions().filter((definition) => definition.name.startsWith("preset-parity-"));
     for (const definition of definitions) {
       expect(definition.steps.find((step) => step.id === "agent")).toMatchObject({
         type: "agent", harness: preset.harness,
         model: definition.name === "preset-parity-autonomy" ? preset.tiers.capable : preset.tiers.balanced,
       });
     }
+    // A loaded runtime with a missing contribution must still fail visibly.
+    runtime.setWorkflowInputs(inputs.slice(1).map((input) => registerWorkflowDefinition("parity.ts", input)));
+    runtime.reloadWorkflowDefinitions();
+    await expect(waitForPresetParityWorkflows(request)).rejects.toThrow("Missing workflow preset-parity-single-turn");
   } finally {
+    await host?.stop();
     for (const dispose of disposers.reverse()) dispose();
     rmSync(root, { recursive: true, force: true });
   }

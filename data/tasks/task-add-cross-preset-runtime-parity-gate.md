@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Add cross-preset runtime parity gate
@@ -59,3 +59,46 @@ prerequisites; current host availability was not rechecked. No live inference
 ran in this audit. Those limits do not block the reproduced no-inference issue.
 Use the existing runner and ordinary permission boundary, without Docker,
 parent-daemon control or a new execution service.
+
+## Retained implementation and evidence
+
+Run `2026-09-12T23-34-31-972Z-builder-xshnf5` refreshed the normal production
+build successfully. The disposable CLI loaded `preset-parity-probe` and passed
+startup definition validation before its listener failed with
+`listen EPERM: operation not permitted 127.0.0.1` in this builder sandbox.
+This establishes neither absent host loopback capability nor successful CLI boot.
+
+The fixture now waits for the runtime's `definitionsLoadedAt` observation before
+checking probe registration. The control listener precedes workflow activation,
+so `running: true` alone could produce the earlier missing-workflow error.
+The existing three preset compilation cases now use the real workflow runtime
+to cover that activation gap and reject a genuinely missing loaded probe.
+Required runtime/login-probe errors also take precedence over missing API auth
+in the live runner, preventing a false skipped row.
+
+`pnpm check:fast` passed. All seven selected integration cases passed, retaining
+provider construction and harness-entry coverage; all ten current model-sweep
+owner cases passed. The complete no-inference file still has one failed CLI
+case at the listener boundary. Live qualification retained two missing-auth
+skips (Claude/Gemini) and one visible Codex login-probe error; no inference ran.
+The OpenAI API key was not exposed to this agent environment, and sandbox denial
+prevents a conclusion about host native login availability.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: Attributable current-source disposable CLI boot evidence from an authorized execution boundary permitting its loopback listener.
+
+The explicitly required disposable built-CLI boot acceptance needs an
+attributable execution through a permitted loopback boundary. The current
+builder sandbox rejects that listener; no exposed scoped execution alternative
+was available. Resume this same retained run with the ordinary no-inference
+command once that execution prerequisite is available, inspect registration and
+cleanup, and address any subsequent visible failure. This does not require all
+presets to authenticate, successful live inference, parent-daemon control,
+publication, or deployment observation.
+
+The retained changes are independently verified by the static gate and scoped
+runtime cases. Detailed qualification, command logs and preflight projections
+remain in this run's `agent/` artifacts, including `qualification.md`.
