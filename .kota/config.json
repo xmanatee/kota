@@ -1,5 +1,0 @@
-{
-  "workflow": {
-    "validationCommand": ["pnpm", "check:fast"]
-  }
-}

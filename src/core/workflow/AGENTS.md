@@ -28,6 +28,8 @@ and publication.
   validate, acquire the integration resource, run domain invariants against
   that exact snapshot with fresh scope-state and scope-filtered ownership
   readers, recheck both trees, then fast-forward. Rejection retains the writer.
+  Canonical ignored files are operator-owned too; publication must not overwrite
+  them when a writer introduces a tracked path at the same location.
 - Conflict and validator repair use bounded AI continuation with screened
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
   and no-progress fingerprints. Runtime owns staging, commits, rebase, and

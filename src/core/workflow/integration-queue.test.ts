@@ -82,6 +82,27 @@ afterEach(() => {
 });
 
 describe("IntegrationQueue", () => {
+  test("preserves ignored canonical files when a writer starts tracking the same path", async () => {
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("ignored-collision");
+    const path = ".kota/config.json";
+    write(workspaceRoot, path, "operator configuration\n");
+    write(sandbox.workspaceDir, path, "candidate configuration\n");
+    git(sandbox.workspaceDir, "add", "--force", path);
+    const writerHead = commit(sandbox.workspaceDir, "track configuration");
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+
+    await expect(new IntegrationQueue(workspaceRoot, store).integrate({
+      repositoryId: "primary", sandbox, epoch,
+      signal: new AbortController().signal,
+      validate: async () => ({ status: "passed", evidence: [] }),
+    })).rejects.toThrow(/overwritten by merge/);
+
+    expect(readFileSync(join(workspaceRoot, path), "utf8")).toBe("operator configuration\n");
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(sandbox.workspaceDir, "rev-parse", "HEAD")).toBe(writerHead);
+    expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
+  });
+
   test("rebases a writer over a nonconflicting canonical advance before validation and publication", async () => {
     const { workspaceRoot, sandbox, store, epoch } = createFixture("advance");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");

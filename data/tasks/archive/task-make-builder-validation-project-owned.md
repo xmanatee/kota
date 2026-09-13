@@ -51,3 +51,11 @@ static checks and production compilation. Test OS ports were controlled where
 the run sandbox denied process observation or nested sandbox execution; this
 does not claim live OS sandbox enforcement. Run evidence records the exact
 checks and environment limitations.
+
+The subsequent host check found that newly tracking `.kota/config.json`
+overwrote ignored operator settings during Git publication. The monitor removed
+that tracking exception, retained the validation command in local configuration,
+and restored the recorded model, concurrency, Telegram allowlist/autonomy and
+browser settings. Shared integration now disables Git's ignored-file overwrite;
+its existing owner suite verifies both trees and the integration lock remain
+safe when an incoming tracked path collides with private canonical content.

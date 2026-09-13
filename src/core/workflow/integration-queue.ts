@@ -414,7 +414,7 @@ export class IntegrationQueue {
         publishedHead: reconciledHead,
       });
       input.signal.throwIfAborted();
-      git(this.repoRoot, ["merge", "--ff-only", reconciledHead]);
+      git(this.repoRoot, ["merge", "--ff-only", "--no-overwrite-ignore", reconciledHead]);
       return {
         ...publication,
         status: "merged",
