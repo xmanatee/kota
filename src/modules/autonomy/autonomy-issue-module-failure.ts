@@ -95,3 +95,16 @@ export function classifyModuleOperationHealth(args: {
     identity: classifyModuleOperationFailure(args),
   });
 }
+
+// Success is an operation boundary, independent of which causes have been seen.
+export function moduleOperationRecoveryPattern(moduleName: string, operation: string): ModuleOperationHealthPattern {
+  const module = stableToken(moduleName);
+  return {
+    source: { kind: "module-operation-recovery", id: module, module },
+    severity: "info",
+    actionability: "informational",
+    labels: [module, moduleOperationLabel(operation)],
+    dedupeKey: `module:${module}:recovery:${stableToken(operation)}`,
+    summary: `${moduleName} operation ${operation} recovered at its owning boundary.`,
+  };
+}

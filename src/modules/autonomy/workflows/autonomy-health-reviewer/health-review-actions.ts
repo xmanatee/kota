@@ -21,18 +21,10 @@ import type {
 
 function appliedActions(
   transitions: AutonomyHealthReviewActionResult["issueTransitions"],
-  observations: readonly AutonomyIssueObservation[],
 ): AutonomyHealthAppliedAction[] {
-  const rootCauseByIssueKey = new Map(
-    observations.map((observation) => [
-      observation.issueKey,
-      observation.rootCauseKey,
-    ]),
-  );
   return transitions.flatMap(
     (transition): AutonomyHealthAppliedAction[] => {
-      const dedupeKey = rootCauseByIssueKey.get(transition.issueKey);
-      if (!dedupeKey) return [];
+      const dedupeKey = transition.rootCauseKey;
       if (transition.requiresDecision) {
         return [{
           kind: "decision-requested",
@@ -84,7 +76,7 @@ export function planAutonomyHealthReviewActions(args: {
     taskMutations,
     ownerQuestionDismissals: [],
     issueTransitions: projected.transitions,
-    applied: appliedActions(projected.transitions, observations),
+    applied: appliedActions(projected.transitions),
   };
 }
 
@@ -134,7 +126,7 @@ export function applyAutonomyHealthReviewActions(args: {
     taskMutations: [...args.plannedActions.taskMutations],
     ownerQuestionDismissals,
     issueTransitions: projected.transitions,
-    applied: appliedActions(projected.transitions, observations),
+    applied: appliedActions(projected.transitions),
   };
 }
 
@@ -145,7 +137,40 @@ export function autonomyIssueObservationsFromReview(
   const currentIssueKeys = new Set(
     currentProjection.issues.map((issue) => issue.issueKey),
   );
-  return review.groups.flatMap((group) => {
+  // Module observations must retain operation identity and occurrence time;
+  // grouping different operations or stamping review time destroys recovery order.
+  const moduleSignals = [...new Map(review.signals.filter((signal) =>
+    signal.source.kind === "module-log" || signal.source.kind === "module-operation-recovery",
+  ).map((signal) => [signal.signalId, signal])).values()];
+  const recoveredOperations = new Set([
+    ...(currentProjection.moduleRecoveries ?? []).map((recovery) => JSON.stringify([recovery.module, recovery.operation])),
+    ...moduleSignals.filter((signal) => signal.source.kind === "module-operation-recovery")
+      .flatMap((signal) => signal.evidenceRefs.flatMap((ref) => ref.moduleOperation?.observation === "cleared"
+        ? [JSON.stringify([signal.source.module, ref.moduleOperation.operation])] : [])),
+  ]);
+  const moduleObservations = moduleSignals.flatMap((signal) => {
+    const observation = buildAutonomyIssueObservation({
+      kind: signal.observation,
+      rootCauseKey: signal.dedupeKey,
+      observedAt: signal.createdAt,
+      signalIds: [signal.signalId],
+      source: signal.source,
+      severity: signal.severity,
+      actionability: signal.actionability,
+      labels: signal.labels,
+      summaries: projectAutonomyHealthSummariesForReview([signal.summary], signal.evidenceRefs),
+      evidenceRefs: projectAutonomyHealthEvidenceRefsForReview(signal.evidenceRefs),
+      observationCount: signal.observationCount,
+    });
+    const knownRecovery = signal.evidenceRefs.some((ref) => ref.moduleOperation !== undefined &&
+      recoveredOperations.has(JSON.stringify([signal.source.module, ref.moduleOperation.operation])));
+    const repeated = moduleSignals.filter((other) => other.dedupeKey === signal.dedupeKey &&
+      other.observation !== "cleared").reduce((count, other) => count + other.observationCount, 0) > 1;
+    if (signal.observation !== "cleared" && !currentIssueKeys.has(observation.issueKey) && !knownRecovery &&
+      signal.severity !== "error" && signal.severity !== "critical" && !repeated) return [];
+    return [observation];
+  }).sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+  const groupedObservations = review.groups.filter((group) => group.source.kind !== "module-log" && group.source.kind !== "module-operation-recovery").flatMap((group) => {
     const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
       group.evidenceRefs,
     );
@@ -180,4 +205,5 @@ export function autonomyIssueObservationsFromReview(
     }
     return [observation];
   });
+  return [...groupedObservations, ...moduleObservations];
 }

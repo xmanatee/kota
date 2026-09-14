@@ -15,7 +15,7 @@ import type {
   AutonomyIssueStatus,
 } from "./autonomy-issue-projection-types.js";
 import type { AutonomyHealthJsonValue } from "./health-signal.js";
-import { isAutonomyHealthJsonObject } from "./health-signal.js";
+import { isAutonomyHealthJsonObject, normalizeEvidenceRefs } from "./health-signal.js";
 
 export {
   buildAutonomyIssueObservation,
@@ -41,6 +41,23 @@ export function decodeAutonomyIssueProjection(
   ) {
     throw new Error("autonomy issue projection has an invalid envelope");
   }
+  if (value.moduleRecoveries !== undefined) {
+    if (!Array.isArray(value.moduleRecoveries)) throw new Error("invalid module recoveries");
+    for (const recovery of value.moduleRecoveries) {
+      if (!isAutonomyHealthJsonObject(recovery) ||
+        typeof recovery.module !== "string" || !recovery.module ||
+        typeof recovery.operation !== "string" || !recovery.operation ||
+        typeof recovery.observationId !== "string" || !recovery.observationId ||
+        typeof recovery.observedAt !== "string" || !Number.isFinite(Date.parse(recovery.observedAt))) {
+        throw new Error("invalid module recovery");
+      }
+      const refs = normalizeEvidenceRefs(recovery.evidenceRefs);
+      if (!refs.every((ref) => ref.moduleOperation !== undefined && ref.moduleOperation.operation === recovery.operation &&
+        ref.moduleOperation.observation === "cleared" && ref.moduleOperation.observedAt === recovery.observedAt)) {
+        throw new Error("module recovery evidence does not match its boundary");
+      }
+    }
+  }
   for (const issue of value.issues) {
     if (
       !isAutonomyHealthJsonObject(issue) ||
@@ -55,6 +72,13 @@ export function decodeAutonomyIssueProjection(
       !isAutonomyHealthJsonObject(issue.disposition)
     ) {
       throw new Error("autonomy issue projection contains an invalid issue");
+    }
+  }
+  for (const issue of value.issues) {
+    if (!isAutonomyHealthJsonObject(issue)) continue;
+    for (const entry of [issue, ...(Array.isArray(issue.history) ? issue.history : [])]) {
+      if (!isAutonomyHealthJsonObject(entry) || !Array.isArray(entry.evidenceRefs)) continue;
+      if (entry.evidenceRefs.some((ref) => isAutonomyHealthJsonObject(ref) && ref.moduleOperation !== undefined)) normalizeEvidenceRefs(entry.evidenceRefs);
     }
   }
   return value as AutonomyIssueProjection;

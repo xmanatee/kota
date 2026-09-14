@@ -11,6 +11,8 @@ Operations without authoritative scope remain ordinary diagnostics.
 
 Module-log record references bind the stored content identity because retention reuses
 line numbers. Unqualified log references provide bounded current context.
+Operation failure and recovery logs carry explicit health markers so replay does
+not infer an operation's success from arbitrary diagnostic prose.
 
 Module logs resolve through the host runtime-scope provider. Tool/session/workflow scope
 owns request logs; explicit operation scope takes precedence. Activation logs

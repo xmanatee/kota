@@ -45,8 +45,7 @@ export function uniqueAutonomyIssueEvidenceRefs(
   for (const ref of refs) {
     const key = `${ref.kind}:${ref.ref}`;
     const existing = byRef.get(key);
-    if (existing?.summary !== undefined) continue;
-    byRef.set(key, { ...ref });
+    byRef.set(key, { ...existing, ...ref, ...(existing?.summary !== undefined ? { summary: existing.summary } : {}) });
   }
   return [...byRef.values()].sort((left, right) =>
     `${left.kind}:${left.ref}`.localeCompare(`${right.kind}:${right.ref}`),

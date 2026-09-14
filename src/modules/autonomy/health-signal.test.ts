@@ -73,6 +73,22 @@ describe("autonomy health signal contract", () => {
     ).toThrow(/actionability/);
   });
 
+  it("rejects invalid occurrence chronology at the health evidence boundary", () => {
+    const evidence = { kind: "module-log" as const, ref: ".kota/modules/telegram/logs.jsonl#sha256=example",
+      moduleOperation: { operation: "poll-loop", observedAt: "not-a-date", observation: "cleared" as const } };
+    expect(() => normalizeHealthSignal({ ...baseSignal, evidenceRefs: [evidence] })).toThrow(/observedAt/);
+    expect(() => normalizeHealthSignal({ ...baseSignal, evidenceRefs: [{
+      ...evidence, moduleOperation: { ...evidence.moduleOperation, operation: "", observedAt: baseSignal.createdAt },
+    }] })).toThrow(/operation/);
+  });
+
+  it("rejects operation recovery without consistent success evidence", () => {
+    expect(() => normalizeHealthSignal({
+      ...baseSignal, observation: "cleared",
+      source: { kind: "module-operation-recovery", id: "telegram", module: "telegram" },
+    })).toThrow(/success evidence/);
+  });
+
   it("requires a positive observation count", () => {
     expect(() =>
       normalizeHealthSignal({

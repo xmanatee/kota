@@ -114,6 +114,7 @@ export type RuntimeHealthAuditContext = {
   logPatternMinObservations: number;
   interruptedRunMinCount: number;
   patterns: Map<string, MutablePattern>;
+  moduleSignals: AutonomyHealthSignal[];
   evidenceGaps: RuntimeHealthEvidenceGap[];
   inspected: RuntimeHealthAudit["inspected"];
 };

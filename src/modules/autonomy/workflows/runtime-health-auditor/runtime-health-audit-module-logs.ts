@@ -1,13 +1,15 @@
 import { join } from "node:path";
 import { assertModuleStorageName } from "#core/modules/module-files.js";
-import { moduleLogRecordReference } from "#core/modules/module-log.js";
+import { moduleLogRecordDigest, moduleLogRecordReference } from "#core/modules/module-log.js";
 import { listAnchoredDirectory, readAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
-import { classifyModuleOperationHealth } from "#modules/autonomy/autonomy-issue-module-failure.js";
+import { classifyModuleOperationHealth, moduleOperationRecoveryPattern } from "#modules/autonomy/autonomy-issue-module-failure.js";
+import { stableToken } from "#modules/autonomy/autonomy-issue-source-shared.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
 import {
   type AutonomyHealthJsonObject,
   type AutonomyHealthJsonValue,
   isAutonomyHealthJsonObject,
+  normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
   addPattern,
@@ -109,45 +111,71 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
         if (!parsed) return [];
         const timestamp = stringField(parsed, "ts");
         const timestampMs = timestamp === null ? Number.NaN : Date.parse(timestamp);
-        if (!Number.isFinite(timestampMs) || timestampMs < ctx.windowStartMs) {
+        if (!Number.isFinite(timestampMs) || timestampMs < ctx.windowStartMs || timestampMs > ctx.nowMs) {
           return [];
         }
         const data = parsed.data;
         const operation = isAutonomyHealthJsonObject(data)
           ? stringField(data, "operation") ?? "legacy-log"
           : "legacy-log";
-        return [{ ...entry, operation, text: logLineText(parsed, entry.line) }];
+        const text = logLineText(parsed, entry.line);
+        // Only the historical Telegram producer's exact success message is a
+        // legacy recovery. Arbitrary informational logs cannot clear failures.
+        const recovered = parsed.level === "info" && isAutonomyHealthJsonObject(data) && (
+          data.health === "recovered" ||
+          (moduleName === "telegram" && operation === "poll-loop" &&
+            parsed.level === "info" && text === "telegram-interactive poll loop completed a healthy getUpdates request; interactive reply not verified")
+        );
+        if (!recovered && parsed.level !== undefined && parsed.level !== "warn" && parsed.level !== "error") return [];
+        return [{ ...entry, operation, text, recovered, timestamp: new Date(timestampMs).toISOString() }];
       });
     ctx.inspected.moduleLogLines += lines.length;
 
-    const localPatterns = new Map<string, PatternInput[]>();
+    const localPatterns = new Map<string, { pattern: PatternInput; records: typeof lines }>();
     for (const line of lines) {
-      const pattern = classifyLogObservation({
-        moduleName,
-        operation: line.operation,
-        line: line.line,
-        text: line.text,
-      });
+      if (line.recovered) continue;
+      const pattern = classifyLogObservation({ moduleName, operation: line.operation, line: line.line, text: line.text });
       if (!pattern) continue;
-      const list = localPatterns.get(pattern.dedupeKey) ?? [];
-      list.push(pattern);
-      localPatterns.set(pattern.dedupeKey, list);
+      const key = JSON.stringify([pattern.dedupeKey, line.operation]);
+      const group = localPatterns.get(key) ?? { pattern, records: [] };
+      if (!group.records.some((record) => record.line === line.line)) group.records.push(line);
+      localPatterns.set(key, group);
     }
 
-    for (const [dedupeKey, observations] of localPatterns) {
-      const first = observations[0]!;
-      if (
-        observations.length < ctx.logPatternMinObservations &&
-        !isHighSignalLogCategory(first.category)
-      ) {
-        continue;
+    for (const { pattern, records } of localPatterns.values()) {
+      records.sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.line.localeCompare(b.line));
+      const latestFailure = records.at(-1)!;
+      const evidenceRefs = records.map((record) => ({
+        kind: "module-log" as const,
+        ref: moduleLogRecordReference(moduleName, record.line),
+        summary: truncateSingleLine(record.text),
+        moduleOperation: { operation: stableToken(record.operation), observedAt: record.timestamp, observation: "present" as const },
+      }));
+      if (records.length >= ctx.logPatternMinObservations || isHighSignalLogCategory(pattern.category)) {
+        addPattern(ctx, { ...pattern, observationCount: records.length, evidenceRefs });
       }
-      addPattern(ctx, {
-        ...first,
-        dedupeKey,
-        observationCount: observations.length,
-        evidenceRefs: observations.flatMap((item) => item.evidenceRefs),
-      });
+      ctx.moduleSignals.push(normalizeHealthSignal({
+        ...pattern,
+        signalId: `module-log-${moduleLogRecordDigest(latestFailure.line)}:${pattern.dedupeKey}`,
+        observation: "present",
+        createdAt: latestFailure.timestamp,
+        observationCount: records.length,
+        evidenceRefs,
+      }));
+    }
+    for (const recovery of lines.filter((line) => line.recovered)) {
+      ctx.moduleSignals.push(normalizeHealthSignal({
+        ...moduleOperationRecoveryPattern(moduleName, recovery.operation),
+        signalId: `module-log-recovery-${moduleLogRecordDigest(recovery.line)}`,
+        observation: "cleared",
+        createdAt: recovery.timestamp,
+        observationCount: 1,
+        evidenceRefs: [{
+          kind: "module-log",
+          ref: moduleLogRecordReference(moduleName, recovery.line),
+          moduleOperation: { operation: stableToken(recovery.operation), observedAt: recovery.timestamp, observation: "cleared" },
+        }],
+      }));
     }
   }
 }

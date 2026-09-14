@@ -59,6 +59,7 @@ export function collectRuntimeHealthAudit(args: {
     interruptedRunMinCount:
       args.options?.interruptedRunMinCount ?? DEFAULT_INTERRUPTED_RUN_MIN_COUNT,
     patterns: new Map(),
+    moduleSignals: [],
     evidenceGaps: [],
     inspected: {
       moduleLogFiles: 0,
@@ -93,7 +94,10 @@ export function collectRuntimeHealthAudit(args: {
     inspected: ctx.inspected,
     evidenceGaps: ctx.evidenceGaps,
     patterns,
-    signals: patterns.map((pattern) => signalForPattern(pattern, nowIso)),
+    signals: [
+      ...patterns.filter((pattern) => pattern.source.kind !== "module-log").map((pattern) => signalForPattern(pattern, nowIso)),
+      ...ctx.moduleSignals,
+    ],
   };
 }
 

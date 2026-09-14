@@ -211,7 +211,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       msg: string,
       data?: unknown,
     ) => {
-      const observationData = { scopeId, operation, detail: data };
+      const observationData = { scopeId, operation, health: "failed", detail: data };
       printTerminalDiagnostic(formatLine("error", prefix, msg, observationData), "error");
       appendLog("error", msg, observationData, scopeId);
       if (moduleName !== undefined) {
@@ -241,7 +241,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       failures?: readonly ModuleOperationFailureIdentity[],
     ) => {
       const message = msg ?? `${operation} recovered`;
-      const observationData = { scopeId, operation, detail: data };
+      const observationData = { scopeId, operation, health: "recovered", detail: data };
       printTerminalDiagnostic(formatLine("info", prefix, message, observationData));
       appendLog("info", message, observationData, scopeId);
       if (moduleName !== undefined) {

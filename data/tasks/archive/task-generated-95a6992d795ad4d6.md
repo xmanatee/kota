@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Prevent historical module failures from reopening recovered autonomy issues
 
@@ -88,3 +87,37 @@ Evidence:
 - module-log: .kota/modules/telegram/logs.jsonl#sha256=c8e1ea2c3d22b667e44edf8feba37f1308e87f0e6323e2f08301f97daa7eef38
 - module-log: .kota/modules/telegram/logs.jsonl#sha256=ce90acc66704bbe9d7688fdaea9224aecbb3a949b34a01388469e4a2ac61517f
 - module-log: .kota/modules/telegram/logs.jsonl#sha256=f21a015dde7d1dbb5222331e3588a57e9dc89f5322e50566c814b85dad85ea43
+
+## Outcome
+
+Module audits and live events retain operation recovery independently of failure
+retention. The canonical issue projection persists these boundaries through
+restart and backfill. Attributed record occurrences reconcile older audit-stamped
+history while preserving the original entries, evidence and issue lineage.
+A later failure requests investigation; polling recovery leaves delivery failures
+unresolved.
+
+Absent or partial legacy attribution retains unmatched failures as unresolved;
+aggregate operation labels never substitute for attributed failure citations. Complete
+attribution plus the operation's own recovery can resolve them, including when
+the old aggregate omitted that operation from its labels.
+
+Pending question links retire only after the whole review batch resolves the
+issue. Recovery in the same batch admits a later failure, and fully attributed
+histories count distinct failure records across overlapping audits. Earlier
+backfill under an unchanged latest-failure identity enriches the existing history
+citations and corrects occurrence counts and first-seen time without another
+investigation or a semantic revision. Legacy clears retain their review timestamp
+as provenance; attributed success establishes the recovery boundary and displayed
+recovery time, so failures after actual recovery reopen the same lineage.
+
+Validation: 58 focused owner tests and 19 integration tests passed. These cover
+signal boundary rejection, live operation events, production logging, scheduled
+audit/review, SQLite restart, recovery-only backfill, legacy audit reconciliation,
+later recurrence, partial mixed-operation attribution and independent delivery
+failures without premature task retirement or question dismissal. Batch admission,
+pending question links and overlapping occurrence counts are also verified. The run's compact
+module-health-timeline.md records 32 isolated production-owner replay outcomes
+using the 64-record scoped export. Citations and executable provenance remain in
+the run artifacts. Later failures and the seeded legacy audit stamp are explicitly
+synthetic. No live Telegram delivery or deployment health is claimed.

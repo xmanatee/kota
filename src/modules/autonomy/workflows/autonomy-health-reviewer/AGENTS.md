@@ -9,6 +9,18 @@ concrete failures or repeated health patterns into bounded follow-up actions.
 - A single warning remains review evidence; it does not become a durable issue.
   Admit an error/critical outcome immediately, a warning after repeated
   observation, or any later update/clear for an existing durable issue.
+  Module recoveries retain an operation-specific recovery boundary even before
+  failure backfill arrives; retaining that history requests no investigation.
+  Later failures after operation recovery are admitted immediately, including
+  recovery evidence carried in the same review batch.
+  Module observation times come from the occurrence, never the audit or review;
+  cited occurrence facts reconcile older audit-stamped history without deleting it.
+  Legacy clear timestamps record review delivery, not operation success; only
+  attributed recovery evidence establishes the boundary for later failures.
+  Absent or partial attribution keeps unmatched failure references unresolved;
+  aggregate operation labels cannot establish which operations failed. Operation
+  recovery cannot clear unmatched references or another operation's failure. Question links retire
+  only when the complete review batch resolves the issue.
 - The improver owns the AI disposition and the shared generated-work
   materializer owns any resulting task or owner question. No disposition is
   required to create work.

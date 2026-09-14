@@ -77,10 +77,19 @@ export type AutonomyIssue = {
   history: AutonomyIssueHistoryEntry[];
 };
 
+export type ModuleOperationRecovery = {
+  module: string;
+  operation: string;
+  observedAt: string;
+  observationId: string;
+  evidenceRefs: AutonomyHealthEvidenceRef[];
+};
+
 export type AutonomyIssueProjection = {
   schemaVersion: 1;
   updatedAt: string | null;
   issues: AutonomyIssue[];
+  moduleRecoveries?: ModuleOperationRecovery[];
 };
 
 export type AutonomyIssueTransition = {

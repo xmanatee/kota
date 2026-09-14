@@ -52,6 +52,7 @@ export type AutonomyHealthEvidenceRef = {
   kind: AutonomyHealthEvidenceKind;
   ref: string;
   summary?: string;
+  moduleOperation?: { operation: string; observedAt: string; observation: "present" | "cleared" };
 };
 
 export type AutonomyHealthSignalInput = {
@@ -220,7 +221,7 @@ function normalizeLabels(value: AutonomyHealthJsonValue | undefined): string[] {
   return [...new Set(labels)].sort((a, b) => a.localeCompare(b));
 }
 
-function normalizeEvidenceRefs(
+export function normalizeEvidenceRefs(
   value: AutonomyHealthJsonValue | undefined,
 ): AutonomyHealthEvidenceRef[] {
   if (!Array.isArray(value)) throw new Error("evidenceRefs must be an array");
@@ -241,8 +242,17 @@ function normalizeEvidenceRefs(
       kind,
       ref,
       ...(summary !== undefined ? { summary } : {}),
+      ...(entry.moduleOperation === undefined ? {} : { moduleOperation: normalizeModuleOperationEvidence(entry.moduleOperation) }),
     };
   });
+}
+
+function normalizeModuleOperationEvidence(value: AutonomyHealthJsonValue | undefined): NonNullable<AutonomyHealthEvidenceRef["moduleOperation"]> {
+  if (!isAutonomyHealthJsonObject(value)) throw new Error("module operation evidence must be an object");
+  const operation = assertNonEmptyString(value.operation, "moduleOperation.operation");
+  if (!SOURCE_TOKEN_RE.test(operation)) throw new Error("moduleOperation.operation must be a stable token");
+  if (value.observation !== "present" && value.observation !== "cleared") throw new Error("invalid module operation observation");
+  return { operation, observedAt: assertIsoDate(value.observedAt, "moduleOperation.observedAt"), observation: value.observation };
 }
 
 function assertIsoDate(
@@ -305,6 +315,13 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
     "observationCount",
   );
   const createdAt = assertIsoDate(input.createdAt, "createdAt");
+  if (source.kind === "module-operation-recovery" &&
+    (observation !== "cleared" || !source.module ||
+      !evidenceRefs.every((ref) => ref.moduleOperation?.observation === "cleared" &&
+        ref.moduleOperation.observedAt === createdAt &&
+        ref.moduleOperation.operation === evidenceRefs[0]?.moduleOperation?.operation))) {
+    throw new Error("operation recovery requires consistent attributed success evidence");
+  }
   return {
     observation,
     source,
@@ -381,6 +398,14 @@ const healthSignalPayloadSchema: ModuleEventPayloadSchema = {
           kind: { type: "string", enum: AUTONOMY_HEALTH_EVIDENCE_KINDS },
           ref: { type: "string" },
           summary: { type: "string", required: false },
+          moduleOperation: {
+            type: "object", required: false, additionalProperties: false,
+            properties: {
+              operation: { type: "string" },
+              observedAt: { type: "string", format: "date-time" },
+              observation: { type: "string", enum: ["present", "cleared"] },
+            },
+          },
         },
       },
     },

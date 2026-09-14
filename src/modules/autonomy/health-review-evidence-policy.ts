@@ -26,11 +26,13 @@ export function projectAutonomyHealthEvidenceRefForReview(
     return {
       kind: ref.kind,
       ref: ref.ref,
+      ...(ref.moduleOperation ? { moduleOperation: ref.moduleOperation } : {}),
     };
   }
   return {
     kind: ref.kind,
     ref: ref.ref,
+    ...(ref.moduleOperation ? { moduleOperation: ref.moduleOperation } : {}),
     ...(ref.summary !== undefined
       ? { summary: redactSensitiveText(ref.summary) }
       : {}),

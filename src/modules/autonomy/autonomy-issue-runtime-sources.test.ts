@@ -35,6 +35,34 @@ describe("runtime-owned autonomy issue observations", () => {
     vi.useRealTimers();
   });
 
+  it("keeps shared provider lineage open until each failed operation recovers", () => {
+    for (const operation of ["poll-loop", "send"]) {
+      pbus.emit("module.operation.failed", {
+        module: "telegram", operation, failureKind: "provider",
+        causeKey: "external-provider-failure", observedAt: NOW,
+      });
+    }
+    const project = (selected: AutonomyHealthSignal[]) => applyHealthReviewSignals({
+      workspaceRoot: scopeRoot, signals: selected,
+      generatedAt: "2026-08-13T12:00:00.000Z", reason: "operation-recovery",
+    });
+    const first = project(signals);
+    const issueKey = first.projection.issues[0]!.issueKey;
+    pbus.emit("module.operation.recovered", {
+      module: "telegram", operation: "poll-loop", observedAt: "2026-08-13T10:05:00.000Z",
+    });
+    expect(signals.at(-1)!.labels).not.toContain("operation/send");
+    const polled = project([signals.at(-1)!]);
+    expect(polled.applied).toEqual([]);
+    expect(polled.projection.issues[0]!.status).toBe("needs-decision");
+    pbus.emit("module.operation.recovered", {
+      module: "telegram", operation: "send", observedAt: "2026-08-13T10:06:00.000Z",
+    });
+    const sent = project([signals.at(-1)!]);
+    expect(sent.applied).toMatchObject([{ transition: "cleared", issueKey }]);
+    expect(sent.projection.issues[0]!.disposition.updatedAt).toBe("2026-08-13T10:06:00.000Z");
+  });
+
   it("derives workflow health contracts without volatile schedule timestamps", () => {
     const run = (payload: Record<string, unknown>): StoredRun => ({
       id: "scheduled-run",
@@ -286,7 +314,7 @@ describe("runtime-owned autonomy issue observations", () => {
       expect.objectContaining({
         source: expect.objectContaining({ module: "telegram" }),
         dedupeKey: "module:telegram:getupdates-conflict",
-        evidenceRefs: [expect.objectContaining({ kind: "module-log" })],
+        evidenceRefs: [expect.objectContaining({ kind: "event" })],
       }),
     ]);
 
@@ -336,7 +364,7 @@ describe("runtime-owned autonomy issue observations", () => {
     });
     expect(signals.at(-1)).toMatchObject({
       observation: "cleared",
-      dedupeKey: "module:telegram:getupdates-conflict",
+      source: { kind: "module-operation-recovery", module: "telegram" },
     });
 
     const signalCountBeforeProbe = signals.length;
