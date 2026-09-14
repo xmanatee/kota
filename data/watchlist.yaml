@@ -82,9 +82,9 @@ resources:
     added: "2026-04-19"
     notes: "Monitor native CLI releases for authentication readiness, session recovery, hook and headless protocol changes used by the KOTA adapter."
     snapshot:
-      fingerprint: sha256:8cada414624dd3b31638b86dafc1a91a
-      summary: "Claude Code releases now highlight login-expiry, stale-session recovery, and headless hook streaming reliability; this run opened task-warn-before-native-cli-harness-auth-expires-during for KOTA's local native-CLI readiness warning gap."
-      last_seen_at: "2026-07-08T06:19:08.180Z"
+      fingerprint: sha256:db9894cbba816a42b83d6a918a785f0e
+      summary: "The README describes terminal, IDE and GitHub coding workflows and bundled plugins. It marks npm installation deprecated and documents native installers, Homebrew and WinGet alternatives, with links to setup and data-use documentation."
+      last_seen_at: "2026-09-14T07:42:37.468Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     notes: "Monitor native CLI releases for structured output, session continuation and sandbox changes used by the KOTA adapter."
@@ -96,9 +96,9 @@ resources:
     added: "2026-04-19"
     notes: "Monitor native CLI releases for sandbox, authentication and headless protocol changes used by the KOTA adapter."
     snapshot:
-      fingerprint: sha256:57d14bb10e9afac7279224f1d3c3ec31
-      summary: "Gemini CLI nightly adds sandbox/gitconfig and string-literal hardening; KOTA's existing protected Git bare-repo work covers adjacent subprocess safety, so no duplicate task was opened from this snapshot."
-      last_seen_at: "2026-07-08T06:19:08.180Z"
+      fingerprint: sha256:22a2e93df43356f4be85d39c37de15e7
+      summary: "The README documents terminal tools, MCP integration, conversation checkpointing, Google-account OAuth, API-key and Vertex AI authentication, and noninteractive JSON or stream-json output. It distinguishes stable, preview and nightly release channels."
+      last_seen_at: "2026-09-14T07:42:37.995Z"
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     refresh: weekly
@@ -387,9 +387,9 @@ resources:
     refresh: weekly
     notes: "Official experimental Skills Over MCP Working Group repo - monitor SEP-2640, io.modelcontextprotocol/skills negotiation, skill://index.json, skill://<name>/SKILL.md resource mapping, sibling skill resources, host/client adoption, and security guidance that MCP-served skill content remains untrusted text with no implicit local execution."
     snapshot:
-      fingerprint: sha256:959011e35b95700e45827090e901db31
-      summary: "Skills Over MCP now has a concrete resources-based SEP-2640 direction; KOTA already serves local skills and reads generic resources, so this run opened task-consume-mcp-served-skills-as-explicit-remote-skill for the remaining remote-skill catalog consumption gap."
-      last_seen_at: "2026-05-25T23:02:51.778Z"
+      fingerprint: sha256:1e7af3f2ee73d99049c17a76a6e5eb6e
+      summary: "The working-group README identifies SEP-2640 as the canonical v1 proposal for distributing skills through MCP Resources. It describes the repository as experimental and links implementation findings, a threat model, client support research and a decision log."
+      last_seen_at: "2026-09-13T07:25:13.245Z"
   - url: https://github.com/github/gh-aw
     added: "2026-05-17"
     refresh: weekly
