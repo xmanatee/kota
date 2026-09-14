@@ -468,14 +468,14 @@ resources:
     refresh: weekly
     notes: "Official MCP Authorization extension for OAuth client-credentials machine-to-machine HTTP MCP access. Monitor token-endpoint auth methods, protected-resource metadata, resource/audience binding, and noninteractive remote MCP authorization; opened task-add-mcp-oauth-client-credentials-support-for-http- for client_secret_basic and task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
     snapshot:
-      fingerprint: sha256:3cf5bab565c24da65f662f48b8413cbf
-      summary: "Official MCP OAuth Client Credentials is accessible; KOTA already has client_secret_basic support, and this refresh opened task-add-private-key-jwt-support-to-mcp-oauth-client-cr for the recommended private_key_jwt credential format."
-      last_seen_at: "2026-05-25T08:13:47.913Z"
+      fingerprint: sha256:efe76114934a88cac6a74aac8699d311
+      summary: "The extension page describes noninteractive application authentication using client secrets or recommended signed JWT assertions, per-request extension capability declarations, Bearer tokens, and token reacquisition before expiry. It includes TypeScript and Python SDK examples and states that extension support is opt-in."
+      last_seen_at: "2026-09-13T07:25:07.097Z"
   - url: https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization
     added: "2026-05-25"
     refresh: weekly
     notes: "Official MCP Authorization extension for enterprise IdP-managed remote MCP access. Monitor ID-JAG flow details, SSO identity-assertion requirements, capability negotiation, scope handling, and SDK support for KOTA's external MCP client authorization modes."
     snapshot:
-      fingerprint: sha256:379f0c3344496ccd2a721dbd8bfd8cd5
-      summary: "Official MCP Enterprise-Managed Authorization is accessible; its IdP-mediated ID-JAG flow is distinct from KOTA's completed OAuth client-credentials/private_key_jwt support, so this run opened task-add-mcp-enterprise-managed-authorization-support."
-      last_seen_at: "2026-05-25T08:59:03.114Z"
+      fingerprint: sha256:ec8e04064d956b7fa0a96cd6293d85a8
+      summary: "The extension page describes enterprise IdP-controlled MCP access: a client obtains an ID-JAG using an existing identity assertion, then exchanges it for an access token at the MCP authorization server. It specifies per-request extension declarations, organization-level IdP configuration, scope handling, and opt-in client support."
+      last_seen_at: "2026-09-13T07:25:07.148Z"
