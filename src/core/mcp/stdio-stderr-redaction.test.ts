@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION, McpClient, McpConnectionError } from "./client.js";
+import { captureTerminalDiagnostics } from "./client-diagnostic-test-helpers.js";
 
 async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
@@ -16,21 +17,9 @@ async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promi
   throw lastError ?? new Error("Timed out waiting for assertion");
 }
 
-function captureTerminalStderr(): { output: () => string; restore: () => void } {
-  const chunks: string[] = [];
-  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    chunks.push(String(chunk));
-    return true;
-  });
-  return {
-    output: () => chunks.join(""),
-    restore: () => spy.mockRestore(),
-  };
-}
-
 describe("MCP stdio stderr diagnostics", () => {
-  it.each(["split", "bytewise", "completion", "short match at EOF"])("redacts fragmented stderr with bounded pending output: %s", async (variant) => {
-    const terminal = captureTerminalStderr();
+  it.each(["split", "bytewise", "completion", "short match at EOF", "controls provider", "controls fallback"])("redacts fragmented stderr with bounded pending output: %s", async (variant) => {
+    const terminal = captureTerminalDiagnostics(variant === "controls provider" ? "provider" : "fallback");
     const secret = "synthetic-🔑-credential";
     const server = `
       const rl = require("readline").createInterface({ input: process.stdin });
@@ -56,7 +45,29 @@ describe("MCP stdio stderr diagnostics", () => {
     const write = (bytes: Uint8Array) => client.callTool("write", { bytes: [...bytes] });
     try {
       await client.connect();
-      if (variant === "completion" || variant === "short match at EOF") {
+      if (variant.startsWith("controls")) {
+        // Each write waits for a protocol response, forcing fragmentation at the
+        // real stderr boundary, including inside escape sequences and UTF-8.
+        for (const control of ["\x1b[31m", "\x1b]0;title\x1b\\", "\x9b32m", "\x9dtitle\x9c", "\u202e", "\x07"]) {
+          const echo = secret.slice(0, 12) + control + secret.slice(12);
+          await write(Buffer.from(`whole ${echo} readable`));
+          await waitForAssertion(() => expect(terminal.output()).toContain("whole [redacted] readable"));
+          const before = terminal.output();
+          const bytes = Buffer.from(echo);
+          for (const [index, byte] of bytes.entries()) {
+            await write(Buffer.from([byte]));
+            if (index < bytes.length - 1) expect(terminal.output()).toBe(before);
+          }
+          await waitForAssertion(() => expect(terminal.output().slice(before.length)).toContain("[redacted]"));
+        }
+        await write(Buffer.from(`${secret.slice(0, 12)}\x1b]${"q".repeat(100_000)}`));
+        const before = terminal.output();
+        await write(Buffer.from(`\x07${secret.slice(12)} readable`));
+        await waitForAssertion(() => expect(terminal.output().slice(before.length)).toContain("[redacted] readable"));
+        expect(terminal.output()).not.toContain("q");
+        expect(terminal.output()).not.toContain("synthe");
+        expect(terminal.output()).not.toContain("credential");
+      } else if (variant === "completion" || variant === "short match at EOF") {
         await write(Buffer.from(variant === "completion" ? "trailing synthe" : "trailing synthetic-"));
         expect(terminal.output()).toContain("trailing");
         expect(terminal.output()).not.toContain("synthe");
@@ -152,9 +163,9 @@ describe("MCP stdio stderr diagnostics", () => {
     },
   );
 
-  it("redacts configured env values echoed through stderr diagnostics", async () => {
-    const terminal = captureTerminalStderr();
-    const secret = "stdio-stderr-secret-3358a37f";
+  it.each(["literal", "control-bearing"])("redacts configured env values echoed through stderr diagnostics: %s", async (variant) => {
+    const terminal = captureTerminalDiagnostics();
+    const secret = variant === "literal" ? "stdio-stderr-secret-3358a37f" : "stdio-\x1b[31mstderr-secret-3358a37f";
     const server = `
       process.stderr.write("boot leaked " + process.env.KOTA_MCP_STDIO_SECRET + "\\n");
       const rl = require("readline").createInterface({ input: process.stdin });

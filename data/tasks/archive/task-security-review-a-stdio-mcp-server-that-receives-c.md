@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
@@ -1127,3 +1126,49 @@ excerpt:
 >             `[kota] MCP server "${name}" failed to connect: ${(err as Error).message}`,
 >             "error",
 >           );
+
+
+## Terminal normalization and credential matching resolution
+
+Revalidated the terminal-control reconstruction variant at the MCP diagnostic
+owner. Earlier resolutions and evidence above remain preserved. Complete client
+errors now normalize terminal controls before credential matching, and configured
+and acquired credentials use that same diagnostic projection. Their private
+protocol values remain unchanged. Stdio applies the shared normalizer after UTF-8
+decoding and before incremental credential matching, so removing a fragmented
+control cannot publish a previously withheld credential prefix.
+
+The terminal renderer owns one normalization policy for complete messages and
+streams. Its parser retains only a finite control state and discards arbitrary
+CSI/OSC payloads as they arrive. The existing stream redactor still retains less
+than the longest credential, publishes ordinary long lines before EOF, and settles
+incomplete prefixes on stream completion. Terminal sinks retain their sanitizer.
+
+Verification in builder run `2026-09-13T23-14-12-918Z-builder-9xqf3e`:
+
+- `agent/controls-before.log` records four failing regressions before the repair:
+  public HTTP errors retained control-obfuscated secrets, and bytewise stderr
+  prematurely published a credential fragment in provider and fallback modes.
+- `pnpm test src/core/mcp src/core/outbound-http/transport-errors.test.ts
+  src/core/modules/terminal-renderer.test.ts` passed 172 tests in 15 files
+  (`agent/mcp-tests.log`). Public-client tests cover literal and control-obfuscated
+  echoes, both terminal sinks, actual manager connection diagnostics, forced
+  fragmentation inside CSI/OSC and UTF-8, C1 controls, bidi and bell insertion,
+  large discarded OSC payloads, and credentials that themselves contain controls.
+  The renderer test covers every split in representative valid and malformed
+  commands, EOF and retained printable text. Earlier OAuth, HTTP, decoder,
+  notification, negotiation, lifecycle and bounded-stream protections still pass.
+- `artifacts/terminal-redaction-probe.mjs` was executed with
+  `node --conditions=source --import tsx` from the writer. Its retained
+  `terminal-redaction-result.json` captures real subprocess stderr and actual
+  manager-rendered HTTP connection errors in both rendering modes. Each output
+  contains `[redacted]` and readable context, with no synthetic credential or
+  terminal controls. The probe verifies unchanged outgoing HTTP authorization
+  and withholding of a partial credential across a split OSC terminator.
+- `pnpm check:fast` passed (`agent/check-fast.log`): production/test types, lint,
+  task validation, generated bindings and admission of 90 bundled modules.
+  Final archive validation and scoped whitespace checks are recorded in
+  `agent/final-validation.log`.
+
+Only synthetic credentials and controlled HTTP responses were used. No live
+external service, model evaluation, deployment or daemon control was needed.

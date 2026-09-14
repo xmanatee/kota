@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { MCP_CURRENT_PROTOCOL_VERSION, MCP_TASKS_EXTENSION_ID, McpClient, mcpOAuthSecret } from "./client.js";
 import { McpAuthorizationError, mcpAuthorizationChallengeForRetry } from "./client-auth-types.js";
+import { captureTerminalDiagnostics } from "./client-diagnostic-test-helpers.js";
 import {
   jsonRpcHttpResponse,
   mockClientHttpFetch,
   waitForAssertion,
 } from "./client-http-test-helpers.js";
+import { McpManager } from "./manager.js";
 
 function sseResponse(...messages: object[]): Response {
   return new Response(messages.map((message) => `data: ${JSON.stringify(message)}\n\n`).join(""), {
@@ -14,6 +16,39 @@ function sseResponse(...messages: object[]): Response {
 }
 
 describe("MCP client diagnostic redaction", () => {
+  it.each(["provider", "fallback"] as const)("normalizes control-obfuscated credentials before public errors and manager rendering: %s", async (mode) => {
+    const secret = "SYNTHETIC-Control-Credential";
+    const terminal = captureTerminalDiagnostics(mode);
+    const echoes = ["", "\x1b[31m", "\x1b]title\x07", "\u202e"].map((control) => secret.slice(0, 10) + control + secret.slice(10));
+    const http = mockClientHttpFetch((request) => {
+      expect(request.headers.get("authorization")).toBe(`Bearer ${secret}`);
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.body.id,
+        error: { code: -32000, message: `denied ${echoes.join(" / ")}` },
+      }), { headers: { "content-type": "application/json" } });
+    });
+    const transport = { type: "http" as const, url: "https://mcp.example.test/mcp", headers: { Authorization: `Bearer ${secret}` } };
+    const client = new McpClient(transport, "control-peer");
+    const manager = new McpManager();
+    try {
+      const error = await client.connect().catch((caught: unknown) => caught);
+      if (!(error instanceof Error)) throw new Error("Expected connection rejection");
+      const projected = [error.message, error.stack, JSON.stringify(error)].join("\n");
+      expect(projected).not.toContain(secret);
+      expect(error.message).toContain("denied [redacted] / [redacted] / [redacted] / [redacted]");
+      await manager.initialize({ mcpServers: { "control-peer": transport } });
+      expect(terminal.output()).toContain('failed to connect:');
+      expect(terminal.output()).toContain("denied [redacted] / [redacted] / [redacted] / [redacted]");
+      expect(terminal.output()).not.toContain(secret);
+      expect(terminal.output()).not.toContain("\x1b");
+      expect(terminal.output()).not.toContain("\u202e");
+    } finally {
+      await client.close();
+      await manager.close();
+      http.mockRestore();
+      terminal.restore();
+    }
+  });
+
   it.each(["token rejection", "operation echo"])("redacts acquired OAuth client secrets without rewriting token requests: %s", async (variant) => {
     const secret = "SYNTHETIC-Dynamic-CREDENTIAL";
     const basic = `Basic ${Buffer.from(`dynamic-client:${secret}`).toString("base64")}`;

@@ -11,23 +11,6 @@ const CONTROL_SEQUENCE_INTRODUCER = 0x9b;
 const OPERATING_SYSTEM_COMMAND = 0x9d;
 const STRING_TERMINATOR = 0x9c;
 
-function skipOperatingSystemCommand(value: string, start: number): number {
-  for (let index = start; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code === BELL || code === STRING_TERMINATOR) return index + 1;
-    if (code === ESCAPE && value.charCodeAt(index + 1) === 0x5c) return index + 2;
-  }
-  return value.length;
-}
-
-function skipControlSequence(value: string, start: number): number {
-  for (let index = start; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code >= 0x40 && code <= 0x7e) return index + 1;
-  }
-  return value.length;
-}
-
 function isBidiFormatControl(code: number): boolean {
   return code === 0x061c
     || code === 0x200e
@@ -43,33 +26,54 @@ function isOtherTerminalControl(code: number): boolean {
     || isBidiFormatControl(code);
 }
 
-function stripTerminalDiagnosticControls(value: string): string {
-  let safe = "";
-  for (let index = 0; index < value.length;) {
-    const code = value.charCodeAt(index);
-    if (code === ESCAPE) {
-      const next = value.charCodeAt(index + 1);
-      if (next === 0x5d) {
-        index = skipOperatingSystemCommand(value, index + 2);
-      } else if (next === 0x5b) {
-        index = skipControlSequence(value, index + 2);
-      } else {
-        index += next >= 0x40 && next <= 0x5f ? 2 : 1;
+/** Strip controls incrementally without retaining arbitrary CSI/OSC payloads. */
+export function createTerminalDiagnosticNormalizer(): (chunk: string, final?: boolean) => string {
+  let state: "text" | "escape" | "csi" | "osc" | "osc-escape" = "text";
+  return (chunk, final = false) => {
+    let safe = "";
+    for (const char of chunk) {
+      const code = char.charCodeAt(0);
+      switch (state) {
+        case "osc":
+        case "osc-escape":
+          if (code === BELL || code === STRING_TERMINATOR || (state === "osc-escape" && char === "\\")) {
+            state = "text";
+          } else {
+            state = code === ESCAPE ? "osc-escape" : "osc";
+          }
+          continue;
+        case "csi":
+          if (code >= 0x40 && code <= 0x7e) state = "text";
+          continue;
+        case "escape":
+          state = "text";
+          if (char === "]") {
+            state = "osc";
+            continue;
+          }
+          if (char === "[") {
+            state = "csi";
+            continue;
+          }
+          if (code >= 0x40 && code <= 0x5f) continue;
+          // An unrecognized escape drops only ESC; process this character normally.
+          break;
+        case "text":
+          break;
       }
-      continue;
+      if (code === ESCAPE) state = "escape";
+      else if (code === OPERATING_SYSTEM_COMMAND) state = "osc";
+      else if (code === CONTROL_SEQUENCE_INTRODUCER) state = "csi";
+      else if (!isOtherTerminalControl(code)) safe += char;
     }
-    if (code === OPERATING_SYSTEM_COMMAND) {
-      index = skipOperatingSystemCommand(value, index + 1);
-      continue;
-    }
-    if (code === CONTROL_SEQUENCE_INTRODUCER) {
-      index = skipControlSequence(value, index + 1);
-      continue;
-    }
-    if (!isOtherTerminalControl(code)) safe += value[index];
-    index += 1;
-  }
-  return safe;
+    // Incomplete terminal commands have no printable tail, including at EOF.
+    if (final) state = "text";
+    return safe;
+  };
+}
+
+export function stripTerminalDiagnosticControls(value: string): string {
+  return createTerminalDiagnosticNormalizer()(value, true);
 }
 
 export function createTerminalDiagnostic(

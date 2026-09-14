@@ -7,7 +7,9 @@ import {
 } from "./provider-registry.js";
 import type { RenderingProvider, ReplChrome } from "./provider-types.js";
 import {
+  createTerminalDiagnosticNormalizer,
   printTerminalDiagnostic,
+  stripTerminalDiagnosticControls,
   writeTerminalStderr,
 } from "./terminal-renderer.js";
 
@@ -77,6 +79,27 @@ describe("terminal renderer core seam", () => {
       "raw passthrough",
     ]);
     expect(stderrChunks).toEqual([]);
+  });
+
+  it("normalizes split terminal commands with the same policy as complete diagnostics", () => {
+    const cases = [
+      ["hello\n世界🔑", "hello\n世界🔑"],
+      ["a\x1b[31mb\x9b2Jc", "abc"],
+      ["a\x1b]title\x07b\x9dtitle\x9cc\x1b]title\x1b\\d", "abcd"],
+      ["a\x1b\x1b[31mb\x1bZc\x1b?d", "abc?d"],
+      ["a\u202e\u2066\x00\x09\x7fb", "ab"],
+      ["a\x1b", "a"],
+      ["a\x1b[123", "a"],
+      ["a\x1b]unfinished\x1b", "a"],
+    ] as const;
+    for (const [input, expected] of cases) {
+      expect(stripTerminalDiagnosticControls(input)).toBe(expected);
+      for (let split = 0; split <= input.length; split++) {
+        const normalize = createTerminalDiagnosticNormalizer();
+        expect(normalize(input.slice(0, split)) + normalize(input.slice(split), true)).toBe(expected);
+        expect(normalize("after", true)).toBe("after");
+      }
+    }
   });
 
   it("sanitizes terminal controls before provider and fallback diagnostics", () => {

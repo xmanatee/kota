@@ -29,7 +29,11 @@ into the runtime tool list.
   configured credentials are redacted from the complete message before rendering.
   Both diagnostic and stderr publication use the common terminal-renderer control
   sanitizer; peer text and labels must never reach a provider or stream directly.
-  Stderr uses the client stream redactor after incremental UTF-8 decoding; retain
+  Normalize controls before credential matching, using the same terminal policy
+  for diagnostic text and credential projections. The renderer must not reconstruct
+  credentials after matching. Stderr incrementally decodes UTF-8 and normalizes
+  controls before the client stream redactor; discard control payloads with bounded
+  parser state even across chunks. Retain
   possible credential prefixes until subsequent bytes or stream completion settle
   them. The credential set includes resolved OAuth clients as soon as registration
   completes, while their private protocol values remain unchanged.

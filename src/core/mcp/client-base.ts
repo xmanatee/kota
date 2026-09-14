@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import type { ChildProcess } from "node:child_process";
 import type { Interface } from "node:readline";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
-import { printTerminalDiagnostic, writeTerminalStderr } from "#core/modules/terminal-renderer.js";
+import { createTerminalDiagnosticNormalizer, printTerminalDiagnostic, stripTerminalDiagnosticControls, writeTerminalStderr } from "#core/modules/terminal-renderer.js";
 import { isSensitiveOutboundHttpHeader } from "#core/outbound-http/redaction.js";
 import type {
   McpAuthorizationResolver,
@@ -396,7 +396,12 @@ export abstract class McpClientBase {
   protected sensitiveValuesForRedaction(): string[] {
     const values: string[] = [];
     const add = (value: string | undefined) => {
-      if (value && value.length > 0) values.push(value);
+      if (value) {
+        // Match the same projection that diagnostics publish, including when
+        // the credential itself contains removable terminal controls.
+        const normalized = stripTerminalDiagnosticControls(value);
+        if (normalized.length > 0) values.push(normalized);
+      }
     };
     if (this.transport.type === "stdio") {
       for (const value of Object.values(this.transport.env ?? {})) add(value);
@@ -455,7 +460,7 @@ export abstract class McpClientBase {
   }
 
   protected redactSensitiveErrorMessage(message: string): string {
-    let redacted = message;
+    let redacted = stripTerminalDiagnosticControls(message);
     for (const value of this.sensitiveValuesForRedaction()) {
       redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[redacted]");
     }
@@ -464,9 +469,10 @@ export abstract class McpClientBase {
 
   protected createDiagnosticStreamRedactor(): (chunk: string, final?: boolean) => string {
     let pending = "";
+    const normalize = createTerminalDiagnosticNormalizer();
     return (chunk, final = false) => {
       const values = this.sensitiveValuesForRedaction();
-      const text = pending + chunk;
+      const text = pending + normalize(chunk, final);
       let redacted = "";
       let offset = 0;
       while (offset < text.length) {
