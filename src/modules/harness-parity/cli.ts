@@ -11,6 +11,7 @@ import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { withProcessSignalAbort } from "#core/util/process-signal-abort.js";
 import { invokeNativeRunTool } from "#core/workflow/native-run-authorization.js";
+import { parseCliNumber } from "#modules/eval-harness/cli-numeric-options.js";
 import {
   blank,
   line,
@@ -89,16 +90,9 @@ export function buildHarnessParityCommand(
         out?: string;
         keep?: boolean;
       }) => {
-        let maxTurns: number | undefined;
-        if (opts.maxTurns !== undefined) {
-          const parsed = Number.parseInt(opts.maxTurns, 10);
-          if (!Number.isFinite(parsed) || parsed < 1) {
-            throw new Error(
-              `--max-turns must be a positive integer, got "${opts.maxTurns}".`,
-            );
-          }
-          maxTurns = parsed;
-        }
+        const maxTurns = opts.maxTurns === undefined
+          ? undefined
+          : parseCliNumber(opts.maxTurns, "max-turns", "positive integer");
 
         const result = await ctx.client.harnessParity.run({
           ...(opts.scenario.length > 0 && { scenarios: opts.scenario }),

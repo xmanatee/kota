@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { parseCliNumber } from "#modules/eval-harness/cli-numeric-options.js";
 import {
   line,
   plain,
@@ -29,8 +30,8 @@ type MatrixCommandOptions = {
   hostClass?: string;
   cpuAllocationCores?: string;
   cpuKillThresholdCores?: string;
-  memoryAllocationMB?: string;
-  memoryKillThresholdMB?: string;
+  memoryAllocationMb?: string;
+  memoryKillThresholdMb?: string;
 };
 
 export function registerHarnessParityMatrixCommand(
@@ -114,28 +115,24 @@ async function runMatrixCommand(
   ctx: ModuleContext,
   opts: MatrixCommandOptions,
 ): Promise<void> {
-  const repeats = parsePositiveInt(opts.repeats, "repeats");
+  const repeats = parseCliNumber(opts.repeats, "repeats", "positive integer");
   const maxTurns =
     opts.maxTurns === undefined
       ? undefined
-      : parsePositiveInt(opts.maxTurns, "max-turns");
+      : parseCliNumber(opts.maxTurns, "max-turns", "positive integer");
   const effort = parseEffort(opts.effort);
-  const cpuAllocationCores = parseOptionalPositiveNumber(
-    opts.cpuAllocationCores,
-    "cpu-allocation-cores",
-  );
-  const cpuKillThresholdCores = parseOptionalPositiveNumber(
-    opts.cpuKillThresholdCores,
-    "cpu-kill-threshold-cores",
-  );
-  const memoryAllocationMB = parseOptionalPositiveNumber(
-    opts.memoryAllocationMB,
-    "memory-allocation-mb",
-  );
-  const memoryKillThresholdMB = parseOptionalPositiveNumber(
-    opts.memoryKillThresholdMB,
-    "memory-kill-threshold-mb",
-  );
+  const cpuAllocationCores = opts.cpuAllocationCores === undefined
+    ? undefined
+    : parseCliNumber(opts.cpuAllocationCores, "cpu-allocation-cores", "positive number");
+  const cpuKillThresholdCores = opts.cpuKillThresholdCores === undefined
+    ? undefined
+    : parseCliNumber(opts.cpuKillThresholdCores, "cpu-kill-threshold-cores", "positive number");
+  const memoryAllocationMB = opts.memoryAllocationMb === undefined
+    ? undefined
+    : parseCliNumber(opts.memoryAllocationMb, "memory-allocation-mb", "positive number");
+  const memoryKillThresholdMB = opts.memoryKillThresholdMb === undefined
+    ? undefined
+    : parseCliNumber(opts.memoryKillThresholdMb, "memory-kill-threshold-mb", "positive number");
 
   const result = await ctx.client.harnessParity.matrix({
     ...(opts.scenario.length > 0 && { scenarios: opts.scenario }),
@@ -206,26 +203,6 @@ async function runMatrixCommand(
 
 function appendStringOption(value: string, previous: string[]): string[] {
   return [...previous, value];
-}
-
-function parsePositiveInt(raw: string, name: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    throw new Error(`--${name} must be a positive integer, got "${raw}".`);
-  }
-  return parsed;
-}
-
-function parseOptionalPositiveNumber(
-  raw: string | undefined,
-  name: string,
-): number | undefined {
-  if (raw === undefined) return undefined;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`--${name} must be a positive number, got "${raw}".`);
-  }
-  return parsed;
 }
 
 function parseEffort(

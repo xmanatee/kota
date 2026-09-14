@@ -77,4 +77,13 @@ describe("kota eval fixture-candidates CLI", () => {
       expect(output).toContain(text);
     }
   });
+
+  it("rejects a fractional limit before mining or writing candidates", async () => {
+    await expect(buildEvalCommand(makeFakeCtx("/scope")).parseAsync(
+      ["fixture-candidates", "--output-dir", "reports", "--limit", "3.5"],
+      { from: "user" },
+    )).rejects.toThrow("--limit must be");
+    expect(mineFixtureCandidates).not.toHaveBeenCalled();
+  });
+
 });

@@ -25,6 +25,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
+import { parseCliNumber } from "./cli-numeric-options.js";
 import type {
   EvalCalibrationOptions,
   EvalRunOptions,
@@ -36,22 +37,6 @@ import {
   providerEgressProviderForPreset,
   validateProviderEgressProxyUrl,
 } from "./provider-egress.js";
-
-function parsePositiveInt(raw: string, name: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    throw new Error(`--${name} must be a positive integer, got "${raw}".`);
-  }
-  return parsed;
-}
-
-function parsePositiveNumber(raw: string, name: string): number {
-  const parsed = Number.parseFloat(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`--${name} must be a positive number, got "${raw}".`);
-  }
-  return parsed;
-}
 
 function resolveCliIsolationBackend(opts: {
   isolation?: string;
@@ -283,23 +268,23 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       providerEgressProvider?: string;
       keep?: boolean;
     }) => {
-      const repeats = parsePositiveInt(opts.repeats, "repeats");
+      const repeats = parseCliNumber(opts.repeats, "repeats", "positive integer");
       const isolationBackend = resolveCliIsolationBackend(opts, ctx.cwd);
       const runOptions: EvalRunOptions = {
         repeatCount: repeats,
         ...(opts.fixture.length > 0 && { fixtureIds: opts.fixture }),
         ...(opts.hostClass !== undefined && { hostClass: opts.hostClass }),
         ...(opts.cpuAllocation !== undefined && {
-          cpuAllocationCores: parsePositiveNumber(opts.cpuAllocation, "cpu-allocation"),
+          cpuAllocationCores: parseCliNumber(opts.cpuAllocation, "cpu-allocation", "positive number"),
         }),
         ...(opts.cpuKill !== undefined && {
-          cpuKillThresholdCores: parsePositiveNumber(opts.cpuKill, "cpu-kill"),
+          cpuKillThresholdCores: parseCliNumber(opts.cpuKill, "cpu-kill", "positive number"),
         }),
         ...(opts.memoryAllocationMb !== undefined && {
-          memoryAllocationMB: parsePositiveInt(opts.memoryAllocationMb, "memory-allocation-mb"),
+          memoryAllocationMB: parseCliNumber(opts.memoryAllocationMb, "memory-allocation-mb", "positive integer"),
         }),
         ...(opts.memoryKillThresholdMb !== undefined && {
-          memoryKillThresholdMB: parsePositiveInt(opts.memoryKillThresholdMb, "memory-kill-threshold-mb"),
+          memoryKillThresholdMB: parseCliNumber(opts.memoryKillThresholdMb, "memory-kill-threshold-mb", "positive integer"),
         }),
         ...(isolationBackend !== undefined && { isolationBackend }),
         ...(opts.keep === true && { keepWorkingDirs: true }),
@@ -481,15 +466,10 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       runsDir?: string;
       json?: boolean;
     }) => {
-      const windowDays = Number.parseFloat(opts.windowDays);
-      const followUpDays = Number.parseFloat(opts.followUpDays);
-      const thresholdRate = Number.parseFloat(opts.thresholdRate);
-      const minSample = parsePositiveInt(opts.minSample, "min-sample");
-      if (!(windowDays > 0)) throw new Error("--window-days must be positive.");
-      if (!(followUpDays > 0)) throw new Error("--follow-up-days must be positive.");
-      if (!(thresholdRate >= 0 && thresholdRate <= 1)) {
-        throw new Error("--threshold-rate must be between 0 and 1.");
-      }
+      const windowDays = parseCliNumber(opts.windowDays, "window-days", "positive number");
+      const followUpDays = parseCliNumber(opts.followUpDays, "follow-up-days", "positive number");
+      const thresholdRate = parseCliNumber(opts.thresholdRate, "threshold-rate", "unit interval");
+      const minSample = parseCliNumber(opts.minSample, "min-sample", "positive integer");
 
       const calibrationOptions: EvalCalibrationOptions = {
         windowDays,
@@ -592,7 +572,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       since?: string;
       createTask?: boolean;
     }) => {
-      const limit = parsePositiveInt(opts.limit, "limit");
+      const limit = parseCliNumber(opts.limit, "limit", "positive integer");
       if (opts.since !== undefined && Number.isNaN(Date.parse(opts.since))) {
         throw new Error(`--since must be a parseable ISO timestamp, got "${opts.since}".`);
       }

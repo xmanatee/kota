@@ -11,6 +11,37 @@ describe("kota eval run CLI options", () => {
     vi.restoreAllMocks();
   });
 
+  // One case matrix owns the shared decoder's syntax/domain rejection. Other
+  // command tests exercise option wiring without repeating this matrix.
+  it.each([
+    ["repeats", "1.5"], ["repeats", "3oops"], ["repeats", "1e3"],
+    ["repeats", "0"], ["repeats", "-2"], ["repeats", "NaN"],
+    ["repeats", "Infinity"], ["repeats", "9007199254740993"],
+    ["repeats", ""], ["repeats", " 3"], ["repeats", "3\n"],
+    ["repeats", "0x10"], ["repeats", "2.0"],
+    ["cpu-allocation", "2oops"], ["cpu-allocation", "1e3"],
+    ["cpu-allocation", "0"], ["cpu-allocation", "-0.5"],
+    ["cpu-allocation", "NaN"], ["cpu-allocation", "Infinity"],
+    ["cpu-allocation", "9".repeat(400)], ["cpu-allocation", ""],
+    ["cpu-allocation", "0x10"], ["cpu-allocation", " 2.5"],
+    ["cpu-allocation", "2.5\n"],
+    ["cpu-kill", "2oops"], ["memory-allocation-mb", "1e3"],
+    ["memory-kill-threshold-mb", "2.9"],
+  ])("rejects --%s %j before dispatch", async (option, raw) => {
+    const calls: EvalRunOptions[] = [];
+    await expect(buildEvalCommand(makeRunRecordingCtx(calls)).parseAsync(
+      ["run", `--${option}`, raw], { from: "user" },
+    )).rejects.toThrow(`--${option} must be`);
+    expect(calls).toEqual([]);
+  });
+
+  it("preserves the repeat default and absent resource fields", async () => {
+    const calls: EvalRunOptions[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await buildEvalCommand(makeRunRecordingCtx(calls)).parseAsync(["run"], { from: "user" });
+    expect(calls).toEqual([{ repeatCount: 3 }]);
+  });
+
   it("threads deliberate container selection into the eval run options", async () => {
     const calls: EvalRunOptions[] = [];
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -26,9 +57,9 @@ describe("kota eval run CLI options", () => {
         "--host-class",
         "ci-container",
         "--cpu-allocation",
-        "2",
+        "1.25",
         "--cpu-kill",
-        "2",
+        "2.5",
         "--memory-allocation-mb",
         "1024",
         "--memory-kill-threshold-mb",
@@ -50,8 +81,8 @@ describe("kota eval run CLI options", () => {
       fixtureIds: ["builder-smoke"],
       repeatCount: 1,
       hostClass: "ci-container",
-      cpuAllocationCores: 2,
-      cpuKillThresholdCores: 2,
+      cpuAllocationCores: 1.25,
+      cpuKillThresholdCores: 2.5,
       memoryAllocationMB: 1024,
       memoryKillThresholdMB: 2048,
       isolationBackend: {

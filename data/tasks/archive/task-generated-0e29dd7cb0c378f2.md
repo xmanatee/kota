@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Reject silently truncated evaluation CLI numeric options
 
@@ -84,3 +83,60 @@ Exercise production Commander commands through recording client ports. Verify ma
 Show both maintained command paths use the same decoding owner, replaced helpers are removed, and callers retain only domain-specific options and request construction. Preserve distinct runtime validation and command propagation proofs without duplicating parser case matrices.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+
+## Completion evidence
+
+Implemented one eval-owned decoder in
+`src/modules/eval-harness/cli-numeric-options.ts`. Complete decimal arguments
+are checked before conversion can conceal unsupported syntax. Exponents, radix
+prefixes, whitespace, junk suffixes and nonfinite values reject. Integer options
+require positive safe integers and reject fractional syntax; positive real
+options retain fractional values. Calibration rates retain the inclusive 0–1
+domain. Errors identify the option, expected domain and original input.
+
+Migrated callers:
+- Eval run: repeats, CPU allocation/kill threshold and both memory options.
+- Eval calibration: minimum samples, both day windows and threshold rate; the
+  adjacent float parsers had the same truncation defect.
+- Eval fixture-candidates: scan limit.
+- Parity matrix: repeats, maximum turns and four optional resource options.
+- Parity run: maximum turns, whose inline parser had the same defect.
+
+Retired both duplicated integer helpers, eval's permissive positive-real helper,
+matrix's optional-number helper, the inline parity-run integer parser and the
+three calibration parseFloat calls. Command owners retain option declarations,
+absence/default handling and request construction. Harness-parity consumes the
+shared decoder through its existing declared eval-harness dependency. Direct API
+runtime numeric validators remain in place.
+
+Command probes additionally exposed matrix's mismatched Commander field names:
+`memoryAllocationMB`/`memoryKillThresholdMB` silently dropped both supplied memory
+options. Reading Commander's `memoryAllocationMb`/`memoryKillThresholdMb` now
+validates and forwards their values. The request's public MB field names remain
+unchanged, and matrix's existing positive-real resource domain is preserved.
+
+Validation:
+- `pnpm test:owner src/modules/eval-harness/cli-run-options.test.ts
+  src/modules/eval-harness/cli-calibration.test.ts
+  src/modules/eval-harness/cli-fixture-candidates.test.ts
+  src/modules/eval-harness/eval-set-profile-validation.test.ts
+  src/modules/harness-parity/cli.test.ts
+  src/modules/harness-parity/model-matrix.test.ts`: 65 tests passed across six
+  files. One eval command case matrix owns common rejection semantics; the other
+  command cases detect missed option wiring, lost defaults/absence, and changed
+  domains. Existing runtime profile and matrix tests retain direct-API and
+  execution-propagation proof.
+- `pnpm check:fast`: passed production/test typechecks, lint, task validation,
+  generated client/UI binding checks and admission of 90 bundled modules.
+- Eleven standalone production Commander probes through recording client ports
+  passed. Run artifact `cli-numeric-probe.json` retains argv, dispatched requests,
+  errors, rendered success output and source hashes; `agent/cli-numeric-probe.mjs`
+  is the reproducer in builder run `2026-09-14T14-15-37-417Z-builder-hw4kht`.
+  These establish the CLI boundary, not live inference. No models were executed.
+
+This repairs the CLI boundary of the model-evaluation surfaces introduced in
+[the model-matrix extension](task-extend-harness-parity-and-eval-harness-with-model-.md).
+Blocked live qualification contracts were not edited. Shared ownership and removed
+parsers are observable simplifications; reduced future maintenance cost is an
+expectation, not a measured benefit.

@@ -26,6 +26,11 @@ accessible without DAC capabilities. Images must support the native adapter's ne
 and Node's environment-proxy transport. Positive inference and denied unintended
 network/credential access require live verification before rollout claims.
 
+Evaluation CLI numeric options use complete decimal notation: exponent and radix
+prefix syntax reject instead of being truncated. Integer options require positive
+safe integers; CPU allocations retain fractional values. Optional resource values
+remain absent until explicitly supplied.
+
 CLI runs do not persist cadence baselines. Resource and provider preflight
 still determine whether evidence can gate; configuration is not proof of isolation.
 
