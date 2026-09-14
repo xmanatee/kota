@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: The shared tool-result masker masks ordinary text but copies structuredContent unchanged. A peer can return a known credential as structured JSON and expose it to the model despite successful masking of the identical text result. Probes reproduced this for strings, objects and arrays.
 
@@ -133,3 +132,30 @@ excerpt:
 >     `[structuredContent]\n${stableJsonStringify(block.structuredContent)}`,
 >   );
 > }
+
+
+## Resolution
+
+The shared tool-result masker now recursively masks registered secret values in
+structured scalar strings, object values and keys, and arrays. It preserves
+nonsecret JSON values and creates a separate projection. Authoritative output
+schema validation remains upstream of masking.
+
+Verification:
+
+- `pnpm test:integration src/structured-result-masking.integration.test.ts`:
+  the original implementation failed all three credential-bearing variants
+  (scalar, object, array), while six nonsecret controls passed. After the repair,
+  all nine cases pass through the real MCP client, manager, runner and OpenAI
+  model projection with a synthetic credential containing JSON escape characters.
+  Exact-value output schemas establish validation precedes masking; invalid
+  responses are still rejected without exposing their structured payloads.
+- `pnpm test:owner src/core/tools/tool-runner-schema.test.ts src/core/tools/tool-runner-execution-part-3.test.ts src/modules/model-clients/openai/tool-result-projection.test.ts`:
+  24 tests pass, covering existing output validation, runner result preservation,
+  scheduling and provider projection behavior.
+- `pnpm check:fast`: passed production/test typechecking, lint, task validation,
+  generated client binding checks and bundled module admission.
+
+The controlled peer HTTP port and isolated synthetic secret store avoid live
+credentials. No live model request is needed to inspect the exact model-facing
+projection; deployment and publication remain runtime-owned.
