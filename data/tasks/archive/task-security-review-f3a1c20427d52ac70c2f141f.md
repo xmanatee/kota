@@ -1,10 +1,25 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Every enqueue request containing retryOf now receives the explicit-retry override, including requests generated automatically by autonomy reconciliation. Workflow completion and reconciliation-needed events consequently bypass unchanged-evidence retention without an explicit retry request. Repeated failures can repeatedly restart autonomous work and consume execution capacity and model resources. An isolated production-code probe reproduced two requeues with identical task digests and recovery revisions while ordinary automatic recovery rejected the input.
 
 security family: f3a1c20427d52ac70c2f141ff7a326531ed127bc69bc806e4e6aad8650942cc3
+
+## Resolution
+
+Fixed in `61a318b8a` before this finding's delayed publication. Retry controls
+carry explicit intent separately from `payload.retryOf`; automatic reconciliation
+does not set it. Transport preserves and validates that intent, and current task,
+resource and publication checks remain in force. The selected queue/control tests
+prove unchanged automatic retry is rejected and explicit retry preserves the same
+run and resource. The focused control/transport suites pass (20 tests), as do
+production typechecking, scoped lint and generated client-binding checks.
+
+The daemon loaded that revision, and the normal retry API resumed retained builder
+`2026-09-13T23-14-12-918Z-builder-9xqf3e` at 2026-09-14T02:54:10Z with its original
+worktree, task resource and Codex conversation. Fresh validation followed. The
+security reproduction below targets the earlier `c37f9b9cc`, not the corrected
+revision; no duplicate implementation is required.
 
 
 ## Problem
