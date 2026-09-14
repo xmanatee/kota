@@ -10,7 +10,8 @@ import type { GoogleGenAI } from "@google/genai";
 import { afterEach, beforeEach, expect, type Mock, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { maskKnownSecretValues as maskSecrets } from "#core/config/secrets.js";
-import type { executeTool as executeKotaTool } from "#core/tools/index.js";
+import { readOnlyLocalEffect, type ToolEffect } from "#core/tools/effect.js";
+import { registerTool, type ToolRunner } from "#core/tools/index.js";
 
 type GenerateContentStream = InstanceType<
   typeof GoogleGenAI
@@ -36,8 +37,7 @@ type TestRecord = { [key: string]: TestRecordValue | undefined };
 
 export const generateContentStreamMock: Mock = vi.fn();
 export const googleGenAICtorMock: Mock = vi.fn();
-export const executeToolMock: Mock = vi.fn();
-export const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+export const fixtureRunnerMock = vi.fn<(name: string, input: Parameters<ToolRunner>[0], context?: Parameters<ToolRunner>[1]) => ReturnType<ToolRunner>>();
 export const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("@google/genai", () => ({
@@ -51,12 +51,6 @@ vi.mock("@google/genai", () => ({
         generateContentStreamMock(...callArgs),
     };
   },
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: (...args: Parameters<typeof executeKotaTool>) => executeToolMock(...args),
-  getAllTools: () => getAllToolsMock(),
-  getToolEffect: () => undefined,
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -98,13 +92,32 @@ export function captureLastCallArgs(): GenerateContentArgs {
 beforeEach(() => {
   generateContentStreamMock.mockReset();
   googleGenAICtorMock.mockReset();
-  executeToolMock.mockReset();
-  getAllToolsMock.mockReset();
+  fixtureRunnerMock.mockReset();
+  registerFixtureTools([TEST_TOOL], readOnlyLocalEffect());
   maskKnownSecretValuesMock.mockReset();
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
   maskKnownSecretValuesMock.mockImplementation((text) => text);
 });
 
 afterEach(() => {
+  disposeFixtureTools();
   vi.clearAllMocks();
 });
+
+const toolDisposers: Array<() => void> = [];
+function disposeFixtureTools(): void {
+  for (const dispose of toolDisposers.splice(0)) dispose();
+}
+export function registerFixtureTools(
+  declarations: readonly KotaTool[],
+  effect: ToolEffect = readOnlyLocalEffect(),
+): void {
+  disposeFixtureTools();
+  for (const declaration of declarations) {
+    toolDisposers.push(registerTool(
+      declaration,
+      (input, context) => fixtureRunnerMock(declaration.name, input, context),
+      undefined,
+      { effect },
+    ));
+  }
+}

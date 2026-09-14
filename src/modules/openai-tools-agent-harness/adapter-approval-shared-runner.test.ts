@@ -4,17 +4,17 @@ import {
 	approvalQueueMock,
 	confirmActionMock,
 	enqueueApprovalMock,
-	executeToolMock,
-	getAllToolsMock,
+	fixtureRunnerMock,
 	openaiToolsAgentHarness,
 	queueEnd,
 	queueToolUse,
+	registerFixtureTools,
 	streamCallSnapshots,
 	tool,
 } from "./adapter-shared-runner-test-support.js";
 
 beforeEach(() => {
-	getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+	registerFixtureTools([tool("echo_tool")]);
 });
 
 describe("openaiToolsAgentHarness shared runner approval paths", () => {
@@ -22,7 +22,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 		queueToolUse("confirm_1", "echo_tool", { text: "deploy" });
 		queueEnd("confirmed");
 		confirmActionMock.mockResolvedValue(true);
-		executeToolMock.mockResolvedValue({ content: "executed after confirm" });
+		fixtureRunnerMock.mockResolvedValue({ content: "executed after confirm" });
 
 		const result = await openaiToolsAgentHarness.run({
 			prompt: "go",
@@ -38,7 +38,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 		expect(confirmActionMock).toHaveBeenCalledWith(
 			expect.stringContaining("Allow echo_tool?"),
 		);
-		expect(executeToolMock).toHaveBeenCalledWith(
+		expect(fixtureRunnerMock).toHaveBeenCalledWith(
 			"echo_tool",
 			{ text: "deploy" },
 			expect.objectContaining({ toolUseId: "confirm_1" }),
@@ -75,7 +75,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 		});
 
 		expect(enqueueApprovalMock).toHaveBeenCalledTimes(1);
-		expect(executeToolMock).not.toHaveBeenCalled();
+		expect(fixtureRunnerMock).not.toHaveBeenCalled();
 		const followupBlocks = streamCallSnapshots[1].messages[2].content as KotaToolResultBlock[];
 		expect(followupBlocks[0]).toMatchObject({
 			type: "tool_result",
@@ -90,7 +90,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 	it("uses client approval instead of enqueueing for an allowed queue-policy tool", async () => {
 		queueToolUse("client_approval_1", "echo_tool", { text: "ship" });
 		queueEnd("client approved");
-		executeToolMock.mockResolvedValue({ content: "executed after client approval" });
+		fixtureRunnerMock.mockResolvedValue({ content: "executed after client approval" });
 		const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
 
 		const result = await openaiToolsAgentHarness.run({
@@ -114,7 +114,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 			}),
 		);
 		expect(enqueueApprovalMock).not.toHaveBeenCalled();
-		expect(executeToolMock).toHaveBeenCalledWith(
+		expect(fixtureRunnerMock).toHaveBeenCalledWith(
 			"echo_tool",
 			{ text: "ship" },
 			expect.objectContaining({ toolUseId: "client_approval_1" }),

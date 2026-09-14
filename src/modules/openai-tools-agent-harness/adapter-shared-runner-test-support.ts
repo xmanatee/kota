@@ -1,4 +1,4 @@
-import { beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import type { AgentHarness } from "#core/agent-harness/index.js";
 import type {
 	KotaContentBlock,
@@ -14,12 +14,12 @@ import type {
 	ProviderFactoryOptions,
 	ResolvedProvider,
 } from "#core/model/model-client.js";
-import type { ToolEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect, type ToolEffect } from "#core/tools/effect.js";
 import type {
 	ToolResult,
-	ToolRunner,
 	ToolRunnerContext,
 } from "#core/tools/index.js";
+import { registerTool, type ToolRunner } from "#core/tools/index.js";
 
 type StubStream = {
 	on(event: "text" | "thinking", cb: (delta: string) => void): StubStream;
@@ -39,7 +39,7 @@ const messagesStreamMock = vi.hoisted(() =>
 const createModelClientMock = vi.hoisted(() =>
 	vi.fn<(opts: ProviderFactoryOptions) => ResolvedProvider>(),
 );
-const executeToolMock = vi.hoisted(() =>
+const fixtureRunnerMock = vi.hoisted(() =>
 	vi.fn<
 		(
 			name: string,
@@ -47,12 +47,6 @@ const executeToolMock = vi.hoisted(() =>
 			context?: ToolRunnerContext,
 		) => Promise<ToolResult>
 	>(),
-);
-const getAllToolsMock = vi.hoisted(() =>
-	vi.fn<() => readonly KotaTool[]>(),
-);
-const getToolEffectMock = vi.hoisted(() =>
-	vi.fn<(name: string) => ToolEffect | undefined>(),
 );
 const confirmActionMock = vi.hoisted(() =>
 	vi.fn<(message: string) => Promise<boolean>>(),
@@ -67,24 +61,12 @@ export {
 	confirmActionMock,
 	createModelClientMock,
 	enqueueApprovalMock,
-	executeToolMock,
-	getAllToolsMock,
-	getToolEffectMock,
+	fixtureRunnerMock,
 	messagesStreamMock,
 };
 
 vi.mock("#core/model/model-client.js", () => ({
 	createModelClient: (opts: ProviderFactoryOptions) => createModelClientMock(opts),
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-	executeTool: (
-		name: string,
-		input: Parameters<ToolRunner>[0],
-		context?: ToolRunnerContext,
-	) => executeToolMock(name, input, context),
-	getAllTools: () => getAllToolsMock(),
-	getToolEffect: (name: string) => getToolEffectMock(name),
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -240,7 +222,9 @@ function write(message) { process.stdout.write(JSON.stringify(message) + "\\n");
 rl.on("line", (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
-  if (msg.method === "initialize") {
+  if (msg.method === "server/discover") {
+    write({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Legacy peer: initialize first" } });
+  } else if (msg.method === "initialize") {
     write({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "openai-tools-mcp-fixture" } } });
   } else if (msg.method === "tools/list") {
     write({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "lookup", description: "Looks up remote content", inputSchema: { type: "object" }, annotations: { readOnlyHint: true } }] } });
@@ -257,10 +241,9 @@ rl.on("line", (line) => {
 
 beforeEach(async () => {
 	vi.clearAllMocks();
+  fixtureRunnerMock.mockReset();
 	streamCallSnapshots.length = 0;
 	streamReturnQueue.length = 0;
-	getAllToolsMock.mockReturnValue([]);
-	getToolEffectMock.mockReturnValue(READ_EFFECT);
 	confirmActionMock.mockResolvedValue(true);
 	enqueueApprovalMock.mockImplementation((...args) =>
 		pendingApprovalFromCall("approval-openai-tools", args),
@@ -282,3 +265,24 @@ beforeEach(async () => {
 	const adapter = await import("./adapter.js");
 	openaiToolsAgentHarness = adapter.openaiToolsAgentHarness;
 });
+
+const toolDisposers: Array<() => void> = [];
+function disposeFixtureTools(): void {
+  for (const dispose of toolDisposers.splice(0)) dispose();
+}
+export function registerFixtureTools(
+  declarations: readonly KotaTool[],
+  effect: ToolEffect = readOnlyLocalEffect(),
+): void {
+  disposeFixtureTools();
+  for (const declaration of declarations) {
+    toolDisposers.push(registerTool(
+      declaration,
+      (input, context) => fixtureRunnerMock(declaration.name, input, context),
+      undefined,
+      { effect },
+    ));
+  }
+}
+
+afterEach(disposeFixtureTools);

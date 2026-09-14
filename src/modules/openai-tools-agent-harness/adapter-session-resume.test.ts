@@ -1,21 +1,16 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import {
-  clearCustomTools,
-  registerTool,
-} from "#core/tools/tool-registry.js";
-import {
   createModelClientMock,
-  executeToolMock,
-  getAllToolsMock,
+  fixtureRunnerMock,
   messagesStreamMock,
   openaiToolsAgentHarness,
   queueEnd,
   queueToolUse,
-  READ_EFFECT,
+  registerFixtureTools,
   streamCallSnapshots,
   tool,
 } from "./adapter-shared-runner-test-support.js";
@@ -25,18 +20,8 @@ function createScopeRoot(prefix: string): string {
 }
 
 function registerEchoTool(declaration = tool("echo_tool")): void {
-  getAllToolsMock.mockReturnValue([declaration]);
-  registerTool(
-    declaration,
-    executeToolMock.bind(undefined, declaration.name),
-    undefined,
-    { effect: READ_EFFECT },
-  );
+  registerFixtureTools([declaration]);
 }
-
-afterEach(() => {
-  clearCustomTools();
-});
 
 describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("establishes a resumable local session before a quiescent progress checkpoint", async () => {
@@ -92,7 +77,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       registerEchoTool();
       queueToolUse("call_persist", "echo_tool", { text: "hello" });
       queueEnd("saved");
-      executeToolMock.mockResolvedValue({ content: "echo: hello" });
+      fixtureRunnerMock.mockResolvedValue({ content: "echo: hello" });
 
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "please echo",
@@ -160,7 +145,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
     try {
       registerEchoTool();
       queueToolUse("call_checkpoint", "echo_tool", { text: "once" });
-      executeToolMock.mockResolvedValue({ content: "echo: once" });
+      fixtureRunnerMock.mockResolvedValue({ content: "echo: once" });
       let checkpointSessionId: string | undefined;
 
       await expect(
@@ -179,7 +164,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         }),
       ).rejects.toThrow("continuation checkpoint after tool result");
 
-      expect(executeToolMock).toHaveBeenCalledTimes(1);
+      expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
       if (checkpointSessionId === undefined) {
         throw new Error("missing KOTA-owned checkpoint session id");
       }
@@ -194,7 +179,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       });
 
       expect(resumed.text).toBe("continued without replaying the effect");
-      expect(executeToolMock).toHaveBeenCalledTimes(1);
+      expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
       expect(streamCallSnapshots[1].messages).toEqual([
         { role: "user", content: "run the effect once" },
         expect.objectContaining({ role: "assistant" }),
@@ -335,8 +320,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         persistSession: true,
       });
 
-      clearCustomTools();
-      getAllToolsMock.mockReturnValue([]);
+      registerFixtureTools([]);
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",

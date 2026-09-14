@@ -3,11 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { KotaContentBlock } from "#core/agent-harness/message-protocol.js";
-import { runShell } from "#modules/execution/shell.js";
-import { runFileEdit } from "#modules/filesystem/file-edit.js";
-import { runFileRead } from "#modules/filesystem/file-read.js";
 import {
-  executeToolMock,
   makeStubStream,
   messagesStreamMock,
   openaiToolsScaffoldAgentHarness,
@@ -47,8 +43,11 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
       );
       writeFileSync(
         join(scopeRoot, "test.cjs"),
-        "const { add } = require('./math.cjs');\nif (add(2, 3) !== 5) process.exit(1);\n",
+        "const { add } = require('./math.cjs');\nrequire('node:assert/strict').equal(add(2, 3), 5);\n",
       );
+      queueToolUse("scaffold_verify_before", "scaffold_verify", {
+        command: "node test.cjs",
+      });
       queueToolUse("scaffold_read", "scaffold_search_read", {
         read_paths: ["math.cjs", "test.cjs"],
       });
@@ -71,14 +70,6 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
         command: "node test.cjs",
       });
       queueEnd("verified");
-      executeToolMock.mockImplementation(async (name, input, context) => {
-        const toolContext = { cwd: context?.cwd ?? scopeRoot };
-        if (name === "file_read") return runFileRead(input, toolContext);
-        if (name === "file_edit") return runFileEdit(input, toolContext);
-        if (name === "shell") return runShell(input, toolContext);
-        if (name === "git") return { content: "diff -- math.cjs" };
-        throw new Error(`unexpected scaffold underlying tool call: ${name}`);
-      });
 
       const result = await openaiToolsScaffoldAgentHarness.run({
         prompt: "Fix add and verify with node test.cjs.",
@@ -88,23 +79,19 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
         cwd: scopeRoot,
       });
 
-      expect(result).toMatchObject({ text: "verified", turns: 4, isError: false });
+      expect(result).toMatchObject({ text: "verified", turns: 5, isError: false });
       expect(readFileSync(join(scopeRoot, "math.cjs"), "utf-8")).toContain(
         "return a + b;",
       );
-      expect(executeToolMock.mock.calls.map(([name]) => name)).toEqual([
-        "file_read",
-        "file_read",
-        "file_edit",
-        "shell",
-        "git",
-      ]);
+      expect(JSON.stringify(streamCallSnapshots[1]?.messages)).toContain("scaffold_verify.1 error");
+      const finalTranscript = JSON.stringify(streamCallSnapshots[4]?.messages);
+      expect(finalTranscript).toContain("scaffold_verify.1 ok");
       const verifyTurnTranscript = JSON.stringify(
-        streamCallSnapshots[2]?.messages,
+        streamCallSnapshots[3]?.messages,
       );
-      expect(verifyTurnTranscript).toContain('"id":"json_action_2"');
+      expect(verifyTurnTranscript).toContain('"id":"json_action_3"');
       expect(verifyTurnTranscript).toContain('"name":"scaffold_edit"');
-      expect(verifyTurnTranscript).toContain('"tool_use_id":"json_action_2"');
+      expect(verifyTurnTranscript).toContain('"tool_use_id":"json_action_3"');
     } finally {
       rmSync(scopeRoot, { recursive: true, force: true });
     }

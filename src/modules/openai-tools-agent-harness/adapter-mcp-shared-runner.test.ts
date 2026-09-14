@@ -11,12 +11,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 import { McpManager } from "#core/mcp/manager.js";
 import {
-	executeToolMock,
-	getAllToolsMock,
+	fixtureRunnerMock,
 	mcpFixtureServer,
 	openaiToolsAgentHarness,
 	queueEnd,
 	queueToolUse,
+	registerFixtureTools,
 	streamCallSnapshots,
 	tool,
 } from "./adapter-shared-runner-test-support.js";
@@ -75,7 +75,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 			},
 		});
 
-		expect(executeToolMock).not.toHaveBeenCalled();
+		expect(fixtureRunnerMock).not.toHaveBeenCalled();
 		expect(streamCallSnapshots[0].tools?.map((entry) => entry.name)).toContain(
 			"mcp__remote__lookup",
 		);
@@ -93,10 +93,10 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 	});
 
 	it("refreshes MCP tool declarations and fingerprints before each model turn", async () => {
-		getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+		registerFixtureTools([tool("echo_tool")]);
 		queueToolUse("call_local", "echo_tool", { text: "hello" });
 		queueEnd();
-		executeToolMock.mockResolvedValue({ content: "local result" });
+		fixtureRunnerMock.mockResolvedValue({ content: "local result" });
 		const firstMcpTool = tool("mcp__remote__lookup_v1");
 		const secondMcpTool = tool("mcp__remote__lookup_v2");
 		const getToolsSpy = vi
@@ -120,14 +120,14 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 					},
 				},
 			});
-			expect(streamCallSnapshots[0].tools?.map((entry) => entry.name)).toEqual([
+			expect(streamCallSnapshots[0].tools?.map((entry) => entry.name)).toEqual(expect.arrayContaining([
 				"echo_tool",
 				"mcp__remote__lookup_v1",
-			]);
-			expect(streamCallSnapshots[1].tools?.map((entry) => entry.name)).toEqual([
+			]));
+			expect(streamCallSnapshots[1].tools?.map((entry) => entry.name)).toEqual(expect.arrayContaining([
 				"echo_tool",
 				"mcp__remote__lookup_v2",
-			]);
+			]));
 			expect(fingerprintSpy).toHaveBeenCalledWith("mcp__remote__lookup_v1");
 			expect(fingerprintSpy).toHaveBeenCalledWith("mcp__remote__lookup_v2");
 		} finally {

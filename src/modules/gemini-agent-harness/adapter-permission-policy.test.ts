@@ -1,33 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { localDestructiveEffect } from "#core/tools/effect.js";
-import { deleteModuleToolEffect, resolveRegisteredToolEffect, setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
+import { fixtureRunnerMock, generateContentStreamMock, registerFixtureTools, TEST_TOOL } from "./adapter-test-support.js";
 
-const generateContentStreamMock = vi.fn();
-const executeToolMock = vi.fn();
-const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 const confirmActionMock = vi.fn();
 const enqueueApprovalMock = vi.fn();
 const approvalQueueMock = {
   enqueue: (...args: Parameters<ApprovalQueue["enqueue"]>) =>
     enqueueApprovalMock(...args),
 } as ApprovalQueue;
-
-vi.mock("@google/genai", () => ({
-  GoogleGenAI: function MockGoogleGenAI(this: unknown) {
-    (this as { models: unknown }).models = {
-      generateContentStream: (...args: unknown[]) =>
-        generateContentStreamMock(...args),
-    };
-  },
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: (...args: unknown[]) => executeToolMock(...args),
-  getAllTools: () => getAllToolsMock(),
-  getToolEffect: (...args: Parameters<typeof resolveRegisteredToolEffect>) => resolveRegisteredToolEffect(...args),
-}));
 
 vi.mock("#core/util/confirm.js", () => ({
   confirmAction: (...args: unknown[]) => confirmActionMock(...args),
@@ -39,21 +20,7 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
   }),
 }));
 
-vi.mock("#core/config/secrets.js", () => ({
-  maskKnownSecretValues: (text: string) => text,
-}));
-
 import { geminiAgentHarness } from "./adapter.js";
-
-const TEST_TOOL: KotaTool = {
-  name: "echo_tool",
-  description: "Echo the provided text",
-  input_schema: {
-    type: "object",
-    properties: { text: { type: "string" } },
-    required: ["text"],
-  },
-};
 
 type GenerateContentArgs = {
   contents: Array<{
@@ -122,18 +89,12 @@ function lastToolResponse(): Record<string, unknown> {
 }
 
 beforeEach(() => {
-  generateContentStreamMock.mockReset();
-  executeToolMock.mockReset();
-  getAllToolsMock.mockReset();
+  registerFixtureTools([TEST_TOOL], localDestructiveEffect());
   confirmActionMock.mockReset();
   enqueueApprovalMock.mockReset();
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  setModuleToolEffect(TEST_TOOL.name, { effect: localDestructiveEffect() });
   confirmActionMock.mockResolvedValue(true);
   enqueueApprovalMock.mockReturnValue({ id: "approval-gemini" });
 });
-
-afterEach(() => deleteModuleToolEffect(TEST_TOOL.name));
 
 describe("geminiAgentHarness — permission policy", () => {
   it("blocks a dangerous tool under a deny policy through the shared runner", async () => {
@@ -148,7 +109,7 @@ describe("geminiAgentHarness — permission policy", () => {
       },
     });
 
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(lastToolResponse().error).toContain("Blocked by guardrails");
   });
 
@@ -168,7 +129,7 @@ describe("geminiAgentHarness — permission policy", () => {
     expect(confirmActionMock).toHaveBeenCalledWith(
       expect.stringContaining("Allow echo_tool?"),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(lastToolResponse().error).toContain("requires confirmation");
   });
 
@@ -197,14 +158,20 @@ describe("geminiAgentHarness — permission policy", () => {
       undefined,
       undefined,
       "gemini-session",
+      undefined,
+      expect.objectContaining({
+        declarationEffectFingerprint: expect.any(String),
+        registrationGeneration: expect.any(Number),
+        executionRoots: expect.objectContaining({ cwd: process.cwd() }),
+      }),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(lastToolResponse().error).toContain("approval-gemini");
   });
 
   it("uses client approval for a queued dangerous call before execution", async () => {
     queueToolCallThenStop("call_client", { text: "ship" });
-    executeToolMock.mockResolvedValue({ content: "executed" });
+    fixtureRunnerMock.mockResolvedValue({ content: "executed" });
     const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
 
     await geminiAgentHarness.run({
@@ -229,7 +196,7 @@ describe("geminiAgentHarness — permission policy", () => {
       }),
     );
     expect(enqueueApprovalMock).not.toHaveBeenCalled();
-    expect(executeToolMock).toHaveBeenCalledTimes(1);
+    expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
     expect(lastToolResponse()).toEqual({ output: "executed" });
   });
 });

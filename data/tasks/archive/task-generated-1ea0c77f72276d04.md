@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Restore hosted harness permission and scaffold checks through real tool registration
 
@@ -72,3 +71,73 @@ Reproduce and resolve the recorded failures. Demonstrate catalog allow/deny beha
 Show the affected fixtures obtain catalog entries, effect metadata and authorization bindings from the existing registration lifecycle, with proper disposal. Remove replaced simulated registry paths and identify redundant checks retired without losing distinct behavior coverage. Passing tests alone do not establish reduced ownership duplication.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Restored the affected deterministic verification through disposable `registerTool`
+registrations. Production catalog filtering, authorization and execution code are
+unchanged. Catalog entries, effects and approval bindings now come from the same
+registration lifecycle; each fixture disposes only its own registrations.
+
+Migrated helper consumers (paths are relative to `src/modules/`):
+- `gemini-agent-harness/`: `adapter.test.ts`, `adapter-options.test.ts`,
+  `adapter-guardrails.test.ts`, `adapter-permission-policy.test.ts`,
+  `adapter-tool-loop.test.ts`, and `adapter-session-resume.test.ts`.
+- `vercel-agent-harness/`: `adapter.test.ts`, `adapter-options.test.ts`, and
+  `adapter-guardrails.test.ts` (including `adapter-tool-test-support.ts`).
+- `openai-tools-agent-harness/`: `adapter-shared-runner.test.ts`,
+  `adapter-approval-shared-runner.test.ts`, `adapter-mcp-shared-runner.test.ts`,
+  `adapter-session-resume.test.ts`, `adapter-scaffold.test.ts`, and
+  `adapter-scaffold-verification.test.ts`.
+
+Removed the four affected `#core/tools/index.js` mock blocks and their simulated
+catalog/effect accessors. Registered fixture runners now receive real permissioned
+dispatch; they no longer replace `executeTool`. Gemini permission checks reuse the
+existing provider fixture. OpenAI resume checks no longer maintain both a mocked
+catalog and a separate binding. Scaffold setup consumes production module tool
+definitions, filesystem runners and effects, and replaces its name-switch execution
+mock with registrations. The Node verifier uses fixed argv against actual temporary
+files. The shared legacy MCP peer now rejects unsupported discovery correctly,
+restoring two additional failures found while checking helper consumers.
+
+Retired the OpenAI adapter's redundant default-guardrails-policy case, owned by
+`src/core/tools/tool-runner-permission.test.ts`. Explicit policy propagation and
+adapter response translation remain covered. Replaced the scaffold's private runner
+call-order assertion with observed file content and verifier failure/success. Other
+adapter-specific confirmation, queue/client approval, execution context, masking,
+catalog and continuation assertions remain.
+
+Validation in builder run `2026-09-14T07-27-36-680Z-builder-tfszpt`:
+- Reproduced all 13 reported failures across the four original permission/scaffold
+  suites before editing (5 other checks passed).
+- Final affected-consumer selection plus core permission and local approval-binding
+  tests: **17 suites, 80 checks passed**. This covers catalog allow/deny and a
+  hallucinated hidden Gemini call, denial translation, scoped queue/session and
+  approval-binding propagation, confirmation/client approval, execution results,
+  masking, persisted sessions, MCP dispatch and registration-drift rejection.
+- Scaffold verification fails against the original arithmetic fixture, edits its
+  temporary file through the registered filesystem runner and passes the same real
+  Node verifier afterward. Separate cases prove a successful edit without verification
+  rejects completion and failed verifier output reaches the next controlled model turn.
+- `pnpm check:fast` passed on the final changeset, covering production/test types,
+  lint, task validity, generated client bindings and admission of 90 bundled modules.
+
+Commands and final deterministic output are retained in the run's
+`agent/affected-tests-final.log`; final static-gate output is retained in
+`agent/check-fast-final.log`. The source diff establishes removal of duplicate
+fixture authority; passing tests alone do not establish a measured reduction in
+future drift or maintenance effort.
+
+The production `runShell` attempt encountered `sandbox-exec: sandbox_apply:
+Operation not permitted` inside this macOS agent sandbox. The retained adapter
+fixture instead runs its known Node verifier with fixed argv within the available
+execution sandbox. This proves real edit/verify sequencing without claiming proof
+of the production shell sandbox. Real Git diff runs against a non-repository
+fixture report that absence; verifier success remains the scaffold's completion
+criterion. No live model parity, deployment outcome or production authorization
+improvement is claimed. Blocked live-model evaluation tasks retain their owners.
+
+This is follow-up verification for
+[local approval binding](task-security-review-local-tool-approvals-bind-the-revi.md),
+[Gemini/Vercel guardrails](task-security-review-the-gemini-and-vercel-kota-hosted-.md),
+and [scaffold mode](task-add-scaffolded-weak-and-local-model-agent-mode.md).

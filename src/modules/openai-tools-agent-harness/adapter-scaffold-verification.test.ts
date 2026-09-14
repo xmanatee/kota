@@ -2,9 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runFileEdit } from "#modules/filesystem/file-edit.js";
 import {
-  executeToolMock,
   openaiToolsScaffoldAgentHarness,
   queueEnd,
   queueToolUse,
@@ -22,12 +20,6 @@ describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
         new_string: "module.exports = 2;",
       });
       queueEnd("done");
-      executeToolMock.mockImplementation(async (name, input, context) => {
-        if (name === "file_edit") {
-          return runFileEdit(input, { cwd: context?.cwd ?? scopeRoot });
-        }
-        throw new Error(`unexpected scaffold underlying tool call: ${name}`);
-      });
 
       const result = await openaiToolsScaffoldAgentHarness.run({
         prompt: "Edit math.js.",
@@ -51,28 +43,29 @@ describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
   });
 
   it("feeds failed verifier output back to the model before a bounded repair turn", async () => {
-    queueToolUse("scaffold_verify_bad", "scaffold_verify", {
-      command: "node test.js",
-    });
-    queueEnd("repairing");
-    executeToolMock.mockImplementation(async (name) => {
-      if (name === "shell") {
-        return { content: "AssertionError: expected 5", is_error: true };
-      }
-      if (name === "git") return { content: "diff -- math.js" };
-      throw new Error(`unexpected scaffold verify tool call: ${name}`);
-    });
+    const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-failed-"));
+    try {
+      writeFileSync(join(scopeRoot, "test.cjs"),
+        "throw new Error('AssertionError: expected 5');\n");
+      queueToolUse("scaffold_verify_bad", "scaffold_verify", {
+        command: "node test.cjs",
+      });
+      queueEnd("repairing");
 
-    await openaiToolsScaffoldAgentHarness.run({
-      prompt: "verify",
-      model: "ollama/qwen2.5-coder",
-      modelOutputTokenLimits: { "ollama/qwen2.5-coder": 2048 },
-      effort: "low",
-      maxTurns: 2,
-    });
+      await openaiToolsScaffoldAgentHarness.run({
+        prompt: "verify",
+        model: "ollama/qwen2.5-coder",
+        modelOutputTokenLimits: { "ollama/qwen2.5-coder": 2048 },
+        effort: "low",
+        cwd: scopeRoot,
+        maxTurns: 2,
+      });
 
-    const secondTurnMessages = JSON.stringify(streamCallSnapshots[1]?.messages);
-    expect(secondTurnMessages).toContain("AssertionError: expected 5");
-    expect(secondTurnMessages).toContain("scaffold_verify.1 error");
+      const secondTurnMessages = JSON.stringify(streamCallSnapshots[1]?.messages);
+      expect(secondTurnMessages).toContain("AssertionError: expected 5");
+      expect(secondTurnMessages).toContain("scaffold_verify.1 error");
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
   });
 });

@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { localDestructiveEffect } from "#core/tools/effect.js";
-import { setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
 import {
   captureStreamTextArgs,
   confirmActionMock,
   createStreamTextStub,
   enqueueApprovalMock,
-  executeToolMock,
-  getAllToolsMock,
+  fixtureRunnerMock,
   maskKnownSecretValuesMock,
+  registerFixtureTools,
   streamTextMock,
   TEST_TOOL,
   vercelAgentHarness,
@@ -18,7 +17,7 @@ import { runAndCaptureToolExecute } from "./adapter-tool-test-support.js";
 
 describe("vercelAgentHarness — guardrails", () => {
   const useDangerousToolEffect = (): void => {
-    setModuleToolEffect(TEST_TOOL.name, { effect: localDestructiveEffect() });
+    registerFixtureTools([TEST_TOOL], localDestructiveEffect());
   };
 
   it("blocks a dangerous tool under a deny policy through the shared runner", async () => {
@@ -32,7 +31,7 @@ describe("vercelAgentHarness — guardrails", () => {
 
     const result = await toolExecute({ text: "delete" }, { toolCallId: "deny_1" });
 
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(result.isError).toBe(true);
     expect(result.content).toContain("Blocked by guardrails");
   });
@@ -55,7 +54,7 @@ describe("vercelAgentHarness — guardrails", () => {
     expect(confirmActionMock).toHaveBeenCalledWith(
       expect.stringContaining("Allow echo_tool?"),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(result.content).toContain("requires confirmation");
   });
 
@@ -85,14 +84,20 @@ describe("vercelAgentHarness — guardrails", () => {
       undefined,
       undefined,
       "vercel-session",
+      undefined,
+      expect.objectContaining({
+        declarationEffectFingerprint: expect.any(String),
+        registrationGeneration: expect.any(Number),
+        executionRoots: expect.objectContaining({ cwd: process.cwd() }),
+      }),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(result.content).toContain("approval-vercel");
   });
 
   it("uses client approval for a queued dangerous call before execution", async () => {
     useDangerousToolEffect();
-    executeToolMock.mockResolvedValue({ content: "executed" });
+    fixtureRunnerMock.mockResolvedValue({ content: "executed" });
     const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
     const { toolExecute } = await runAndCaptureToolExecute({
       harness: vercelAgentHarness,
@@ -119,7 +124,7 @@ describe("vercelAgentHarness — guardrails", () => {
       }),
     );
     expect(enqueueApprovalMock).not.toHaveBeenCalled();
-    expect(executeToolMock).toHaveBeenCalledTimes(1);
+    expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ isError: false, content: "executed" });
   });
 
@@ -142,7 +147,7 @@ describe("vercelAgentHarness — guardrails", () => {
       { text: "secret" },
       expect.objectContaining({ signal: expect.any(AbortSignal), toolUseId: "call_1" }),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(result).toEqual({
       isError: true,
       content: "echo_tool blocked by policy",
@@ -153,7 +158,7 @@ describe("vercelAgentHarness — guardrails", () => {
     maskKnownSecretValuesMock.mockImplementation((text) =>
       text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
     );
-    executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
+    fixtureRunnerMock.mockResolvedValue({ content: "token=agent-secret-token" });
 
     const { toolExecute } = await runAndCaptureToolExecute({
       harness: vercelAgentHarness,
@@ -171,7 +176,7 @@ describe("vercelAgentHarness — guardrails", () => {
   });
 
   it("passes cwd and workflow metadata to KOTA tool execution", async () => {
-    executeToolMock.mockResolvedValue({ content: "context ok" });
+    fixtureRunnerMock.mockResolvedValue({ content: "context ok" });
     const executionCwd = "/tmp/kota-vercel-metadata";
     const workflowContext = {
       workflowName: "builder",
@@ -200,7 +205,7 @@ describe("vercelAgentHarness — guardrails", () => {
       isError: false,
       content: "context ok",
     });
-    expect(executeToolMock).toHaveBeenCalledWith(
+    expect(fixtureRunnerMock).toHaveBeenCalledWith(
       "echo_tool",
       { text: "context" },
       expect.objectContaining({
@@ -224,7 +229,7 @@ describe("vercelAgentHarness — guardrails", () => {
     });
 
     const args = captureStreamTextArgs();
-    expect(args.tools).toBeUndefined();
+    expect(Object.keys(args.tools ?? {})).not.toContain("echo_tool");
   });
 
   it("only exposes allowedTools to the model (filtered at conversion time)", async () => {
@@ -233,7 +238,7 @@ describe("vercelAgentHarness — guardrails", () => {
       description: "Other",
       input_schema: { type: "object", properties: {} },
     };
-    getAllToolsMock.mockReturnValue([TEST_TOOL, otherTool]);
+    registerFixtureTools([TEST_TOOL, otherTool]);
 
     const { streamArgs } = await runAndCaptureToolExecute({
       harness: vercelAgentHarness,

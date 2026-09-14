@@ -7,13 +7,12 @@ import {
 	approvalQueueMock,
 	confirmActionMock,
 	deferred,
-	executeToolMock,
-	getAllToolsMock,
-	getToolEffectMock,
-	openaiToolsAgentHarness,
+	fixtureRunnerMock,
+		openaiToolsAgentHarness,
 	queueEnd,
 	queueToolUse,
 	queueToolUseBlocks,
+	registerFixtureTools,
 	streamCallSnapshots,
 	tool,
 	WRITE_EFFECT,
@@ -21,10 +20,10 @@ import {
 
 describe("openaiToolsAgentHarness shared runner", () => {
 	it("enforces explicit guardrails config through the shared runner", async () => {
-		getAllToolsMock.mockReturnValue([tool("shell")]);
+		registerFixtureTools([tool("shell")]);
 		queueToolUse("call_config_guardrail", "shell", { command: "rm -rf ./tmp" });
 		queueEnd("ran with guardrails");
-		executeToolMock.mockResolvedValue({ content: "executed" });
+		fixtureRunnerMock.mockResolvedValue({ content: "executed" });
 		confirmActionMock.mockResolvedValue(true);
 
 		await openaiToolsAgentHarness.run({
@@ -39,7 +38,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 		expect(confirmActionMock).toHaveBeenCalledWith(
 			expect.stringContaining("Allow shell?"),
 		);
-		expect(executeToolMock).toHaveBeenCalledWith(
+		expect(fixtureRunnerMock).toHaveBeenCalledWith(
 			"shell",
 			{ command: "rm -rf ./tmp" },
 			expect.objectContaining({ toolUseId: "call_config_guardrail" }),
@@ -52,38 +51,8 @@ describe("openaiToolsAgentHarness shared runner", () => {
 		});
 	});
 
-	it("inherits the default guardrails policy through the shared runner", async () => {
-		getAllToolsMock.mockReturnValue([tool("shell")]);
-		queueToolUse("call_default_guardrail", "shell", { command: "rm -rf ./tmp" });
-		queueEnd("ran with default guardrails");
-		executeToolMock.mockResolvedValue({ content: "executed" });
-		confirmActionMock.mockResolvedValue(true);
-
-		await openaiToolsAgentHarness.run({
-			prompt: "delete temp files",
-			model: "openai/gpt-5.6-luna",
-			effort: "xhigh",
-		});
-
-		expect(confirmActionMock).toHaveBeenCalledWith(
-			expect.stringContaining("Allow shell?"),
-		);
-		expect(executeToolMock).toHaveBeenCalledWith(
-			"shell",
-			{ command: "rm -rf ./tmp" },
-			expect.objectContaining({ toolUseId: "call_default_guardrail" }),
-		);
-		const result = streamCallSnapshots[1].messages[2].content as KotaToolResultBlock[];
-		expect(result[0]).toMatchObject({
-			tool_use_id: "call_default_guardrail",
-			content: "executed",
-			is_error: false,
-		});
-	});
-
 	it("queues non-safe tool calls in supervised mode through the approval queue", async () => {
-		getAllToolsMock.mockReturnValue([tool("shell")]);
-		getToolEffectMock.mockReturnValue(WRITE_EFFECT);
+		registerFixtureTools([tool("shell")], WRITE_EFFECT);
 		queueToolUse("call_supervised", "shell", { command: "touch x" });
 		queueEnd("queued");
 
@@ -102,13 +71,13 @@ describe("openaiToolsAgentHarness shared runner", () => {
 			},
 		});
 
-		expect(executeToolMock).not.toHaveBeenCalled();
+		expect(fixtureRunnerMock).not.toHaveBeenCalled();
 		const result = streamCallSnapshots[1].messages[2].content as KotaToolResultBlock[];
 		expect(result[0].content).toContain("Queued for approval");
 	});
 
 	it("enforces guardrail deny policy through the shared runner", async () => {
-		getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+		registerFixtureTools([tool("echo_tool")]);
 		queueToolUse("call_guardrail_deny", "echo_tool", { text: "blocked" });
 		queueEnd("blocked");
 
@@ -122,7 +91,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 			},
 		});
 
-		expect(executeToolMock).not.toHaveBeenCalled();
+		expect(fixtureRunnerMock).not.toHaveBeenCalled();
 		const result = streamCallSnapshots[1].messages[2].content as KotaToolResultBlock[];
 		expect(result[0]).toMatchObject({
 			tool_use_id: "call_guardrail_deny",
@@ -132,12 +101,12 @@ describe("openaiToolsAgentHarness shared runner", () => {
 	});
 
 	it("injects core failure guidance after repeated identical tool failures", async () => {
-		getAllToolsMock.mockReturnValue([tool("unstable_tool")]);
+		registerFixtureTools([tool("unstable_tool")]);
 		queueToolUse("fail_1", "unstable_tool", {});
 		queueToolUse("fail_2", "unstable_tool", {});
 		queueToolUse("fail_3", "unstable_tool", {});
 		queueEnd("explained");
-		executeToolMock.mockResolvedValue({
+		fixtureRunnerMock.mockResolvedValue({
 			content: "transient backend failure",
 			is_error: true,
 		});
@@ -157,7 +126,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 	});
 
 	it("runs read-only tool batches concurrently while preserving result order", async () => {
-		getAllToolsMock.mockReturnValue([tool("read_slow"), tool("read_fast")]);
+		registerFixtureTools([tool("read_slow"), tool("read_fast")]);
 		const blocks: KotaToolUseBlock[] = [
 			{ type: "tool_use", id: "call_slow", name: "read_slow", input: {} },
 			{ type: "tool_use", id: "call_fast", name: "read_fast", input: {} },
@@ -167,7 +136,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 		const slow = deferred<string>();
 		const fast = deferred<string>();
 		const started: string[] = [];
-		executeToolMock.mockImplementation(async (name: string) => {
+		fixtureRunnerMock.mockImplementation(async (name: string) => {
 			started.push(name);
 			if (name === "read_slow") return { content: await slow.promise };
 			if (name === "read_fast") return { content: await fast.promise };

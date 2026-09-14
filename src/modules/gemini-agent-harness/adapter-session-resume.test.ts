@@ -7,14 +7,14 @@ import { runAgentHarness } from "#core/agent-harness/runner.js";
 import { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { geminiAgentHarness } from "./adapter.js";
-import { captureLastCallArgs, executeToolMock, generateContentStreamMock, makeStreamFromChunks } from "./adapter-test-support.js";
+import { captureLastCallArgs, fixtureRunnerMock, generateContentStreamMock, makeStreamFromChunks } from "./adapter-test-support.js";
 
 it("reconstructs Gemini parts and thought signatures after a provider interruption without replaying completed tools", async () => {
   const root = mkdtempSync(join(tmpdir(), "kota-gemini-resume-"));
   try {
     const options = { scopeRoot: root, cwd: root, continuityKey: "workflow:gemini", model: "gemini-2.5-flash", effort: "high" as const, prompt: "remember blue" };
     generateContentStreamMock.mockResolvedValueOnce(makeStreamFromChunks([{ candidates: [{ content: { role: "model", parts: [{ functionCall: { id: "call-1", name: "echo_tool", args: { text: "blue" } }, thoughtSignature: "provider-signature" }] } }] }]));
-    executeToolMock.mockResolvedValue({ content: "blue", isError: false });
+    fixtureRunnerMock.mockResolvedValue({ content: "blue", is_error: false });
     generateContentStreamMock.mockRejectedValueOnce(new Error("provider unavailable"));
     await expect(runAgentHarness(geminiAgentHarness, options)).rejects.toThrow("provider unavailable");
     generateContentStreamMock.mockResolvedValueOnce(makeStreamFromChunks([{ candidates: [{ content: { role: "model", parts: [{ text: "blue remembered" }] } }] }]));
@@ -25,7 +25,7 @@ it("reconstructs Gemini parts and thought signatures after a provider interrupti
     expect(JSON.stringify(captureLastCallArgs().contents)).toContain("functionResponse");
     expect(captureLastCallArgs().config.systemInstruction).toBe("current instructions");
     expect(JSON.stringify(captureLastCallArgs().contents)).toContain('"output":"blue"');
-    expect(executeToolMock).toHaveBeenCalledTimes(1);
+    expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
     const path = join(root, ".kota/openai-tools-agent-harness/sessions", `${resumed.sessionId}.json`);
     const corrupt = { ...JSON.parse(readFileSync(path, "utf8")), adapterState: [{ parts: "invalid" }] };
     writeFileSync(path, JSON.stringify(corrupt));
@@ -51,7 +51,7 @@ it.each([false, true])("preserves the owned identity across both budget gates (t
     }]));
     const exhausted = await runAgentHarness(geminiAgentHarness, { ...options, tokenBudget });
     expect(exhausted).toMatchObject({ isError: true, subtype: "token_budget_exhausted", turns: 1, sessionId: expect.stringMatching(/^ots_/) });
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     const beforeTurn = await geminiAgentHarness.run({ ...options, persistSession: true, resumeSessionId: exhausted.sessionId, tokenBudget, prompt: "Wait for budget" });
     expect(beforeTurn).toMatchObject({ isError: true, subtype: "token_budget_exhausted", turns: 0, sessionId: exhausted.sessionId });
     expect(generateContentStreamMock).toHaveBeenCalledTimes(1);
@@ -59,6 +59,6 @@ it.each([false, true])("preserves the owned identity across both budget gates (t
     const resumed = await runAgentHarness(geminiAgentHarness, { ...options, prompt: "Recall" });
     expect(resumed).toMatchObject({ isError: false, sessionId: exhausted.sessionId });
     expect(JSON.stringify(captureLastCallArgs().contents)).toContain("Remember budget amber");
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

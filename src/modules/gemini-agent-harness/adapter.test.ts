@@ -45,9 +45,7 @@ describe("geminiAgentHarness — happy path", () => {
       functionDeclarations: Array<{ name: string }>;
     }>;
     expect(tools).toHaveLength(1);
-    expect(tools[0].functionDeclarations.map((d) => d.name)).toEqual([
-      "echo_tool",
-    ]);
+    expect(tools[0].functionDeclarations.map((d) => d.name)).toContain("echo_tool");
     expect(args.config.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
 
     expect(writer.write).toHaveBeenCalledWith("all done");

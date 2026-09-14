@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { geminiAgentHarness } from "./adapter.js";
 import {
   captureLastCallArgs,
-  executeToolMock,
+  fixtureRunnerMock,
   generateContentStreamMock,
   makeStreamFromChunks,
 } from "./adapter-test-support.js";
@@ -130,7 +130,7 @@ describe("geminiAgentHarness — max turns cap", () => {
         ]),
       ),
     );
-    executeToolMock.mockResolvedValue({ content: "ok" });
+    fixtureRunnerMock.mockResolvedValue({ content: "ok" });
 
     const result = await geminiAgentHarness.run({
       prompt: "loop forever",

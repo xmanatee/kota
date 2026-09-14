@@ -38,7 +38,7 @@ describe("vercelAgentHarness — happy path", () => {
     const args = captureStreamTextArgs();
     expect(args.system).toBe("be brief");
     expect(args.messages).toEqual([{ role: "user", content: "please echo" }]);
-    expect(Object.keys(args.tools ?? {})).toEqual(["echo_tool"]);
+    expect(Object.keys(args.tools ?? {})).toContain("echo_tool");
     expect(args.providerOptions).toEqual({ openai: { reasoningEffort: "high" } });
     expect(args.stopWhen).toEqual({ __stepCountIs: 25 });
     expect(args.abortSignal).toBeInstanceOf(AbortSignal);

@@ -4,11 +4,11 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { geminiAgentHarness } from "./adapter.js";
 import {
   captureLastCallArgs,
-  executeToolMock,
+  fixtureRunnerMock,
   type GenerateContentArgs,
   generateContentStreamMock,
-  getAllToolsMock,
   makeStreamFromChunks,
+  registerFixtureTools,
   TEST_TOOL,
 } from "./adapter-test-support.js";
 
@@ -69,7 +69,7 @@ describe("geminiAgentHarness — guardrails", () => {
         toolUseId: "call_d",
       }),
     );
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
 
     const secondCall = generateContentStreamMock.mock.calls[1][0] as GenerateContentArgs;
     const turns = secondCall.contents as Array<{
@@ -86,7 +86,12 @@ describe("geminiAgentHarness — guardrails", () => {
     expect(result.text).toBe("ok then");
   });
 
-  it("filters disallowedTools out of the function declarations the model sees", async () => {
+  it("hides disallowedTools and rejects a provider call to a hidden registered tool", async () => {
+    generateContentStreamMock.mockResolvedValueOnce(makeStreamFromChunks([{
+      candidates: [{ content: { role: "model", parts: [{ functionCall: {
+        id: "hidden_call", name: "echo_tool", args: { text: "hidden" },
+      } }] } }],
+    }]));
     generateContentStreamMock.mockResolvedValue(
       makeStreamFromChunks([
         {
@@ -108,7 +113,12 @@ describe("geminiAgentHarness — guardrails", () => {
     });
 
     const args = captureLastCallArgs();
-    expect(args.config.tools).toBeUndefined();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(args.contents)).toContain("disallowedTools");
+    const declarations = args.config.tools?.flatMap((entry) =>
+      typeof entry === "object" && "functionDeclarations" in entry
+        ? entry.functionDeclarations ?? [] : []);
+    expect(declarations?.map((entry) => entry.name)).not.toContain("echo_tool");
   });
 
   it("only exposes allowedTools to the model", async () => {
@@ -117,7 +127,7 @@ describe("geminiAgentHarness — guardrails", () => {
       description: "Other",
       input_schema: { type: "object", properties: {} },
     };
-    getAllToolsMock.mockReturnValue([TEST_TOOL, otherTool]);
+    registerFixtureTools([TEST_TOOL, otherTool]);
 
     generateContentStreamMock.mockResolvedValue(
       makeStreamFromChunks([

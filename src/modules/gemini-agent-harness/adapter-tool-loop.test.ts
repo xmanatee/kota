@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { geminiAgentHarness } from "./adapter.js";
 import {
-  executeToolMock,
+  fixtureRunnerMock,
   type GenerateContentArgs,
   generateContentStreamMock,
   makeStreamFromChunks,
@@ -48,7 +48,7 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
         ]),
       );
 
-    executeToolMock.mockResolvedValue({ content: "echoed: ping" });
+    fixtureRunnerMock.mockResolvedValue({ content: "echoed: ping" });
 
     const result = await geminiAgentHarness.run({
       prompt: "use the tool then say pong",
@@ -56,7 +56,7 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
       effort: "xhigh",
     });
 
-    expect(executeToolMock).toHaveBeenCalledWith(
+    expect(fixtureRunnerMock).toHaveBeenCalledWith(
       "echo_tool",
       { text: "ping" },
       {
@@ -129,7 +129,7 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
         ]),
       );
 
-    executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
+    fixtureRunnerMock.mockResolvedValue({ content: "token=agent-secret-token" });
 
     await geminiAgentHarness.run({
       prompt: "read token",

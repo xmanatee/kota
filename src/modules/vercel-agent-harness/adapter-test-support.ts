@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import type {
   AgentHarness,
-  AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { resolvePreset, resolveTierModel } from "#core/model/preset.js";
-import { deleteModuleToolEffect, resolveRegisteredToolEffect } from "#core/tools/tool-effect-registry.js";
+import { readOnlyLocalEffect, type ToolEffect } from "#core/tools/effect.js";
+import { registerTool, type ToolRunner } from "#core/tools/index.js";
 
 type ToolValue =
   | string
@@ -43,20 +43,6 @@ export type StreamTextStub = {
   totalUsage: Promise<{ inputTokens: number; outputTokens: number }>;
   steps: Promise<Array<{ response: { id: string } }>>;
   finishReason: Promise<string>;
-};
-
-type ExecuteToolResult = {
-  content: ToolValue;
-  isError?: boolean;
-};
-
-type ExecuteToolContext = {
-  sessionId?: string;
-  toolUseId?: string;
-  cwd?: string;
-  workflow?: AgentHarnessRunOptions["workflowContext"];
-  scopeId?: string;
-  signal?: AbortSignal;
 };
 
 type StepCountMarker = {
@@ -103,18 +89,7 @@ const dynamicToolMock = vi.hoisted(() =>
 const createOpenAIMock = vi.hoisted(() =>
   vi.fn<(_options?: CreateOpenAIOptions) => (modelId: string) => LanguageModel>(),
 );
-const executeToolMock = vi.hoisted(() =>
-  vi.fn<
-    (
-      name: string,
-      input: ToolInput,
-      context: ExecuteToolContext,
-    ) => Promise<ExecuteToolResult>
-  >(),
-);
-const getAllToolsMock = vi.hoisted(() =>
-  vi.fn<() => readonly KotaTool[]>(),
-);
+const fixtureRunnerMock = vi.hoisted(() => vi.fn<(name: string, input: Parameters<ToolRunner>[0], context?: Parameters<ToolRunner>[1]) => ReturnType<ToolRunner>>());
 const maskKnownSecretValuesMock = vi.hoisted(() =>
   vi.fn<(text: string) => string>(),
 );
@@ -134,8 +109,7 @@ export {
   createOpenAIMock,
   dynamicToolMock,
   enqueueApprovalMock,
-  executeToolMock,
-  getAllToolsMock,
+  fixtureRunnerMock,
   jsonSchemaMock,
   maskKnownSecretValuesMock,
   stepCountIsMock,
@@ -151,17 +125,6 @@ vi.mock("ai", () => ({
 
 vi.mock("@ai-sdk/openai", () => ({
   createOpenAI: (options?: CreateOpenAIOptions) => createOpenAIMock(options),
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: (
-    name: string,
-    input: ToolInput,
-    context: ExecuteToolContext,
-  ) => executeToolMock(name, input, context),
-  getAllTools: () => getAllToolsMock(),
-  getToolEffect: (name: string, input?: ToolInput) =>
-    resolveRegisteredToolEffect(name, input),
 }));
 
 vi.mock("#core/util/confirm.js", () => ({
@@ -201,13 +164,11 @@ beforeEach(async () => {
     __languageModel: true,
     modelId,
   }));
-  executeToolMock.mockReset();
-  getAllToolsMock.mockReset();
-  deleteModuleToolEffect(TEST_TOOL.name);
+  fixtureRunnerMock.mockReset();
+  registerFixtureTools([TEST_TOOL], readOnlyLocalEffect());
   maskKnownSecretValuesMock.mockReset();
   confirmActionMock.mockReset();
   enqueueApprovalMock.mockReset();
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
   maskKnownSecretValuesMock.mockImplementation((text) => text);
   confirmActionMock.mockResolvedValue(true);
   enqueueApprovalMock.mockReturnValue({
@@ -228,7 +189,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  deleteModuleToolEffect(TEST_TOOL.name);
+  disposeFixtureTools();
   vi.clearAllMocks();
 });
 
@@ -255,4 +216,23 @@ export function captureStreamTextArgs(): StreamTextArgs {
   const call = streamTextMock.mock.calls.at(-1);
   if (!call) throw new Error("streamText was not called");
   return call[0];
+}
+
+const toolDisposers: Array<() => void> = [];
+function disposeFixtureTools(): void {
+  for (const dispose of toolDisposers.splice(0)) dispose();
+}
+export function registerFixtureTools(
+  declarations: readonly KotaTool[],
+  effect: ToolEffect = readOnlyLocalEffect(),
+): void {
+  disposeFixtureTools();
+  for (const declaration of declarations) {
+    toolDisposers.push(registerTool(
+      declaration,
+      (input, context) => fixtureRunnerMock(declaration.name, input, context),
+      undefined,
+      { effect },
+    ));
+  }
 }
