@@ -1,9 +1,8 @@
-import type { Server } from "node:http";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { A2A_PROTOCOL_VERSION, A2A_RPC_PATH, A2A_SUPPORTED_PROTOCOL_VERSIONS } from "./protocol.js";
 import { a2aRoutes } from "./routes.js";
 import {
-  closeServer,
+  createRouteClient,
   errorMetadata,
   errorReason,
   FakeBackend,
@@ -11,24 +10,15 @@ import {
   parseSseJsonRpcResponses,
   postRpc,
   sendMessageParams,
-  startRouteServer,
 } from "./routes-test-support.js";
 
 describe("a2a channel JSON-RPC route errors", () => {
-  const servers: Server[] = [];
-
-  afterEach(async () => {
-    await Promise.all(servers.map(closeServer));
-    servers.length = 0;
-  });
-
   it("rejects unsupported, missing, and empty A2A versions before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory,
     }));
-    servers.push(server.server);
 
     for (const entry of [
       {
@@ -48,7 +38,7 @@ describe("a2a channel JSON-RPC route errors", () => {
       },
     ]) {
       const response = await postRpc(
-        server.baseUrl,
+        server,
         {
           jsonrpc: "2.0",
           id: entry.id,
@@ -70,51 +60,13 @@ describe("a2a channel JSON-RPC route errors", () => {
     expect(backend.sentInputs).toHaveLength(0);
   });
 
-  it("rejects mismatched tenant and scopeId routing before daemon work starts", async () => {
-    const backend = new FakeBackend();
-    const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
-      backendFactory,
-    }));
-    servers.push(server.server);
-
-    const send = await postRpc(server.baseUrl, {
-      jsonrpc: "2.0",
-      id: "tenant-mismatch-send",
-      method: "SendMessage",
-      params: {
-        tenant: "proj-1",
-        message: {
-          role: "ROLE_USER",
-          parts: [{ text: "ship the slice", mediaType: "text/plain" }],
-          metadata: { scopeId: "proj-2" },
-        },
-      },
-    });
-    expect(send.error.code).toBe(-32602);
-    expect(errorReason(send)).toBe("ROUTING_SCOPE_MISMATCH");
-    expect(errorMetadata(send)).toEqual({ tenant: "proj-1", scopeId: "proj-2" });
-
-    const list = await postRpc(server.baseUrl, {
-      jsonrpc: "2.0",
-      id: "tenant-mismatch-list",
-      method: "ListTasks",
-      params: { tenant: "proj-1", scopeId: "proj-2" },
-    });
-    expect(errorReason(list)).toBe("ROUTING_SCOPE_MISMATCH");
-
-    expect(backendFactory).not.toHaveBeenCalled();
-    expect(backend.sentInputs).toHaveLength(0);
-  });
-
   it("returns typed JSON-RPC errors for unsupported methods, bad parts, unknown tasks, terminal subscriptions, and unauthorized access", async () => {
     const backend = new FakeBackend();
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory: () => backend,
     }));
-    servers.push(server.server);
 
-    const unsupported = await postRpc(server.baseUrl, {
+    const unsupported = await postRpc(server, {
       jsonrpc: "2.0",
       id: 1,
       method: "NotA2A",
@@ -123,7 +75,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     expect(errorReason(unsupported)).toBe("METHOD_NOT_FOUND");
     expect(backend.sentInputs).toHaveLength(0);
 
-    const badPart = await postRpc(server.baseUrl, {
+    const badPart = await postRpc(server, {
       jsonrpc: "2.0",
       id: 2,
       method: "SendMessage",
@@ -136,7 +88,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     });
     expect(errorReason(badPart)).toBe("CONTENT_TYPE_NOT_SUPPORTED");
 
-    const unknown = await postRpc(server.baseUrl, {
+    const unknown = await postRpc(server, {
       jsonrpc: "2.0",
       id: 3,
       method: "GetTask",
@@ -144,7 +96,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     });
     expect(errorReason(unknown)).toBe("TASK_NOT_FOUND");
 
-    const terminal = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
+    const terminal = await server.request(`${A2A_RPC_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
       body: JSON.stringify({
@@ -159,7 +111,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     expect(backend.subscribeSelectors[0]).toEqual({ taskId: "task-1", scopeId: "proj-1", contextId: null });
 
     backend.failUnauthorized = true;
-    const denied = await postRpc(server.baseUrl, {
+    const denied = await postRpc(server, {
       jsonrpc: "2.0",
       id: 5,
       method: "ListTasks",
@@ -171,12 +123,11 @@ describe("a2a channel JSON-RPC route errors", () => {
   it("returns typed JSON-RPC UNAUTHORIZED when host auth rejects the protected RPC route", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory,
     }), { authToken: "secret-token" });
-    servers.push(server.server);
 
-    const denied = await postRpc(server.baseUrl, {
+    const denied = await postRpc(server, {
       jsonrpc: "2.0",
       id: "unauthorized-rpc",
       method: "SendMessage",
@@ -192,17 +143,16 @@ describe("a2a channel JSON-RPC route errors", () => {
   it("rejects unsupported send configuration before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory,
     }));
-    servers.push(server.server);
 
     for (const configuration of [
       { taskPushNotificationConfig: { pushNotificationConfig: { url: "https://example.test/a2a" } } },
       { returnImmediately: true },
       { acceptedOutputModes: ["application/json"] },
     ]) {
-      const res = await postRpc(server.baseUrl, {
+      const res = await postRpc(server, {
         jsonrpc: "2.0",
         id: "send-config",
         method: "SendMessage",
@@ -213,7 +163,7 @@ describe("a2a channel JSON-RPC route errors", () => {
       expect(backend.sentInputs).toHaveLength(0);
     }
 
-    const unsupportedTextMedia = await postRpc(server.baseUrl, {
+    const unsupportedTextMedia = await postRpc(server, {
       jsonrpc: "2.0",
       id: "send-media-type",
       method: "SendMessage",
@@ -233,7 +183,7 @@ describe("a2a channel JSON-RPC route errors", () => {
       { returnImmediately: true },
       { acceptedOutputModes: ["application/json"] },
     ]) {
-      const streaming = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {
+      const streaming = await server.request(`${A2A_RPC_PATH}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "A2A-Version": A2A_PROTOCOL_VERSION },
         body: JSON.stringify({

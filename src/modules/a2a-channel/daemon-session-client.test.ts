@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { DaemonA2ABackend } from "./daemon-session-client.js";
+import { decodeSendMessageParams, decodeTaskListFilter, decodeTaskSelector } from "./protocol.js";
 import { NOW } from "./routes-test-support.js";
 
 describe("DaemonA2ABackend", () => {
@@ -10,11 +11,15 @@ describe("DaemonA2ABackend", () => {
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
     const task = await backend.sendMessage(
-      { taskId: null, contextId: null, scopeId: "proj-1", text: "hello" },
+      decodeSendMessageParams({
+        tenant: "proj-1",
+        message: { role: "ROLE_USER", contextId: "client-context", metadata: { scopeId: "proj-1" }, parts: [{ text: "hello" }] },
+      }),
       { onUpdate: (update) => updates.push(update) },
     );
 
     expect(task.id).toBe("sess-1");
+    expect(task.contextId).toBe("client-context");
     expect(task.artifacts[0]?.parts[0]?.text).toBe("final answer");
     expect(updates.some((update) => typeof update === "object" && update !== null && "artifactUpdate" in update)).toBe(true);
     expect(JSON.stringify(updates)).not.toContain("private reasoning");
@@ -30,12 +35,9 @@ describe("DaemonA2ABackend", () => {
     const transport = makeDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
-    const task = await backend.sendMessage({
-      taskId: null,
-      contextId: "client-context",
-      scopeId: null,
-      text: "hello",
-    });
+    const task = await backend.sendMessage(decodeSendMessageParams({
+      message: { role: "ROLE_USER", contextId: "client-context", parts: [{ text: "hello" }] },
+    }));
 
     expect(task.id).toBe("sess-unscoped");
     expect(task.contextId).toBe("client-context");
@@ -65,11 +67,11 @@ describe("DaemonA2ABackend", () => {
     const transport = makeScopedDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
-    const listed = await backend.listTasks({ scopeId: null, contextId: "proj-2" });
+    const listed = await backend.listTasks(decodeTaskListFilter({ contextId: "proj-2" }));
     expect(listed).toEqual([]);
 
     await expect(
-      backend.getTask({ taskId: "task-2", scopeId: null, contextId: "proj-2" }),
+      backend.getTask(decodeTaskSelector({ id: "task-2", contextId: "proj-2" })),
     ).rejects.toMatchObject({ message: "A2A task not found: task-2" });
 
     const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
@@ -81,11 +83,11 @@ describe("DaemonA2ABackend", () => {
     const transport = makeScopedDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
-    const listed = await backend.listTasks({ scopeId: "proj-2", contextId: null });
+    const listed = await backend.listTasks(decodeTaskListFilter({ metadata: { tenant: "proj-2", scopeId: "proj-2" } }));
     expect(listed.map((task) => task.id)).toEqual(["task-2"]);
     expect(listed[0]?.contextId).toBe("proj-2");
 
-    const found = await backend.getTask({ taskId: "task-2", scopeId: "proj-2", contextId: null });
+    const found = await backend.getTask(decodeTaskSelector({ id: "task-2", tenant: "proj-2" }));
     expect(found.id).toBe("task-2");
     expect(found.contextId).toBe("proj-2");
 

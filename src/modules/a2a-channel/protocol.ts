@@ -110,7 +110,7 @@ export type JsonRpcResponse =
 
 type RoutingScopeInput = {
   params: JsonObject;
-  message?: JsonObject;
+  envelope?: JsonObject;
 };
 
 export type SendMessageInput = {
@@ -230,7 +230,7 @@ export function decodeSendMessageParams(params: JsonObject): SendMessageInput {
   const contextId =
     stringField(params, "contextId") ??
     stringField(message, "contextId");
-  const scopeId = decodeRoutingScopeId({ params, message });
+  const scopeId = decodeRoutingScopeId({ params, envelope: message });
   return {
     taskId,
     contextId,
@@ -395,7 +395,7 @@ function assertAcceptedOutputModes(configuration: JsonObject | null): void {
   }
 }
 
-function optionalObjectField(obj: JsonObject, key: string): JsonObject | null {
+export function optionalObjectField(obj: JsonObject, key: string): JsonObject | null {
   const value = obj[key];
   if (value === undefined) return null;
   if (!isJsonObject(value)) {
@@ -408,12 +408,12 @@ function hasField(obj: JsonObject, key: string): boolean {
   return obj[key] !== undefined;
 }
 
-function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
+export function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
   const scopes = [
     input.params,
     objectField(input.params, "metadata"),
-    input.message ?? null,
-    input.message ? objectField(input.message, "metadata") : null,
+    input.envelope ?? null,
+    input.envelope ? objectField(input.envelope, "metadata") : null,
   ].filter((obj): obj is JsonObject => obj !== null);
   const tenant = firstMatchingScopeValue(scopes, "tenant");
   const scopeId = firstMatchingScopeValue(scopes, "scopeId");
@@ -426,8 +426,11 @@ function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
 function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "scopeId"): string | null {
   let selected: string | null = null;
   for (const scope of scopes) {
-    const value = stringField(scope, key);
-    if (value === null) continue;
+    const value = scope[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || value.length === 0) {
+      throw invalidParams(`${key} must be a non-empty string`);
+    }
     if (selected !== null && selected !== value) {
       throw invalidParams(`${key} must use one consistent value`);
     }

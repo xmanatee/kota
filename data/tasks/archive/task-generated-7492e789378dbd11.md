@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Reject malformed A2A routing selectors through one module-owned decoder
 
@@ -74,3 +73,54 @@ Exercise public JSON-RPC and SSE routes to show malformed supplied tenant/scopeI
 Show that every maintained A2A operation uses one routing decoder and the replaced routing implementations are removed. Keep shared routing behavior at one owning test layer while retaining distinct consumer propagation and security checks. Compare resulting callers and ownership directly; deletion counts do not establish improvement.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Implemented in builder run `2026-09-14T03-11-27-059Z-builder-guqbt4`.
+
+- `protocol.ts` now owns routing collection, supplied-selector validation and
+  both alias/repeated-value conflict checks. Only an undefined field is absent;
+  non-string and empty supplied values produce invalid-params errors. Valid
+  strings are returned unchanged. The permissive general `stringField` is unchanged.
+- SendMessage and SendStreamingMessage use `decodeSendMessageParams`; GetTask,
+  CancelTask and SubscribeToTask use `decodeTaskSelector`; ListTasks uses
+  `decodeTaskListFilter`. These three ordinary decoders call the shared routing
+  decoder. CreateTaskPushNotificationConfig, GetTaskPushNotificationConfig,
+  ListTaskPushNotificationConfigs and DeleteTaskPushNotificationConfig now reach
+  that same owner through their three push decoders. Push's duplicate routing
+  input type, collector and conflict implementation are removed. Its identical
+  optional-object helper is replaced by the protocol owner's helper.
+- Callers retain envelope selection, contextId, task/config identifiers and callback
+  validation. Routing's only variation is the optional selected envelope. Direct
+  comparison of these callers establishes one routing authority, with no core
+  framework or compatibility path; future maintenance savings are not measured.
+- Shared rejection coverage lives in `routes.routing.test.ts`: all ten operations,
+  both push envelopes and message envelopes, top-level and nested metadata,
+  malformed tenant/scopeId values, matching-value masking attempts, conflicting
+  aliases and repeated conflicting values. The replaced routing mismatch cases
+  in RPC errors, streaming and push validation were retired. Existing consumer,
+  credential, callback-host, persistence, unsubscribe and authorization checks remain.
+- The former HTTP timeout was reproduced as sandbox `listen EPERM` on loopback.
+  The A2A fixture now controls inbound bytes using Node IncomingMessage and
+  ServerResponse while retaining the production server handler and bearer gate.
+  It removes socket binding and duplicated push post/close helpers. No live daemon,
+  TCP delivery or broader security acceptance is claimed.
+- `pnpm test:owner src/modules/a2a-channel`: 10 files, 41 tests passed. Positive
+  push CRUD coverage includes absent routing and matching values across both
+  supported config envelopes. Daemon transport checks now consume production
+  decoders and verify scoped paths plus independent client contextId behavior.
+- `pnpm check:fast` passed (production/test types, lint, task validation, generated
+  client/UI binding checks, admission of 90 bundled modules). Final test-only
+  coverage additions passed test typechecking, and task validation passed after
+  this archive transition.
+- `artifacts/a2a-routing-transcript.mjs` and `.json` in this run retain five
+  executed public request/response probes through the production handler,
+  decoders and DaemonA2ABackend, with source hashes and command provenance.
+  Numeric tenant, nested null scopeId and nested empty push tenant produce
+  -32602 with no daemon calls. Absent routing reaches `/sessions`; matching
+  routing reaches `/sessions?scopeId=proj-1`; both preserve `client-context`.
+  Only inbound bytes and the daemon HTTP port are substituted.
+
+Follow-up source contracts:
+- [Tenant routing](task-map-a2a-tenant-routing-to-kota-project-scoping.md)
+- [Push support](task-add-a2a-push-notification-configuration-support.md)

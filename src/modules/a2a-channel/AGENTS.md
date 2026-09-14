@@ -6,7 +6,8 @@ This module owns KOTA's Agent2Agent HTTP surface.
   capability decisions inside this module.
 - Treat every A2A HTTP body, header-derived value, task id, message part, and
   context id as external input. Decode it once at the boundary before calling
-  daemon/session primitives.
+  daemon/session primitives. Routing selectors share the protocol-owned decoder;
+  message and push configuration callers select their own envelopes.
 - Route live work through the daemon `/sessions` control API. Do not read raw
   `.kota/` session files and do not add a parallel task queue, workflow
   engine, session store, agent registry, or MCP mirror.
@@ -21,6 +22,7 @@ This module owns KOTA's Agent2Agent HTTP surface.
   workflow run internals, memory internals, or raw `.kota/` files through A2A.
 
 Protocol fixtures replace the daemon backend and outbound callback ports. HTTP
-scenarios use the production server request handler for routing and authorization;
+scenarios use in-memory Node HTTP requests and the production server request
+handler for routing and authorization;
 never recreate the host's bearer-token gate in a channel fixture. A2A task frames
 are projections of daemon sessions, not a second task lifecycle.

@@ -1,10 +1,9 @@
 import { isObviouslyNonPublicOutboundHost } from "#core/outbound-http/index.js";
 import {
+  decodeRoutingScopeId,
   invalidParams,
-  isJsonObject,
   type JsonObject,
-  objectField,
-  routingScopeMismatch,
+  optionalObjectField,
 } from "./protocol.js";
 
 export type A2APushNotificationAuthentication = JsonObject & {
@@ -50,11 +49,6 @@ export type PushNotificationConfigListResponse = JsonObject & {
   nextPageToken: string;
 };
 
-type RoutingScopeInput = {
-  params: JsonObject;
-  message?: JsonObject;
-};
-
 export function decodeCreatePushNotificationConfigParams(
   params: JsonObject,
 ): PushNotificationConfigInput {
@@ -70,7 +64,7 @@ export function decodeCreatePushNotificationConfigParams(
   return {
     id: optionalStringField(config, "id") ?? optionalStringField(params, "id"),
     taskId,
-    scopeId: decodeRoutingScopeId({ params, message: config }),
+    scopeId: decodeRoutingScopeId({ params, envelope: config }),
     contextId: optionalStringField(config, "contextId") ?? optionalStringField(params, "contextId"),
     url,
     token,
@@ -192,15 +186,6 @@ function hasHeaderControlCharacters(value: string): boolean {
   return value.includes("\r") || value.includes("\n");
 }
 
-function optionalObjectField(obj: JsonObject, key: string): JsonObject | null {
-  const value = obj[key];
-  if (value === undefined) return null;
-  if (!isJsonObject(value)) {
-    throw invalidParams(`${key} must be an object`);
-  }
-  return value;
-}
-
 function optionalStringField(obj: JsonObject, key: string): string | null {
   const value = obj[key];
   if (value === undefined) return null;
@@ -208,32 +193,4 @@ function optionalStringField(obj: JsonObject, key: string): string | null {
     throw invalidParams(`${key} must be a non-empty string`);
   }
   return value;
-}
-
-function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
-  const scopes = [
-    input.params,
-    objectField(input.params, "metadata"),
-    input.message ?? null,
-    input.message ? objectField(input.message, "metadata") : null,
-  ].filter((obj): obj is JsonObject => obj !== null);
-  const tenant = firstMatchingScopeValue(scopes, "tenant");
-  const scopeId = firstMatchingScopeValue(scopes, "scopeId");
-  if (tenant !== null && scopeId !== null && tenant !== scopeId) {
-    throw routingScopeMismatch(tenant, scopeId);
-  }
-  return tenant ?? scopeId;
-}
-
-function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "scopeId"): string | null {
-  let selected: string | null = null;
-  for (const scope of scopes) {
-    const value = optionalStringField(scope, key);
-    if (value === null) continue;
-    if (selected !== null && selected !== value) {
-      throw invalidParams(`${key} must use one consistent value`);
-    }
-    selected = value;
-  }
-  return selected;
 }

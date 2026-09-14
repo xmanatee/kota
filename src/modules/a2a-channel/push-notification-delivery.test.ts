@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanupPushNotificationTestState,
+  createRouteClient,
   errorReason,
   FakeBackend,
   makeContext,
@@ -9,7 +10,6 @@ import {
   type PushNotificationTestState,
   postRpc,
   pushConfigParams,
-  startRouteServer,
 } from "./push-notification-test-helpers.js";
 import {
   a2aRoutes,
@@ -17,7 +17,7 @@ import {
 } from "./routes.js";
 
 describe("a2a push notification delivery", () => {
-  const state: PushNotificationTestState = { servers: [], tempDirs: [] };
+  const state: PushNotificationTestState = { tempDirs: [] };
 
   afterEach(async () => {
     await cleanupPushNotificationTestState(state);
@@ -27,13 +27,12 @@ describe("a2a push notification delivery", () => {
     const storage = makeStorage(state.tempDirs);
     const backend = new FakeBackend();
     const callbackFetch = vi.fn<typeof fetch>(async () => new Response("{}", { status: 202 }));
-    const server = await startRouteServer(a2aRoutes(makeContext(storage), {
+    const server = createRouteClient(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
       pushNotificationHttp: makePushNotificationHttp(callbackFetch),
     }));
-    state.servers.push(server.server);
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "create",
       method: "CreateTaskPushNotificationConfig",
@@ -71,13 +70,12 @@ describe("a2a push notification delivery", () => {
       address: "127.0.0.1",
       family: 4 as const,
     }]);
-    const server = await startRouteServer(a2aRoutes(ctx, {
+    const server = createRouteClient(a2aRoutes(ctx, {
       backendFactory: () => backend,
       pushNotificationHttp: makePushNotificationHttp(callbackFetch, callbackAddressResolver),
     }));
-    state.servers.push(server.server);
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "create",
       method: "CreateTaskPushNotificationConfig",
@@ -102,13 +100,12 @@ describe("a2a push notification delivery", () => {
   it("rehydrates persisted configs into task subscriptions after route restart", async () => {
     const storage = makeStorage(state.tempDirs);
     const initialBackend = new FakeBackend();
-    const first = await startRouteServer(a2aRoutes(makeContext(storage), {
+    const first = createRouteClient(a2aRoutes(makeContext(storage), {
       backendFactory: () => initialBackend,
       pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
-    state.servers.push(first.server);
 
-    await postRpc(first.baseUrl, {
+    await postRpc(first, {
       jsonrpc: "2.0",
       id: "create",
       method: "CreateTaskPushNotificationConfig",
@@ -151,13 +148,12 @@ describe("a2a push notification delivery", () => {
         status: 202,
       })
     );
-    const server = await startRouteServer(a2aRoutes(makeContext(storage), {
+    const server = createRouteClient(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
       pushNotificationHttp: makePushNotificationHttp(callbackFetch),
     }));
-    state.servers.push(server.server);
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "create",
       method: "CreateTaskPushNotificationConfig",
@@ -171,7 +167,7 @@ describe("a2a push notification delivery", () => {
       }),
     });
 
-    const sent = await postRpc(server.baseUrl, {
+    const sent = await postRpc(server, {
       jsonrpc: "2.0",
       id: "send",
       method: "SendMessage",
@@ -210,7 +206,7 @@ describe("a2a push notification delivery", () => {
     expect(JSON.stringify(deliveredBodies)).not.toContain("approvalAnswer");
     expect(backend.sentInputs).toHaveLength(1);
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "delete",
       method: "DeleteTaskPushNotificationConfig",
@@ -219,7 +215,7 @@ describe("a2a push notification delivery", () => {
     await vi.waitFor(() => expect(backend.subscriptions).toHaveLength(0));
     callbackFetch.mockClear();
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "send-after-delete",
       method: "SendMessage",
@@ -239,13 +235,12 @@ describe("a2a push notification delivery", () => {
   it("removes stored configs when the owning task can no longer be resolved", async () => {
     const storage = makeStorage(state.tempDirs);
     const backend = new FakeBackend();
-    const server = await startRouteServer(a2aRoutes(makeContext(storage), {
+    const server = createRouteClient(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
       pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
-    state.servers.push(server.server);
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: "create",
       method: "CreateTaskPushNotificationConfig",
@@ -253,7 +248,7 @@ describe("a2a push notification delivery", () => {
     });
 
     backend.missingTasks.add("task-1");
-    const missing = await postRpc(server.baseUrl, {
+    const missing = await postRpc(server, {
       jsonrpc: "2.0",
       id: "missing",
       method: "GetTaskPushNotificationConfig",
@@ -262,7 +257,7 @@ describe("a2a push notification delivery", () => {
     expect(errorReason(missing)).toBe("TASK_NOT_FOUND");
 
     backend.missingTasks.clear();
-    const listed = await postRpc(server.baseUrl, {
+    const listed = await postRpc(server, {
       jsonrpc: "2.0",
       id: "list",
       method: "ListTaskPushNotificationConfigs",

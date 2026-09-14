@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanupPushNotificationTestState,
-  errorReason,
+  createRouteClient,
   FakeBackend,
   makeContext,
   makePushNotificationHttp,
@@ -9,39 +9,25 @@ import {
   type PushNotificationTestState,
   postRpc,
   pushConfigParams,
-  startRouteServer,
 } from "./push-notification-test-helpers.js";
 import { a2aRoutes } from "./routes.js";
 
 describe("a2a push notification config validation", () => {
-  const state: PushNotificationTestState = { servers: [], tempDirs: [] };
+  const state: PushNotificationTestState = { tempDirs: [] };
 
   afterEach(async () => {
     await cleanupPushNotificationTestState(state);
   });
 
-  it("rejects malformed configs and routing mismatches before daemon work starts", async () => {
+  it("rejects malformed configs before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
+    const server = createRouteClient(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
       backendFactory,
       pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
-    state.servers.push(server.server);
 
-    const mismatch = await postRpc(server.baseUrl, {
-      jsonrpc: "2.0",
-      id: "mismatch",
-      method: "CreateTaskPushNotificationConfig",
-      params: pushConfigParams({
-        tenant: "proj-1",
-        scopeId: "proj-2",
-      }),
-    });
-    expect(errorReason(mismatch)).toBe("ROUTING_SCOPE_MISMATCH");
-    expect(backendFactory).not.toHaveBeenCalled();
-
-    const invalidUrl = await postRpc(server.baseUrl, {
+    const invalidUrl = await postRpc(server, {
       jsonrpc: "2.0",
       id: "bad-url",
       method: "CreateTaskPushNotificationConfig",
@@ -50,7 +36,7 @@ describe("a2a push notification config validation", () => {
     expect(invalidUrl.error.code).toBe(-32602);
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const headerInjection = await postRpc(server.baseUrl, {
+    const headerInjection = await postRpc(server, {
       jsonrpc: "2.0",
       id: "bad-auth",
       method: "CreateTaskPushNotificationConfig",
@@ -64,7 +50,7 @@ describe("a2a push notification config validation", () => {
     expect(headerInjection.error.code).toBe(-32602);
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const cleartextAuthentication = await postRpc(server.baseUrl, {
+    const cleartextAuthentication = await postRpc(server, {
       jsonrpc: "2.0",
       id: "cleartext-auth",
       method: "CreateTaskPushNotificationConfig",
@@ -83,7 +69,7 @@ describe("a2a push notification config validation", () => {
     );
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const cleartextToken = await postRpc(server.baseUrl, {
+    const cleartextToken = await postRpc(server, {
       jsonrpc: "2.0",
       id: "cleartext-token",
       method: "CreateTaskPushNotificationConfig",
@@ -99,7 +85,7 @@ describe("a2a push notification config validation", () => {
     );
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const numericId = await postRpc(server.baseUrl, {
+    const numericId = await postRpc(server, {
       jsonrpc: "2.0",
       id: "numeric-id",
       method: "CreateTaskPushNotificationConfig",
@@ -113,7 +99,7 @@ describe("a2a push notification config validation", () => {
     expect(numericId.error.code).toBe(-32602);
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const numericToken = await postRpc(server.baseUrl, {
+    const numericToken = await postRpc(server, {
       jsonrpc: "2.0",
       id: "numeric-token",
       method: "CreateTaskPushNotificationConfig",
@@ -128,7 +114,7 @@ describe("a2a push notification config validation", () => {
     expect(numericToken.error.code).toBe(-32602);
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const numericCredentials = await postRpc(server.baseUrl, {
+    const numericCredentials = await postRpc(server, {
       jsonrpc: "2.0",
       id: "numeric-credentials",
       method: "CreateTaskPushNotificationConfig",
@@ -146,7 +132,7 @@ describe("a2a push notification config validation", () => {
     expect(numericCredentials.error.code).toBe(-32602);
     expect(backendFactory).not.toHaveBeenCalled();
 
-    const badPageToken = await postRpc(server.baseUrl, {
+    const badPageToken = await postRpc(server, {
       jsonrpc: "2.0",
       id: "bad-page-token",
       method: "ListTaskPushNotificationConfigs",

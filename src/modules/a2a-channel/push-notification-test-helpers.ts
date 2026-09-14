@@ -1,12 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, vi } from "vitest";
+import { vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { A2AContext } from "./context.js";
 
-export { startRouteServer } from "./routes-test-support.js";
+export { createRouteClient, postRpc } from "./routes-test-support.js";
 
 import {
   type OutboundHttpAddressResolver,
@@ -15,8 +14,6 @@ import {
 import type { A2ABackend } from "./daemon-session-client.js";
 import { makeTask } from "./daemon-session-client.js";
 import {
-  A2A_PROTOCOL_VERSION,
-  A2A_RPC_PATH,
   type A2ATask,
   type A2ATaskUpdate,
   type SendMessageInput,
@@ -28,7 +25,6 @@ import {
 const NOW = "2026-06-22T03:12:00.000Z";
 
 export type PushNotificationTestState = {
-  servers: Server[];
   tempDirs: string[];
 };
 
@@ -191,19 +187,6 @@ export function makePushNotificationHttp(
   });
 }
 
-export async function postRpc(baseUrl: string, body: object) {
-  const res = await fetch(`${baseUrl}${A2A_RPC_PATH}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "A2A-Version": A2A_PROTOCOL_VERSION,
-    },
-    body: JSON.stringify(body),
-  });
-  expect(res.status).toBe(200);
-  return await res.json();
-}
-
 export function errorReason(response: {
   error?: { data?: Array<{ reason?: string }> };
 }): string | undefined {
@@ -213,8 +196,6 @@ export function errorReason(response: {
 export async function cleanupPushNotificationTestState(
   state: PushNotificationTestState,
 ): Promise<void> {
-  await Promise.all(state.servers.map(closeServer));
-  state.servers.length = 0;
   for (const dir of state.tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -233,11 +214,5 @@ function task(
     messageText: message,
     metadata: { kotaSessionId: id, scopeId: "proj-1" },
     now: () => NOW,
-  });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    server.close(() => resolve());
   });
 }

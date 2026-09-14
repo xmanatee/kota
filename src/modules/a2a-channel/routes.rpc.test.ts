@@ -1,25 +1,16 @@
-import type { Server } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { A2A_PROTOCOL_VERSION } from "./protocol.js";
 import { a2aRoutes } from "./routes.js";
-import { closeServer, FakeBackend, makeContext, postRpc, startRouteServer } from "./routes-test-support.js";
+import { createRouteClient, FakeBackend, makeContext, postRpc } from "./routes-test-support.js";
 
 describe("a2a channel JSON-RPC routes", () => {
-  const servers: Server[] = [];
-
-  afterEach(async () => {
-    await Promise.all(servers.map(closeServer));
-    servers.length = 0;
-  });
-
   it("handles SendMessage, GetTask, ListTasks, and CancelTask through JSON-RPC", async () => {
     const backend = new FakeBackend();
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory: () => backend,
     }));
-    servers.push(server.server);
 
-    const send = await postRpc(server.baseUrl, {
+    const send = await postRpc(server, {
       jsonrpc: "2.0",
       id: 1,
       method: "SendMessage",
@@ -39,7 +30,7 @@ describe("a2a channel JSON-RPC routes", () => {
       text: "ship the slice",
     });
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: 11,
       method: "SendMessage",
@@ -55,7 +46,7 @@ describe("a2a channel JSON-RPC routes", () => {
       text: "use the unscoped route",
     });
 
-    const get = await postRpc(server.baseUrl, {
+    const get = await postRpc(server, {
       jsonrpc: "2.0",
       id: 2,
       method: "GetTask",
@@ -64,7 +55,7 @@ describe("a2a channel JSON-RPC routes", () => {
     expect(get.result.status.state).toBe("TASK_STATE_COMPLETED");
     expect(backend.getSelectors[0]).toEqual({ taskId: "task-1", scopeId: "proj-1", contextId: null });
 
-    const list = await postRpc(server.baseUrl, {
+    const list = await postRpc(server, {
       jsonrpc: "2.0",
       id: 3,
       method: "ListTasks",
@@ -78,7 +69,7 @@ describe("a2a channel JSON-RPC routes", () => {
     expect(list.result.tasks).toHaveLength(1);
     expect(backend.listFilters[0]).toEqual({ scopeId: "proj-1", contextId: null });
 
-    await postRpc(server.baseUrl, {
+    await postRpc(server, {
       jsonrpc: "2.0",
       id: 31,
       method: "ListTasks",
@@ -86,7 +77,7 @@ describe("a2a channel JSON-RPC routes", () => {
     });
     expect(backend.listFilters[1]).toEqual({ scopeId: null, contextId: "proj-2" });
 
-    const cancel = await postRpc(server.baseUrl, {
+    const cancel = await postRpc(server, {
       jsonrpc: "2.0",
       id: 4,
       method: "CancelTask",
@@ -98,12 +89,11 @@ describe("a2a channel JSON-RPC routes", () => {
 
   it("negotiates supported A2A v1.0 through the header and request parameter", async () => {
     const backend = new FakeBackend();
-    const server = await startRouteServer(a2aRoutes(makeContext(), {
+    const server = createRouteClient(a2aRoutes(makeContext(), {
       backendFactory: () => backend,
     }));
-    servers.push(server.server);
 
-    const byHeader = await postRpc(server.baseUrl, {
+    const byHeader = await postRpc(server, {
       jsonrpc: "2.0",
       id: "version-header",
       method: "ListTasks",
@@ -112,7 +102,7 @@ describe("a2a channel JSON-RPC routes", () => {
     expect(byHeader.result.tasks).toHaveLength(1);
 
     const byQuery = await postRpc(
-      server.baseUrl,
+      server,
       {
         jsonrpc: "2.0",
         id: "version-query",

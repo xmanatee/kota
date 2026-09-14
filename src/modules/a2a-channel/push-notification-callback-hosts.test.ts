@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanupPushNotificationTestState,
+  createRouteClient,
   FakeBackend,
   makeContext,
   makePushNotificationHttp,
@@ -8,12 +9,11 @@ import {
   type PushNotificationTestState,
   postRpc,
   pushConfigParams,
-  startRouteServer,
 } from "./push-notification-test-helpers.js";
 import { a2aRoutes } from "./routes.js";
 
 describe("a2a push notification callback hosts", () => {
-  const state: PushNotificationTestState = { servers: [], tempDirs: [] };
+  const state: PushNotificationTestState = { tempDirs: [] };
 
   afterEach(async () => {
     await cleanupPushNotificationTestState(state);
@@ -22,11 +22,10 @@ describe("a2a push notification callback hosts", () => {
   it("rejects non-public callback address literals before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
-    const server = await startRouteServer(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
+    const server = createRouteClient(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
       backendFactory,
       pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
-    state.servers.push(server.server);
 
     for (const url of [
       "https://[::1]/a2a",
@@ -36,7 +35,7 @@ describe("a2a push notification callback hosts", () => {
       "https://[::ffff:10.0.0.1]/a2a",
       "https://[::ffff:192.168.0.1]/a2a",
     ]) {
-      const response = await postRpc(server.baseUrl, {
+      const response = await postRpc(server, {
         jsonrpc: "2.0",
         id: url,
         method: "CreateTaskPushNotificationConfig",
@@ -51,13 +50,12 @@ describe("a2a push notification callback hosts", () => {
   it("allows public IPv6 callback address literals", async () => {
     const storage = makeStorage(state.tempDirs);
     const backend = new FakeBackend();
-    const server = await startRouteServer(a2aRoutes(makeContext(storage), {
+    const server = createRouteClient(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
       pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
-    state.servers.push(server.server);
 
-    const created = await postRpc(server.baseUrl, {
+    const created = await postRpc(server, {
       jsonrpc: "2.0",
       id: "public-ipv6",
       method: "CreateTaskPushNotificationConfig",

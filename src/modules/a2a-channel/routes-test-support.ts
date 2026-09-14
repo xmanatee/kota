@@ -1,4 +1,6 @@
-import { createServer, type Server } from "node:http";
+import { once } from "node:events";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { buildRequestHandler } from "#core/server/server-routes.js";
@@ -119,14 +121,11 @@ export function makeContext(): A2AContext {
   };
 }
 
-export async function startRouteServer(
+export function createRouteClient(
   routes: RouteRegistration[],
   options: { authToken?: string } = {},
-): Promise<{
-  server: Server;
-  baseUrl: string;
-}> {
-  const server = createServer(buildRequestHandler({
+) {
+  const handle = buildRequestHandler({
     port: 0,
     pool: new SessionPool(),
     bus: new EventBus(),
@@ -134,17 +133,52 @@ export async function startRouteServer(
     authToken: options.authToken,
     makeAgent: () => { throw new Error("A2A must use its daemon backend port"); },
     resolveDefaultAutonomyMode: () => "supervised",
-  }));
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (typeof address === "string" || address === null) {
-    throw new Error("test server did not bind to a TCP port");
-  }
-  return { server, baseUrl: `http://127.0.0.1:${address.port}` };
+  });
+  return {
+    baseUrl: "http://127.0.0.1",
+    async request(path: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) {
+      // Control only the byte transport; production routing, auth and Node HTTP
+      // serialization run without requiring a listening socket.
+      const wire: Buffer[] = [];
+      const socket = new Socket();
+      socket._write = (chunk, _encoding, callback) => { wire.push(Buffer.from(chunk)); callback(); };
+      socket._writev = (entries, callback) => {
+        wire.push(...entries.map(({ chunk }) => Buffer.from(chunk))); callback();
+      };
+      const request = new IncomingMessage(socket);
+      request.method = init.method ?? "GET";
+      request.url = path;
+      request.headers = Object.fromEntries(
+        Object.entries({ host: "127.0.0.1", ...init.headers }).map(([key, value]) => [key.toLowerCase(), value]),
+      );
+      request.complete = true;
+      request.httpVersionMajor = 1;
+      request.httpVersionMinor = 0;
+      const response = new ServerResponse(request);
+      response.assignSocket(socket);
+      const finished = once(response, "finish");
+      try {
+        handle(request, response);
+        if (init.body !== undefined) request.push(Buffer.from(init.body));
+        request.push(null);
+        await finished;
+        const output = Buffer.concat(wire).toString();
+        const boundary = output.indexOf("\r\n\r\n");
+        const headers = new Headers();
+        for (const line of output.slice(0, boundary).split("\r\n").slice(1)) {
+          const colon = line.indexOf(":");
+          headers.append(line.slice(0, colon), line.slice(colon + 1).trim());
+        }
+        return new Response(output.slice(boundary + 4), { status: response.statusCode, headers });
+      } finally {
+        socket.destroy();
+      }
+    },
+  };
 }
 
 export async function postRpc(
-  baseUrl: string,
+  client: ReturnType<typeof createRouteClient>,
   body: object,
   options: {
     headers?: Record<string, string>;
@@ -157,7 +191,7 @@ export async function postRpc(
     headers["A2A-Version"] = A2A_PROTOCOL_VERSION;
   }
   Object.assign(headers, options.headers);
-  const res = await fetch(`${baseUrl}${A2A_RPC_PATH}${options.query ?? ""}`, {
+  const res = await client.request(`${A2A_RPC_PATH}${options.query ?? ""}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -202,11 +236,6 @@ export function errorMetadata(response: {
   return response.error?.data?.[0]?.metadata;
 }
 
-export function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    server.close(() => resolve());
-  });
-}
 
 function task(
   id: string,
