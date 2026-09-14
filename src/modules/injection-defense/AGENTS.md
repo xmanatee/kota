@@ -18,6 +18,10 @@ tool does not become safer because its output was screened.
   `--- BEGIN UNTRUSTED CONTENT ---` / `--- END UNTRUSTED CONTENT ---`
   markers, and leaves the payload intact so legitimate information still
   gets through.
+- Structured JSON is screened alongside ordinary content and rich blocks,
+  including decoded strings and keys. The warning covers the entire result,
+  including structured data projected outside the text markers; structured
+  values remain intact.
 - Emits `injection.defense.assessed` for every screened call (suspicious
   or not) so operators can audit both missed attacks and false-positive
   rate via the event bus and run artifacts.

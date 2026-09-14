@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Injection-defense ignores structuredContent even for results carrying external MCP provenance. Identical override text is flagged and annotated in ordinary content but assessed as clean in structured strings or objects, which then reach model projection without the warning.
 
@@ -129,3 +128,42 @@ excerpt:
 >     `[structuredContent]\n${stableJsonStringify(block.structuredContent)}`,
 >   );
 > }
+
+
+## Resolution
+
+Fixed at the injection-defense middleware owner. Screening now includes
+structured JSON and decoded strings/keys, so JSON escaping cannot hide the
+same whitespace-sensitive instructions detected in ordinary content. The
+warning explicitly covers the entire result, including structured data that
+model adapters append outside the ordinary text markers. Original structured
+values and rich blocks are preserved. Tool-risk, approval, credential masking,
+and existing screening eligibility remain unchanged.
+
+## Verification
+
+- `pnpm test:integration src/injection-defense-projection.integration.test.ts`:
+  9 cases passed. The public middleware-to-model projection boundary checks
+  equivalent ordinary/structured instructions, nested objects, arrays, keys,
+  escaped whitespace, absent/empty/rich blocks, unchanged source data, and
+  benign null/false/zero/empty values. It detects both omitted screening and
+  a warning that excludes the appended structured payload.
+- `pnpm test:owner src/modules/injection-defense src/modules/model-clients/openai/tool-result-projection.test.ts src/modules/tracing/security-logs-mcp-injection.test.ts`:
+  32 tests passed across 5 files, covering existing annotation, eligibility,
+  assessment logging, and projection behavior.
+- All `pnpm check:fast` components passed: production/test typechecking,
+  lint, task validation, generated client bindings, and module admission.
+  The initial combined command stopped at new-test import ordering; lint and
+  subsequent components passed after correcting it.
+- A synthetic baseline/candidate probe produced 8 passing observations through
+  the real middleware and model projection. Baseline structured string/object
+  cases were clean and unannotated; the candidate marks them suspicious with
+  a whole-result warning. Ordinary attack and benign controls behaved as
+  expected. Evidence: builder run `2026-09-14T00-31-17-192Z-builder-tx41to`,
+  `artifacts/structured-screening-probe.json` (baseline commit and rendered
+  projections included).
+
+This verifies assessment, annotation, and data preservation. It does not claim
+live model obedience or prevention of unauthorized tool execution; no live model
+was invoked. Full repository build/test partitions were not run for this local
+middleware change.
