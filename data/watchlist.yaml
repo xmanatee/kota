@@ -57,17 +57,17 @@ resources:
     refresh: weekly
     notes: "Monitor lightweight peer runtime releases for provider fallback, local ownership and capability isolation changes."
     snapshot:
-      fingerprint: sha256:91478f5eb891ba8534a0e35d3a9f8d1f
-      summary: "ZeroClaw still reinforces KOTA's daemon/session/channel/tool/skill model plus provider fallback and local ownership; no new KOTA primitive or task was opened from this refresh."
-      last_seen_at: "2026-05-18T06:08:15.722Z"
+      fingerprint: sha256:bc3e744560259903697cd01fa465ebab
+      summary: "The README describes a local Rust runtime with pluggable providers, fallback chains, channels, a gateway/dashboard and ACP integration. It documents supervised autonomy by default, configurable OS sandboxing, and event-triggered procedures with approval gates and resumable runs."
+      last_seen_at: "2026-09-13T07:24:58.133Z"
   - url: https://github.com/RightNow-AI/openfang
     added: "2026-04-14"
     refresh: weekly
     notes: "Monitor capability-bundle, guardrail and workflow recovery changes relevant to KOTA modules and autonomous runs."
     snapshot:
-      fingerprint: sha256:52e4189cf96f4ecb5eb61dd7fedc465f
-      summary: "OpenFang continues to package tools, prompts, skills, guardrails, and metrics as capability bundles; KOTA maps this to modules/workflows/skills and does not need a second Hand primitive."
-      last_seen_at: "2026-05-18T06:08:15.722Z"
+      fingerprint: sha256:1cbc2a45c3828b589a1b8e68a50c4fb6
+      summary: "The README describes scheduled capability packages called Hands, bundling tool/settings requirements, prompts, skills, dashboard metrics and approval gates. It also describes a Rust runtime with channel adapters, persistent memory, MCP integration and session repair, and cautions that pre-1.0 minor releases may break compatibility."
+      last_seen_at: "2026-09-13T07:24:58.122Z"
   - url: https://github.com/earendil-works/pi
     added: "2026-04-14"
     refresh: weekly
