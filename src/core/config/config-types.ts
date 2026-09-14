@@ -160,6 +160,15 @@ export type CoreKotaConfig = {
   workflow?: {
     /** Project verification argv, loaded through scope trust and executed in the writer sandbox. */
     validationCommand?: [string, ...string[]];
+    /** Project-owned, sandboxed dependency setup. Outputs must be ignored, relocatable directories. */
+    preparation?: {
+      checkCommand: [string, ...string[]];
+      command: [string, ...string[]];
+      inputs: [string, ...string[]];
+      outputs: [string, ...string[]];
+      /** Explicit setup egress; empty means offline. */
+      allowedEgressHosts?: string[];
+    };
     /** Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB. */
     maxStepOutputBytes?: number;
     /**

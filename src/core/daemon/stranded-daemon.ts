@@ -20,7 +20,7 @@ type DetectStrandedDaemonOptions = {
 export function isKotaDaemonCommand(command: string): boolean {
   const normalized = command.trim().replace(/\s+/g, " ");
   return (
-    /(?:^|\s)\S*(?:dist\/cli\.js|src\/cli\.ts|bin\/kota\.mjs)\s+daemon(?:\s|$)/.test(normalized) ||
+    /(?:^|\s)\S*(?:dist\/cli\.js|src\/cli\.ts|bin\/kota(?:-source)?\.mjs)\s+daemon(?:\s|$)/.test(normalized) ||
     /(?:^|\s)kota\s+daemon(?:\s|$)/.test(normalized)
   );
 }

@@ -2470,6 +2470,54 @@
           "description": "Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB.",
           "type": "number"
         },
+        "preparation": {
+          "additionalProperties": false,
+          "description": "Project-owned, sandboxed dependency setup. Outputs must be ignored, relocatable directories.",
+          "properties": {
+            "allowedEgressHosts": {
+              "description": "Explicit setup egress; empty means offline.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "checkCommand": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "command": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "inputs": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "outputs": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "checkCommand",
+            "command",
+            "inputs",
+            "outputs"
+          ],
+          "type": "object"
+        },
         "validationCommand": {
           "description": "Project verification argv, loaded through scope trust and executed in the writer sandbox.",
           "items": {

@@ -100,6 +100,17 @@ describe("layered configuration", () => {
       .toEqual({ validationCommand: ["cargo", "test"] });
   });
 
+  it("accepts preparation only through trusted configuration and rejects escaping outputs", () => {
+    const preparation = { inputs: ["package.json", "pnpm-lock.yaml"], outputs: ["node_modules"], checkCommand: ["node", "check.mjs"], command: ["pnpm", "install", "--offline", "--frozen-lockfile", "--ignore-scripts"] };
+    writeFileSync(scopeConfigPath, JSON.stringify({ workflow: { preparation } }));
+    expect(loadConfigWithDiagnostics(root, undefined, { globalConfigPath }).config.workflow).toBeUndefined();
+    expect(load({ workflow: { preparation } }).workflow?.preparation).toEqual(preparation);
+    for (const outputs of [["../shared"], [".git"], ["node_modules", "node_modules"], ["/tmp"]]) {
+      expect(() => load({ workflow: { preparation: { ...preparation, outputs } } })).toThrow("workflow.preparation.outputs");
+    }
+    expect(() => load({ workflow: { preparation: { ...preparation, command: [] } } })).toThrow("workflow.preparation.command");
+  });
+
   it.each([[], "make test", [""], ["make", 1], null])("rejects a malformed project check without falling back: %j", (validationCommand) => {
     expect(() => load({ workflow: { validationCommand } }, undefined, {
       workflow: { validationCommand: ["make", "test"] },

@@ -124,7 +124,52 @@ function abortedOperationError(signal: AbortSignal): Error {
  * worker thread. The daemon retains lifecycle ownership while its control
  * server event loop remains free to answer health and workflow-control calls.
  */
-export function runWorkflowBlockingOperation<TInput, TOutput>(
+const activeOperations = new Set<Promise<unknown>>();
+let publicationBarrier: Promise<void> = Promise.resolve();
+
+async function waitForPublication(pending: Promise<unknown>, signal?: AbortSignal): Promise<void> {
+  if (!signal) { await pending; return; }
+  signal.throwIfAborted();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_, reject) => { onAbort = () => reject(abortedOperationError(signal)); });
+  signal.addEventListener("abort", onAbort, { once: true });
+  try { await Promise.race([pending, aborted]); }
+  finally { signal.removeEventListener("abort", onAbort); }
+}
+
+/** Publication replaces prepared dependencies and source together, after current workers finish. */
+export async function withBlockingWorkersDrained<T>(publish: () => T, signal: AbortSignal): Promise<T> {
+  const previous = publicationBarrier;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  // Cancellation of a queued publisher must not release its predecessor.
+  publicationBarrier = previous.then(() => gate);
+  try {
+    await waitForPublication(previous, signal);
+    await waitForPublication(Promise.allSettled([...activeOperations]), signal);
+    signal.throwIfAborted();
+    return publish();
+  } finally {
+    release();
+  }
+}
+
+export async function runWorkflowBlockingOperation<TInput, TOutput>(
+  operation: WorkflowBlockingOperation<TInput, TOutput>,
+  input: TInput,
+  options: WorkflowBlockingOperationRunOptions = {},
+): Promise<TOutput> {
+  // Recheck after awaiting: a second publication may have reserved the barrier.
+  let barrier: Promise<void>;
+  do { barrier = publicationBarrier; await waitForPublication(barrier, options.signal); } while (barrier !== publicationBarrier);
+  options.signal?.throwIfAborted();
+  const running = executeWorkflowBlockingOperation(operation, input, options);
+  activeOperations.add(running);
+  try { return await running; }
+  finally { activeOperations.delete(running); }
+}
+
+function executeWorkflowBlockingOperation<TInput, TOutput>(
   operation: WorkflowBlockingOperation<TInput, TOutput>,
   input: TInput,
   options: WorkflowBlockingOperationRunOptions = {},

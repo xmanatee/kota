@@ -17,6 +17,7 @@ import {
   getRegisteredConfigSlices,
   type KotaModuleConfigRegistry,
 } from "./config-slice.js";
+import { decodePreparation } from "./preparation-config.js";
 
 /** Validate and coerce config values for core-owned fields. */
 export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
@@ -224,6 +225,9 @@ function sanitizeNotifications(out: Partial<CoreKotaConfig>, src: unknown): void
 function sanitizeWorkflow(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
   const w: NonNullable<CoreKotaConfig["workflow"]> = {};
+  if (src.preparation !== undefined) {
+    w.preparation = decodePreparation(src.preparation);
+  }
   if (src.validationCommand !== undefined) {
     const command = src.validationCommand;
     if (!Array.isArray(command) || command.length === 0 ||

@@ -573,7 +573,7 @@ export function shouldLaunchDefaultOperatorConsole(argv: string[], stdinIsTty: b
 function isCliEntrypoint(): boolean {
   const entry = process.argv[1];
   if (!entry) return false;
-  if (basename(entry) === "kota.mjs" || basename(entry) === "kota") {
+  if (basename(entry) === "kota.mjs" || basename(entry) === "kota-source.mjs" || basename(entry) === "kota") {
     return true;
   }
   try {

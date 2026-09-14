@@ -11,6 +11,7 @@ import {
   type IntegrationValidation,
   type IntegrationValidationInput,
 } from "./integration-queue.js";
+import { type PreparationPublication, publishPreparedRepository, RepositoryPreparationError, recoverPreparedPublication } from "./repository-preparation.js";
 import {
   AmbiguousExternalEffectError,
   createRunContext,
@@ -57,6 +58,7 @@ export type IntegrationContinuation = (
 ) => Promise<void>;
 
 export type RunLifecycleOptions = {
+  authorityConfigPath?: string;
   store: RunStateDatabase;
   daemonEpoch: number;
   executeWorkflow: WorkflowContextExecutor;
@@ -76,6 +78,7 @@ export type RunLifecycleOptions = {
 };
 
 type IntegrationJournal = {
+  preparation?: PreparationPublication;
   contract: "run-lifecycle-v1";
   phase:
     | "preparing"
@@ -398,6 +401,9 @@ export class RunLifecycle {
       };
       return await this.finalizeWriter(context, manager, journal);
     } catch (error) {
+      if (error instanceof RepositoryPreparationError && !signal.aborted) {
+        return this.attention("repository-preparation-failed", [errorMessage(error)]);
+      }
       const current = this.options.store.getRun(run.id);
       if (current?.executionCompletedAt !== undefined && !signal.aborted) {
         return this.attention("sandbox-cleanup-blocked", [errorMessage(error)]);
@@ -450,6 +456,13 @@ export class RunLifecycle {
     if (journal.phase === "merged") return this.cleanupMerged(context, manager, sandbox);
     if (journal.phase === "publishing") {
       const canonicalHead = git(context.scope.root, ["rev-parse", "HEAD"]);
+      const published = isCommitAncestor(context.scope.root, journal.publishedHead, canonicalHead);
+      if (journal.preparation) {
+        if (!published && canonicalHead !== journal.integratedFromHead) return this.attention("integration-publication-ambiguous", [canonicalHead]);
+        await recoverPreparedPublication(context, journal.preparation, published, canonicalHead, this.options.authorityConfigPath);
+        journal = { ...journal, preparation: undefined };
+        this.persist(context, journal);
+      }
       if (isCommitAncestor(context.scope.root, journal.publishedHead, canonicalHead)) {
         journal = { ...journal, phase: "merged" };
         this.persist(context, journal);
@@ -522,6 +535,10 @@ export class RunLifecycle {
         epoch: context.run.daemonEpoch,
         signal: context.signal,
         validate: (input) => this.options.validate(context, input),
+        publishPrepared: (publish) => publishPreparedRepository(context, publish, this.options.authorityConfigPath, (preparation) => {
+          journal = { ...journal, preparation };
+          this.persist(context, journal);
+        }),
         verifyPostReconcile: this.options.verifyPostReconcile
           ? (input) => this.options.verifyPostReconcile!(context, input)
           : undefined,

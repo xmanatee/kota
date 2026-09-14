@@ -29,7 +29,7 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   const logFormat: LogFormat | undefined = opts.logFormat
     ?? (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
   if (process.env[DAEMON_CHILD_ENV] !== String(process.ppid)) {
-    await runDaemonSupervisor(resolveScopeRoot(opts.scopeRoot));
+    await runDaemonSupervisor(resolveScopeRoot(opts.scopeRoot), { retryActivation: opts.retryActivation });
     return;
   }
 

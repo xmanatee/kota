@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import { acquireInstanceLock, releaseInstanceLock } from "#core/daemon/daemon-instance-lock.js";
-import { failRuntimeActivation, runtimeActivationRetryBlocked } from "#core/daemon/daemon-runtime-activation.js";
+import { failRuntimeActivation, retryRuntimeActivationAfterRepair, runtimeActivationRetryBlocked } from "#core/daemon/daemon-runtime-activation.js";
 import { captureLoadedRuntime } from "#core/daemon/daemon-runtime-revision.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "#core/daemon/daemon-state-persistence.js";
 import { prepareDaemonStateRoot } from "#core/daemon/daemon-state-root.js";
@@ -27,7 +27,7 @@ function recordActivationFailure(scopeRoot: string, reason: string, attempted: R
 }
 
 async function parkFailedActivation(): Promise<void> {
-  process.stderr.write("Runtime activation failed. Supervisor parked; inspect daemon status, install a changed runtime, then restart the service.\n");
+  process.stderr.write("Runtime activation failed. Supervisor parked; inspect daemon status. Install a changed runtime, or repair dependencies and start with --retry-activation after stopping the parked supervisor.\n");
   // KeepAlive services must stay resident: even a successful exit causes
   // launchd to relaunch. Only an operator/service stop releases this process.
   await new Promise<void>((resolve) => {
@@ -44,7 +44,7 @@ async function parkFailedActivation(): Promise<void> {
   process.exitCode = 0;
 }
 
-export async function runDaemonSupervisor(scopeRoot: string): Promise<void> {
+export async function runDaemonSupervisor(scopeRoot: string, options: { retryActivation?: boolean } = {}): Promise<void> {
   let attempted = captureLoadedRuntime();
   const stateRoot = prepareDaemonStateRoot(scopeRoot, undefined);
   const owner = { pid: process.pid, startedAt: new Date().toISOString(), token: randomBytes(32).toString("hex") };
@@ -59,12 +59,18 @@ export async function runDaemonSupervisor(scopeRoot: string): Promise<void> {
   const childArgs = process.argv.slice(1);
   let shutdownRequested = false;
   let forwardSignal: ((signal: NodeJS.Signals) => void) | null = null;
+  let explicitRetry = options.retryActivation === true;
   try {
     while (true) {
       attempted = captureLoadedRuntime();
       const stateDir = join(scopeRoot, ".kota");
       const state = loadDaemonStateFromDisk(stateDir);
       const previous = state?.runtimeRevision;
+      if (explicitRetry) {
+        explicitRetry = false;
+        if (state) await retryRuntimeActivationAfterRepair(state, stateDir, attempted, new AbortController().signal);
+        else throw new Error("There is no failed runtime activation to retry");
+      }
       if (runtimeActivationRetryBlocked(previous, attempted)) {
         await parkFailedActivation();
         return;

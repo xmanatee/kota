@@ -29,6 +29,7 @@ export const DAEMON_START_DESCRIPTION = [
 
 export type DaemonScopeRootOptions = { scopeRoot?: string };
 export type DaemonStartOptions = DaemonScopeRootOptions & {
+  retryActivation?: boolean;
   verbose?: boolean;
   preset?: string;
   pollInterval?: string;
@@ -66,6 +67,7 @@ function parseLogFormatOption(value: string): LogFormat {
 
 export function addDaemonStartOptions(command: Command): Command {
   return command
+    .option("--retry-activation", "Verify repaired project dependencies and permit one failed activation retry")
     .option("-v, --verbose", "Show debug output")
     .option(
       "--preset <id>",
@@ -82,6 +84,7 @@ export function resolveDaemonStartOptions(
 ): ResolvedDaemonStartOptions {
   const parentOpts = command?.parent?.opts<DaemonStartOptions>() ?? {};
   return {
+    retryActivation: opts.retryActivation ?? parentOpts.retryActivation,
     verbose: opts.verbose ?? parentOpts.verbose,
     preset: opts.preset ?? parentOpts.preset,
     pollInterval: opts.pollInterval ?? parentOpts.pollInterval ?? "30",

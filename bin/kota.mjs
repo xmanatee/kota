@@ -35,4 +35,6 @@ if (nodeOptionsResult.removedSourceCondition) {
   process.exit(child.status ?? 1);
 }
 
+const { recoverPreparationBeforeCliImports } = await import("../dist/core/workflow/repository-preparation-recovery.js");
+await recoverPreparationBeforeCliImports(fileURLToPath(new URL("../", import.meta.url)));
 await import("../dist/cli.js");

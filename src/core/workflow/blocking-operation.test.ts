@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { existsSync, writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,7 @@ import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import {
   defineWorkflowBlockingOperation,
   runWorkflowBlockingOperation,
+  withBlockingWorkersDrained,
 } from "./blocking-operation.js";
 import { withWorkflowBlockingOperation } from "./blocking-operation-context.js";
 import type { WorkflowStepContext } from "./run-types.js";
@@ -30,6 +31,30 @@ const cpuBlockingOperation = defineWorkflowBlockingOperation<
 >(fixtureModule, "runCpuBlockingFixture");
 
 describe("workflow blocking operation boundary", () => {
+  it("lets existing readers finish before publication and holds new readers for prepared source", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kota-worker-publication-"));
+    try {
+      const data = join(root, "dependency.txt");
+      await writeFile(data, "old dependency");
+      const module = join(root, "reader.mjs");
+      await writeFile(module, `import { readFileSync } from 'node:fs'; export async function read(input, context) { context.reportProgress('reading'); await new Promise(r => setTimeout(r, input.delay)); return readFileSync(input.path, 'utf8'); }`);
+      const operation = defineWorkflowBlockingOperation<{ path: string; delay: number }, string>(pathToFileURL(module).href, "read");
+      let started!: () => void;
+      const ready = new Promise<void>((resolve) => { started = resolve; });
+      const before = runWorkflowBlockingOperation(operation, { path: data, delay: 100 }, { reportProgress: started });
+      await ready;
+      const publication = withBlockingWorkersDrained(() => writeFileSync(data, "new dependency"), new AbortController().signal);
+      const cancelled = new AbortController();
+      const queued = withBlockingWorkersDrained(() => { throw new Error("Cancelled publisher ran"); }, cancelled.signal);
+      const rejection = expect(queued).rejects.toThrow("Cancelled publication");
+      cancelled.abort(new Error("Cancelled publication"));
+      await rejection;
+      const after = runWorkflowBlockingOperation(operation, { path: data, delay: 0 });
+      expect(await before).toBe("old dependency");
+      await publication;
+      expect(await after).toBe("new dependency");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it("loads source workers using KOTA's loader from a directory without tsx", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "kota-blocking-external-"));
     const loader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;

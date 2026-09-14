@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Prepare project dependencies before validation and runtime activation
@@ -61,3 +60,38 @@ without breaking a sibling continuation. Failed preparation preserves its run
 and retries through the same owner after repair. Cover the common behavior once;
 avoid per-workflow copies, a second package registry, or a new recovery queue.
 Publishing the fix does not depend on a future monitor visit.
+
+## Completion
+
+The shared integration owner now prepares the reconciled writer using trusted
+project configuration, retains setup failures outside source repair, and promotes
+validated dependency outputs before canonical source becomes visible to new
+blocking workers. The existing publication journal recovers interrupted output
+replacement. Daemon start supports an explicit readiness-verified activation retry
+for repaired installations at the same revision. Project setup remains opt-in via
+`workflow.preparation`; the daemon-ops guidance includes the KOTA source recipe.
+
+Verification covered configuration trust/rejection, worker drain and cancelled
+publication ordering, recovery replay, same-run setup failure/retry against a
+moved head, real pnpm dependency fixtures, canonical worker imports, and activation
+persistence. The KOTA readiness script passed against copied installed packages
+and rejected a missing AJV dependency. Static checks and production build passed.
+The enclosing sandbox denies the process identity probe (`/bin/ps`), so the
+composed preparation journey controls only the subprocess port; a direct attempt
+and one existing validator-output test record that environmental limitation.
+Run artifacts retain command output and detailed proof scope.
+
+Post-review repair rechecks domain acceptance synchronously at the final Git
+publication effect, after staging and worker drain. Source and installed launchers
+now run dependency-free startup recovery from the same SQLite integration journal
+before importing the affected package graph. A fresh Node process test reproduces
+missing canonical packages and verifies automatic restoration, safe replay, and
+refusal to interfere with a live publisher. Copying pnpm packages is documented as
+an optimization rather than proof that native build artifacts survive installation.
+
+Startup recovery now binds journal and live-owner checks to the executing
+installation, independently of command scope. Both early and live recovery
+require outputs authorized by current trusted preparation policy and reject
+tracked or non-ignored paths before mutation. The fresh-process recovery journey
+also exercises a forged foreign-scope journal, unauthorized ignored output, and
+tracked-source output; each leaves installation source intact.

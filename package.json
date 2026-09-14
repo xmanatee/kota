@@ -38,7 +38,7 @@
     "schema/*.json"
   ],
   "scripts": {
-    "dev": "node --conditions=source --import tsx src/cli.ts",
+    "dev": "node --conditions=source bin/kota-source.mjs",
     "build": "pnpm check:ui-bindings && rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.mjs",
     "prepack": "pnpm build",
     "typecheck": "pnpm typecheck:production && pnpm typecheck:tests",
@@ -65,7 +65,7 @@
     "check:client-bindings": "pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
     "hooks:install": "node scripts/install-task-hook.mjs",
-    "kota": "node --conditions=source --import tsx src/cli.ts"
+    "kota": "node --conditions=source bin/kota-source.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.58",

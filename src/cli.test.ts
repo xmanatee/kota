@@ -12,7 +12,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,9 +22,7 @@ import { getScopeHistoryDir } from "#modules/history/history-utils.js";
 import { formatAuthError, parseIntOption, shouldLaunchDefaultOperatorConsole } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = resolve(root, "src/cli.ts");
-const require = createRequire(import.meta.url);
-const TSX_IMPORT = require.resolve("tsx");
+const CLI = resolve(root, "bin/kota-source.mjs");
 
 // Full-suite runs share the host with other process-heavy workers. Keep the
 // child-process budget aligned with the CLI integration tests while leaving
@@ -33,7 +30,7 @@ const TSX_IMPORT = require.resolve("tsx");
 const CLI_TIMEOUT = 45_000;
 
 function run(...args: string[]): string {
-  return execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {
+  return execFileSync(process.execPath, ["--conditions=source", CLI, ...args], {
     encoding: "utf-8",
     timeout: CLI_TIMEOUT,
     cwd: root,
@@ -47,7 +44,7 @@ function runFull(
 ): { stdout: string; stderr: string; exitCode: number } {
   const result = spawnSync(
     process.execPath,
-    ["--import", TSX_IMPORT, ...(opts?.preload ? ["--import", opts.preload] : []), CLI, ...args],
+    ["--conditions=source", ...(opts?.preload ? ["--import", opts.preload] : []), CLI, ...args],
     {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,

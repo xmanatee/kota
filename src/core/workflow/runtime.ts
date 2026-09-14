@@ -108,6 +108,7 @@ export class WorkflowRuntime {
       log: this.ctx.log,
     });
     this.lifecycle = new RunLifecycle({
+      authorityConfigPath: runtimeConfig.authorityConfigPath,
       store: runtimeConfig.runState,
       daemonEpoch: runtimeConfig.daemonEpoch,
       executeWorkflow: (context, run) =>

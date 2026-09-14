@@ -21,6 +21,7 @@ import { renderUntrustedContent } from "#core/util/untrusted-content.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { IntegrationValidation, IntegrationValidationInput } from "./integration-queue.js";
+import { prepareRunRepository } from "./repository-preparation.js";
 import type { RunContext } from "./run-context.js";
 import type { IntegrationContinuationIssue } from "./run-lifecycle.js";
 import { readWorkflowRunMetadataFile } from "./run-metadata.js";
@@ -239,6 +240,8 @@ export async function validateRunIntegration(
   if (policy.projectValidation && projectCommand === undefined) {
     throw new Error(`Project validation setup required for ${context.scope.root}: configure workflow.validationCommand in the selected scope's trusted .kota/config.json (or operator configuration).`);
   }
+  // Setup failure retains the writer; it is not a source-validation verdict.
+  await prepareRunRepository(context, authorityConfigPath);
   const runCommand = createWorkflowCommandRunner({
     cwd: input.workspaceDir,
     env: context.resources.env,

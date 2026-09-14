@@ -21,6 +21,7 @@ export type IntegrationRequest = {
   epoch: number;
   signal: AbortSignal;
   validate: (input: IntegrationValidationInput) => Promise<IntegrationValidation>;
+  publishPrepared?: (publish: () => void) => Promise<void>;
   verifyPostReconcile?: (
     input: IntegrationValidationInput,
   ) => WorkflowPostReconcileInvariantResult;
@@ -171,6 +172,8 @@ function branchOrUndefined(cwd: string): string | undefined {
   const result = runGit(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
   return result.ok && result.output !== "" ? result.output : undefined;
 }
+
+export class PublicationInvariantError extends Error {}
 
 export class IntegrationQueue {
   constructor(
@@ -414,7 +417,32 @@ export class IntegrationQueue {
         publishedHead: reconciledHead,
       });
       input.signal.throwIfAborted();
-      git(this.repoRoot, ["merge", "--ff-only", "--no-overwrite-ignore", reconciledHead]);
+      const publish = () => {
+        const currentInvariant = input.verifyPostReconcile?.({
+          workspaceDir: sandbox.workspaceDir,
+          head: reconciledHead,
+          canonicalHead: observedCanonicalHead,
+          signal: input.signal,
+        });
+        if (currentInvariant?.satisfied === false) throw new PublicationInvariantError(currentInvariant.reason);
+        input.signal.throwIfAborted();
+        // Environment staging can await I/O; recheck both trees at the actual effect.
+        if (git(this.repoRoot, ["rev-parse", "HEAD"]) !== observedCanonicalHead ||
+          branchOrUndefined(this.repoRoot) !== sandbox.targetBranch ||
+          git(this.repoRoot, ["status", "--porcelain"]) !== "" ||
+          git(sandbox.workspaceDir, ["rev-parse", "HEAD"]) !== reconciledHead ||
+          git(sandbox.workspaceDir, ["status", "--porcelain"]) !== "") {
+          throw new Error("Repository changed during dependency preparation; retry integration");
+        }
+        git(this.repoRoot, ["merge", "--ff-only", "--no-overwrite-ignore", reconciledHead]);
+      };
+      try {
+        if (input.publishPrepared) await input.publishPrepared(publish);
+        else publish();
+      } catch (error) {
+        if (error instanceof PublicationInvariantError) return { ...publication, status: "invariant-failed", reason: error.message };
+        throw error;
+      }
       return {
         ...publication,
         status: "merged",

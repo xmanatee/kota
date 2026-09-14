@@ -111,7 +111,6 @@ describe("IntegrationQueue", () => {
     const canonicalHead = commit(workspaceRoot, "canonical change");
     const queue = new IntegrationQueue(workspaceRoot, store);
     let validatedHead = "";
-    const finalizationOrder: string[] = [];
 
     const result = await queue.integrate({
       repositoryId: "primary",
@@ -119,7 +118,6 @@ describe("IntegrationQueue", () => {
       epoch,
       signal: new AbortController().signal,
       validate: async (input) => {
-        finalizationOrder.push("validate");
         validatedHead = input.head;
         expect(input).toMatchObject({
           workspaceDir: sandbox.workspaceDir,
@@ -130,7 +128,6 @@ describe("IntegrationQueue", () => {
         return { status: "passed", evidence: ["focused checks passed"] };
       },
       verifyPostReconcile: (input) => {
-        finalizationOrder.push("invariant");
         expect(input).toMatchObject({
           workspaceDir: sandbox.workspaceDir,
           head: validatedHead,
@@ -140,9 +137,6 @@ describe("IntegrationQueue", () => {
           "repo:primary:integration",
         ]);
         return { satisfied: true };
-      },
-      beforePublish: () => {
-        finalizationOrder.push("publish");
       },
     });
 
@@ -167,7 +161,23 @@ describe("IntegrationQueue", () => {
       "base",
     ]);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
-    expect(finalizationOrder).toEqual(["validate", "invariant", "publish"]);
+  });
+
+  test("rejects domain authority withdrawn during dependency staging", async () => {
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("authority-drift");
+    const original = git(workspaceRoot, "rev-parse", "HEAD");
+    write(sandbox.workspaceDir, "writer.txt", "retained work");
+    commit(sandbox.workspaceDir, "writer change");
+    let authorized = true;
+    const result = await new IntegrationQueue(workspaceRoot, store).integrate({
+      repositoryId: "primary", sandbox, epoch, signal: new AbortController().signal,
+      validate: async () => ({ status: "passed", evidence: [] }),
+      verifyPostReconcile: () => authorized ? { satisfied: true } : { satisfied: false, reason: "Task disposition changed" },
+      publishPrepared: async (publish) => { await Promise.resolve(); authorized = false; publish(); },
+    });
+    expect(result).toMatchObject({ status: "invariant-failed", reason: "Task disposition changed" });
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(original);
+    expect(readFileSync(join(sandbox.workspaceDir, "writer.txt"), "utf8")).toBe("retained work");
   });
 
   test("preserves reconciled work when a post-reconcile invariant rejects publication", async () => {

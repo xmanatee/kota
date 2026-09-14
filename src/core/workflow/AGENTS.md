@@ -30,6 +30,16 @@ and publication.
   readers, recheck both trees, then fast-forward. Rejection retains the writer.
   Canonical ignored files are operator-owned too; publication must not overwrite
   them when a writer introduces a tracked path at the same location.
+- Trusted project preparation runs after reconciliation in the actual writer.
+  Setup failures retain that run outside agent source repair. The integration
+  journal owns dependency-output promotion and rollback; blocking workers drain
+  before canonical dependencies and source change. Project policy owns package
+  managers, readiness checks, frozen inputs, relocatable outputs and setup egress.
+  Dependency recovery is a Node-builtin-only startup boundary shared with live
+  recovery. CLI entrypoints run it before loading packages; it reads the same
+  installation-local SQLite run journal without migrations, refuses live publication
+  owners, validates outputs against trusted preparation policy and Git, and
+  leaves acknowledgement and cleanup to RunLifecycle.
 - Conflict and validator repair use bounded AI continuation with screened
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
   and no-progress fingerprints. Runtime owns staging, commits, rebase, and

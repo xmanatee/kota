@@ -14,8 +14,11 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
 - Daemon status exposes loaded and canonical runtime revisions and retains failed
   activation targets when the child cannot start. A supervised restart does not
   rebuild an installed binary. Failed activation parks the supervisor, including
-  after service relaunch, until changed runtime code is installed and the service
-  is restarted. Documentation-only changes do not unlock a failed target.
+  after service relaunch. Changed executable code or an explicit
+  `daemon start --retry-activation` after a successful project readiness probe
+  permits another attempt. Documentation-only changes and ordinary service
+  restarts do not unlock a failed target. Explicit retry retains the prior
+  diagnostic until startup establishes readiness.
   The supervisor holds the instance reservation across child replacements and
   parking; children authenticate the parent reservation and publish their own
   control identity. Only the reservation owner expires prior activation readiness
@@ -45,6 +48,44 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   before selecting its control file or transport.
 
 ## Directory Scopes
+
+Project dependency setup uses `workflow.preparation` in the selected scope's
+trusted `.kota/config.json`. Supply `inputs` (manifest, lockfile and setup policy),
+`outputs` (ignored, self-contained top-level dependency directories), a
+`checkCommand` argv that rejects stale or unusable installations, and a `command`
+argv that installs frozen resolutions. Setup runs in the shared sandbox and may
+write only those outputs and run scratch. Egress is disabled unless the operator
+explicitly configures `allowedEgressHosts`. Lifecycle-script and supply-chain
+decisions remain with the project package manager policy.
+
+For a standalone KOTA source checkout, use `["node", "scripts/check-dependencies.mjs"]` as the check and
+pnpm install with `--frozen-lockfile --ignore-scripts --store-dir node_modules/.store`
+as the command, keeping its writable cache inside the declared output. Include
+`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and the readiness script
+as inputs and
+`node_modules` as the output. Add `--offline` when the run package cache is
+prepared; otherwise authorize the required registry hosts explicitly. A missing
+native binding is a setup failure: copied pnpm installations can be recreated
+when store locations change, so copying does not establish native-build readiness.
+Prepare the reviewed native build under the
+existing pnpm policy. Agents never receive write access to host packages.
+
+Readiness is rechecked after rebase and recovery; only missing readiness invokes
+installation. Publication stages validated, relocatable outputs, drains current
+blocking workers, and replaces dependencies before exposing the new source
+graph. Failed setup retains the same run for ordinary workflow retry. The
+existing integration journal owns interrupted output replacement; do not edit
+daemon state or discard the retained writer to retry preparation. Source and
+installed CLI launchers recover interrupted dependency replacement before loading
+the package graph, using the same SQLite integration journal. Source launch uses
+Node's native type stripping before registering tsx; use the maintained `pnpm kota`
+entrypoint so an early tsx preload cannot strand recovery. Recovery refuses to
+change dependency files owned by a live daemon or publisher. Early recovery reads
+only the executing installation’s own `.kota` journal and preparation configuration
+(with the normal global preparation fallback); command scope selection never
+grants authority over the installation. Journals owned by another host remain
+with that host’s normal runtime recovery. Output renames require current trusted
+preparation permission and ignored, untracked directories.
 
 Scope is the core abstraction. The `kota scope` operator command and
 `?scopeId=` selector address directory-backed scopes through the same owner.

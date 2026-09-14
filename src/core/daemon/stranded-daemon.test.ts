@@ -26,6 +26,7 @@ describe("stranded daemon detection", () => {
     expect(isKotaDaemonCommand("node dist/cli.js daemon")).toBe(true);
     expect(isKotaDaemonCommand("/usr/local/bin/node /repo/dist/cli.js daemon --scope-root /repo")).toBe(true);
     expect(isKotaDaemonCommand("tsx src/cli.ts daemon --log-format json")).toBe(true);
+    expect(isKotaDaemonCommand("node --conditions=source bin/kota-source.mjs daemon start")).toBe(true);
     expect(isKotaDaemonCommand("node dist/cli.js status")).toBe(false);
   });
 

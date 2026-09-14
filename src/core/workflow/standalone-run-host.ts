@@ -120,6 +120,7 @@ export class StandaloneRunHost {
     this.epoch = session.epoch;
 
     this.lifecycle = new RunLifecycle({
+      authorityConfigPath: options.authorityConfigPath,
       store: this.state,
       daemonEpoch: this.epoch,
       executeWorkflow: (context, run) => this.executeWorkflow(context, run),
@@ -128,7 +129,7 @@ export class StandaloneRunHost {
         if (!definition.integration) {
           throw new Error(`Writer workflow "${context.workflow}" has no integration policy`);
         }
-        return validateRunIntegration(context, definition.integration, input);
+        return validateRunIntegration(context, definition.integration, input, options.authorityConfigPath);
       },
       verifyPostReconcile: (context, input) => {
         const definition = this.definition(context.workflow);

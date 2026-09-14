@@ -1,4 +1,5 @@
 import { realpathSync } from "node:fs";
+import { prepareRepository, projectPreparation } from "#core/workflow/repository-preparation.js";
 import {
   affectsLoadedRuntime,
   canonicalRuntimeRevision,
@@ -7,6 +8,29 @@ import {
 } from "./daemon-runtime-revision.js";
 import type { DaemonState } from "./daemon-state.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+
+/** Only an explicit operator retry can trade the failed guard for fresh readiness evidence. */
+export async function retryRuntimeActivationAfterRepair(
+  state: DaemonState,
+  stateDir: string,
+  candidate: typeof LOADED_RUNTIME,
+  signal: AbortSignal,
+  authorityConfigPath?: string,
+): Promise<void> {
+  const runtime = state.runtimeRevision;
+  if (!runtime || runtime.root !== candidate.root || runtime.activation?.status !== "failed") {
+    throw new Error("There is no failed runtime activation to retry");
+  }
+  if (!runtimeRevisionContains(candidate.root, candidate.loadedRevision, runtime.activation.targetRevision)) {
+    throw new Error("Rebuild the requested runtime revision before retrying activation");
+  }
+  const policy = projectPreparation(candidate.root, authorityConfigPath);
+  if (!policy) throw new Error("Configure workflow.preparation with a readiness check before retrying repaired dependencies");
+  await prepareRepository({ root: candidate.root, scopeRoot: candidate.root, policy, signal, authorityConfigPath }, true);
+  // Preserve the failure text through this new attempt. Readiness still belongs to startup.
+  runtime.activation.status = "starting";
+  saveDaemonStateToDisk(stateDir, state);
+}
 
 export function runtimeActivationRetryBlocked(
   previous: DaemonState["runtimeRevision"],
