@@ -328,6 +328,9 @@ function parseWorkflowEnqueueOptions(
   body: Record<string, unknown>,
   workflowName: string,
 ): { ok: true; value: WorkflowEnqueueOptions } | { ok: false; error: string } {
+  if (body.explicitRetry !== undefined && typeof body.explicitRetry !== "boolean") {
+    return { ok: false, error: "explicitRetry must be a boolean" };
+  }
   if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((tag) => typeof tag === "string"))) {
     return { ok: false, error: "tags must be an array of strings" };
   }
@@ -358,6 +361,7 @@ function parseWorkflowEnqueueOptions(
   return {
     ok: true,
     value: {
+      ...(body.explicitRetry !== undefined ? { explicitRetry: body.explicitRetry as boolean } : {}),
       ...(body.tags !== undefined ? { tags: body.tags as string[] } : {}),
       ...(body.payload !== undefined ? { payload: body.payload as Record<string, unknown> } : {}),
       ...(body.event !== undefined ? { event: body.event as string } : {}),

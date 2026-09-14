@@ -24,6 +24,7 @@ describe("buildRetriggerOptions", () => {
     const options = buildRetriggerOptions("retry", "failed-run", "builder", original);
 
     expect(options).toMatchObject({
+      explicitRetry: true,
       event: original.event,
       schemaRef: original.schemaRef,
       payload: {
@@ -41,6 +42,7 @@ describe("buildRetriggerOptions", () => {
 
   it("builds a full replay without retry checkpoint state", () => {
     const options = buildRetriggerOptions("replay", "source-run", "builder", original);
+    expect(options.explicitRetry).toBeUndefined();
 
     expect(options.payload).toEqual({
       taskId: "task-ui",

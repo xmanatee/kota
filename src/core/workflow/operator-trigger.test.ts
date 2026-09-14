@@ -55,6 +55,7 @@ describe("buildOperatorQueuedRun", () => {
 
   it("serializes the same enqueue options for the daemon boundary", () => {
     expect(buildOperatorTriggerRequestBody("builder", {
+      explicitRetry: true,
       event: "runtime.idle",
       schemaRef: null,
       runId: "run-1",
@@ -62,6 +63,7 @@ describe("buildOperatorQueuedRun", () => {
       payload: { taskId: "task-1" },
     })).toEqual({
       name: "builder",
+      explicitRetry: true,
       event: "runtime.idle",
       schemaRef: null,
       runId: "run-1",

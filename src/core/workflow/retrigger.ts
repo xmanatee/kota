@@ -23,6 +23,7 @@ export function buildRetriggerOptions(
   } = original.payload;
 
   return {
+    ...(mode === "retry" ? { explicitRetry: true } : {}),
     event: original.event,
     schemaRef: original.schemaRef,
     runId,

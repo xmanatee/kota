@@ -408,7 +408,13 @@ describe("durable workflow queue restoration", () => {
     expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
     expect(runState.readScopeStateValue(SCOPE_ID, "workflow:recovery:held-owner").value)
       .toMatchObject({ revision: "new-evidence", previousTrigger: original });
-    expect(await queue.resumeRetainedRun("held-owner", Date.now(), true)).toBe(true);
+    const control = {
+      definitions: [definition], runtimeConfig: { runState, scopeId: SCOPE_ID },
+      wfQueue: queue, runCoordinator: coordinator,
+    } as unknown as WorkflowRuntimeRunsControlState;
+    const retry = { payload: { retryOf: "held-owner" } };
+    expect(await enqueuePendingRun(control, definition.name, retry)).toMatchObject({ ok: false });
+    expect(await enqueuePendingRun(control, definition.name, { ...retry, explicitRetry: true })).toMatchObject({ ok: true, runId: "held-owner" });
     expect(runState.getRun("held-owner")).toMatchObject({ state: "queued", trigger: revised, resources: ["task:held"] });
     expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
   });

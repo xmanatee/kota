@@ -64,7 +64,7 @@ export async function enqueuePendingRun(
       return { ok: false, reason: "workflow_contract_conflict", error: `Workflow "${name}" cannot retry run "${retryOf}"` };
     }
     if (source?.state === "needs_attention") {
-      if (!await state.wfQueue.resumeRetainedRun(retryOf, Date.now(), true)) {
+      if (!await state.wfQueue.resumeRetainedRun(retryOf, Date.now(), options.explicitRetry === true)) {
         return {
           ok: false,
           error: `Retained run "${retryOf}" requires a relevant change and a compatible recovery contract; its sandbox and resources remain retained`,

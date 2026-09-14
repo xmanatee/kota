@@ -6,6 +6,8 @@ import { formatRunId, validateWorkflowRunId } from "./run-io.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 
 export type WorkflowEnqueueOptions = {
+  /** Explicit retry control, never inferred from workflow payload or reconciliation. */
+  explicitRetry?: boolean;
   tags?: string[];
   payload?: EventPayloadRecord;
   event?: string;
@@ -24,6 +26,7 @@ export function buildOperatorTriggerRequestBody(
 ): OperatorTriggerRequestBody {
   return {
     name: workflowName,
+    ...(options?.explicitRetry !== undefined ? { explicitRetry: options.explicitRetry } : {}),
     ...(options?.tags?.length ? { tags: options.tags } : {}),
     ...(options?.payload && Object.keys(options.payload).length > 0
       ? { payload: options.payload }
