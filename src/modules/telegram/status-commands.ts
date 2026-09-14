@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { segmentMessage } from "#core/channels/segment-message.js";
 import {
   answerCommandReply,
   answerLogCommandReply,
@@ -15,7 +16,7 @@ import { recallCommandReply } from "#modules/recall/commands.js";
 import { tasksCommandReply } from "#modules/repo-tasks/commands.js";
 import type { RetractTarget } from "#modules/retract/client.js";
 import { retractCommandReply } from "#modules/retract/commands.js";
-import { callTelegramApi, splitMessage } from "./client.js";
+import { callTelegramApi, MAX_MESSAGE_LENGTH } from "./client.js";
 import {
   buildStatusText,
   RETRACT_UMBRELLA_HELP_BODY,
@@ -196,7 +197,7 @@ export async function handleResolvedTelegramStatusCommand(
   }
   if (commandMatches(text, "/answer-show")) {
     const id = text === "/answer-show" ? "" : text.slice("/answer-show ".length).trim();
-    for (const chunk of splitMessage(await answerShowCommandReply(scope.answer, id))) {
+    for (const chunk of segmentMessage(await answerShowCommandReply(scope.answer, id), MAX_MESSAGE_LENGTH)) {
       await sendPlain(chunk);
     }
     return true;

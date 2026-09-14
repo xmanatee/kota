@@ -5,7 +5,6 @@ import {
   MAX_TEXT_LENGTH,
   openSocketModeUrl,
   SlackTransport,
-  splitText,
 } from "./client.js";
 
 // --- Shared fetch mock helper ---
@@ -30,60 +29,6 @@ function installFetchMock(defaultResponse?: unknown) {
 }
 
 function restoreFetch() {}
-
-// --- splitText ---
-
-describe("splitText", () => {
-  it("returns single chunk for short messages", () => {
-    expect(splitText("hello")).toEqual(["hello"]);
-  });
-
-  it("returns single chunk at exact limit", () => {
-    const text = "a".repeat(MAX_TEXT_LENGTH);
-    expect(splitText(text)).toEqual([text]);
-  });
-
-  it("splits at newline boundary when possible", () => {
-    const text = "line1\nline2\nline3";
-    const chunks = splitText(text, 12);
-    expect(chunks[0]).toBe("line1\nline2");
-    expect(chunks[1]).toBe("line3");
-  });
-
-  it("hard splits when no newline found", () => {
-    const text = "a".repeat(200);
-    const chunks = splitText(text, 100);
-    expect(chunks).toHaveLength(2);
-    expect(chunks[0]).toBe("a".repeat(100));
-    expect(chunks[1]).toBe("a".repeat(100));
-  });
-
-  it("handles empty string", () => {
-    expect(splitText("")).toEqual([""]);
-  });
-
-  it("splits long text into multiple chunks respecting limit", () => {
-    const text = Array.from({ length: 10 }, (_, i) => `line${i}`).join("\n");
-    const chunks = splitText(text, 20);
-    for (const chunk of chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(20);
-    }
-  });
-
-  it("uses default max length of MAX_TEXT_LENGTH", () => {
-    const shortText = "hello";
-    expect(splitText(shortText)).toEqual([shortText]);
-  });
-
-  it("strips leading newline from remainder after split", () => {
-    // When split happens at a newline, the leading \n on the remainder is stripped
-    const text = "abc\ndef";
-    const chunks = splitText(text, 4);
-    // "abc\n" is 4 chars, lastIndexOf("\n", 4) = 3
-    expect(chunks[0]).toBe("abc");
-    expect(chunks[1]).toBe("def");
-  });
-});
 
 // --- callSlackApi ---
 
@@ -259,6 +204,27 @@ describe("SlackTransport", () => {
     transport.emit({ type: "text", content: "Hello" });
     await transport.flush();
     expect(transport.getBuffer()).toBe("");
+  });
+
+  it.each([MAX_TEXT_LENGTH - 2, MAX_TEXT_LENGTH - 1])("flush preserves emoji at boundary %i", async (prefixLength) => {
+    const transport = new SlackTransport("tok", "C1", http);
+    const text = `${"a".repeat(prefixLength)}😀`;
+    transport.emit({ type: "text", content: text });
+    await transport.flush();
+    const bodies = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
+    expect(bodies).toEqual(prefixLength === MAX_TEXT_LENGTH - 2
+      ? [{ channel: "C1", text }]
+      : [{ channel: "C1", text: "a".repeat(prefixLength) }, { channel: "C1", text: "😀" }]);
+  });
+
+  it("flush fails fast and clears the buffer when delivery fails", async () => {
+    const transport = new SlackTransport("tok", "C1", http);
+    transport.emit({ type: "text", content: "a".repeat(MAX_TEXT_LENGTH * 3) });
+    fetchMock.mockRejectedValueOnce(new Error("disconnected"));
+    await expect(transport.flush()).rejects.toThrow("disconnected");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await transport.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("flush splits long text into multiple messages", async () => {

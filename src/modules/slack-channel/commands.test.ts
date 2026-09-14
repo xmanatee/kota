@@ -104,13 +104,14 @@ describe("Slack command parsing and delivery", () => {
     const ports = clients();
     await dispatch("/attention ignored body", ports);
     expect(callSlackApi).toHaveBeenLastCalledWith("token", "chat.postMessage", { channel: "D-OWNER", text: "Attention from scope" });
-    const text = "x".repeat(9000);
+    const text = `${"x".repeat(2999)}😀z${"x".repeat(6000)}`;
     vi.mocked(ports.digest.snapshot).mockReturnValue({ text });
     vi.mocked(callSlackApi).mockClear();
     await dispatch("/digest", ports);
     const chunks = vi.mocked(callSlackApi).mock.calls.map(([, , body]) => body as { channel: string; text: string });
     expect(chunks.length).toBeGreaterThan(1);
-    expect(chunks.every(chunk => chunk.channel === "D-OWNER" && chunk.text.length <= 4000)).toBe(true);
+    expect(chunks.every(chunk => chunk.channel === "D-OWNER" && chunk.text.length <= 3000)).toBe(true);
     expect(chunks.map(chunk => chunk.text).join("")).toBe(text);
+    expect(chunks.every(chunk => Buffer.from(chunk.text).toString("utf8") === chunk.text)).toBe(true);
   });
 });

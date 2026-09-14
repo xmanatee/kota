@@ -1,3 +1,4 @@
+import { segmentMessage } from "#core/channels/segment-message.js";
 import type { AgentEvent, Transport } from "#core/loop/transport.js";
 import {
   OUTBOUND_HTTP_PROFILES,
@@ -300,27 +301,6 @@ export async function downloadTelegramFile(
   };
 }
 
-// --- Message splitting ---
-
-/** Split text into chunks that fit Telegram's message size limit. */
-export function splitMessage(text: string, maxLen = MAX_MESSAGE_LENGTH): string[] {
-  if (text.length <= maxLen) return [text];
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      chunks.push(remaining);
-      break;
-    }
-    // Split at last newline within limit
-    let splitAt = remaining.lastIndexOf("\n", maxLen);
-    if (splitAt <= 0) splitAt = maxLen;
-    chunks.push(remaining.slice(0, splitAt));
-    remaining = remaining.slice(splitAt).replace(/^\n/, "");
-  }
-  return chunks;
-}
-
 // --- TelegramTransport ---
 
 /**
@@ -360,7 +340,7 @@ export class TelegramTransport implements Transport {
     const text = this.buffer.trim();
     this.buffer = "";
     if (!text) return;
-    const chunks = splitMessage(text);
+    const chunks = segmentMessage(text, MAX_MESSAGE_LENGTH);
     let lastError: Error | null = null;
     for (const chunk of chunks) {
       try {

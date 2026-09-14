@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Preserve Unicode across Slack and Telegram message boundaries
 
@@ -80,3 +79,27 @@ Demonstrate through production transport and command boundaries with controlled 
 Show one production owner for segmentation and the Unicode boundary rule, direct maintained callers supplying their channel limits, retirement of both replaced algorithms, and removal of redundant pure-algorithm proof without weakening distinct transport checks. Avoid introducing a transport framework, new registry or configuration surface.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Implemented one provider-neutral `segmentMessage(text, maxLength)` owner in
+`src/core/channels/segment-message.ts`. SlackTransport.flush and Slack commands
+postReply call it directly with the existing 3000-unit limit; TelegramTransport.flush
+and Telegram /answer-show call it directly with the existing 4096-unit limit.
+Removed Slack splitText, Telegram splitMessage, and the latter's bot re-export.
+Retired both duplicate pure-splitter suites; the shared owner now proves newline,
+whitespace, exact-limit and Unicode-scalar behavior. Adapter tests retain delivery,
+routing, typing, buffer and error-policy coverage, with Unicode boundary assertions.
+The result is one algorithm and four explicit limit-supplying callers, without a
+new framework, registry or configuration surface. Future maintenance savings have
+not been measured. Existing Telegram command truncation policies remain unchanged.
+
+Validation in builder run `2026-09-14T05-35-23-834Z-builder-bgcwpa`:
+
+- `pnpm test:owner src/core/channels/segment-message.test.ts src/modules/slack-channel/client.test.ts src/modules/slack-channel/commands.test.ts src/modules/telegram/bot.test.ts src/modules/telegram/status-commands.test.ts`: 5 files, 89 tests passed. These distinguish scalar corruption, limit/whitespace regressions and adapter delivery-policy regressions.
+- `pnpm check:fast`: passed after correcting import order; production/test typechecking, lint, task validation, generated client bindings and module admission all completed.
+- Controlled production-boundary probe: 22 observations passed across both flush methods, Slack /digest via postReply and Telegram /answer-show. The exact retained reproducer yielded chunk lengths [2999, 3] and [4095, 3], each ending with an intact emoji plus z. Exact limits, newline preference, hard splits, ordered content, empty-buffer suppression, Slack fail-fast and Telegram transport continuation after a second-chunk failure were observed. Both command paths still propagate delivery failure. Full outbound bodies and source hashes are retained in this run's `artifacts/unicode-transcript.json`, with the executable `artifacts/unicode-probe.mjs` beside it.
+- `git diff --check -- src`: passed. Source consumer search found no remaining splitText/splitMessage references.
+
+The controlled HTTP port makes no vendor calls. Live Slack/Telegram rendering or
+acceptance is not claimed; the task explicitly accepts a controlled outbound transcript.

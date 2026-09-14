@@ -25,7 +25,6 @@ import { channelSessionFixture } from "#root/channel-session-test-support.js";
 import {
   callTelegramApi as callProductionTelegramApi,
   TelegramTransport as ProductionTelegramTransport,
-  splitMessage,
   TelegramBot,
   type TelegramBotOptions,
 } from "./bot.js";
@@ -93,51 +92,6 @@ function botOptions(
     ...overrides,
   };
 }
-
-// --- splitMessage ---
-
-describe("splitMessage", () => {
-  it("returns single chunk for short messages", () => {
-    expect(splitMessage("hello", 100)).toEqual(["hello"]);
-  });
-
-  it("returns single chunk at exact limit", () => {
-    const text = "a".repeat(100);
-    expect(splitMessage(text, 100)).toEqual([text]);
-  });
-
-  it("splits at newline boundary", () => {
-    const text = "line1\nline2\nline3";
-    const chunks = splitMessage(text, 12);
-    expect(chunks[0]).toBe("line1\nline2");
-    expect(chunks[1]).toBe("line3");
-  });
-
-  it("hard splits when no newline found", () => {
-    const text = "a".repeat(200);
-    const chunks = splitMessage(text, 100);
-    expect(chunks).toHaveLength(2);
-    expect(chunks[0]).toBe("a".repeat(100));
-    expect(chunks[1]).toBe("a".repeat(100));
-  });
-
-  it("handles empty string", () => {
-    expect(splitMessage("")).toEqual([""]);
-  });
-
-  it("splits long text into multiple chunks", () => {
-    const text = Array.from({ length: 10 }, (_, i) => `line${i}`).join("\n");
-    const chunks = splitMessage(text, 20);
-    for (const chunk of chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(20);
-    }
-    expect(chunks.join("\n")).toBe(text);
-  });
-
-  it("uses default max length of 4096", () => {
-    expect(splitMessage("hello")).toEqual(["hello"]);
-  });
-});
 
 // --- Shared Telegram request-port fixture ---
 
@@ -255,6 +209,17 @@ describe("TelegramTransport", () => {
     vi.advanceTimersByTime(10000);
     expect(fetchMock).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it.each([4094, 4095])("flush preserves emoji at boundary %i", async (prefixLength) => {
+    const transport = new TelegramTransport(123, "tok");
+    const text = `${"a".repeat(prefixLength)}😀`;
+    transport.emit({ type: "text", content: text });
+    await transport.flush();
+    const bodies = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
+    expect(bodies).toEqual(prefixLength === 4094
+      ? [{ chat_id: 123, text }]
+      : [{ chat_id: 123, text: "a".repeat(prefixLength) }, { chat_id: 123, text: "😀" }]);
   });
 
   it("flush attempts all chunks even when middle chunk fails", async () => {

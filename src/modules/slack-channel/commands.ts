@@ -17,6 +17,7 @@
  * non-slash DM path keeps owning multi-turn agent conversations unchanged.
  */
 
+import { segmentMessage } from "#core/channels/segment-message.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
   answerCommandReply,
@@ -37,7 +38,7 @@ import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
 import { tasksCommandReply } from "#modules/repo-tasks/commands.js";
 import type { RetractClient, RetractTarget } from "#modules/retract/client.js";
 import { retractCommandReply } from "#modules/retract/commands.js";
-import { callSlackApi, splitText } from "./client.js";
+import { callSlackApi, MAX_TEXT_LENGTH } from "./client.js";
 
 /**
  * Read-only attention snapshot used by the `/attention` slash command.
@@ -113,7 +114,7 @@ async function postReply(
   channelId: string,
   text: string,
 ): Promise<void> {
-  for (const chunk of splitText(text)) {
+  for (const chunk of segmentMessage(text, MAX_TEXT_LENGTH)) {
     await callSlackApi(token, "chat.postMessage", {
       channel: channelId,
       text: chunk,

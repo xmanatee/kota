@@ -13,7 +13,6 @@ import {
   isTelegramGetUpdatesConflict,
   POLL_REQUEST_TIMEOUT_MS,
   POLL_TIMEOUT_S,
-  splitMessage,
   TelegramApiError,
   TelegramApiTransportError,
   TelegramTransport,
@@ -24,7 +23,7 @@ import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { acquireTelegramPollingOwner } from "./polling-ownership.js";
 
 export type { TelegramBotOptions } from "./bot-runtime-types.js";
-export { callTelegramApi, splitMessage, TelegramTransport };
+export { callTelegramApi, TelegramTransport };
 
 export class TelegramGetUpdatesConflictError extends Error {
   constructor() {

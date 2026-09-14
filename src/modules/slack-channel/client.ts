@@ -5,6 +5,7 @@
  * Socket Mode. No external dependencies beyond the KOTA core.
  */
 
+import { segmentMessage } from "#core/channels/segment-message.js";
 import type { AgentEvent, Transport } from "#core/loop/transport.js";
 import {
   OUTBOUND_HTTP_PROFILES,
@@ -120,24 +121,6 @@ export async function openSocketModeUrl(
   return result.url;
 }
 
-/** Split text into chunks that fit Slack's message limits. */
-export function splitText(text: string, maxLen = MAX_TEXT_LENGTH): string[] {
-  if (text.length <= maxLen) return [text];
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      chunks.push(remaining);
-      break;
-    }
-    let splitAt = remaining.lastIndexOf("\n", maxLen);
-    if (splitAt <= 0) splitAt = maxLen;
-    chunks.push(remaining.slice(0, splitAt));
-    remaining = remaining.slice(splitAt).replace(/^\n/, "");
-  }
-  return chunks;
-}
-
 // --- SlackTransport ---
 
 /**
@@ -163,7 +146,7 @@ export class SlackTransport implements Transport {
     const text = this.buffer.trim();
     this.buffer = "";
     if (!text) return;
-    const chunks = splitText(text);
+    const chunks = segmentMessage(text, MAX_TEXT_LENGTH);
     for (const chunk of chunks) {
       await callSlackApi(this.botToken, "chat.postMessage", {
         channel: this.channelId,

@@ -118,7 +118,7 @@ describe("Telegram status command delivery", () => {
   });
 
   it("parses answer bodies and keeps Telegram truncation and detail segmentation", async () => {
-    const text = "x".repeat(9000);
+    const text = `${"x".repeat(4095)}😀z${"x".repeat(5000)}`;
     const result = { ok: true as const, answer: text, citations: [], hits: [] };
     const answer = {
       ...scope().answer,
@@ -141,6 +141,7 @@ describe("Telegram status command delivery", () => {
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every(body => body?.chat_id === 99 && String(body.text).length <= 4096)).toBe(true);
     expect(chunks.map(body => body?.text).join("")).toBe(text);
+    expect(chunks.every(body => Buffer.from(String(body?.text)).toString("utf8") === body?.text)).toBe(true);
     await command("/answer-log   7  ", { ...scope(), answer });
     expect(answer.log).toHaveBeenCalledExactlyOnceWith({ limit: 7 });
   });
