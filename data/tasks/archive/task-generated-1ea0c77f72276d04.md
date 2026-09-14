@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Complete hosted harness registration repair for token-budget fixtures
 
@@ -74,3 +73,34 @@ Resolve both recorded failures. Verify successful dispatch carries the same ledg
 Show catalog entries, effects and approval bindings derive from one disposable registration lifecycle in both migrated fixtures. Remove obsolete simulated registry paths and unused mocks. Preserve distinct adapter outcomes while retiring only demonstrably redundant assertions.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Migrated both `gemini-agent-harness/adapter-token-budget.test.ts` and
+`openai-tools-agent-harness/adapter-token-budget.test.ts`. Gemini now consumes
+its existing `adapter-test-support.ts` provider stream and disposable echo-tool
+registration. OpenAI keeps its variable-usage provider stub and registers its
+typed fixture runner with `registerTool`, disposing that registration after
+each case. Both catalog entries, read-only effects and approval bindings now
+come from the canonical registration lifecycle. Removed both core-tools module
+mocks and the obsolete catalog, effect and executeTool mock declarations;
+Gemini also retires its duplicated provider setup, tool declaration and stream
+helper. No production authorization or shared helper implementation changed.
+
+The isolated baseline reproduced two failed dispatch cases and six passes.
+After migration, both suites pass all eight cases, including explicit ledger
+identity and single-dispatch assertions, session/cwd/workflow propagation,
+pre-execution budget exhaustion, unknown usage and cumulative totals.
+The broader owner selection (both adapter directories plus core tools/index
+and local-tool-approval-binding suites) passes 105 tests in 17 files, covering
+existing helper consumers, scaffold execution, registration lifetime and
+approval declaration/effect drift. No worker errors occurred in this selection.
+`pnpm check:fast` passes production/test typechecking, lint, task validation,
+generated client bindings and bundled module admission. The initial import-order
+lint error was corrected with Biome; the complete gate then passed.
+`git diff --check` also passes for the changed source and task surfaces.
+
+This completes the fixture follow-up to
+[rollout token budgets](task-add-rollout-token-budgets-to-workflow-agent-runs.md).
+Provider responses remain controlled; these results are deterministic adapter
+proof, not live-model evidence or measured future maintenance savings.

@@ -1,25 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentTokenBudgetLedger,
   TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
 } from "#core/agent-harness/index.js";
 import type { KotaContentBlock, KotaModelResponse, KotaTool } from "#core/agent-harness/message-protocol.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import { registerTool, type ToolRunner } from "#core/tools/index.js";
 
 const messagesStreamMock = vi.fn();
 const createModelClientMock = vi.fn();
-const executeToolMock = vi.fn();
-const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
-const getToolEffectMock = vi.fn();
+const fixtureRunnerMock = vi.fn<ToolRunner>();
 const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: (...args: unknown[]) => executeToolMock(...args),
-  getAllTools: () => getAllToolsMock(),
-  getToolEffect: (...args: unknown[]) => getToolEffectMock(...args),
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -64,14 +58,21 @@ function makeStubStream(final: StubFinalMessage) {
   };
 }
 
+let disposeTool: (() => void) | undefined;
+
+afterEach(() => {
+  disposeTool?.();
+  disposeTool = undefined;
+});
+
 beforeEach(() => {
   messagesStreamMock.mockReset();
   createModelClientMock.mockReset();
-  executeToolMock.mockReset();
-  getAllToolsMock.mockReset();
-  getToolEffectMock.mockReset();
+  fixtureRunnerMock.mockReset();
+  disposeTool = registerTool(TEST_TOOL, fixtureRunnerMock, undefined, {
+    effect: readOnlyLocalEffect(),
+  });
   maskKnownSecretValuesMock.mockReset();
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
   maskKnownSecretValuesMock.mockImplementation((text) => text);
   createModelClientMock.mockReturnValue({
     model: "openai/gpt-5.6-luna",
@@ -138,7 +139,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       },
     });
     expect(result.text).toContain("after model usage was reported");
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(messagesStreamMock).toHaveBeenCalledTimes(1);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(11);
   });
@@ -177,7 +178,7 @@ describe("openaiToolsAgentHarness token budget", () => {
         cost: { state: "unavailable", reason: "provider-does-not-report" },
       },
     });
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(messagesStreamMock).toHaveBeenCalledTimes(1);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(10);
   });
@@ -207,7 +208,7 @@ describe("openaiToolsAgentHarness token budget", () => {
           usage: { input_tokens: 3, output_tokens: 1 },
         }),
       );
-    executeToolMock.mockResolvedValueOnce({ content: "echo: hello" });
+    fixtureRunnerMock.mockResolvedValueOnce({ content: "echo: hello" });
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
     const executionCwd = "/tmp/kota-openai-tools-metadata";
     const workflowContext = {
@@ -233,8 +234,8 @@ describe("openaiToolsAgentHarness token budget", () => {
     });
 
     expect(result).toMatchObject({ isError: false, text: "done", turns: 2 });
-    expect(executeToolMock).toHaveBeenCalledWith(
-      "echo_tool",
+    expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
+    expect(fixtureRunnerMock).toHaveBeenCalledWith(
       { text: "hello" },
       expect.objectContaining({
         toolUseId: "call_1",
@@ -245,6 +246,7 @@ describe("openaiToolsAgentHarness token budget", () => {
         tokenBudget,
       }),
     );
+    expect(fixtureRunnerMock.mock.lastCall?.[1]?.tokenBudget).toBe(tokenBudget);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(7);
   });
 });

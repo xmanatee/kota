@@ -1,62 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   AgentTokenBudgetLedger,
   TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
 } from "#core/agent-harness/index.js";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-
-const generateContentStreamMock = vi.fn();
-const executeToolMock = vi.fn();
-const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
-const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
-
-vi.mock("@google/genai", () => ({
-  GoogleGenAI: function MockGoogleGenAI(this: { models: unknown }) {
-    this.models = {
-      generateContentStream: (...callArgs: unknown[]) =>
-        generateContentStreamMock(...callArgs),
-    };
-  },
-}));
-
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: (...args: unknown[]) => executeToolMock(...args),
-  getAllTools: () => getAllToolsMock(),
-  getToolEffect: () => undefined,
-}));
-
-vi.mock("#core/config/secrets.js", () => ({
-  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
-}));
-
 import { geminiAgentHarness } from "./adapter.js";
-
-const TEST_TOOL: KotaTool = {
-  name: "echo_tool",
-  description: "Echo the provided text",
-  input_schema: {
-    type: "object",
-    properties: { text: { type: "string" } },
-    required: ["text"],
-  },
-};
-
-function makeStreamFromChunks(
-  chunks: ReadonlyArray<Record<string, unknown>>,
-): AsyncGenerator<Record<string, unknown>> {
-  return (async function* () {
-    for (const chunk of chunks) yield chunk;
-  })();
-}
-
-beforeEach(() => {
-  generateContentStreamMock.mockReset();
-  executeToolMock.mockReset();
-  getAllToolsMock.mockReset();
-  maskKnownSecretValuesMock.mockReset();
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  maskKnownSecretValuesMock.mockImplementation((text) => text);
-});
+import {
+  fixtureRunnerMock,
+  generateContentStreamMock,
+  makeStreamFromChunks,
+} from "./adapter-test-support.js";
 
 describe("geminiAgentHarness token budget", () => {
   it("records absent provider usage as unknown instead of debiting zero", async () => {
@@ -121,7 +73,7 @@ describe("geminiAgentHarness token budget", () => {
       },
     });
     expect(result.text).toContain("after model usage was reported");
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(generateContentStreamMock).toHaveBeenCalledTimes(1);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(11);
   });
@@ -169,7 +121,7 @@ describe("geminiAgentHarness token budget", () => {
         cost: { state: "unavailable", reason: "provider-does-not-report" },
       },
     });
-    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(fixtureRunnerMock).not.toHaveBeenCalled();
     expect(generateContentStreamMock).toHaveBeenCalledTimes(1);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(10);
   });
@@ -217,7 +169,7 @@ describe("geminiAgentHarness token budget", () => {
           },
         ]),
       );
-    executeToolMock.mockResolvedValueOnce({ content: "pong" });
+    fixtureRunnerMock.mockResolvedValueOnce({ content: "pong" });
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
     const executionCwd = "/tmp/kota-gemini-metadata";
     const workflowContext = {
@@ -243,7 +195,8 @@ describe("geminiAgentHarness token budget", () => {
     });
 
     expect(result).toMatchObject({ isError: false, text: "done", turns: 2 });
-    expect(executeToolMock).toHaveBeenCalledWith(
+    expect(fixtureRunnerMock).toHaveBeenCalledTimes(1);
+    expect(fixtureRunnerMock).toHaveBeenCalledWith(
       "echo_tool",
       { text: "ping" },
       expect.objectContaining({
@@ -255,6 +208,7 @@ describe("geminiAgentHarness token budget", () => {
         tokenBudget,
       }),
     );
+    expect(fixtureRunnerMock.mock.lastCall?.[2]?.tokenBudget).toBe(tokenBudget);
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(7);
   });
 });
