@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,7 +55,7 @@ describe("Architecture Gardener Workflow", () => {
   let testWorkspace: string;
 
   beforeEach(() => {
-    testWorkspace = mkdtempSync(join(tmpdir(), "kota-gardener-wf-test-"));
+    testWorkspace = realpathSync(mkdtempSync(join(tmpdir(), "kota-gardener-wf-test-")));
     mkdirSync(join(testWorkspace, "src", "core"), { recursive: true });
     mkdirSync(join(testWorkspace, "src", "modules", "foo"), { recursive: true });
     mkdirSync(join(testWorkspace, "data", "tasks"), { recursive: true });
@@ -728,6 +728,11 @@ describe("Architecture Gardener Workflow", () => {
       database.startRun(id, epoch, now);
       database.suspendRun({ runId: id, epoch, state: "waiting", suspendedAt: now });
     }
+    // A batched task review occupies one run, not one slot per claimed task.
+    database.admitRun({ id: "batch-review", scopeId: state.scopeId, workflow: "blocked-promoter", repository: "write",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      resources: Array.from({ length: 5 }, (_, index) => `task:task-blocked-${index}`), admittedAt: now });
+    database.startRun("batch-review", epoch, now);
     database.close();
     // Process launching is an external port; validate the real published task
     // tree in process while the scenario retains runtime publication ownership.
@@ -746,7 +751,7 @@ describe("Architecture Gardener Workflow", () => {
       evidenceRefs: [observations[0]!.fingerprint, "src/core/bad.ts"],
       revisit: { reason: "Changed import ownership.", deliveryIssueKeys: [] }, existingTaskId: null, proposal: null }));
     expect(first.status, first.error).toBe("success");
-    expect(first.steps.investigate.status).toBe("success");
+    expect(first.steps.investigate.status, JSON.stringify(first.steps["inspect-evidence"].output)).toBe("success");
     const second = await review({ ...ownershipDecision(), evidenceRefs: [observations[1]!.fingerprint, "src/core/other.ts"] });
     expect(second.status, second.error).toBe("success");
     expect(second.steps.investigate.status).toBe("success");

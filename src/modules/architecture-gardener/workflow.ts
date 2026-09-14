@@ -149,7 +149,10 @@ const inspect = typedCodeStep<InvestigationInput>({
       followUpFingerprints: terminalTaskEvidence,
       reviewedTaskEvidence: state.reviewedTaskEvidence,
     });
-    if (queue && (!assessAutonomyQueue(queue).empty || queue.runningCount + queue.queuedCount >= queue.capacity)) {
+    const deliveryRuns = new Set(queue?.owners.filter((owner) =>
+      owner.state === "running" || owner.state === "integrating" || owner.state === "queued"
+    ).map((owner) => owner.runId));
+    if (queue && (!assessAutonomyQueue(queue).empty || deliveryRuns.size >= queue.capacity)) {
       admission.admitted = false;
       admission.reason = queue.ownershipAvailable
         ? "Useful delivery work has priority over idle investigation."
