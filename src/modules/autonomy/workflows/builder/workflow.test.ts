@@ -147,6 +147,8 @@ describe("targeted builder contract", () => {
     };
     try {
       expect((await assessBuilderRecovery(input))).toMatchObject({ resume: false });
+      expect(await assessBuilderRecovery({ ...input, explicitRetry: true }))
+        .toMatchObject({ resume: true, trigger: { payload: { taskId: payload.taskId, taskDigest: payload.taskDigest } } });
       writeTask(root, "open", "Clarified acceptance; preserve the original goal");
       publish(root);
       const revised = (await assessBuilderRecovery(input));
@@ -158,8 +160,12 @@ describe("targeted builder contract", () => {
         value: { revision: revised.revision }, updatedAt: new Date().toISOString(),
       });
       expect((await assessBuilderRecovery({ ...input, trigger: revised.trigger }))).toMatchObject({ resume: false });
+      expect(await assessBuilderRecovery({ ...input, trigger: revised.trigger, explicitRetry: true }))
+        .toMatchObject({ resume: true, revision: revised.revision });
       writeTask(root, "blocked", "## Blocked on\nkind: operator-capture\npath: .kota/runs\ndescription: External result required");
+      publish(root);
       expect((await assessBuilderRecovery(input))).toMatchObject({ resume: false });
+      expect(await assessBuilderRecovery({ ...input, explicitRetry: true })).toMatchObject({ resume: false });
     } finally { store.close(); }
   });
 

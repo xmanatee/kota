@@ -35,7 +35,9 @@ Builder is a business workflow, not a private execution runtime.
   evidence through the shared anchored batch reader. Recheck canonical task
   intent after collection; non-actionable targets skip evidence export.
 - Retained recovery compares the admitted task, critic policy, and linked issue
-  revisions with the failed attempt. Unchanged inputs stay retained. The shared
+  revisions with the failed attempt. Automatic retries retain unchanged inputs;
+  an explicit retry can reattempt repaired environments without editing task intent.
+  Both paths still require an actionable target and compatible ownership. The shared
   runtime reconciles a changed canonical contract under the same resource and
   run identity before fresh execution. The exported `admitted-task.md` is the
   current admitted source; preserve retained task notes and corrections while

@@ -696,6 +696,7 @@ export class RunStateDatabase {
     expected: StoredRun;
     trigger: WorkflowRunTrigger;
     revision: string;
+    explicitRetry?: boolean;
     admission?: RunAdmissionIdentity;
     resumedAt: string;
   }): boolean {
@@ -706,7 +707,7 @@ export class RunStateDatabase {
       if (!canRestartRetainedWorkflow(current)) return false;
       const key = `workflow:recovery:${current.id}`;
       const prior = this.readScopeStateValue<{ revision: string }>(current.scopeId, key);
-      if (prior.value?.revision === input.revision) return false;
+      if (prior.value?.revision === input.revision && !input.explicitRetry) return false;
       if (input.admission) {
         if (input.admission.scopeId !== current.scopeId) return false;
         const admission = this.resolveAdmission(input.admission);

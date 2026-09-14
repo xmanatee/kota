@@ -64,7 +64,7 @@ export const assessBuilderRecovery: WorkflowRecoveryResolver = async (input) => 
   }
   // An older run without an attributable baseline may reconcile a changed task,
   // but absence of a baseline is not itself new evidence or permission to retry.
-  if (baseline === revision || (baseline === undefined && admitted.taskDigest === current.taskDigest && !changedReview)) {
+  if (!input.explicitRetry && (baseline === revision || (baseline === undefined && admitted.taskDigest === current.taskDigest && !changedReview))) {
     return { resume: false, reason: baseline === undefined
       ? "No attributable recovery baseline; retain for owner review or a changed task contract"
       : "Task contract and relevant review inputs are unchanged" };

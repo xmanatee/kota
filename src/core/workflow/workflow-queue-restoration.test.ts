@@ -408,6 +408,9 @@ describe("durable workflow queue restoration", () => {
     expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
     expect(runState.readScopeStateValue(SCOPE_ID, "workflow:recovery:held-owner").value)
       .toMatchObject({ revision: "new-evidence", previousTrigger: original });
+    expect(await queue.resumeRetainedRun("held-owner", Date.now(), true)).toBe(true);
+    expect(runState.getRun("held-owner")).toMatchObject({ state: "queued", trigger: revised, resources: ["task:held"] });
+    expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
   });
 
   it("cannot resume a retained run changed while its asynchronous recovery is being assessed", async () => {

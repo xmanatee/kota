@@ -349,18 +349,20 @@ export class WorkflowQueueManager {
     this.appendRun({ ...queued, notBeforeMs });
   }
 
-  resumeRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
+  resumeRetainedRun(runId: string, resumedAtMs: number, explicitRetry = false): Promise<boolean> {
     const pending = this.retainedRecoveries.get(runId);
-    if (pending) return pending;
+    if (pending) return explicitRetry
+      ? pending.then((resumed) => resumed || this.resumeRetainedRun(runId, resumedAtMs, true))
+      : pending;
     // Event and operator requests share one assessment; durable state still
     // decides whether its result can resume the retained run.
-    const recovery = this.assessRetainedRun(runId, resumedAtMs)
+    const recovery = this.assessRetainedRun(runId, resumedAtMs, explicitRetry)
       .finally(() => this.retainedRecoveries.delete(runId));
     this.retainedRecoveries.set(runId, recovery);
     return recovery;
   }
 
-  private async assessRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
+  private async assessRetainedRun(runId: string, resumedAtMs: number, explicitRetry: boolean): Promise<boolean> {
     const run = this.config.runState.getRun(runId);
     if (run?.state !== "needs_attention" || run.scopeId !== this.config.scopeId) return false;
     const definition = this.definition(run.workflow);
@@ -371,6 +373,7 @@ export class WorkflowQueueManager {
         try {
           const decision = await resolver({
             signal,
+            explicitRetry,
             scopeRoot: this.config.scopeRoot,
             stateDir: this.config.store.rootDir,
             runtimeStateDir: dirname(this.config.runState.path),
@@ -398,6 +401,7 @@ export class WorkflowQueueManager {
     if (recovery?.resume) {
       if (!this.config.runState.reconcileRetainedRun({
         expected: run, trigger: reconciled.trigger, revision: recovery.revision,
+        explicitRetry,
         admission: workflowDispatchIdempotency(this.config.scopeId, run.workflow, reconciled.trigger) ?? undefined,
         resumedAt: new Date(resumedAt).toISOString(),
       })) return false;
