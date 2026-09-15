@@ -4,6 +4,10 @@
 # Inaccessible sources remain listed for recovery, without inferred contents.
 
 resources:
+  - url: https://github.com/google/artemis
+    added: "2026-09-15"
+    refresh: weekly
+    notes: "From data/inbox/links.md; README read September 15. Monitor Android automation, MCP device control and screenshot/log/replay evidence for potential KOTA mobile verification needs. Adoption requires a concrete mobile outcome and authorized device capability; README benchmark claims are not KOTA validation."
   - url: https://github.com/Tencent/teamai-cli
     added: "2026-09-12"
     refresh: weekly
@@ -288,7 +292,7 @@ resources:
   - url: https://github.com/cline/cline
     added: "2026-04-26"
     refresh: weekly
-    notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Revisit when project development changes the relevant KOTA capability or decision."
+    notes: "Monitor shared desktop/CLI/extension sessions, conversation import, scheduled work and model/tool permission behavior. The September 15 inbox Desktop article adds these peer-product signals to this existing source; its CLI benchmark claims do not establish KOTA model quality or Desktop performance. Revisit concrete changes relevant to KOTA session continuity, operator clients or harness evaluation."
     snapshot:
       fingerprint: sha256:47242078d37d025cb8c923c11278763c
       summary: "Cline has broadened from IDE-first HITL coding into a shared agent engine across CLI, SDK, Kanban, scheduled agents, and channels; KOTA already maps most primitives, and dependency-chain task ordering is now covered by typed task dependency edges."
