@@ -20,6 +20,7 @@ import type { SourceEvidence } from "./source-evidence.js";
 
 export type CandidateSummary = {
   id: string;
+  digest: string;
   urls: string[];
   attemptableUrls: string[];
 };

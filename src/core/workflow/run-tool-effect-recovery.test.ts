@@ -14,6 +14,7 @@ import {
   registerTool,
   type ToolResult,
 } from "#core/tools/index.js";
+import { getToolMiddleware, type ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { runChecksPhased } from "./repair-loop-checks.js";
 import {
@@ -194,7 +195,7 @@ describe("declarative workflow tool effects", () => {
     expect(value.state.getExternalEffect(`${value.runId}:tool-step:read`)).toBeNull();
   });
 
-  it("reuses the durable JSON result of a completed non-idempotent write", async () => {
+  it("reuses the screened durable JSON result of a completed non-idempotent write", async () => {
     const tool = `effect_write_${fixtureSequence + 1}`;
     registerEffectTool(tool, localWriteEffect());
     const result: ToolResult = {
@@ -206,14 +207,21 @@ describe("declarative workflow tool effects", () => {
     const value = fixture(runTool);
     const workflowStep = step("create", tool, { name: "artifact" });
 
-    expect(await executeToolStep(workflowStep, value.context)).toEqual(result);
-    expect(await executeToolStep(workflowStep, value.context)).toEqual(result);
-
-    expect(runTool).toHaveBeenCalledOnce();
-    expect(value.state.getExternalEffect(`${value.runId}:tool-step:create`)).toMatchObject({
-      state: "completed",
-      result,
-    });
+    const screen = vi.fn<ToolMiddlewareFn>(async (_call, next) => ({ ...await next(), content: "screened" }));
+    const remove = getToolMiddleware().add("effect-result-screen", screen);
+    try {
+      const screened = { ...result, content: "screened" };
+      expect(await executeToolStep(workflowStep, value.context)).toEqual(screened);
+      expect(await executeToolStep(workflowStep, value.context)).toEqual(screened);
+      expect(runTool).toHaveBeenCalledOnce();
+      expect(screen).toHaveBeenCalledOnce();
+      expect(value.state.getExternalEffect(`${value.runId}:tool-step:create`)).toMatchObject({
+        state: "completed",
+        result: screened,
+      });
+    } finally {
+      remove();
+    }
   });
 
   it("executes provider-idempotent writes normally without journaling them", async () => {

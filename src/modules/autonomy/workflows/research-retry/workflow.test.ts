@@ -16,9 +16,11 @@ import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { xPostReadTool } from "#modules/browser/x-post-read.js";
 import { webFetchTool } from "#modules/web-access/web-fetch.js";
+import collectionWorkflow from "../research-source-collection/workflow.js";
 import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import { inspectResearchRetryCandidatesInWorker } from "./blocking-operations.js";
 import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.js";
+import { researchContractMatches, researchHandoffSchema, verifyResearchContract } from "./handoff.js";
 import {
   availableResearchSourceTools,
   checkResearchRetryCapability,
@@ -31,7 +33,7 @@ import {
   SOURCE_RETRY_INTERVAL_MS,
   sourceAccessFingerprint,
 } from "./precondition.js";
-import { collectResearchSourceEvidence } from "./source-evidence.js";
+import { collectResearchHttpReadings, collectResearchSourceEvidence } from "./source-evidence.js";
 import { assertResearchRetryTrigger } from "./trigger.js";
 import researchRetryWorkflow from "./workflow.js";
 
@@ -112,8 +114,39 @@ function researchRetryTrigger(): WorkflowRunTrigger {
 }
 
 describe("research-retry workflow", () => {
+  it("rejects mismatched source evidence and detects a task changed after collection", async () => {
+    const urls = ["https://example.com/source"];
+    const root = createResearchProject([{ id: "task-source", urls }]);
+    const candidate = listResearchRetryCandidates(root)[0]!;
+    const evidence = await collectResearchSourceEvidence({
+      urls, capability, httpReadings: await collectResearchHttpReadings({ urls, runTool: async () => ({ content: "Observed source" }) }),
+      runTool: async () => { throw new Error("Unexpected browser call"); },
+    });
+    const handoff = researchHandoffSchema.parse({
+      scopeId: "scope", sourceRunId: "collection-run",
+      candidate: { ...candidate, attemptableUrls: urls }, capability, evidence,
+    });
+    expect(researchContractMatches(root, handoff)).toBe(true);
+    expect(researchHandoffSchema.safeParse({ ...handoff, evidence: { ...evidence, sources: [] } }).success).toBe(false);
+    const path = join(root, "data/tasks/task-source.md");
+    writeFileSync(path, `${readFileSync(path, "utf8")}\nChanged owner requirement.\n`);
+    expect(researchContractMatches(root, handoff)).toBe(false);
+    const canonicalHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    execFileSync("git", ["add", "data/tasks/task-source.md"], { cwd: root });
+    execFileSync("git", ["commit", "-qm", "retained writer mutation"], { cwd: root });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    const invariantInput = {
+      workspaceRoot: root, repoRoot: root, stateDir: join(root, ".kota"), runId: "writer",
+      workflowName: "research-retry", trigger: { event: "workflow.triggered", schemaRef: null, payload: handoff },
+      baseHead: canonicalHead, canonicalHead, head, signal: new AbortController().signal,
+      readState: () => ({ revision: 0, value: null }),
+    };
+    expect(verifyResearchContract(invariantInput).satisfied).toBe(false);
+    expect(verifyResearchContract({ ...invariantInput, head: canonicalHead }).satisfied).toBe(true);
+  });
+
   it("wakes only from blocked research availability", () => {
-    expect(researchRetryWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
+    expect(collectionWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
       "autonomy.blocked-research.attemptable",
     ]);
   });
@@ -137,7 +170,8 @@ describe("research-retry workflow", () => {
   it("skips the agent step when there are no blocked research candidates", async () => {
     const workspaceRoot = createResearchProject();
 
-    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(collectionWorkflow, {
+      workflows: [researchRetryWorkflow],
       trigger: researchRetryTrigger(),
       workspaceRoot,
     });
@@ -150,7 +184,7 @@ describe("research-retry workflow", () => {
       candidateCount: 0,
       examined: [],
     });
-    expect(result.steps.retry.status).toBe("skipped");
+    expect(result.steps["publish-research"].status).toBe("skipped");
   });
 
   it("skips the agent step when worktree is dirty", async () => {
@@ -161,17 +195,18 @@ describe("research-retry workflow", () => {
       },
     ]);
 
-    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(collectionWorkflow, {
+      workflows: [researchRetryWorkflow],
       trigger: researchRetryTrigger(),
       workspaceRoot,
-      setupWorkspace: (workspaceDir) => {
-        writeFileSync(join(workspaceDir, "dirty.txt"), "uncommitted\n");
+      setupWorkspace: () => {
+        writeFileSync(join(workspaceRoot, "dirty.txt"), "uncommitted\n");
       },
     });
 
     const result = await harness.run();
 
-    expect(result.steps.retry.status).toBe("skipped");
+    expect(result.steps["publish-research"].status).toBe("skipped");
   });
 
   it("classifies candidates as unavailable when every URL lacks its capability", () => {
@@ -259,7 +294,8 @@ describe("research-retry workflow", () => {
       return { content: "Screened source body", is_error: false };
     }, "web-access", { effect: networkReadEffect() }));
     const prompts = new Map<string, string>();
-    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(collectionWorkflow, {
+      workflows: [researchRetryWorkflow],
       trigger: researchRetryTrigger(),
       workspaceRoot,
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
@@ -284,14 +320,16 @@ describe("research-retry workflow", () => {
       candidateCount: 2,
     });
     expect(result.status, result.error).toBe("success");
-    expect(result.steps.retry.status).toBe("success");
+    expect(result.steps["publish-research"].status).toBe("success");
     expect(result.steps["collect-sources"].output).toMatchObject({
       attempts: [{ url: "https://example.com/article", tools: ["web_fetch"], outcome: "readable" }],
       sources: [{ readings: [{ content: "Screened source body" }] }],
     });
-    expect(result.steps["mark-attempt"].output).toMatchObject({ written: true });
+    const child = result.steps["publish-research"].output as { runId: string };
+    const childMetadata = JSON.parse(readFileSync(join(workspaceRoot, ".kota/runs", child.runId, "metadata.json"), "utf8"));
+    expect(childMetadata.steps.find((step: { id: string }) => step.id === "mark-attempt").output).toMatchObject({ written: true });
     expect(prompts.get("retry")).toContain("Screened source body");
-    const shadow = result.steps["shadow-semantic-review"].output as { artifactPath: string };
+    const shadow = childMetadata.steps.find((step: { id: string }) => step.id === "shadow-semantic-review").output as { artifactPath: string };
     expect(JSON.parse(readFileSync(shadow.artifactPath, "utf8")).target.artifactPaths).toEqual(expect.arrayContaining([
       "metadata:inspect-candidates", "metadata:collect-sources", "metadata:mark-attempt",
     ]));
@@ -390,7 +428,7 @@ describe("research-retry workflow", () => {
     expect(extractResourceUrls("See <https://example.com/auto> and [ref][1].\n[1]: https://example.com/reference")).toEqual(["https://example.com/auto", "https://example.com/reference"]);
   });
 
-  it("requires legal writer tool access, not just a configured browser", () => {
+  it("requires scope authorization for collection, not just a configured browser", () => {
     const root = createResearchProject();
     const policy = scopePolicySnapshotForTest(root).policy;
     cleanups.push(registerTool(webFetchTool, vi.fn(), "web-access", { effect: networkReadEffect() }));
@@ -409,15 +447,16 @@ describe("research-retry workflow", () => {
   });
 
   it("collects through the supplied tool boundary and propagates policy failures", async () => {
-    const runTool = vi.fn().mockResolvedValueOnce({ content: "Auth wall", is_error: true })
+    const runTool = vi.fn().mockResolvedValueOnce({ content: "Requires JavaScript", is_error: true })
+      .mockResolvedValueOnce({ content: "Auth wall", is_error: true })
       .mockResolvedValueOnce({ content: "Rendered article" })
-      .mockResolvedValueOnce({ content: "Requires JavaScript", is_error: true })
       .mockResolvedValueOnce({ content: "Rendered fallback" });
     const evidence = await collectResearchSourceEvidence({
       urls: ["https://twitter.com/a/status/1", "https://openai.com/index/article/", "https://example.com/js"],
       capability: { ...capability, playwrightAvailable: true }, runTool,
+      httpReadings: await collectResearchHttpReadings({ urls: ["https://example.com/js"], runTool }),
     });
-    expect(runTool.mock.calls.map(([name]) => name)).toEqual(["x_post_read", "rendered_article_read", "web_fetch", "rendered_article_read"]);
+    expect(runTool.mock.calls.map(([name]) => name)).toEqual(["web_fetch", "x_post_read", "rendered_article_read", "rendered_article_read"]);
     expect(evidence.attempts.map(({ outcome, tools }) => ({ outcome, tools }))).toEqual([
       { outcome: "unavailable", tools: ["x_post_read"] },
       { outcome: "readable", tools: ["rendered_article_read"] },
@@ -427,6 +466,12 @@ describe("research-retry workflow", () => {
     const body = renderRetryMarker({ fingerprint: computeResourceFingerprint([last.url]), attemptedAt: last.attemptedAt, attempts: [last] });
     expect(evaluateCandidate({ urls: [last.url], body, capability: { ...capability, playwrightAvailable: true } }).attemptableUrls).toEqual([]);
     expect(evaluateCandidate({ urls: [last.url], body, capability: { ...capability, playwrightAvailable: true, authProfileRevision: "restored" } }).attemptableUrls).toEqual([last.url]);
-    await expect(collectResearchSourceEvidence({ urls: ["https://example.com/no"], capability, runTool: async () => { throw new Error("policy denied"); } })).rejects.toThrow("policy denied");
+    await expect(collectResearchHttpReadings({ urls: ["https://example.com/no"], runTool: async () => { throw new Error("policy denied"); } })).rejects.toThrow("policy denied");
   });
 });
+
+// External validation process is controlled; the integration lifecycle remains real.
+vi.mock("#core/workflow/workflow-command.js", async (original) => ({
+  ...await original<typeof import("#core/workflow/workflow-command.js")>(),
+  createWorkflowCommandRunner: () => successfulWorkflowCommandRun,
+}));

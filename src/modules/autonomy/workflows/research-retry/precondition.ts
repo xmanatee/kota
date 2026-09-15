@@ -7,7 +7,6 @@ import { decideScopePolicy } from "#core/daemon/scope-policy-decisions.js";
 import { getToolEffect } from "#core/tools/index.js";
 import { getModuleToolEffectMetadata } from "#core/tools/tool-effect-registry.js";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
-import { isRunLocalEffect } from "#core/workflow/transaction-effect-policy.js";
 import {
   REPO_TASK_STATES,
   type RepoTaskFullRecord,
@@ -28,17 +27,24 @@ export function researchSourceTool(url: string): ResearchSourceTool {
 
 /** Resolve on the host, before crossing into the registry-free inspection worker. */
 export function availableResearchSourceTools(policy: ResolvedScopePolicy | undefined): ResearchSourceTool[] {
-  if (!policy) return [];
+  return researchSourceToolAccess(policy).filter((entry) => entry.outcome === "allow").map((entry) => entry.tool);
+}
+
+export function researchSourceToolAccess(policy: ResolvedScopePolicy | undefined): Array<{
+  tool: ResearchSourceTool; outcome: "allow" | "deny" | "confirm"; reason: string;
+}> {
   const tools: ResearchSourceTool[] = ["web_fetch", "rendered_article_read", "x_post_read"];
-  return tools.filter((name) => {
+  return tools.map((name) => {
+    if (!policy) return { tool: name, outcome: "deny", reason: "Scope authority is unavailable" };
     const moduleName = getModuleToolEffectMetadata(name)?.moduleName;
     if (moduleName && (policy.modules.overrides.find((entry) => entry.moduleName === moduleName)?.availability ??
-      policy.modules.defaultAvailability) !== "enabled") return false;
+      policy.modules.defaultAvailability) !== "enabled") return { tool: name, outcome: "deny", reason: "Module disabled by scope policy" };
     const effect = getToolEffect(name);
-    return effect !== undefined && isRunLocalEffect(effect) &&
-      decideScopePolicy(policy, {
-        kind: "tool-effect", toolName: name, effectKind: effect.kind, effectScope: effect.scope,
-      }).outcome === "allow";
+    if (!effect) return { tool: name, outcome: "deny", reason: "Source tool is not registered" };
+    const decision = decideScopePolicy(policy, {
+      kind: "tool-effect", toolName: name, effectKind: effect.kind, effectScope: effect.scope,
+    });
+    return { tool: name, outcome: decision.outcome === "ignore" ? "deny" : decision.outcome, reason: decision.reason };
   });
 }
 
@@ -56,13 +62,14 @@ export function classifyResourceUrl(url: string): ResearchRetryUrlClass {
   return "plain-http";
 }
 
-export type ResearchRetryCapability = {
-  availableTools: readonly ResearchSourceTool[];
-  playwrightAvailable: boolean;
-  authProfileConfigured: boolean;
-  authProfileExists: boolean;
-  authProfileRevision: string | null;
-};
+export const researchRetryCapabilitySchema = z.object({
+  availableTools: z.array(z.enum(["web_fetch", "rendered_article_read", "x_post_read"])),
+  playwrightAvailable: z.boolean(),
+  authProfileConfigured: z.boolean(),
+  authProfileExists: z.boolean(),
+  authProfileRevision: z.string().nullable(),
+});
+export type ResearchRetryCapability = z.infer<typeof researchRetryCapabilitySchema>;
 
 /**
  * Inspect the runtime preconditions research-retry depends on: whether
@@ -79,6 +86,8 @@ export function checkResearchRetryCapability(
 ): ResearchRetryCapability {
   const playwrightAvailable = isPlaywrightAvailable();
   const browserConfig = readBrowserConfig(workspaceRoot);
+  // Automatic collection must never save or update an operator's credentials.
+  if (browserConfig.persistProfile) availableTools = availableTools.filter((tool) => tool === "web_fetch");
   const path =
     typeof browserConfig.storageStatePath === "string" &&
     browserConfig.storageStatePath.length > 0
@@ -86,7 +95,7 @@ export function checkResearchRetryCapability(
       : null;
   if (!path) {
     return {
-      availableTools,
+      availableTools: [...availableTools],
       playwrightAvailable,
       authProfileConfigured: false,
       authProfileExists: false,
@@ -96,7 +105,7 @@ export function checkResearchRetryCapability(
   const resolved = isAbsolute(path) ? path : resolve(workspaceRoot, path);
   const profile = statSync(resolved, { throwIfNoEntry: false });
   return {
-    availableTools,
+    availableTools: [...availableTools],
     playwrightAvailable,
     authProfileConfigured: true,
     authProfileExists: profile?.isFile() ?? false,

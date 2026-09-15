@@ -16,7 +16,9 @@ This directory owns step execution strategies and context construction.
 - Code-step subprocesses use `ctx.runCommand`; the runtime binds cancellation,
   bounded output, timeout, process-group termination, and durable process
   registration through the shared process supervisor.
-- `ctx.runTool` returns tool error results for the consumer to interpret;
+- `ctx.runTool` applies the shared tool middleware before journaling results, so
+  recovered effects retain their screened output without repeating execution.
+  It returns tool error results for the consumer to interpret;
   declarative tool steps and repair checks reject them, while collectors can
   retain source-level failure evidence. Runtime policy and cancellation still
   reject the call and must not be treated as a recoverable source observation.

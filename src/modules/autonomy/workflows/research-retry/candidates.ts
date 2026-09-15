@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
 import { extractTaskSections, listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -10,6 +11,7 @@ export type ResearchRetryCandidate = {
   id: string;
   urls: string[];
   body: string;
+  digest: string;
 };
 
 /** Read ordinary Markdown links, autolinks, references, and bare HTTP URLs. */
@@ -50,6 +52,7 @@ export function listResearchRetryCandidates(
       id: record.id,
       urls,
       body: record.body,
+      digest: createHash("sha256").update(JSON.stringify({ id: record.id, title: record.title, state: record.state, priority: record.priority, body: record.body, dependsOn: record.dependsOn })).digest("hex"),
     });
   }
   candidates.sort((a, b) => a.id.localeCompare(b.id));

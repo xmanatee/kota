@@ -14,16 +14,15 @@ import {
 } from "#modules/autonomy/shared.js";
 import { taskQueueIntegrationPolicy, taskQueueValidationCommand } from "#modules/repo-tasks/task-integration-policy.js";
 import {
-  inspectResearchRetryCandidatesOperation,
   markResearchRetryAttemptOperation,
 } from "./blocking-operations.js";
-import { availableResearchSourceTools, type MarkAttemptResult } from "./precondition.js";
+import { researchContractMatches, researchHandoffSchema, verifyResearchContract } from "./handoff.js";
+import { computeResourceFingerprint, type MarkAttemptResult } from "./precondition.js";
 import {
   createResearchRetryShadowReviewStep,
   type InspectResult,
 } from "./shadow-review.js";
-import { collectResearchSourceEvidence, type SourceEvidence, sourceEvidenceSchema } from "./source-evidence.js";
-import { assertResearchRetryTrigger, RESEARCH_RETRY_EVENT } from "./trigger.js";
+import { type SourceEvidence, sourceEvidenceSchema } from "./source-evidence.js";
 
 export const agent: AgentDef = {
   name: "research-retry",
@@ -38,7 +37,6 @@ export const agent: AgentDef = {
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
   type: "code",
-  rerunOnRetry: true,
   exposeOutputToAgent: true,
   exposedOutputTrust: "untrusted",
   validate: (raw) =>
@@ -51,12 +49,19 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking, trigger, scopePolicySnapshot }) => {
-    assertResearchRetryTrigger(trigger);
-    return runBlocking(inspectResearchRetryCandidatesOperation, {
-      workspaceRoot, scopeRoot,
-      availableTools: availableResearchSourceTools(scopePolicySnapshot?.policy),
-    });
+  run: ({ workspaceRoot, scopeId, trigger }) => {
+    const handoff = researchHandoffSchema.parse(trigger.payload);
+    if (trigger.payload.triggeredByRunId !== handoff.sourceRunId) throw new Error("Research evidence is not bound to its collecting parent run");
+    if (handoff.scopeId !== scopeId) throw new Error("Research evidence belongs to another scope");
+    return {
+      dirty: false,
+      candidateCount: 1,
+      capability: handoff.capability,
+      candidate: researchContractMatches(workspaceRoot, handoff) ? handoff.candidate : null,
+      fingerprint: computeResourceFingerprint(handoff.candidate.urls),
+      marker: null,
+      examined: [],
+    };
   },
 });
 
@@ -70,14 +75,7 @@ const collectSources = typedCodeStep<SourceEvidence>({
     const inspection = inspectCandidates.outputRequired(ctx);
     return !inspection.dirty && inspection.candidate !== null;
   },
-  run: (ctx) => {
-    const inspection = inspectCandidates.outputRequired(ctx);
-    return collectResearchSourceEvidence({
-      urls: inspection.candidate!.attemptableUrls,
-      capability: inspection.capability,
-      runTool: ctx.runTool,
-    });
-  },
+  run: (ctx) => researchHandoffSchema.parse(ctx.trigger.payload).evidence,
 });
 
 const markAttempt = typedCodeStep<MarkAttemptResult>({
@@ -113,12 +111,13 @@ const researchRetryShadowReview = createResearchRetryShadowReviewStep({
 const researchRetryWorkflow: WorkflowDefinitionInput = {
   name: "research-retry",
   repository: "write",
-  integration: taskQueueIntegrationPolicy(),
+  resources: ({ trigger }) => [`task:${researchHandoffSchema.parse(trigger.payload).candidate.id}`],
+  integration: taskQueueIntegrationPolicy({ postReconcile: verifyResearchContract }),
   description:
-    "Re-attempt inaccessible sources in blocked research tasks using the browser module's authenticated / rendered tools, then update task state honestly.",
+    "Review collected source evidence and publish task updates without performing external effects.",
   tags: ["monitored"],
   defaultAutonomyMode: "autonomous",
-  triggers: [{ event: RESEARCH_RETRY_EVENT, cooldownMs: 60_000 }],
+  triggers: [{ event: "workflow.triggered" }],
   steps: [
     inspectCandidates,
     collectSources,

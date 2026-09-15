@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Make authenticated research collection work through legal runtime boundaries
@@ -52,3 +51,40 @@ Remove the unsupported path and stale instructions when replacing them.
   label a destructive browser tool as a network read merely to make the test pass.
 - This task does not require profile persistence or weakening the separate
   `task-security-review-browser-profile-persistence-checks` acceptance.
+
+## Completion
+
+Source collection now runs in the repository-free `research-source-collection`
+workflow under the real browser tool effects and live scope policy. The existing
+`research-retry` writer consumes the runtime-persisted, bounded and redacted
+handoff, binds the target task resource, and verifies the task contract before
+editing and after reconciliation. The agent and advisory semantic reviewer see
+the same collected evidence. Shared workflow tool execution now applies tool
+middleware before storing durable results, preserving injection screening on
+recovery without repeating the external call.
+
+Denied and confirmation-required authority remain distinct and parked until
+existing scope controls permit collection. Missing authentication and inaccessible
+content remain separate capability/attempt outcomes. Public HTTP remains
+independent; automatic collection rejects profile persistence. Existing browser
+session, network isolation, effect recovery, child deduplication and publication
+owners remain authoritative.
+
+Validation in builder run `2026-09-15T21-07-24-308Z-builder-da7lua`: static gate and
+production build passed; five composed browser/policy/consumer cases passed;
+research contract, dispatcher, browser lifecycle/isolation, tool session and
+durable-effect recovery checks passed. The composed tests control Chromium,
+model and validation subprocess ports while exercising the production owners.
+One additional process-registration check could not launch because this sandbox
+denies `/bin/ps`; its eight sibling context checks passed. A public live network
+probe failed at the sandbox's configured proxy, so no live authenticated source
+read or deployed observation is claimed. Logs and the detailed validation summary
+are retained with this run's artifacts.
+
+The critic's recovery findings were repaired in this same run. HTTP readings now
+checkpoint before browser effects; browser invocation identities bind the URL
+and tool instead of call order. Recovery preserves the HTTP fallback decision,
+reuses completed browser results, and refuses ambiguous effects. Stale handoffs
+with no writer changes can finish and release collection; stale writers retaining
+changes still fail the contract invariant. Six composed collection cases, two
+real-journal recovery cases, and fourteen research owner cases pass after repair.

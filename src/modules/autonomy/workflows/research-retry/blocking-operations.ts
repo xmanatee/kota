@@ -37,7 +37,7 @@ export function inspectResearchRetryCandidatesInWorker(input: {
         dirty,
         candidateCount: candidates.length,
         capability,
-        candidate: { id: candidate.id, urls: candidate.urls, attemptableUrls: evaluation.attemptableUrls },
+        candidate: { id: candidate.id, digest: candidate.digest, urls: candidate.urls, attemptableUrls: evaluation.attemptableUrls },
         fingerprint: evaluation.fingerprint,
         marker: evaluation.marker,
         examined,

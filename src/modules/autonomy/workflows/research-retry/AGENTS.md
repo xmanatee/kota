@@ -1,28 +1,32 @@
-# Research-Retry Workflow
+# Research Retry
 
-Re-attempts inaccessible sources in blocked research tasks when the current
-runtime can reach them.
+`research-source-collection` owns source calls in a repository-free run;
+`research-retry` owns the task-scoped writer and semantic review. The runtime
+persists collection output and the child handoff, journals browser effects, and
+owns child deduplication, recovery and publication. Keep candidate selection
+stable during recovery. Checkpoint HTTP readings before browser collection; bind
+durable browser effects to the source URL and tool so fallback branches cannot
+shift their identities.
 
-- Trigger only on `autonomy.blocked-research.attemptable` and recheck the
-  candidate before launching the agent.
-- The definition declares repository write access and task validation.
-  `RunLifecycle` owns the isolated sandbox, restart reconciliation, commit, and
-  cleanup; the workflow has no recovery trigger or shared-checkout reset step.
-- Agent writes stay limited to task and inbox data. The result must state
-  honestly whether the source became accessible, remained blocked, or no longer
-  justifies retrying.
-- Browser output passes through injection defense and remains untrusted input.
-- Code collects sources through `workflow.runTool`; the agent reads its screened
-  output and does not require native access to KOTA tools. Source-access blocked
-  contracts use ordinary Markdown URLs, preferring pending URLs in `Blocked on`.
-- Retry records cover actual per-source calls, not the whole URL set. Unchanged
-  access waits 24 hours; refreshed profile metadata permits an immediate retry
-  for browser-attempted sources, not unrelated plain-HTTP reads.
-  Admission requires both package/profile readiness and a registered tool allowed
-  by scope policy and the shared writer-effect contract. Execution rechecks live
-  authority; denied or confirmation-required sources remain blocked, not retried.
-- Its unbounded repair loop contributes the selected candidate evidence to the
-  shared continuation authority. Because research retry has no task-decomposition
-  consumer, a split or deferral preserves and yields the same run lineage.
-- A skip leaves the candidate unchanged and records why. It is not task
-  completion and does not require special Git handling.
+- Only the collector listens to blocked-research availability. It reads canonical
+  task intent; the writer validates that same task contract before editing and
+  after reconciliation. A stale handoff completes without mutation; the invariant
+  permits that completion only if the writer has no changes relative to canonical.
+  Neither phase selects another task during recovery.
+- Browser tools keep their destructive network declarations. Automatic collection
+  requires scope policy to allow the actual tool. Denied and confirmation-required
+  authority stay parked, with distinct source-authority diagnostics; operators
+  resolve authority through the existing scope controls. Do not enqueue approvals
+  repeatedly from availability events. Live tool execution rechecks authority.
+- Browser profile persistence must be disabled. Missing package/profile capability
+  stays distinct from denied authority and a called source that remains inaccessible.
+  Public HTTP reads do not require a browser profile.
+- Sources cross the ordinary tool middleware and untrusted-output boundaries.
+  Handoffs carry bounded, redacted text and source provenance, never credentials or
+  mutable browser sessions. The research agent and reviewer consume the same evidence.
+- Retry markers describe actual per-source calls. Unchanged access waits 24 hours;
+  refreshed browser profile metadata permits an immediate browser retry without
+  refreshing unrelated HTTP attempts. Task and inbox edits publish through the
+  existing task integration policy.
+- An unsuccessful child leaves collected results with their original run. Resume
+  that lineage through runtime recovery; do not launch a replacement collection.

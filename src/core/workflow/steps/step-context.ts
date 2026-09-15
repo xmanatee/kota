@@ -21,6 +21,7 @@ import { assess } from "#core/tools/guardrails.js";
 import { executeTool, getToolEffect, type ToolResult } from "#core/tools/index.js";
 import { captureLocalToolApprovalDeclaration, executeLocalToolLease, type LocalToolExecutionLease, leaseLocalToolForApproval } from "#core/tools/local-tool-approval-binding.js";
 import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
+import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
 import { enqueueToolApproval } from "#core/tools/tool-runner-approval-queue.js";
 import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
@@ -471,7 +472,10 @@ export function createStepContext(
       const runTool = deps.runTool;
       const executeResolvedTool = (): Promise<ToolResult> =>
         withToolCallExecutionOptions(executionOptions, () =>
-          runTool ? runTool(name, input, context) : lease ? executeLocalToolLease(lease, input, context) : executeTool(name, input, context)
+          getToolMiddleware().execute(
+            { name, input, context: { ...context, autonomyMode: "autonomous" } },
+            () => runTool ? runTool(name, input, context) : lease ? executeLocalToolLease(lease, input, context) : executeTool(name, input, context),
+          )
         );
       const effect = lease?.effect ?? getToolEffect(name, input);
       const writerTransaction = deps.runContext?.sandbox.repository === "write";
