@@ -14,6 +14,23 @@ import type { WorkflowDefinition } from "./types.js";
 type EventPayload = BusEnvelope["payload"];
 type EventPayloadValue = EventPayload[string];
 
+/** Pending flushes retain arrival order and each envelope's occurrence attribution. */
+export function mergeWorkflowBatchFlushes(
+  previous: WorkflowBatchFlushPayload,
+  next: WorkflowBatchFlushPayload,
+): WorkflowBatchFlushPayload {
+  return {
+    ...next,
+    count: previous.count + next.count,
+    window: { ...next.window, firstEventAt: previous.window.firstEventAt },
+    inputEvents: [...previous.inputEvents, ...next.inputEvents],
+    batch: {
+      ...next.batch,
+      droppedInputCount: previous.batch.droppedInputCount + next.batch.droppedInputCount,
+    },
+  };
+}
+
 export type WorkflowBatchTarget = {
   definition: WorkflowDefinition;
   trigger: WorkflowTrigger;

@@ -66,6 +66,8 @@ export type WorkflowBatchFlushReason =
 export type WorkflowBatchOverflowPolicy = "drop-newest" | "flush-oldest";
 
 export type WorkflowBatchTriggerInput = {
+  /** Append flushes to one unstarted run per group, retaining every input envelope. */
+  pending?: "coalesce";
   maxCount?: number;
   maxAgeMs?: number;
   idleTimeoutMs?: number;
@@ -76,6 +78,7 @@ export type WorkflowBatchTriggerInput = {
 };
 
 export type WorkflowBatchTrigger = {
+  pending?: "coalesce";
   maxCount?: number;
   maxAgeMs?: number;
   idleTimeoutMs?: number;

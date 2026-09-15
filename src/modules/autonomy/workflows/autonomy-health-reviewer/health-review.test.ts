@@ -226,7 +226,11 @@ describe("autonomy health issue projection", () => {
     );
   });
 
-  it.each(["generated", "existing"] as const)("clears an issue while preserving task authority for a %s owner", (owner) => {
+  it.each([
+    { owner: "generated", reopens: false },
+    { owner: "existing", reopens: false },
+    { owner: "generated", reopens: true },
+  ] as const)("preserves task authority for a $owner owner when reopens=$reopens", ({ owner, reopens }) => {
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     const opened = applyReview(workspaceRoot, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
@@ -262,15 +266,19 @@ describe("autonomy health issue projection", () => {
     const cleared = applyReview(
       workspaceRoot,
       review(
-        [signal({
-          observation: "cleared",
-          createdAt: "2026-06-17T13:00:00.000Z",
-        })],
-        "2026-06-17T13:00:00.000Z",
+        [
+          ...(reopens ? [signal({ observation: "changed", createdAt: "2026-06-17T12:59:00.000Z" })] : []),
+          signal({ observation: "cleared", createdAt: "2026-06-17T13:00:00.000Z" }),
+          ...(reopens ? [signal({ observation: "present", createdAt: "2026-06-17T13:01:00.000Z" })] : []),
+        ],
+        "2026-06-17T13:02:00.000Z",
       ),
     );
 
-    expect(cleared.taskMutations).toEqual(owner === "generated" ? [
+    expect(cleared.projection.issues[0]?.status).toBe(reopens ? "needs-decision" : "resolved");
+    if (reopens) expect(cleared.projection.issues[0]?.history.slice(-3).map((entry) => entry.transition))
+      .toEqual(["revised", "cleared", "reopened"]);
+    expect(cleared.taskMutations).toEqual(owner === "generated" && !reopens ? [
       { id: task.taskId, state: "dropped" },
     ] : []);
     expect(existsSync(
@@ -280,7 +288,7 @@ describe("autonomy health issue projection", () => {
       join(workspaceRoot, "data", "tasks", `${task.taskId}.md`),
     )).toBe(true);
     expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]?.status).toBe(
-      "resolved",
+      reopens ? "needs-decision" : "resolved",
     );
   });
 

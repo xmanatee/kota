@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { agentBackoffQueueUntil } from "./agent-backoff.js";
+import { mergeWorkflowBatchFlushes } from "./event-batch-helpers.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
@@ -230,11 +231,11 @@ export class WorkflowQueueManager {
     const now = Date.now();
     const eligibleAt = this.applyAgentBackoffEligibility(
       definition,
-      getEligibleAtMs(
+      triggerConfig.cooldownMs ? getEligibleAtMs(
         definition.name,
         triggerConfig.cooldownMs,
         this.config.runState.readWorkflowSummary(this.config.scopeId),
-      ),
+      ) : now,
     );
     const providedRunId = workflowRunIdFromPayload(
       typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined,
@@ -246,16 +247,28 @@ export class WorkflowQueueManager {
       workflowName: definition.name,
       trigger,
     }) ?? [];
-    const distinct =
+    const coalescingBatch = trigger.event === WORKFLOW_BATCH_FLUSH_EVENT &&
+      triggerConfig.batch?.pending === "coalesce"
+      ? trigger.payload as WorkflowBatchFlushPayload : undefined;
+    const distinct = !coalescingBatch && (
       trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
       triggerConfig.queueMode === "all" ||
-      (hasExplicitWorkflowDispatchKey(trigger) && triggerConfig.queueMode !== "latest");
+      (hasExplicitWorkflowDispatchKey(trigger) && triggerConfig.queueMode !== "latest"));
     const existing = distinct
       ? null
       : this.config.runState.findQueuedRun({
           scopeId: this.config.scopeId,
           workflow: definition.name,
           triggerEvent: trigger.event,
+          ...(coalescingBatch ? { matches: (run: StoredRun) => {
+            const batch = run.trigger.payload as WorkflowBatchFlushPayload;
+            return run.attempt === 0 && run.sandbox === undefined &&
+              sameResources(run.resources, resources) &&
+              batch.scopeId === coalescingBatch.scopeId &&
+              batch.sourceEventName === coalescingBatch.sourceEventName &&
+              batch.groupingKey === coalescingBatch.groupingKey &&
+              batch.batch.triggerIndex === coalescingBatch.batch.triggerIndex;
+          } } : {}),
         });
 
     const runId = existing && sameResources(existing.resources, resources)
@@ -271,7 +284,12 @@ export class WorkflowQueueManager {
       try {
         const disposition = this.config.runState.updateQueuedRun({
           runId,
-          trigger,
+          trigger: coalescingBatch ? {
+            ...trigger,
+            payload: mergeWorkflowBatchFlushes(
+              existing.trigger.payload as WorkflowBatchFlushPayload, coalescingBatch,
+            ),
+          } : trigger,
           admission,
           admittedAt: new Date(now).toISOString(),
           notBeforeAt: new Date(

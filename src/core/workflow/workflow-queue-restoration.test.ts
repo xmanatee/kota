@@ -9,7 +9,7 @@ import {
   enqueuePendingRun,
   type WorkflowRuntimeRunsControlState,
 } from "./runtime-runs-control.js";
-import type { WorkflowRunTrigger } from "./trigger-types.js";
+import { WORKFLOW_BATCH_FLUSH_EVENT, type WorkflowBatchFlushPayload, type WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition, WorkflowRecoveryDecision } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
@@ -152,6 +152,74 @@ describe("durable workflow queue restoration", () => {
     }
     expect(runState.getRun(owner)).toMatchObject({ state: terminalState, resources: [] });
     expect(runState.listDispatchableRuns({ now: afterCooldown, limit: 10, excludedScopeIds: [] }).map((run) => run.id)).toEqual([successor]);
+  });
+
+  it("coalesces only unstarted matching batches and preserves their inputs through restart and redelivery", async () => {
+    const definition = validateWorkflowDefinitions([registerWorkflowDefinition("test/burst.ts", {
+      name: "burst", repository: "none", resources: () => ["review:projection"],
+      triggers: [{ event: "observation", batch: { pending: "coalesce", maxCount: 5, maxBufferSize: 20, overflow: "flush-oldest" } }],
+      steps: [{ id: "review", type: "code", run: () => null }],
+    })], scopeRoot)[0];
+    const queueForSession = () => new WorkflowQueueManager({
+      store: new WorkflowRunStore(scopeRoot), runState, coordinator, scopeId: SCOPE_ID,
+      scopeRoot, getScopeId: () => SCOPE_ID, getActiveBackoff: () => null,
+      workflowUsesAgent: () => false, getDefinitions: () => [definition], log: () => {},
+    });
+    let queue = queueForSession();
+    const flush = (offset: number, count = 5, groupingKey = "incident-a") => {
+      const at = new Date(Date.UTC(2026, 8, 15, 12, 0, offset)).toISOString();
+      const payload: WorkflowBatchFlushPayload = {
+        scopeId: SCOPE_ID, sourceEventName: "observation", groupingKey, reason: "count", count,
+        window: { firstEventAt: at, lastEventAt: at, flushedAt: at },
+        inputEvents: Array.from({ length: count }, (_, i) => ({
+          event: "observation", schemaRef: null, eventId: `${groupingKey}-${offset + i}`,
+          receivedAt: at, payload: { ordinal: offset + i, revision: offset < 200 ? 1 : 2, observation: offset === 200 ? "cleared" : "present" },
+        })),
+        batch: { workflow: "burst", triggerIndex: 0, maxBufferSize: 20, overflow: "flush-oldest", droppedInputCount: 0 },
+      };
+      queue.enqueue(definition, definition.triggers[0], { event: WORKFLOW_BATCH_FLUSH_EVENT, schemaRef: null, payload });
+    };
+    for (let offset = 0; offset < 470; offset += 5) flush(offset);
+    flush(470, 1);
+    const pendingId = queue.getRuns()[0].runId!;
+    flush(0); // The original dispatch identity is retained after appending later flushes.
+    expect(queue.getRuns()).toHaveLength(1);
+    expect((queue.getRuns()[0].trigger.payload as WorkflowBatchFlushPayload).inputEvents.map((event) => event.payload.ordinal))
+      .toEqual(Array.from({ length: 471 }, (_, i) => i));
+    flush(0, 5, "incident-b");
+    expect(queue.getRuns()).toHaveLength(2);
+    await coordinator.dispose();
+    runState.close();
+    runState = new RunStateDatabase(join(scopeRoot, ".kota"));
+    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+    coordinator = new RunCoordinator({ store: runState, daemonEpoch: epoch, concurrency: 1,
+      execute: async () => ({ kind: "terminal", state: "succeeded" }) });
+    coordinator.pauseGlobalAdmission();
+    queue = queueForSession();
+    queue.restorePending();
+    flush(470, 1);
+    expect(runState.getRun(pendingId)?.trigger.payload).toMatchObject({ count: 471 });
+    expect(runState.getRun(pendingId)?.trigger.payload.inputEvents).toEqual(
+      expect.arrayContaining([expect.objectContaining({ payload: { ordinal: 200, revision: 2, observation: "cleared" } })]),
+    );
+    runState.startRun(pendingId, epoch, new Date().toISOString());
+    runState.suspendRun({ runId: pendingId, epoch, state: "waiting", suspendedAt: new Date().toISOString() });
+    runState.resumeRun(pendingId, new Date().toISOString());
+    flush(471);
+    expect(queue.getRuns()).toHaveLength(3);
+    expect(runState.getRun(pendingId)).toMatchObject({ attempt: 1, trigger: { payload: { count: 471 } } });
+    const successor = queue.getRuns().find((run) => run.runId !== pendingId && run.trigger.payload.groupingKey === "incident-a")!;
+    expect(successor.trigger.payload).toMatchObject({ count: 5 });
+    // Independent all-batch consumers retain their existing distinct-flush semantics.
+    const distinct = { ...definition, triggers: [{ ...definition.triggers[0], batch: { ...definition.triggers[0].batch!, pending: undefined } }] };
+    for (let index = 0; index < 2; index++) queue.enqueue(distinct, distinct.triggers[0], {
+      event: WORKFLOW_BATCH_FLUSH_EVENT, schemaRef: null,
+      payload: { ...successor.trigger.payload, inputEvents: [{
+        event: "observation", schemaRef: null, eventId: `distinct-${index}`,
+        receivedAt: new Date().toISOString(), payload: { ordinal: 500 + index },
+      }], count: 1 },
+    });
+    expect(queue.getRuns()).toHaveLength(5);
   });
 
   it("revalidates durable queued runs without reordering durable admission", () => {

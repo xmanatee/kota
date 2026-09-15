@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { moduleOperationLabel } from "./autonomy-issue-module-failure.js";
 import {
   buildAutonomyIssueObservation,
@@ -307,8 +308,7 @@ function applyObservation(
       return applyModuleObservation(existing, observation);
     }
     return {
-      issue: observation.source.kind === "module-log"
-        ? enrichModuleObservationEvidence(existing, observation) : existing,
+      issue: existing,
       transition: repeatedTransition(existing),
     };
   }
@@ -358,10 +358,34 @@ export function reduceAutonomyIssueProjection(
   const byKey = new Map(current.issues.map((issue) => [issue.issueKey, issue]));
   // Enrich old references before replay, even if the new observation is a
   // duplicate or an earlier failure. Collection time never replaces log time.
+  const observedModuleKeys = new Set(observations.filter((item) => item.source.kind === "module-log").map((item) => item.issueKey));
+  const observedIssues = current.issues.filter((issue) => observedModuleKeys.has(issue.issueKey));
+  const knownEvidence = new Map(observedIssues.map((issue) => [issue.issueKey,
+    new Map(issue.evidenceRefs.map((ref) => [`${ref.kind}:${ref.ref}`, ref])),
+  ]));
+  const historyEvidence = new Map(observedIssues.map((issue) => [issue.issueKey,
+    new Map(issue.history.map((entry) => [entry.observationId,
+      new Map(entry.evidenceRefs.map((ref) => [`${ref.kind}:${ref.ref}`, ref])),
+    ])),
+  ]));
   for (const observation of observations) {
     const existing = byKey.get(observation.issueKey);
     if (!existing || observation.source.kind !== "module-log") continue;
-    byKey.set(existing.issueKey, enrichModuleObservationEvidence(existing, observation));
+    const known = knownEvidence.get(existing.issueKey)!;
+    const entryEvidence = historyEvidence.get(existing.issueKey)?.get(observation.observationId);
+    const addsEvidence = (refs: typeof known) => observation.evidenceRefs.some((ref) => {
+      const previous = refs.get(`${ref.kind}:${ref.ref}`);
+      return !previous || !isDeepStrictEqual(previous,
+        { ...previous, ...ref, ...(previous.summary !== undefined ? { summary: previous.summary } : {}) });
+    });
+    const enriched = addsEvidence(known) || (entryEvidence !== undefined && addsEvidence(entryEvidence));
+    if (!enriched) continue;
+    const issue = enrichModuleObservationEvidence(existing, observation);
+    byKey.set(existing.issueKey, issue);
+    knownEvidence.set(issue.issueKey, new Map(issue.evidenceRefs.map((ref) => [`${ref.kind}:${ref.ref}`, ref])));
+    historyEvidence.set(issue.issueKey, new Map(issue.history.map((entry) => [entry.observationId,
+      new Map(entry.evidenceRefs.map((ref) => [`${ref.kind}:${ref.ref}`, ref])),
+    ])));
   }
 
   const transitions: AutonomyIssueTransition[] = [];
@@ -373,6 +397,7 @@ export function reduceAutonomyIssueProjection(
     return result.transition;
   };
   const applyRecoveries = (issue: AutonomyIssue) => {
+    if (issue.source.kind !== "module-log" || recoveries.size === 0) return;
     const operations = new Set([
       ...moduleHistoryOccurrences(issue).occurrences.flatMap(moduleOperations),
       // Legacy clear labels can route success evidence to an existing lineage;

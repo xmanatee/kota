@@ -62,10 +62,13 @@ export function planAutonomyHealthReviewActions(args: {
     args.currentProjection,
     observations,
   );
-  const taskMutations = projected.transitions.flatMap((transition) => {
-    if (transition.kind !== "cleared") return [];
+  const clearedIssueKeys = new Set(projected.transitions
+    .filter((transition) => transition.kind === "cleared").map((transition) => transition.issueKey));
+  // Intermediate clears are history; only a final resolution can retire repair work.
+  const taskMutations = projected.projection.issues.flatMap((issue) => {
+    if (issue.status !== "resolved" || !clearedIssueKeys.has(issue.issueKey)) return [];
     const proposalKey = normalizeGeneratedWorkProposalKey(
-      `autonomy-issue:${transition.issueKey}`,
+      `autonomy-issue:${issue.issueKey}`,
     );
     const retirement = planGeneratedWorkTaskRetirement(
       findGeneratedWorkTask(args.workspaceRoot, proposalKey),
@@ -107,7 +110,7 @@ export function applyAutonomyHealthReviewActions(args: {
     projected.projection.issues.map((issue) => [issue.issueKey, issue]),
   );
   const questionDismissals = projected.transitions.flatMap((transition) => {
-    if (transition.kind !== "cleared") return [];
+    if (transition.kind !== "cleared" || issueByKey.get(transition.issueKey)?.status !== "resolved") return [];
     const issue = priorIssueByKey.get(transition.issueKey) ??
       issueByKey.get(transition.issueKey);
     return planGeneratedWorkQuestionDismissals({
@@ -137,18 +140,21 @@ export function autonomyIssueObservationsFromReview(
   const currentIssueKeys = new Set(
     currentProjection.issues.map((issue) => issue.issueKey),
   );
-  // Module observations must retain operation identity and occurrence time;
-  // grouping different operations or stamping review time destroys recovery order.
-  const moduleSignals = [...new Map(review.signals.filter((signal) =>
-    signal.source.kind === "module-log" || signal.source.kind === "module-operation-recovery",
-  ).map((signal) => [signal.signalId, signal])).values()];
+  // Every occurrence keeps its revision, identity and chronology across merged flushes.
+  const signals = [...new Map(review.signals.map((signal) => [signal.signalId, signal])).values()]
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  const failureCounts = new Map<string, number>();
+  for (const signal of signals) {
+    if (signal.observation !== "cleared") failureCounts.set(signal.dedupeKey,
+      (failureCounts.get(signal.dedupeKey) ?? 0) + signal.observationCount);
+  }
   const recoveredOperations = new Set([
     ...(currentProjection.moduleRecoveries ?? []).map((recovery) => JSON.stringify([recovery.module, recovery.operation])),
-    ...moduleSignals.filter((signal) => signal.source.kind === "module-operation-recovery")
+    ...signals.filter((signal) => signal.source.kind === "module-operation-recovery")
       .flatMap((signal) => signal.evidenceRefs.flatMap((ref) => ref.moduleOperation?.observation === "cleared"
         ? [JSON.stringify([signal.source.module, ref.moduleOperation.operation])] : [])),
   ]);
-  const moduleObservations = moduleSignals.flatMap((signal) => {
+  return signals.flatMap((signal) => {
     const observation = buildAutonomyIssueObservation({
       kind: signal.observation,
       rootCauseKey: signal.dedupeKey,
@@ -162,48 +168,17 @@ export function autonomyIssueObservationsFromReview(
       evidenceRefs: projectAutonomyHealthEvidenceRefsForReview(signal.evidenceRefs),
       observationCount: signal.observationCount,
     });
-    const knownRecovery = signal.evidenceRefs.some((ref) => ref.moduleOperation !== undefined &&
+    const moduleObservation = signal.source.kind === "module-log" || signal.source.kind === "module-operation-recovery";
+    const knownRecovery = moduleObservation && signal.evidenceRefs.some((ref) => ref.moduleOperation !== undefined &&
       recoveredOperations.has(JSON.stringify([signal.source.module, ref.moduleOperation.operation])));
-    const repeated = moduleSignals.filter((other) => other.dedupeKey === signal.dedupeKey &&
-      other.observation !== "cleared").reduce((count, other) => count + other.observationCount, 0) > 1;
-    if (signal.observation !== "cleared" && !currentIssueKeys.has(observation.issueKey) && !knownRecovery &&
-      signal.severity !== "error" && signal.severity !== "critical" && !repeated) return [];
-    return [observation];
-  }).sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
-  const groupedObservations = review.groups.filter((group) => group.source.kind !== "module-log" && group.source.kind !== "module-operation-recovery").flatMap((group) => {
-    const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
-      group.evidenceRefs,
-    );
-    const observation = buildAutonomyIssueObservation({
-      kind: group.observation,
-      rootCauseKey: group.dedupeKey,
-      observedAt: review.generatedAt,
-      signalIds: group.signalIds,
-      source: group.source,
-      severity: group.severity,
-      actionability: group.actionability,
-      labels: group.labels,
-      summaries: projectAutonomyHealthSummariesForReview(
-        group.summaries,
-        group.evidenceRefs,
-      ),
-      evidenceRefs,
-      observationCount: group.observationCount,
-    });
-    const alreadyDurable = currentIssueKeys.has(observation.issueKey);
-    const concreteFailure = group.severity === "error" ||
-      group.severity === "critical";
-    const repeatedObservation = group.observationCount > 1;
-    if (
-      (group.observation === "cleared" && !alreadyDurable) ||
-      (group.observation !== "cleared" &&
-        !alreadyDurable &&
-        !concreteFailure &&
-        !repeatedObservation)
-    ) {
-      return [];
+    const knownIssue = currentIssueKeys.has(observation.issueKey);
+    if (signal.observation === "cleared") {
+      if (!moduleObservation && !knownIssue) return [];
+    } else {
+      if (!knownIssue && !knownRecovery && signal.severity !== "error" && signal.severity !== "critical" &&
+        (failureCounts.get(signal.dedupeKey) ?? 0) <= 1) return [];
+      currentIssueKeys.add(observation.issueKey);
     }
     return [observation];
   });
-  return [...groupedObservations, ...moduleObservations];
 }

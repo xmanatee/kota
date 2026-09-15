@@ -460,6 +460,7 @@ export class RunStateDatabase {
     scopeId: string;
     workflow: string;
     triggerEvent: string;
+    matches?: (run: StoredRun) => boolean;
   }): StoredRun | null {
     const rows = this.database
       .prepare(
@@ -470,7 +471,7 @@ export class RunStateDatabase {
       .all(input.scopeId, input.workflow);
     for (const row of rows) {
       const run = this.getRun((row as { id: string }).id)!;
-      if (run.trigger.event === input.triggerEvent) return run;
+      if (run.trigger.event === input.triggerEvent && (input.matches?.(run) ?? true)) return run;
     }
     return null;
   }

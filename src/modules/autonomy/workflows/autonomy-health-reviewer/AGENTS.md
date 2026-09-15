@@ -19,7 +19,7 @@ concrete failures or repeated health patterns into bounded follow-up actions.
   attributed recovery evidence establishes the boundary for later failures.
   Absent or partial attribution keeps unmatched failure references unresolved;
   aggregate operation labels cannot establish which operations failed. Operation
-  recovery cannot clear unmatched references or another operation's failure. Question links retire
+  recovery cannot clear unmatched references or another operation's failure. Generated tasks and question links retire
   only when the complete review batch resolves the issue.
 - The improver owns the AI disposition and the shared generated-work
   materializer owns any resulting task or owner question. No disposition is
@@ -33,8 +33,10 @@ concrete failures or repeated health patterns into bounded follow-up actions.
   artifact and stages their notification events. A question revision changed
   after review or a terminal owner response is preserved; crash replay recognizes
   matching completed dismissals without rewriting question history.
-- Batch by typed health labels and scope; avoid hardcoded workflow-name
-  allowlists.
+- Coalesce unstarted batches by incident identity and scope, retaining each
+  attributed observation and its chronology. Prepare full reviews in the shared
+  blocking worker and hand off artifacts; finalization still owns the fresh-state
+  reduction. Avoid hardcoded workflow-name allowlists.
 - Treat health signals as explicit `present` / `changed` / `cleared`
   observations. The durable autonomy-issue projection owns current lifecycle
   and cross-source links; absence from a batch or bounded audit never clears an

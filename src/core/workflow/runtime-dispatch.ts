@@ -144,16 +144,15 @@ export async function emitIdleEvent(
 function canDispatchIdleProbe(
   coordinator: Pick<
     RunCoordinator,
-    | "capacity"
-    | "occupiedCapacity"
     | "isGlobalAdmissionPaused"
     | "isScopeAdmissionPaused"
   >,
   scopeId: string,
 ): boolean {
+  // Inspection joins the ordinary queue even when execution slots are full.
+  // Requiring a free slot here lets a continuous backlog hide new repository work.
   return !coordinator.isGlobalAdmissionPaused() &&
-    !coordinator.isScopeAdmissionPaused(scopeId) &&
-    coordinator.occupiedCapacity < coordinator.capacity;
+    !coordinator.isScopeAdmissionPaused(scopeId);
 }
 
 export function maybeStartNext(

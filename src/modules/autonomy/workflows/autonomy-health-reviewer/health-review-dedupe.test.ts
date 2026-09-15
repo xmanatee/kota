@@ -129,4 +129,27 @@ describe("autonomy health repair task deduplication", () => {
       "replayed",
     ]);
   });
+  it("retains revision, clear and reopen chronology within one pending review", () => {
+    const observations = ["present", "changed", "cleared", "present"] as const;
+    const signals = observations.map((observation, index) => normalizeHealthSignal({
+      ...signal("burst:revision", [index === 0 ? "original" : "revised"], "Attributable incident"),
+      signalId: `revision-${index}`, observation, severity: "error",
+      createdAt: new Date(Date.parse(NOW) + index * 1000).toISOString(),
+      evidenceRefs: [{ kind: "artifact", ref: `.kota/runs/revision-${index}/evidence.json` }],
+    }));
+    const review = buildAutonomyHealthReviewFromSignals({
+      signals, generatedAt: new Date(Date.parse(NOW) + 10_000).toISOString(),
+      sourceEventName: "autonomy.health.signal", reason: "test",
+    });
+    const first = applyReview(review);
+    expect(first.projection.issues).toHaveLength(1);
+    const issue = first.projection.issues[0]!;
+    expect(issue.history.map((entry) => entry.transition)).toEqual(["opened", "revised", "cleared", "reopened"]);
+    expect(issue.history.map((entry) => entry.observedAt)).toEqual(signals.map((item) => item.createdAt));
+    expect(issue.history.map((entry) => entry.evidenceRefs)).toEqual(signals.map((item) => item.evidenceRefs));
+    expect(issue.semanticRevision).toBe(3);
+    expect(issue.status).toBe("needs-decision");
+    expect(applyReview(review).applied).toEqual([]);
+  });
+
 });

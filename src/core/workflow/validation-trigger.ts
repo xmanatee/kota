@@ -420,6 +420,12 @@ function validateBatchTrigger(
     definitionPath,
     1,
   );
+  if (rawBatch.pending !== undefined && rawBatch.pending !== "coalesce") {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].batch.pending must be "coalesce"`,
+      definitionPath,
+    );
+  }
   const maxAgeMs = expectOptionalInteger(
     rawBatch.maxAgeMs,
     `triggers[${index}].batch.maxAgeMs`,
@@ -488,6 +494,7 @@ function validateBatchTrigger(
     ...(flushEvent !== undefined ? { flushEvent } : {}),
     maxBufferSize,
     overflow: rawBatch.overflow,
+    ...(rawBatch.pending !== undefined ? { pending: rawBatch.pending } : {}),
   };
 }
 
