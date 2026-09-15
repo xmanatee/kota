@@ -40,38 +40,59 @@ export function scopeHash(path: string): string {
 
 /** Parse natural time expressions into an absolute Date. */
 export function parseTime(expr: string, now?: Date): Date | null {
-  const ref = now || new Date();
+  const ref = now ?? new Date();
+  if (!Number.isFinite(ref.getTime())) return null;
   const s = expr.trim().toLowerCase();
 
-  // ISO datetime
-  const iso = new Date(expr.trim());
-  if (!Number.isNaN(iso.getTime()) && /\d{4}-\d{2}/.test(expr)) return iso;
+  // Validate calendar fields before Date can normalize impossible dates.
+  const isoMatch = s.match(/^(\d{4}|[+-]\d{6})-(\d{2})-(\d{2})(?:t(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(z|[+-]\d{2}:\d{2})?)?$/);
+  if (isoMatch) {
+    const [, year, month, day, hour, minute, second, , zone] = isoMatch;
+    const calendar = new Date(0);
+    calendar.setUTCFullYear(Number(year), Number(month) - 1, Number(day));
+    if (calendar.getUTCFullYear() !== Number(year)
+      || calendar.getUTCMonth() !== Number(month) - 1
+      || calendar.getUTCDate() !== Number(day)
+      || Number(hour ?? 0) > 23 || Number(minute ?? 0) > 59
+      || Number(second ?? 0) > 59 || year === "-000000") return null;
+    const iso = new Date(s.toUpperCase());
+    if (!Number.isFinite(iso.getTime())) return null;
+    // Local datetimes in a daylight-saving gap must not shift to another clock.
+    if (hour !== undefined && zone === undefined
+      && (iso.getHours() !== Number(hour) || iso.getMinutes() !== Number(minute))) return null;
+    return iso;
+  }
 
   // Relative: "in N unit(s)"
   const relMatch = s.match(
     /^in\s+(\d+(?:\.\d+)?)\s+(minute|min|hour|hr|day|second|sec|week)s?$/,
   );
   if (relMatch) {
-    const n = parseFloat(relMatch[1]);
-    const ms = unitToMs(relMatch[2]);
-    if (ms) return new Date(ref.getTime() + n * ms);
+    const offset = durationMs(relMatch[1], relMatch[2]);
+    if (offset !== null) {
+      const target = new Date(ref.getTime() + offset);
+      return Number.isFinite(target.getTime()) ? target : null;
+    }
   }
 
   // "tomorrow at HH:MM[am|pm]" or "at HH:MM[am|pm]" or bare "HH:MM[am|pm]"
-  const tomorrow = s.startsWith("tomorrow");
-  const timeMatch = s.match(/(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  const timeMatch = s.match(/^(tomorrow\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
   if (timeMatch) {
-    let hours = parseInt(timeMatch[1], 10);
-    const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-    const ampm = timeMatch[3];
+    const tomorrow = timeMatch[1] !== undefined;
+    let hours = Number(timeMatch[2]);
+    const minutes = Number(timeMatch[3] ?? 0);
+    const ampm = timeMatch[4];
+    if (ampm && (hours < 1 || hours > 12)) return null;
     if (ampm === "pm" && hours < 12) hours += 12;
     if (ampm === "am" && hours === 12) hours = 0;
     if (hours > 23 || minutes > 59) return null;
 
     const target = new Date(ref);
-    target.setHours(hours, minutes, 0, 0);
     if (tomorrow) target.setDate(target.getDate() + 1);
-    else if (target <= ref) target.setDate(target.getDate() + 1);
+    target.setHours(hours, minutes, 0, 0);
+    if (!tomorrow && target <= ref) target.setDate(target.getDate() + 1);
+    if (!Number.isFinite(target.getTime()) || target.getHours() !== hours
+      || target.getMinutes() !== minutes) return null;
     return target;
   }
 
@@ -90,13 +111,31 @@ export function parseRepeat(
     /^every\s+(\d+(?:\.\d+)?)\s+(minute|min|hour|hr|day|second|sec|week)s?$/,
   );
   if (match) {
-    const n = parseFloat(match[1]);
-    const ms = unitToMs(match[2]);
-    if (ms) {
-      return { ms: n * ms, label: `every ${n} ${match[2]}${n !== 1 ? "s" : ""}` };
+    const ms = durationMs(match[1], match[2]);
+    if (ms !== null && isValidRepeatMs(ms)) {
+      const n = Number(match[1]);
+      return { ms, label: `every ${n} ${match[2]}${n !== 1 ? "s" : ""}` };
     }
   }
   return null;
+}
+
+/** Reminders use whole milliseconds within the Date range, at least one second apart. */
+export function isValidRepeatMs(ms: number): boolean {
+  return Number.isSafeInteger(ms) && ms >= 1000 && ms <= 8_640_000_000_000_000;
+}
+
+// Convert decimal units exactly: binary floating-point multiplication can reject
+// valid 1.001 seconds or round a sub-millisecond request into a different interval.
+function durationMs(amount: string, unit: string): number | null {
+  const unitMs = unitToMs(unit);
+  if (unitMs === null) return null;
+  const [whole, fraction = ""] = amount.split(".");
+  const scale = 10n ** BigInt(fraction.length);
+  const numerator = BigInt(whole + fraction) * BigInt(unitMs);
+  if (numerator % scale !== 0n) return null;
+  const ms = numerator / scale;
+  return ms <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(ms) : null;
 }
 
 function unitToMs(unit: string): number | null {

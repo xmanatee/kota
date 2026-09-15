@@ -80,6 +80,28 @@ describe("parseTime", () => {
     expect(result!.getHours()).toBe(9);
   });
 
+  it.each([
+    "next Friday at 9am", "not a time 3pm", "tomorrow nonsense 9am",
+    "tomorrowish at 9am", "at 3pm Friday", "at 13pm", "at 0am", "at 00pm",
+    "at 24:00", "at 123pm", "2026-02-30T09:00:00Z", "2025-02-29",
+    "2026-04-31T09:00:00+01:00", "2026-00-15", "2026-13-01", "2026-01-00",
+    "2026-09-15T24:00:00Z", "2026-09-15T09:60:00Z", "2026-09-15T09:00:60Z",
+    "2026-09-15T09:00:00.0001Z", "2026-09-15T09:00:00+24:00",
+    "noise 2026-09-15", "2026-09-15T09:00:00Z junk", "in 0.0001 seconds",
+    "in 8640000000000 seconds", `in ${"9".repeat(310)} weeks`,
+  ])("rejects incomplete, invalid or unrepresentable time %s", (expr) => {
+    expect(parseTime(expr, now)).toBeNull();
+  });
+
+  it.each([
+    ["2028-02-29T09:00:00Z", "2028-02-29T09:00:00.000Z"],
+    ["2000-02-29T09:00:00.123+01:30", "2000-02-29T07:30:00.123Z"],
+    ["2026-09-15", "2026-09-15T00:00:00.000Z"],
+    ["2026-09-15T09:00Z", "2026-09-15T09:00:00.000Z"],
+  ])("preserves ISO calendar and offset in %s", (expr, expected) => {
+    expect(parseTime(expr, now)?.toISOString()).toBe(expected);
+  });
+
   it("returns null for unparseable input", () => {
     expect(parseTime("whenever", now)).toBeNull();
     expect(parseTime("", now)).toBeNull();
@@ -119,6 +141,11 @@ describe("parseTime", () => {
     const result = parseTime("at 9:00", now);
     expect(result).not.toBeNull();
     expect(result!.getDate()).toBe(now.getDate() + 1);
+  });
+
+  it("preserves decimal millisecond boundaries", () => {
+    expect(parseTime("in 1.001 seconds", now)?.getTime()).toBe(now.getTime() + 1001);
+    expect(parseTime("in 0.99999999999999999 seconds", now)).toBeNull();
   });
 
   it("parses fractional relative values", () => {
@@ -162,9 +189,15 @@ describe("parseRepeat", () => {
     expect(parseRepeat("sometimes")).toBeNull();
   });
 
-  it("parses 'every 0 seconds' to 0ms (caller must validate)", () => {
-    const result = parseRepeat("every 0 seconds");
-    expect(result).toEqual({ ms: 0, label: "every 0 seconds" });
+  it.each(["every 0 seconds", "every 0.999 seconds", "every 1.0001 seconds", "every 0.99999999999999999 seconds", "every 8640000000001 seconds", `every ${"9".repeat(310)} weeks`])("rejects unrepresentable or too-short recurrence %s", (expr) => {
+    expect(parseRepeat(expr)).toBeNull();
+  });
+
+  it("preserves fractional units that represent whole milliseconds", () => {
+    expect(parseRepeat("every 1.5 seconds")?.ms).toBe(1500);
+    expect(parseRepeat("every 1.001 seconds")?.ms).toBe(1001);
+    expect(parseRepeat("every 0.5 minutes")?.ms).toBe(30000);
+    expect(parseRepeat("every 1 second")?.ms).toBe(1000);
   });
 
   it("parses weeks", () => {

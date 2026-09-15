@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Reject reminder requests that would silently change the requested schedule
 
@@ -46,3 +45,25 @@ language parser, timezone feature or workflow-cron change. Archived
 `task-test-schedule-parser-ts` and
 `task-consolidate-reminder-transition-verification` own completed test work,
 not these newly reproduced production defects.
+
+## Completion
+
+Whole-input parsing rejects unsupported qualifiers, invalid clocks, impossible
+calendar dates and unrepresentable durations. Exact decimal conversion preserves
+millisecond intervals such as 1.001 seconds. The scheduler validates explicit
+recurrence and its next-date range before allocating IDs or changing state;
+the tool returns actionable errors. At the finite Date horizon, the final valid
+occurrence completes without crashing delivery. Previously saved fractional
+recurrences retain their firing semantics; admission restrictions do not convert
+existing reminders into one-shot items. SQLite regression proof covers two
+firings across a database reopen and preserves unrelated reminders.
+
+Verification: 134 focused tests across the existing parser, scheduler, durable
+store and tool owners passed. They cover rejection, unchanged reminders and IDs,
+valid parsing, timed/event firing, recurrence advancement and persistence.
+Run `2026-09-15T00-56-17-872Z-builder-755tgs` retains
+`artifacts/reminder-probe.mjs` and `artifacts/reminder-transcript.json` with source
+hashes, real tool responses and isolated SQLite state: all 11 rejected requests
+preserved the exact state and revision; valid scheduling, firing, filtered events
+and reopening the database passed. No live daemon or external notifications were
+used. Static validation is recorded in the run summary.

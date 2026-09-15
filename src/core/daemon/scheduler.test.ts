@@ -19,7 +19,7 @@ describe("Scheduler transitions", () => {
 	});
 
 	it("fires only due time reminders and makes one-shot completion idempotent", () => {
-		const once = scheduler.add("Due now", now, { repeatMs: 0 });
+		const once = scheduler.add("Due now", now);
 		const later = scheduler.add("Later", future);
 		const event = scheduler.addEventTrigger("On end", "session.end");
 		expect(scheduler.list()).toEqual([once, later, event]);
@@ -52,7 +52,7 @@ describe("Scheduler transitions", () => {
 	});
 
 	it.each([
-		1000, 3_600_000,
+		1000, 1500, 3_600_000, 86_400_000,
 	])("preserves a %i ms repeat and advances to the next future occurrence", (repeatMs) => {
 		const trigger = new Date(now.getTime() - 5 * repeatMs);
 		const item = scheduler.add("Recurring", trigger, {
@@ -81,11 +81,29 @@ describe("Scheduler transitions", () => {
 		);
 	});
 
-	it("rejects sub-second repeats without creating a reminder", () => {
-		expect(() => scheduler.add("Too fast", future, { repeatMs: 999 })).toThrow(
-			"repeatMs must be at least 1000",
-		);
-		expect(scheduler.list()).toEqual([]);
+	it.each([0, -1000, 999, 1000.5, NaN, Infinity, Number.MAX_VALUE, 8_640_000_000_000_000])(
+		"rejects invalid %s ms repeats before changing reminders or allocating an id", (repeatMs) => {
+			const keep = scheduler.add("Keep", future);
+			expect(() => scheduler.add("Invalid", future, { repeatMs })).toThrow();
+			expect(scheduler.list()).toEqual([keep]);
+			expect(scheduler.add("Next", future).id).toBe(keep.id + 1);
+		},
+	);
+
+	it("rejects invalid dates and start-plus-repeat overflow before mutation", () => {
+		const keep = scheduler.add("Keep", future);
+		expect(() => scheduler.add("Invalid date", new Date(NaN))).toThrow("valid date");
+		expect(() => scheduler.add("Overflow", new Date(8_640_000_000_000_000 - 999), { repeatMs: 1000 })).toThrow("date range");
+		expect(scheduler.list()).toEqual([keep]);
+		expect(scheduler.add("Next", future).id).toBe(keep.id + 1);
+	});
+
+	it("finishes the last representable recurrence without failing delivery", () => {
+		const end = 8_640_000_000_000_000;
+		const item = scheduler.add("At range boundary", new Date(end - 1000), { repeatMs: 1000 });
+		expect(scheduler.markFired(item.id, new Date(end - 1000))).toMatchObject({ status: "pending", triggerAt: new Date(end).toISOString() });
+		expect(scheduler.markFired(item.id, new Date(end))).toMatchObject({ status: "fired" });
+		expect(scheduler.pending()).toEqual([]);
 	});
 
 	it("replaces a real timer callback and stops delivery on unsubscribe", async () => {

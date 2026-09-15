@@ -1,12 +1,12 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { parseRepeat, parseTime, type ReminderCommands } from "#core/daemon/scheduler.js";
+import { parseRepeat, parseTime, type ReminderCommands, ScheduleInputError } from "#core/daemon/scheduler.js";
 import type { ToolResult } from "#core/tools/index.js";
 
 export const scheduleTool: KotaTool = {
   name: "schedule",
   description:
     "Set timed, recurring, or event-triggered reminders in a daemon-hosted session. " +
-    "Time-based: natural expressions (\"in 30 minutes\", \"tomorrow at 9am\"). " +
+    "Time-based: relative, clock, tomorrow, or ISO expressions (\"in 30 minutes\", \"tomorrow at 9am\"). Weekday qualifiers are unsupported. " +
     "Event-based: trigger on internal events (\"session.end\", \"workflow.completed\"). " +
     "Events: runtime.idle, workflow.started, workflow.completed, workflow.step.completed, " +
     "session.start, session.end, or any custom event name.",
@@ -80,31 +80,35 @@ export async function runSchedule(
       const description = input.description as string;
       if (!description)
         return { content: "Error: description is required", is_error: true };
-      const timeExpr = input.time as string;
-      if (!timeExpr)
+      const timeExpr = input.time;
+      if (typeof timeExpr !== "string" || !timeExpr)
         return { content: "Error: time is required", is_error: true };
 
       const triggerAt = parseTime(timeExpr);
       if (!triggerAt)
         return {
-          content: `Error: could not parse time "${timeExpr}". Try "in 30 minutes", "tomorrow at 9am", "at 3pm", or ISO datetime.`,
+          content: `Error: could not parse time "${timeExpr}" as a complete valid schedule. Weekday qualifiers are unsupported. Try "in 30 minutes", "tomorrow at 9am", "at 3pm", or ISO datetime such as "2026-09-18T09:00:00Z".`,
           is_error: true,
         };
 
       let repeatOpts: { repeatMs: number; repeatLabel: string } | undefined;
-      if (input.repeat) {
-        const parsed = parseRepeat(input.repeat as string);
+      if (input.repeat !== undefined) {
+        const parsed = typeof input.repeat === "string" ? parseRepeat(input.repeat) : null;
         if (!parsed)
           return {
-            content: `Error: could not parse repeat "${input.repeat}". Try "every 30 minutes", "hourly", or "daily".`,
+            content: `Error: could not parse repeat "${input.repeat}". Use a finite interval of at least one second in whole milliseconds within the supported date range. Try "every 30 minutes", "hourly", or "daily".`,
             is_error: true,
           };
         repeatOpts = { repeatMs: parsed.ms, repeatLabel: parsed.label };
       }
 
-      const item = scheduler.add(description, triggerAt, {
-        ...repeatOpts,
-      });
+      let item: ReturnType<ReminderCommands["add"]>;
+      try {
+        item = scheduler.add(description, triggerAt, repeatOpts);
+      } catch (error) {
+        if (!(error instanceof ScheduleInputError)) throw error;
+        return { content: `Error: ${error.message}`, is_error: true };
+      }
       const timeLabel = formatTime(item.triggerAt);
       const repeatLabel = item.repeatLabel ? ` (${item.repeatLabel})` : "";
       return {

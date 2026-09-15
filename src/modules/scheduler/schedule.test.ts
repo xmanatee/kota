@@ -68,6 +68,26 @@ describe("schedule tool", () => {
     expect(result.content).toContain("could not parse repeat");
   });
 
+  it.each([
+    { time: "next Friday at 9am" }, { time: "not a time 3pm" },
+    { time: "at 13pm" }, { time: "2026-02-30T09:00:00Z" },
+    { time: "in 8640000000000 seconds" },
+    { repeat: "every 0 seconds" }, { repeat: "every 0.999 seconds" },
+    { repeat: "every 1.0001 seconds" }, { repeat: "every 8640000000000 seconds" },
+    { repeat: `every ${"9".repeat(310)} weeks` },
+    { repeat: "" }, { repeat: 0 }, { repeat: false }, { repeat: null },
+    { time: "+275760-09-13T00:00:00Z", repeat: "daily" },
+  ])("rejects invalid request %j without confirming or mutating", async (invalid) => {
+    const keep = scheduler.add("Keep", new Date("2030-01-01T09:00:00Z"));
+    const result = await runSchedule({ action: "add", description: "Invalid", time: "in 5 minutes", ...invalid });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toMatch(/Try|Choose/);
+    expect(result.content).not.toContain("Scheduled #");
+    expect(scheduler.pending()).toEqual([keep]);
+    expect(scheduler.list()).toEqual([keep]);
+    expect(scheduler.add("Next", new Date("2030-01-01T09:00:00Z")).id).toBe(keep.id + 1);
+  });
+
   it("lists pending items", async () => {
     await runSchedule({
       action: "add",

@@ -3,7 +3,7 @@
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope } from "#core/events/event-bus-types.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
-import { matchesFilter } from "./schedule-parser.js";
+import { isValidRepeatMs, matchesFilter } from "./schedule-parser.js";
 import {
 	compactSchedules,
 	type ScheduleState,
@@ -14,6 +14,8 @@ export type { ScheduledItem } from "./schedule-parser.js";
 export { parseRepeat, parseTime } from "./schedule-parser.js";
 
 export type ReminderCommands = Pick<Scheduler, "add" | "addEventTrigger" | "pending" | "cancel">;
+
+export class ScheduleInputError extends Error {}
 
 export class Scheduler {
 	private items: import("./schedule-parser.js").ScheduledItem[] = [];
@@ -57,6 +59,17 @@ export class Scheduler {
 		triggerAt: Date,
 		opts?: { repeatMs?: number; repeatLabel?: string },
 	): import("./schedule-parser.js").ScheduledItem {
+		if (!Number.isFinite(triggerAt.getTime())) {
+			throw new ScheduleInputError("triggerAt must be a valid date");
+		}
+		if (opts?.repeatMs !== undefined) {
+			if (!isValidRepeatMs(opts.repeatMs)) {
+				throw new ScheduleInputError("repeatMs must be at least 1000 (1 second), in whole milliseconds within the Date range");
+			}
+			if (!Number.isFinite(new Date(Math.max(triggerAt.getTime(), Date.now()) + opts.repeatMs).getTime())) {
+				throw new ScheduleInputError("Repeat interval exceeds the supported date range. Choose a shorter interval or earlier start time.");
+			}
+		}
 		this.ensureLoaded();
 		const item: import("./schedule-parser.js").ScheduledItem = {
 			id: this.nextId++,
@@ -65,10 +78,7 @@ export class Scheduler {
 			status: "pending",
 			created: new Date().toISOString(),
 		};
-		if (opts?.repeatMs) {
-			if (opts.repeatMs < 1000) {
-				throw new Error("repeatMs must be at least 1000 (1 second)");
-			}
+		if (opts?.repeatMs !== undefined) {
 			item.repeatMs = opts.repeatMs;
 			if (opts.repeatLabel !== undefined) item.repeatLabel = opts.repeatLabel;
 		}
@@ -142,14 +152,20 @@ export class Scheduler {
 
 		if (item.triggerEvent && item.repeat) {
 			item.firedAt = ref.toISOString();
-		} else if (item.repeatMs && item.repeatMs >= 1000) {
+		} else if (item.repeatMs !== undefined && Number.isFinite(item.repeatMs) && item.repeatMs >= 1000) {
+			// Admission requires whole milliseconds, but previously saved recurrences
+			// can contain fractional values from the old parser's float arithmetic.
+			// Preserve their delivery semantics instead of turning them into one-shot.
 			const previous = new Date(item.triggerAt).getTime();
 			const periods = Math.max(
 				1,
 				Math.floor((ref.getTime() - previous) / item.repeatMs) + 1,
 			);
 			const next = new Date(previous + periods * item.repeatMs);
-			item.triggerAt = next.toISOString();
+			// A finite date range eventually ends even for a valid recurring reminder.
+			// Complete its last occurrence without crashing delivery for other items.
+			if (Number.isFinite(next.getTime())) item.triggerAt = next.toISOString();
+			else item.status = "fired";
 			item.firedAt = ref.toISOString();
 		} else {
 			item.status = "fired";

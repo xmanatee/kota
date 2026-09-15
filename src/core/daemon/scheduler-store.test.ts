@@ -114,6 +114,48 @@ describe("durable reminders", () => {
 		expect(restored.pending()).toEqual([scheduler.get(repeat.id)]);
 	});
 
+	it("preserves previously stored fractional recurrence through firing and restart", () => {
+		const triggerAt = "2026-09-15T09:00:00.000Z";
+		// The previous parser multiplied decimal seconds using binary floats.
+		const repeatMs = 1.001 * 1000;
+		const item = {
+			id: 1,
+			description: "Existing fractional recurrence",
+			triggerAt,
+			repeatMs,
+			repeatLabel: "every 1.001 seconds",
+			status: "pending" as const,
+			created: triggerAt,
+		};
+		database.compareAndSetScopeStateValue({
+			scopeId,
+			key: "reminders",
+			expectedRevision: 0,
+			value: { items: [item], nextId: 2 },
+			updatedAt: triggerAt,
+		});
+		const scheduler = new Scheduler({ database, scopeId });
+		const keep = scheduler.add("Unrelated reminder", new Date("2026-09-16T09:00:00Z"));
+		expect(scheduler.getDue(new Date(triggerAt))).toEqual([item]);
+		scheduler.markFired(item.id, new Date(triggerAt));
+		const next = {
+			...item,
+			triggerAt: "2026-09-15T09:00:01.001Z",
+			firedAt: triggerAt,
+		};
+		expect(scheduler.pending()).toEqual([next, keep]);
+
+		const reopened = RunStateDatabase.openExisting(join(root, ".kota"));
+		opened.push(reopened);
+		const restored = new Scheduler({ database: reopened, scopeId });
+		expect(restored.getDue(new Date(next.triggerAt))).toEqual([next]);
+		restored.markFired(item.id, new Date(next.triggerAt));
+		expect(scheduler.pending()).toEqual([
+			{ ...next, triggerAt: "2026-09-15T09:00:02.002Z", firedAt: next.triggerAt },
+			keep,
+		]);
+	});
+
 	it("treats a stored sub-second repeat as one-shot", () => {
 		const scheduler = new Scheduler({ database, scopeId });
 		const item = scheduler.add("Corrupt repeat", new Date(0));
