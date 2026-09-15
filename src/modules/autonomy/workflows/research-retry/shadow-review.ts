@@ -16,10 +16,12 @@ import type {
   ResearchRetryMarker,
   ResearchRetrySkipReason,
 } from "./precondition.js";
+import type { SourceEvidence } from "./source-evidence.js";
 
 export type CandidateSummary = {
   id: string;
   urls: string[];
+  attemptableUrls: string[];
 };
 
 export type ExaminedCandidate = {
@@ -41,6 +43,7 @@ export type InspectResult = {
 
 export function createResearchRetryShadowReviewStep(args: {
   inspectCandidates: TypedCodeStepInput<InspectResult>;
+  collectSources: TypedCodeStepInput<SourceEvidence>;
   markAttempt: TypedCodeStepInput<MarkAttemptResult>;
 }): TypedCodeStepInput<ShadowSemanticReviewStepResult> {
   return createShadowSemanticReviewStep({
@@ -67,6 +70,7 @@ async function resolveResearchRetryShadowTarget(
   ctx: WorkflowStepContext,
   steps: {
     inspectCandidates: TypedCodeStepInput<InspectResult>;
+    collectSources: TypedCodeStepInput<SourceEvidence>;
     markAttempt: TypedCodeStepInput<MarkAttemptResult>;
   },
 ): Promise<ShadowSemanticReviewTargetResolution> {
@@ -108,6 +112,10 @@ async function resolveResearchRetryShadowTarget(
             marker: inspection.marker,
             examined: inspection.examined,
           }, null, 2),
+        },
+        {
+          path: "metadata:collect-sources",
+          content: JSON.stringify(steps.collectSources.outputRequired(ctx), null, 2),
         },
         {
           path: "metadata:mark-attempt",

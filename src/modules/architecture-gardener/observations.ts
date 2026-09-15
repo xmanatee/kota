@@ -55,9 +55,24 @@ export function collectObservations(input: { workspaceRoot: string }): Architect
   return observations;
 }
 
-export const collectObservationsOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string }, ArchitectureObservation[]
->(import.meta.url, "collectObservations");
+export function collectInvestigationEvidence(input: { workspaceRoot: string; targetScope: string }) {
+  const target = normalizeObservationTarget(input.targetScope);
+  const files = collectTypeScriptFiles(join(input.workspaceRoot, "src"), { includeTests: true })
+    .map((file) => relative(input.workspaceRoot, file))
+    .filter((file) => target === "repo" || file === target || file.startsWith(`${target}/`))
+    .sort();
+  return {
+    observations: observationsForTarget(collectObservations(input), target),
+    // Source changes admit open-ended maintenance investigation during spare
+    // capacity; scanner findings are leads, not a prerequisite for that role.
+    repositoryFingerprint: files.length === 0 ? null : computeFingerprint(files.map((file) =>
+      [file, computeFingerprint(readFileSync(join(input.workspaceRoot, file), "utf8"))])),
+  };
+}
+
+export const collectInvestigationEvidenceOperation = defineWorkflowBlockingOperation<
+  { workspaceRoot: string; targetScope: string }, ReturnType<typeof collectInvestigationEvidence>
+>(import.meta.url, "collectInvestigationEvidence");
 
 export function deliveryObservations(projection: AutonomyIssueProjection): ArchitectureObservation[] {
   return projection.issues.filter((issue) => issue.status !== "resolved" && issue.actionability === "local-code")

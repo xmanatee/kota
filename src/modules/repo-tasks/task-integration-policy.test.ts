@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowPostReconcileInvariantInput } from "#core/workflow/types.js";
-import { taskQueueValidationCommand, verifyTaskOwnershipAfterReconcile } from "./task-integration-policy.js";
+import { taskOwnershipBlockers, taskQueueValidationCommand, verifyTaskOwnershipAfterReconcile } from "./task-integration-policy.js";
 
 let root: string;
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), "kota-task-publication-")); });
@@ -53,6 +53,7 @@ it.each(["edit", "delete", "archive"])("protects held tasks during %s publicatio
       runEvidence: { getRun: (id) => db.getRun(id), listRuns: () => db.listRuns(scopeId) },
     };
     expect(verifyTaskOwnershipAfterReconcile(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("builder-owner") });
+    expect(taskOwnershipBlockers(input.runEvidence!, "reviewer")).toEqual([{ taskId: "task-owned", runId: "builder-owner" }]);
     expect(verifyTaskOwnershipAfterReconcile({ ...input, runId: "builder-owner" })).toEqual({ satisfied: true });
     expect(verifyTaskOwnershipAfterReconcile({ ...input, runEvidence: undefined })).toMatchObject({ satisfied: false });
     expect(verifyTaskOwnershipAfterReconcile({ ...input, head: baseHead })).toEqual({ satisfied: true });
@@ -63,6 +64,7 @@ it.each(["edit", "delete", "archive"])("protects held tasks during %s publicatio
       resources: ["task:task-owned"], admittedAt: now, trigger: input.trigger });
     expect(db.startRun("queued-follower", epoch, now)).toBeNull();
     db.beginIntegration("builder-owner", epoch, {});
+    expect(taskOwnershipBlockers(input.runEvidence!, "builder-owner")).toEqual([]);
     expect(verifyTaskOwnershipAfterReconcile({ ...input, runId: "builder-owner" })).toEqual({ satisfied: true });
     expect(verifyTaskOwnershipAfterReconcile(input)).toMatchObject({ satisfied: false });
   } finally { db.close(); }

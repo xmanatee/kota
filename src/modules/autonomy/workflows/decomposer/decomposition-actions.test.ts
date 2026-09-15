@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { showTask } from "#modules/repo-tasks/repo-tasks-operations.js";
+import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { applyDecompositionPlan } from "./decomposition-actions.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 
@@ -53,6 +54,9 @@ describe("applyDecompositionPlan", () => {
     runGit(workspaceRoot, ["config", "user.name", "Test"]);
     const activeDir = join(workspaceRoot, "data", "tasks");
     mkdirSync(join(activeDir, "archive"), { recursive: true });
+    for (const id of ["task-prerequisite", "task-existing-prerequisite"]) {
+      writeFileSync(join(activeDir, "archive", `${id}.md`), serializeFlatFrontMatter({ status: "done" }, `# ${id}\n\nPrerequisite completed.\n`));
+    }
     writeFileSync(
       join(activeDir, `${ORIGINAL_ID}.md`),
       serializeFlatFrontMatter(
@@ -73,11 +77,14 @@ describe("applyDecompositionPlan", () => {
   });
 
   it("creates ordered open tasks and archives the original through task APIs", () => {
+    const dependentPath = join(workspaceRoot, "data/tasks/task-dependent.md");
+    writeFileSync(dependentPath, serializeFlatFrontMatter({ status: "open", priority: "p2", depends_on: [ORIGINAL_ID] }, "# Dependent\n\nDeliver the dependent outcome.\n"));
     const result = applyDecompositionPlan({
       workspaceRoot,
       taskId: ORIGINAL_ID,
       failedRunId: "run-failed-builder",
       plan: plan(),
+      heldTaskIds: [],
     });
 
     expect(result.subtaskIds).toEqual([
@@ -104,6 +111,8 @@ describe("applyDecompositionPlan", () => {
     ]);
     expect(readFileSync(join(workspaceRoot, "data", "tasks", `${result.subtaskIds[0]}.md`), "utf-8"))
       .toContain("Decomposed from `task-original-security-fix`");
+    expect(parseFlatFrontMatter(readFileSync(dependentPath, "utf8")).attrs.depends_on).toEqual(result.subtaskIds);
+    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
   it("rejects an existing decomposition before creating subtasks", () => {
@@ -124,6 +133,7 @@ describe("applyDecompositionPlan", () => {
         taskId: ORIGINAL_ID,
         failedRunId: "run-failed-builder",
         plan: plan(),
+        heldTaskIds: [],
       }),
     ).toThrow("already records a decomposition");
     expect(
@@ -164,6 +174,7 @@ describe("applyDecompositionPlan", () => {
       taskId: ORIGINAL_ID,
       failedRunId: "run-failed-builder",
       plan: reusePlan,
+      heldTaskIds: [],
     });
 
     expect(result.subtaskIds[0]).toBe(existingId);
@@ -184,5 +195,21 @@ describe("applyDecompositionPlan", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("rejects held dependents and invalid replacement graphs before any task writes", () => {
+    const dependentPath = join(workspaceRoot, "data/tasks/task-dependent.md");
+    writeFileSync(dependentPath, serializeFlatFrontMatter({ status: "open", priority: "p2", depends_on: [ORIGINAL_ID] }, "# Dependent\n\nDeliver the dependent outcome.\n"));
+    const before = runGit(workspaceRoot, ["diff", "--", "data/tasks"]);
+    const dependentBefore = readFileSync(dependentPath, "utf8");
+    const input = { workspaceRoot, taskId: ORIGINAL_ID, failedRunId: "run-failed-builder", plan: plan(), heldTaskIds: ["task-dependent"] };
+    expect(() => applyDecompositionPlan(input)).toThrow("held task:task-dependent");
+    expect(showTask(workspaceRoot, ORIGINAL_ID)).toMatchObject({ state: "open" });
+    expect(showTask(workspaceRoot, "task-resolve-current-authority-at-hosted-tool-boundarie")).toMatchObject({ found: false });
+    const cyclic = plan();
+    cyclic.subtasks[0] = { ...cyclic.subtasks[0]!, reuseTaskId: "task-dependent", title: "Dependent" };
+    expect(() => applyDecompositionPlan({ ...input, heldTaskIds: [], plan: cyclic })).toThrow("cannot depend on itself");
+    expect(runGit(workspaceRoot, ["diff", "--", "data/tasks"])).toBe(before);
+    expect(readFileSync(dependentPath, "utf8")).toBe(dependentBefore);
   });
 });

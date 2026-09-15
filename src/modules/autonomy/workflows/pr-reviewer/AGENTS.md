@@ -18,4 +18,7 @@ This directory owns automated semantic review for trusted GitHub pull requests.
   mechanisms already prove the behavior.
 - Keep the review agent passive: it drafts structured output only. The workflow
   validates/bounds the body, gates approval, and posts through `github_comment`.
+- Workflow-owned GitHub reads supply a bounded raw diff as untrusted agent input.
+  Unavailable or stale evidence skips review; publication rechecks head/base/intent
+  metadata after approval and identifies the reviewed head in the advisory comment.
 - Requires the GitHub module to be configured with a token that has PR comment permissions.

@@ -4,6 +4,7 @@
  * Tools:
  *   github_create_pr     — create a pull request
  *   github_get_pr        — get PR details and CI check statuses
+ *   github_get_pr_review — read pinned PR diff evidence or current review identity
  *   github_list_issues   — list open issues with optional label filter
  *   github_list_prs      — list pull requests with optional state/branch filter
  *   github_comment       — add a comment to a PR or issue
@@ -171,7 +172,9 @@ export function createGithubModule(
       method: OutboundHttpMethod,
       path: string,
       body?: unknown,
-    ) => githubFetch(requestToken, method, path, body, http);
+      _http?: OutboundHttpRequestPort,
+      representation?: "json" | "diff",
+    ) => githubFetch(requestToken, method, path, body, http, representation);
     return [
       ...makePrTools(token, defaultRepo, fetch),
       ...makeIssueTools(token, defaultRepo, fetch),

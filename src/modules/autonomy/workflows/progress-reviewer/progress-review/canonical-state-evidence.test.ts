@@ -1,8 +1,10 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId, ScopeRegistry } from "#core/daemon/scope-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { applyAutonomyIssueObservations, buildAutonomyIssueObservation, emptyAutonomyIssueProjection, recordAutonomyIssueDispositions } from "#modules/autonomy/autonomy-issue-projection.js";
 import { progressReviewRequested } from "../events.js";
 import {
   makeProgressReviewScopeRoot,
@@ -164,5 +166,33 @@ describe("progress-reviewer canonical state evidence", () => {
       expect.objectContaining({ id: "state:recovery", kind: "state" }),
       expect.objectContaining({ id: "state:owner-decisions", kind: "state" }),
     ]));
+  });
+
+  it("exports redacted issue ownership and owner decisions in the readable packet", () => {
+    const workspaceRoot = makeProgressReviewScopeRoot("progress-state-details");
+    scopeRoots.push(workspaceRoot);
+    const stateDir = join(workspaceRoot, ".kota");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const observation = buildAutonomyIssueObservation({
+      kind: "present", rootCauseKey: "delivery:failure", observedAt: NOW.toISOString(), signalIds: ["failure"],
+      source: { kind: "workflow", id: "builder" }, severity: "error", actionability: "local-code",
+      labels: [], summaries: ["Delivery failed with Bearer secret-example-value"], evidenceRefs: [], observationCount: 1,
+    });
+    const observed = applyAutonomyIssueObservations({ current: emptyAutonomyIssueProjection(), observations: [observation] }).projection;
+    const projection = recordAutonomyIssueDispositions({ current: observed, updates: [{
+      issueKey: observation.issueKey, semanticRevision: 1, kind: "task", decidedAt: NOW.toISOString(), taskIds: ["task-repair-delivery"], ownerQuestionIds: [],
+    }] });
+    const decisions = new OwnerDecisionStore(join(stateDir, "owner-decisions"), scopeId);
+    const decision = decisions.create({ request: { kind: "single-choice", prompt: "Choose direction", options: [{ id: "repair", label: "Repair delivery" }] }, requester: { kind: "manual", source: "owner" }, evidence: [] });
+    decisions.answer(decision.id, { kind: "single-choice", optionId: "repair" }, "operator");
+    const evidence = collectProgressReviewEvidence({ workspaceRoot, scopeRoot: workspaceRoot, stateDir, runtimeStateDir: stateDir, now: NOW,
+      trigger: { event: progressReviewRequested.name, schemaRef: null, payload: {} }, autonomyIssueProjection: projection });
+    const issue = evidence.canonicalState.find((ref) => ref.id === `state:issue:${observation.issueKey}`)!;
+    expect(JSON.parse(issue.summary)).toMatchObject({ disposition: { kind: "task" }, links: { taskIds: ["task-repair-delivery"] } });
+    expect(issue.summary).not.toContain("secret-example-value");
+    const choice = evidence.canonicalState.find((ref) => ref.id === `state:owner-decision:${decision.id}`)!;
+    expect(JSON.parse(choice.summary)).toMatchObject({ status: "answered", selectedValue: { optionId: "repair" } });
+    expect([issue.path, choice.path]).toEqual(["progress-review-evidence.json", "progress-review-evidence.json"]);
+    expect(evidence.canonicalState.some((ref) => ref.path?.includes("kota.sqlite"))).toBe(false);
   });
 });

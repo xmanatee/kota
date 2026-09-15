@@ -2,6 +2,7 @@ import type { ToolDef } from "#core/modules/module-types.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, type GitHubFetch, githubFetch } from "./github-auth.js";
+import { makeGetPrReview } from "./github-pr-review.js";
 
 function makeCreatePr(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
@@ -285,6 +286,7 @@ export function makePrTools(
   return [
     makeCreatePr(token, defaultRepo, fetch),
     makeGetPr(token, defaultRepo, fetch),
+    makeGetPrReview(token, defaultRepo, fetch),
     makeListPrs(token, defaultRepo, fetch),
     makeMergePr(token, defaultRepo, fetch),
     makeClosePr(token, defaultRepo, fetch),

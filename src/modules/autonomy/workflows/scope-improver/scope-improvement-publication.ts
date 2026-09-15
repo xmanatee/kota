@@ -3,7 +3,9 @@ import { isDeepStrictEqual } from "node:util";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
+import { type ProgressReviewRequest, progressReviewRequested } from "../progress-reviewer/events.js";
 import { applyScopeImprovementOwnerQuestionEffects } from "./scope-improvement-actions.js";
+import { scopeImprovementNeedsSemanticReview } from "./scope-improvement-discovery.js";
 import {
   canCompleteScopeImprovementInput,
   completeScopeImprovementInput,
@@ -18,6 +20,7 @@ import {
 } from "./scope-improvement-types.js";
 
 export type ScopeImprovementPublicationResult = {
+  reviewRequest?: ProgressReviewRequest;
   disposition: "absent" | "ignored" | "deferred" | "published";
   nextState: ScopeImprovementState | null;
 };
@@ -28,6 +31,9 @@ export function finalizeScopeImprovement(ctx: WorkflowFinalizationContext): void
   const result = publishScopeImprovement({ scopeRoot: ctx.scopeRoot, sourceRunId: ctx.runId, currentState });
   if (result.nextState !== null && !isDeepStrictEqual(result.nextState, currentState)) {
     ctx.state.compareAndSet(SCOPE_IMPROVEMENT_STATE_KEY, snapshot.revision, result.nextState);
+  }
+  if (result.reviewRequest) {
+    ctx.emit(progressReviewRequested.name, { ...result.reviewRequest, scopeId: ctx.scopeId }, "scope-improvement:semantic-review");
   }
 }
 
@@ -102,6 +108,18 @@ export function publishScopeImprovement(args: {
   }
   return {
     disposition: "published",
+    ...(scopeImprovementNeedsSemanticReview(decoded.inputs) ? {
+      reviewRequest: {
+        automatic: false,
+        reason: decoded.inputs.reason,
+        requestedBy: decoded.inputs.requestedBy ?? "scope-improver",
+        evidenceRefs: [...new Set([
+          ...decoded.inputs.semanticInput.evidenceRefs,
+          ...decoded.inputs.instructions.map((instruction) => instruction.path),
+        ])],
+        idempotencyKey: `scope-improvement:${args.sourceRunId}:progress-review`,
+      },
+    } : {}),
     nextState: completeScopeImprovementInput({
       current: args.currentState,
       sourceRunId: args.sourceRunId,

@@ -4,6 +4,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
+import { createPrReviewInputStep } from "#modules/autonomy/pr-review-input.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_TIER,
@@ -81,7 +82,21 @@ const summarizeResults = typedCodeStep<RepoAiCheckSummary>({
   type: "code",
   validate: validateSummary,
   when: stepSucceeded("discover-checks"),
-  run: (ctx) => summarizeCheckResults(ctx, discoverChecks.outputRequired(ctx)),
+  run: async (ctx) => {
+    const discovery = discoverChecks.outputRequired(ctx);
+    if (!discovery.skip) {
+      const evidence = prReviewInput.input.outputRequired(ctx);
+      if (evidence.status === "unavailable") return summarizeCheckResults(ctx, discovery, evidence.reason);
+      await prReviewInput.assertCurrent(ctx);
+    }
+    return summarizeCheckResults(ctx, discovery);
+  },
+});
+
+const prReviewInput = createPrReviewInputStep((ctx) => {
+  if (!stepSucceeded("discover-checks")(ctx)) return { skip: true };
+  const discovery = discoverChecks.outputRequired(ctx);
+  return discovery.skip ? { skip: true } : { ...discovery, skip: false };
 });
 
 const prepareComment = typedCodeStep<PreparedRepoAiCheckComment>({
@@ -127,12 +142,13 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
   steps: [
     assessPr,
     discoverChecks,
+    prReviewInput.input,
     {
       id: "run-checks",
       type: "foreach",
       as: "check",
       items: (ctx) => discoverChecks.outputRequired(ctx).checks,
-      when: (ctx) => stepSucceeded("discover-checks")(ctx) && !discoverChecks.outputRequired(ctx).skip,
+      when: prReviewInput.ready,
       maxConcurrency: 1,
       timeoutMs: 25 * 60 * 1000,
       steps: [
@@ -200,10 +216,16 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
         commentPolicy.outputRequired(ctx).approvalRequired,
     },
     {
+      id: "verify-review-current",
+      type: "code",
+      when: canPostComment,
+      run: prReviewInput.assertCurrent,
+    },
+    {
       id: "post-comment",
       type: "tool",
       tool: "github_comment",
-      when: canPostComment,
+      when: stepSucceeded("verify-review-current"),
       input: (ctx) => githubCommentInput(prepareComment.outputRequired(ctx)),
     },
   ],

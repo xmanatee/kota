@@ -18,11 +18,12 @@ async function runRepairCheck(
   check: WorkflowRepairCheck,
   context: WorkflowStepContext,
   parentStep: WorkflowAgentStep,
+  completion?: string,
 ): Promise<RepairCheckResult> {
   const severity = check.severity ?? "error";
   try {
     if (check.type === "code") {
-      const output = await check.run(context, parentStep);
+      const output = await check.run(context, parentStep, completion);
       return {
         id: check.id,
         passed: true,
@@ -74,6 +75,7 @@ export async function runChecksPhased(
   checks: WorkflowRepairCheck[],
   context: WorkflowStepContext,
   parentStep: WorkflowAgentStep,
+  completion?: string,
 ): Promise<{
   results: RepairCheckResult[];
   failures: RepairCheckResult[];
@@ -91,7 +93,7 @@ export async function runChecksPhased(
   for (const phase of sortedPhases) {
     const phaseChecks = phases.get(phase)!;
     const results = await Promise.all(
-      phaseChecks.map((c) => runRepairCheck(c, context, parentStep)),
+      phaseChecks.map((c) => runRepairCheck(c, context, parentStep, completion)),
     );
     allResults.push(...results);
     const hasErrors = results.some((r) => !r.passed && r.severity === "error");

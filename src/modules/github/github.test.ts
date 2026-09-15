@@ -196,6 +196,91 @@ describe("github module", () => {
     });
   });
 
+  describe("github_get_pr_review", () => {
+    const headSha = "a".repeat(40);
+    const baseSha = "b".repeat(40);
+    const pr = {
+      number: 42, state: "open", title: "Fix authorization", body: "Reject missing users.",
+      head: { sha: headSha, ref: "fix/auth", repo: { full_name: "owner/testrepo" } },
+      base: { sha: baseSha, ref: "main", repo: { full_name: "owner/testrepo" } },
+      changed_files: 1, additions: 1, deletions: 1,
+    };
+    const diff = "diff --git a/src/auth.ts b/src/auth.ts\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1 +1 @@\n-return true;\n+return user !== null;";
+
+    it.each([
+      diff,
+      "diff --git a/old.ts b/new.ts\nsimilarity index 100%\nrename from old.ts\nrename to new.ts\n",
+      "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n",
+    ])("returns raw text and metadata-only diffs without requiring hunks", async (source) => {
+      mockFetch
+        .mockResolvedValueOnce(makeResponse(pr))
+        .mockResolvedValueOnce(new Response(source))
+        .mockResolvedValueOnce(makeResponse(pr));
+      const result = await getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha });
+      expect(result.is_error).toBeFalsy();
+      expect(JSON.parse(result.content)).toMatchObject({
+        status: "ready", repo: "owner/testrepo", number: 42, headSha, baseSha, body: pr.body, diff: source,
+      });
+      expectRequest("https://api.github.com/repos/owner/testrepo/pulls/42", {
+        method: "GET", headers: expect.objectContaining({ Accept: "application/vnd.github.diff" }),
+      });
+    });
+
+    it.each([
+      { name: "stale webhook", initial: { ...pr, head: { ...pr.head, sha: "c".repeat(40) } } },
+      { name: "fork identity", initial: { ...pr, head: { ...pr.head, repo: { full_name: "other/repo" } } } },
+      { name: "head moved during retrieval", final: { ...pr, head: { ...pr.head, sha: "c".repeat(40) } } },
+      { name: "base moved during retrieval", final: { ...pr, base: { ...pr.base, sha: "c".repeat(40) } } },
+      { name: "missing diff", diff: "" },
+      { name: "binary coverage", diff: "diff --git a/image.png b/image.png\nBinary files a/image.png and b/image.png differ\n" },
+      { name: "oversized evidence", diff: `diff --git a/x b/x\n${"x".repeat(100_000)}` },
+      { name: "diff API unavailability", status: 406 },
+    ])("reports $name as unavailable coverage", async (scenario) => {
+      mockFetch
+        .mockResolvedValueOnce(makeResponse(scenario.initial ?? pr))
+        .mockResolvedValueOnce(new Response(scenario.diff ?? diff, { status: scenario.status ?? 200 }))
+        .mockResolvedValueOnce(makeResponse(scenario.final ?? pr));
+      const result = await getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha });
+      expect(result.is_error).toBeFalsy();
+      expect(JSON.parse(result.content)).toMatchObject({ status: "unavailable", reason: expect.any(String) });
+      expect(result.content).not.toContain("ghp_test123");
+    });
+
+    it("checks freshness using metadata without downloading the diff", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse(pr));
+      const result = await getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha, mode: "identity" });
+      expect(JSON.parse(result.content)).toMatchObject({ headSha, baseSha, title: pr.title, body: pr.body });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][0].headers).toMatchObject({ Accept: "application/vnd.github+json" });
+    });
+
+    it.each([new Error("policy denied"), new DOMException("cancelled", "AbortError")])("propagates transport authority and cancellation failures", async (error) => {
+      mockFetch.mockRejectedValueOnce(error);
+      await expect(getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha })).rejects.toBe(error);
+    });
+
+    it("propagates cancellation while reading the metadata response body", async () => {
+      const error = new DOMException("cancelled", "AbortError");
+      const response = makeResponse(pr);
+      vi.spyOn(response, "json").mockRejectedValueOnce(error);
+      mockFetch.mockResolvedValueOnce(response);
+      await expect(getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha })).rejects.toBe(error);
+    });
+
+    it("propagates GitHub authorization failures without provider bodies", async () => {
+      mockFetch.mockResolvedValueOnce(makeResponse({ message: "private provider body" }, 403));
+      await expect(getTool(makeCtx(), "github_get_pr_review").runner({ number: 42, headSha }))
+        .rejects.toThrow("GitHub PR review read not authorized (HTTP 403)");
+    });
+
+    it("rejects invalid coordinates before network access", async () => {
+      await expect(getTool(makeCtx(), "github_get_pr_review").runner({
+        repo: "owner/repo/../other", number: 42, headSha,
+      })).rejects.toThrow();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe("github_comment", () => {
     it("posts a comment and returns the comment URL", async () => {
       mockFetch.mockResolvedValueOnce(

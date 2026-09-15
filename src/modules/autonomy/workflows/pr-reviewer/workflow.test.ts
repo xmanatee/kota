@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { prReviewFixture, reviewHeadSha } from "#modules/autonomy/pr-review-input.test-support.js";
 import type { GitHubWebhookActorIntegrity } from "#modules/github-webhook/events.js";
 import prReviewerWorkflow from "./workflow.js";
 
@@ -28,7 +29,7 @@ function makeTrigger(overrides: PrPayload = {}) {
       headBranch: "feature/semantic-review",
       baseBranch: "main",
       isFork: false,
-      headSha: "abc123",
+      headSha: reviewHeadSha,
       sender: { login: "maintainer", type: "User" },
       prAuthor: { login: "kota-bot", type: "Bot" },
       authorAssociation: "MEMBER",
@@ -54,6 +55,9 @@ function toolSpy(): {
   return {
     calls,
     runTool: vi.fn(async (name, input) => {
+      if (name === "github_get_pr_review") {
+        return { content: JSON.stringify(prReviewFixture("feature/semantic-review")) };
+      }
       calls.push({ name, input });
       return { content: "Comment posted (ID: 999)" };
     }),
@@ -189,7 +193,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       prNumber: 42,
       repo: "owner/repo",
       headBranch: "feature/semantic-review",
-      headSha: "abc123",
+      headSha: reviewHeadSha,
     });
     expect(result.steps.review.status).toBe("success");
     expect(tools.calls).toHaveLength(1);
@@ -200,11 +204,17 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
       approvals: { "approve-comment": { decision: "approve" } },
-      stepOutputs: {
-        review: reviewDraft(),
-      },
       ports: {
         runTool: tools.runTool,
+        runAgent: ({ prompt }) => {
+          expect(prompt).toContain("workflow.step-output.pr-review-input");
+          expect(prompt).toContain('trust="untrusted"');
+          expect(prompt).toContain(reviewHeadSha);
+          expect(prompt).toContain("src/auth.ts");
+          expect(prompt).toContain("+return user !== null;");
+          expect(prompt).toContain("Reject requests without an authenticated user.");
+          return reviewDraft();
+        },
       },
     });
 
@@ -216,14 +226,14 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       repo: "owner/repo",
       prNumber: 42,
       headBranch: "feature/semantic-review",
-      headSha: "abc123",
+      headSha: reviewHeadSha,
     });
     expect(result.steps.review.status).toBe("success");
     expect(result.steps["prepare-comment"].output).toMatchObject({
       repo: "owner/repo",
       prNumber: 42,
       recommendation: "approve",
-      body: "**Recommendation:** approve\n\nSummary: the pull request's stated intent is covered.",
+      body: `**Recommendation:** approve\n**Reviewed head:** \`${reviewHeadSha}\`\n\nSummary: the pull request's stated intent is covered.`,
     });
     expect(result.steps["comment-policy"].output).toMatchObject({
       approvalRequired: true,
@@ -235,10 +245,49 @@ describe("pr-reviewer workflow — assess-pr step", () => {
         input: {
           repo: "owner/repo",
           number: 42,
-          body: "**Recommendation:** approve\n\nSummary: the pull request's stated intent is covered.",
+          body: `**Recommendation:** approve\n**Reviewed head:** \`${reviewHeadSha}\`\n\nSummary: the pull request's stated intent is covered.`,
         },
       },
     ]);
+    expect(tools.runTool).toHaveBeenCalledWith("github_get_pr_review", {
+      repo: "owner/repo", number: 42, headSha: reviewHeadSha, mode: "evidence",
+    });
+    expect(tools.runTool).toHaveBeenCalledWith("github_get_pr_review", {
+      repo: "owner/repo", number: 42, headSha: reviewHeadSha, mode: "identity",
+    });
+  });
+
+  it.each(["unavailable", "stale", "authority failure"])("does not review or comment with %s evidence", async (failure) => {
+    const runAgent = vi.fn(() => reviewDraft());
+    const evidence = prReviewFixture("feature/semantic-review");
+    const runTool = vi.fn(async () => failure === "authority failure"
+      ? { content: "GitHub read denied", is_error: true }
+      : { content: JSON.stringify(failure === "stale" ? { ...evidence, headSha: "c".repeat(40) } : { status: "unavailable", reason: "Binary content not available" }) });
+    const result = await new WorkflowScenarioDriver(prReviewerWorkflow, {
+      trigger: makeTrigger(), ports: { runAgent, runTool },
+    }).run();
+    expect(result.status).toBe(failure === "authority failure" ? "failed" : "success");
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(result.steps["post-comment"]?.status).not.toBe("success");
+    expect(result.emitted.some((event) => event.event === "workflow.pr.review.posted")).toBe(false);
+  });
+
+  it("does not publish approval when evidence changes while waiting for comment approval", async () => {
+    const evidence = prReviewFixture("feature/semantic-review");
+    let reads = 0;
+    const runTool = vi.fn(async (_name: string) => ({ content: JSON.stringify(++reads === 1
+      ? evidence : { ...evidence, baseSha: "c".repeat(40) }) }));
+    const result = await new WorkflowScenarioDriver(prReviewerWorkflow, {
+      trigger: makeTrigger(),
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: { review: reviewDraft() },
+      ports: { runTool },
+    }).run();
+    expect(result.status).toBe("failed");
+    expect(result.steps.review.status).toBe("success");
+    expect(result.steps["post-comment"]).toBeUndefined();
+    expect(runTool.mock.calls.some(([name]) => name === "github_comment")).toBe(false);
+    expect(result.emitted.some((event) => event.event === "workflow.pr.review.posted")).toBe(false);
   });
 
   it("emits workflow.pr.review.posted after successful review", async () => {

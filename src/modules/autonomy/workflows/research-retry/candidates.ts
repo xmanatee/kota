@@ -1,11 +1,10 @@
-import { listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
+import { extractTaskSections, listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 /**
  * A blocked research task's retry candidacy. A task qualifies when it is
- * in the `blocked` state and its body contains a `## Resources` section —
- * the convention used by research-area tasks to list URLs the task needs
- * to read. The body is included so the workflow can read its retry-marker
- * fingerprint without a second filesystem round-trip.
+ * in the `blocked` state with a source-access precondition and HTTP URLs.
+ * The body carries prior source attempts without another filesystem read.
  */
 export type ResearchRetryCandidate = {
   id: string;
@@ -13,28 +12,29 @@ export type ResearchRetryCandidate = {
   body: string;
 };
 
-const RESOURCES_HEADING_RE = /^##\s+Resources\s*$/m;
-
-/**
- * Extract `http(s)` URLs from the `## Resources` section of a task body.
- * The section runs from the heading to the next `##` heading or end of
- * body. URLs that land inside fenced code blocks are still captured; the
- * intent is a permissive sweep of "URLs the task author listed as needing
- * access" rather than prose-only matching.
- */
+/** Read ordinary Markdown links, autolinks, references, and bare HTTP URLs. */
 export function extractResourceUrls(taskBody: string): string[] {
-  const match = taskBody.match(/## Resources([\s\S]*?)(?:\n## |$)/);
-  if (!match) return [];
-  const section = match[1];
-  const urlRe = /https?:\/\/[^\s<>"')\]]+/g;
-  const found = section.match(urlRe) ?? [];
-  return Array.from(new Set(found.map((u) => u.replace(/[.,;:]+$/, ""))));
+  const body = taskBody.replace(/<!--[\s\S]*?-->/g, "");
+  const extract = (text: string): string[] => {
+    const found = text.match(/https?:\/\/[^\s<>"'\]]+/g) ?? [];
+    return [...new Set(found.flatMap((raw) => {
+      let url = raw.replace(/[.,;:!?]+$/, "");
+      while (url.endsWith(")") && (url.match(/\)/g)?.length ?? 0) > (url.match(/\(/g)?.length ?? 0)) {
+        url = url.slice(0, -1);
+      }
+      try {
+        return [new URL(url).href];
+      } catch {
+        return [];
+      }
+    }))];
+  };
+  // An explicit pending-source list wins over citations to already-read sources.
+  const blockedUrls = extract(extractTaskSections(body, ["Blocked on"])["Blocked on"] ?? "");
+  return blockedUrls.length ? blockedUrls : extract(body);
 }
 
-/**
- * List blocked tasks whose body carries a `## Resources` section of URLs
- * eligible for retry. Sorted by stable task identity.
- */
+/** Source collection cannot resolve owner decisions or implementation work. */
 export function listResearchRetryCandidates(
   workspaceRoot: string,
   tasks: readonly RepoTaskFullRecord[] = listFullRepoTasks(workspaceRoot),
@@ -42,7 +42,8 @@ export function listResearchRetryCandidates(
   const blocked = tasks.filter((task) => task.state === "blocked");
   const candidates: ResearchRetryCandidate[] = [];
   for (const record of blocked) {
-    if (!RESOURCES_HEADING_RE.test(record.body)) continue;
+    const parsed = parseBlockedPrecondition(record.body);
+    if (!parsed.ok || parsed.precondition.kind === "owner-decision") continue;
     const urls = extractResourceUrls(record.body);
     if (urls.length === 0) continue;
     candidates.push({

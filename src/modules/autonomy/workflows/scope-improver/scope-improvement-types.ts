@@ -52,6 +52,8 @@ export type ScopeImprovementEvidence = {
 };
 
 export type ScopeImprovementInputs = {
+  reason?: string;
+  requestedBy?: string;
   handoff?: ImprovementHandoffObservation;
   generatedAt: string;
   triggerKind: ScopeImprovementTriggerKind;

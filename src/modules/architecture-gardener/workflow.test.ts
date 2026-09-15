@@ -22,7 +22,7 @@ import { decodeGardenerDecision } from "./decision.js";
 import { architectureReviewRequested } from "./events.js";
 import { GARDENER_STATE_KEY } from "./gardener-state.js";
 import { stageGardenerTask } from "./gardener-task.js";
-import { collectObservations } from "./observations.js";
+import { collectInvestigationEvidence, collectObservations } from "./observations.js";
 import { ARCHITECTURE_GARDENER_RUN_ARTIFACT } from "./proposal-identity.js";
 import type { ArchitectureGardenerRunState, ArchitectureObservation } from "./types.js";
 import architectureGardenerWorkflow, { verifyGardenerSettlementAfterReconcile } from "./workflow.js";
@@ -96,6 +96,18 @@ describe("Architecture Gardener Workflow", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     rmSync(testWorkspace, { recursive: true, force: true });
+  });
+
+  it("tracks scoped source and test changes without treating task churn as architecture evidence", () => {
+    const inspect = () => collectInvestigationEvidence({ workspaceRoot: testWorkspace, targetScope: "module:foo" });
+    const baseline = inspect();
+    expect(baseline.observations).toEqual([]);
+    expect(baseline.repositoryFingerprint).not.toBeNull();
+    writeFileSync(join(testWorkspace, "data/tasks/task-note.md"), "An unrelated task change.");
+    writeFileSync(join(testWorkspace, "src/core/clean.ts"), "export const coreUtil = () => false;\n");
+    expect(inspect().repositoryFingerprint).toBe(baseline.repositoryFingerprint);
+    writeFileSync(join(testWorkspace, "src/modules/foo/view.test.tsx"), "export const scenario = <div />;\n");
+    expect(inspect().repositoryFingerprint).not.toBe(baseline.repositoryFingerprint);
   });
 
   it.each([

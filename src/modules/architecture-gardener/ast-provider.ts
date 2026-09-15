@@ -49,9 +49,9 @@ export function collectTypeScriptFiles(
         continue;
       }
       results.push(...collectTypeScriptFiles(join(dir, entry.name), options));
-    } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+    } else if (entry.isFile() && /\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
       const isTest =
-        entry.name.endsWith(".test.ts") || entry.name.endsWith(".integration.ts");
+        /\.(test|integration)\.tsx?$/.test(entry.name);
       if (!isTest || options.includeTests) {
         results.push(join(dir, entry.name));
       }

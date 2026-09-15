@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { RunEvidenceReader } from "#core/workflow/run-context.js";
 import type { WorkflowIntegrationPolicy, WorkflowPostReconcileInvariant } from "#core/workflow/types.js";
 import { isRepoTaskId } from "./task-id.js";
 
@@ -13,6 +14,17 @@ export const taskQueueValidationCommand: readonly [string, ...string[]] = [
     : []),
   fileURLToPath(import.meta.resolve("#root/validate-queue.js")),
 ];
+
+/** Other owners that forbid this publisher from changing their task identities. */
+export function taskOwnershipBlockers(runEvidence: RunEvidenceReader, publisherRunId: string): Array<{ taskId: string; runId: string }> {
+  const runs = runEvidence.listRuns();
+  const publisher = runs.find((run) => run.id === publisherRunId);
+  // Active runs have acquired their declared resources; queued successors wait for release.
+  const owned = new Set(publisher?.state === "running" || publisher?.state === "integrating" ? publisher.resources : []);
+  return runs.filter((run) => run.id !== publisherRunId).flatMap((run) => run.resources
+    .filter((resource) => resource.startsWith("task:") && !(run.state === "queued" && owned.has(resource)))
+    .map((resource) => ({ taskId: resource.slice(5), runId: run.id })));
+}
 
 /** Runtime owns claims; task publication must respect every other current owner. */
 export const verifyTaskOwnershipAfterReconcile: WorkflowPostReconcileInvariant = (input) => {
@@ -27,16 +39,8 @@ export const verifyTaskOwnershipAfterReconcile: WorkflowPostReconcileInvariant =
     .map((path) => basename(path, ".md")).filter(isRepoTaskId));
   if (changed.size === 0) return { satisfied: true };
   if (!input.runEvidence) return { satisfied: false, reason: "Task publication requires current runtime ownership evidence" };
-  const runs = input.runEvidence.listRuns();
-  const publisher = runs.find((run) => run.id === input.runId);
-  // Active runs have acquired their declared resources; queued successors wait for release.
-  const owned = new Set(publisher?.state === "running" || publisher?.state === "integrating" ? publisher.resources : []);
-  for (const run of runs) {
-    if (run.id === input.runId) continue;
-    const held = run.resources.find((resource) => resource.startsWith("task:") && changed.has(resource.slice(5)) &&
-      !(run.state === "queued" && owned.has(resource)));
-    if (held) return { satisfied: false, reason: `Task publication conflicts with ${held} owned by run ${run.id}` };
-  }
+  const blocker = taskOwnershipBlockers(input.runEvidence, input.runId).find(({ taskId }) => changed.has(taskId));
+  if (blocker) return { satisfied: false, reason: `Task publication conflicts with task:${blocker.taskId} owned by run ${blocker.runId}` };
   return { satisfied: true };
 };
 

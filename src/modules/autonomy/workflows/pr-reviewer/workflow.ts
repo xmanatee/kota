@@ -12,6 +12,7 @@ import {
   commentPolicy,
   githubCommentInput,
   prepareComment,
+  prReviewInput,
   validateReviewDraft,
 } from "./workflow-steps.js";
 
@@ -46,6 +47,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     assessPr,
+    prReviewInput.input,
     {
       id: "review",
       type: "agent",
@@ -55,7 +57,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       autonomyMode: "autonomous",
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => !assessPr.outputRequired(ctx).skip,
+      when: prReviewInput.ready,
       outputFormat: "json",
       outputSchema: {
         type: "object",
@@ -86,10 +88,16 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
         commentPolicy.outputRequired(ctx).approvalRequired,
     },
     {
+      id: "verify-review-current",
+      type: "code",
+      when: canPostComment,
+      run: prReviewInput.assertCurrent,
+    },
+    {
       id: "post-comment",
       type: "tool",
       tool: "github_comment",
-      when: canPostComment,
+      when: stepSucceeded("verify-review-current"),
       input: (ctx) => {
         const comment = prepareComment.outputRequired(ctx);
         return githubCommentInput(comment);

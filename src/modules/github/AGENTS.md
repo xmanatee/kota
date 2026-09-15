@@ -15,6 +15,9 @@ plus an optional GitHub Issues-backed `TaskProvider`.
 - Does not own webhook ingestion (that belongs in `github-webhook/`).
 - Does not own git CLI operations (those belong in `git/`).
 - Token is never logged or included in error messages.
+- Pinned PR review reads preserve raw diff headers and report unavailable
+  coverage explicitly. Authority and cancellation failures propagate; reads
+  never fetch or execute a PR checkout.
 - The task provider declares read and async mutation capabilities, but not
   bulk maintenance. Cache state changes only after GitHub acknowledges the
   corresponding issue mutation; unsupported task fields fail explicitly.

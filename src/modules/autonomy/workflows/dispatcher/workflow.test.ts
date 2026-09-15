@@ -21,8 +21,10 @@ import type { ProgressReviewAgentOutput } from "../progress-reviewer/progress-re
 import { decodeProgressReviewConsumptionState, emptyProgressReviewConsumptionState, PROGRESS_REVIEW_STATE_KEY } from "../progress-reviewer/semantic-input-state.js";
 import { publishProgressReview } from "../progress-reviewer/semantic-publication.js";
 import {
+  checkResearchRetryCapability,
   computeResourceFingerprint,
   renderRetryMarker,
+  sourceAccessFingerprint,
 } from "../research-retry/precondition.js";
 import { scopeImprovementChanged } from "../scope-improver/events.js";
 import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
@@ -676,11 +678,18 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
-  it("does not emit blocked-research attemptable when the retry fingerprint is unchanged", async () => {
+  it("does not emit blocked-research attemptable for a recent source attempt with unchanged access", async () => {
     const resources = ["https://example.com/research-note"];
     const marker = renderRetryMarker({
       fingerprint: computeResourceFingerprint(resources),
-      attemptedAt: "2026-05-16T00:00:00.000Z",
+      attemptedAt: new Date().toISOString(),
+      attempts: resources.map((url) => ({
+        url,
+        attemptedAt: new Date().toISOString(),
+        accessFingerprint: sourceAccessFingerprint(url, checkResearchRetryCapability(workspaceRoot)),
+        tools: ["web_fetch"],
+        outcome: "unavailable",
+      })),
     });
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-research.md"),

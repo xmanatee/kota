@@ -11,6 +11,9 @@ This workflow owns cross-run systemic operational and product learning.
   generated interventions through canonical task state, integrated changes and
   later outcomes that may disprove the original hypothesis. The default compact
   packet prioritizes the pinned comparison summary over individual raw references.
+- Select current outcomes and prior interventions together, reserving manifest
+  coverage across runs before diagnostic files. Canonical state details travel
+  through redacted review projections, never agent access to operational stores.
 - Publish cited architecture/guidance handoffs through the existing semantic
   publication transaction, preserving the shared improvement topic key. The
   receiving owner applies its own evidence and authority rules. Handoff evidence

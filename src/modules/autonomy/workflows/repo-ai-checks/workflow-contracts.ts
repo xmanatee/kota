@@ -56,6 +56,7 @@ export type RecordedCheckResult = {
 export type RepoAiCheckSummary = {
   repo: string;
   prNumber: number;
+  headSha: string;
   total: number;
   pass: number;
   fail: number;
@@ -174,6 +175,7 @@ export function validateSummary(
   const obj = expectStructuredOutput<RepoAiCheckSummary>(raw, [
     "repo",
     "prNumber",
+    "headSha",
     "total",
     "pass",
     "fail",
@@ -181,6 +183,7 @@ export function validateSummary(
     "artifactDir",
     "results",
   ]);
+  if (!isNonEmptyString(obj.headSha)) throw new Error("repo AI check summary missing reviewed head SHA");
   if (!Array.isArray(obj.results)) throw new Error("repo AI check summary results must be an array");
   return obj;
 }

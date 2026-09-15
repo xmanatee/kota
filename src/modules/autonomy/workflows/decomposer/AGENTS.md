@@ -21,6 +21,10 @@ outcomes and approval before any mutation.
 - `apply-decomposition` is the only semantic mutation path. It uses repo-tasks
   operations to create dependency-linked open tasks, annotate the original,
   and move it to `dropped`.
+- Replacement retargets incoming active-task dependencies to the children in
+  the same publication. It validates the full prospective queue and current
+  held-task ownership before any sandbox writes; integration rechecks ownership.
+  The immutable failed-builder digest remains bound to the original task.
 - Tests cover source authentication, superseding task evidence, shared resource
   binding, approved mutations, and observable queue outcomes rather than claim
   artifacts or commit mechanics.

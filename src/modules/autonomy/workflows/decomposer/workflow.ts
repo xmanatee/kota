@@ -12,7 +12,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
+import { taskOwnershipBlockers, taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import {
   assessFailure,
   decomposerTaskResources,
@@ -90,11 +90,14 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
     if (!assessment.shouldDecompose) {
       throw new Error("Cannot apply decomposition without an active target");
     }
+    if (!ctx.runEvidence) throw new Error("Decomposition requires current runtime ownership evidence");
+    const heldTaskIds = taskOwnershipBlockers(ctx.runEvidence, ctx.workflow.runId).map(({ taskId }) => taskId);
     return ctx.runBlocking(applyDecompositionOperation, {
       workspaceRoot: ctx.workspaceRoot,
       stateDir: ctx.stateDir,
       assessment,
       plan,
+      heldTaskIds,
     });
   },
 });

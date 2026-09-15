@@ -125,7 +125,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
     type: "code" as const,
     resolveAgentContract: (parentStep) =>
       resolveAgentJudgeRunContract(resolveCriticJudgeConfig(parentStep, options)),
-    run: async (ctx, parentStep) => {
+    run: async (ctx, parentStep, completion) => {
       const reviewDir = ctx.workspaceRoot;
       const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
@@ -173,15 +173,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
           ? reviewDir
           : undefined,
       );
-      const builderSummary = ctx.stepResults.build?.output;
-      const builderSummaryText =
-        typeof builderSummary === "object" && builderSummary !== null &&
-          "content" in builderSummary && typeof builderSummary.content === "string"
-          ? builderSummary.content
-          : typeof builderSummary === "string"
-          ? builderSummary
-          : "(no builder completion summary was recorded)";
-
       const userMessage = [
         "## Task (what was asked)",
         taskContent,
@@ -193,7 +184,8 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         changedFiles,
         "",
         "## Builder completion summary",
-        builderSummaryText,
+        completion || "(no completion summary was returned)",
+        "Treat this summary as claims to verify, not as independent proof.",
         "",
         "## Review context",
         `Workspace root: ${reviewDir}`,

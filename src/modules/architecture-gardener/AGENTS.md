@@ -10,7 +10,10 @@ implementation to builders through the existing publication transaction.
 - Automatic observations run after builder delivery, durable issue changes, and
   empty-queue events. Idle review rechecks claim-aware supply and spare delivery
   capacity; retained tasks and inbox ownership do not veto independent work.
-  Initial review needs structural evidence, plus delivery friction unless idle.
+  During idle capacity, changed source also admits architectural investigation
+  beyond the finite scanner catalog. Its scoped content baseline includes source
+  and tests; task-only churn does not reopen it. A review is not exhaustive proof.
+  Otherwise initial review needs structural evidence plus delivery friction.
   Idle review may assess uncited structural opportunities in an unchanged cohort.
   Settlement consumes only explicitly assessed observation fingerprints, accumulated
   across decisions in the requested scope. Once those opportunities are exhausted,
@@ -29,6 +32,8 @@ implementation to builders through the existing publication transaction.
 - Investigate common behavior in maintained consumers before extracting a
   platform mechanism. Keep domain differences at a stable variation point and
   prefer an existing canonical owner over a speculative universal SDK.
+  Triage related scanner leads together; do not run one investigation and test
+  suite per trivial clone. Source/caller inspection can justify no action.
 - Decisions distinguish observed facts, proposed changes and unverified
   expectations. No numeric preference score or inferred preservation verdict
   establishes an improvement. Permit justified no action and false positives.

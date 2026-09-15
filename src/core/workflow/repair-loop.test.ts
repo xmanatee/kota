@@ -169,6 +169,9 @@ function initGitRepo(scopeRoot: string): void {
     cwd: scopeRoot,
   });
   writeFileSync(join(scopeRoot, "seed.txt"), "seed\n", "utf-8");
+  // This direct fixture colocates runtime artifacts; production sandboxes keep
+  // them outside the repository changes being assessed for repair progress.
+  writeFileSync(join(scopeRoot, ".gitignore"), ".kota/\n", "utf-8");
   execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
   execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
 }
@@ -301,6 +304,7 @@ describe("runAgentRepairLoop", () => {
     });
 
     let checkCount = 0;
+    const completions: Array<string | undefined> = [];
     const step = makeStep(scopeRoot, harnessName, {
       repairLoop: {
         maxRepairAttempts: 1,
@@ -308,7 +312,8 @@ describe("runAgentRepairLoop", () => {
           {
             id: "fail-once",
             type: "code",
-            run: () => {
+            run: (_ctx, _step, completion) => {
+              completions.push(completion);
               checkCount += 1;
               if (checkCount === 1) throw new Error("needs repair");
               return "ok";
@@ -343,6 +348,7 @@ describe("runAgentRepairLoop", () => {
       repairIterations: [{ attempt: 1 }],
     });
     expect(nestedRunner).toHaveBeenCalledOnce();
+    expect(completions).toEqual(["initial", "repair complete"]);
     expect(decisions).toHaveLength(2);
     expect(decisions[0]).toMatchObject({
       behavior: "deny",

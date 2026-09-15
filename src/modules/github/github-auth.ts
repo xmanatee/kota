@@ -57,6 +57,7 @@ export async function githubFetch(
   path: string,
   body?: unknown,
   http: OutboundHttpRequestPort = outboundHttp,
+  representation: "json" | "diff" = "json",
 ): Promise<GitHubResponse> {
   const { response: res } = await http.request({
     profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://api.github.com"]),
@@ -65,14 +66,17 @@ export async function githubFetch(
     method,
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
+      Accept: representation === "diff" ? "application/vnd.github.diff" : "application/vnd.github+json",
       "Content-Type": "application/json",
       "User-Agent": "kota/github-module",
       "X-GitHub-Api-Version": "2022-11-28",
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => null);
+  const data = representation === "diff" ? await res.text() : await res.json().catch((error: unknown) => {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  });
   return { ok: res.ok, status: res.status, data };
 }
 

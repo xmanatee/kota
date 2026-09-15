@@ -129,6 +129,7 @@ describe("task and discovery blocking operations", () => {
         runWorkflowBlockingOperation(applyDecompositionOperation, {
           workspaceRoot: decomposerProject,
           stateDir,
+          heldTaskIds: [],
           assessment: {
             shouldDecompose: true,
             reason: "builder exhausted repair on worker-boundary fixture",

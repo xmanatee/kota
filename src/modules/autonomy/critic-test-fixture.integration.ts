@@ -192,7 +192,7 @@ export function getOptionsArg(call: unknown[]): Record<string, unknown> {
 }
 
 export type CodeCheck = {
-  run: (ctx: never, parentStep: never) => Promise<unknown>;
+  run: (ctx: never, parentStep: never, completion?: string) => Promise<unknown>;
 };
 
 // Minimal parent step to satisfy the repair-check run signature.

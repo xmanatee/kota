@@ -251,7 +251,7 @@ export async function runAgentRepairLoop(
   const {
     failures: initialFailures,
     warnings: initialWarnings,
-  } = await runChecksPhased(checks, context, step);
+  } = await runChecksPhased(checks, context, step, lastContent);
   let failures = initialFailures;
   warnings = initialWarnings;
   let previousProgress = await repairProgressSnapshot(
@@ -449,7 +449,7 @@ export async function runAgentRepairLoop(
 
     if (abortController.signal.aborted) break;
 
-    const phased = await runChecksPhased(checks, context, step);
+    const phased = await runChecksPhased(checks, context, step, lastContent);
     failures = phased.failures;
     warnings = phased.warnings;
 

@@ -735,6 +735,43 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.evidence.length).toBeGreaterThan(reviewInput.evidence.length);
   });
 
+  it("keeps current and intervention manifests together despite historical runs and diagnostic noise", () => {
+    const workspaceRoot = trackScopeRoot("progress-balanced-evidence");
+    const observation = (id: string, startedAt: string) => ({
+      id, workflow: "builder", status: "success", delivery: "completed",
+      startedAt, completedAt: startedAt, errors: [], observationOnly: false,
+    });
+    const baseline = Array.from({ length: 25 }, (_, index) => observation(`old-${index}`, "2026-06-03T10:00:00.000Z"));
+    const decision = { ...observation("prior-intervention", "2026-06-03T11:00:00.000Z"), workflow: "progress-reviewer", observationOnly: true };
+    const current = [observation("current-one", "2026-06-04T11:00:00.000Z"), observation("current-two", "2026-06-04T11:01:00.000Z")];
+    for (const run of [...baseline, decision, ...current]) writeRun(workspaceRoot, run.id, run.workflow, run.status, run.startedAt);
+    writeRunArtifactFile(workspaceRoot, decision.id, "progress-review.json", JSON.stringify({ review: reviewOutput({
+      verdict: "needs-steering", summary: "Repair the observed delivery failure",
+      localScope: { followUpTasks: [{ topicKey: "improvement:delivery", title: "Repair delivery", problem: "Delivery fails", priority: "p1", evidenceIds: [], howWeWillKnow: "Later deliveries succeed" }] },
+    }) }));
+    for (const run of [...current, decision]) {
+      const source = join(workspaceRoot, ".kota", "runs", run.id, "outcomes");
+      mkdirSync(source);
+      writeFileSync(join(source, "acceptance.txt"), `${run.id} outcome`);
+      retainRunArtifacts({ scopeRoot: workspaceRoot, runId: run.id, roots: [{ name: "outcome", path: source }] });
+      for (let index = 0; index < 50; index++) writeRunArtifactFile(workspaceRoot, run.id, `noise-${index}.txt`, "diagnostic");
+    }
+    const evidenceWindow = { fromHead: "a".repeat(40), toHead: "b".repeat(40), startedAt: current[0]!.startedAt, endedAt: NOW.toISOString(), baseline: [...baseline, decision], current, excluded: [] };
+    const evidence = collectProgressReviewEvidence({
+      workspaceRoot, scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
+      now: NOW, trigger: { event: progressReviewRequested.name, schemaRef: null, payload: { evidenceWindow } },
+      semanticInput: { automatic: true, shouldReview: true, boundary: "evidence-window", inputRevision: 1, reason: "Compare intervention outcomes", evidenceRefs: [], deliveryAttempt: 0, evidenceWindow },
+    });
+    const input = compactProgressReviewEvidenceForAgent(evidence);
+    const expectedIds = [...current, decision].map((run) => run.id);
+    expect(input.evidence.filter((item) => item.kind === "run").map((item) => item.id))
+      .toEqual(expect.arrayContaining(expectedIds.map((id) => `run:${id}`)));
+    expect(evidence.artifacts.filter((item) => item.file.startsWith("evidence/manifests/")).map((item) => item.runId).sort()).toEqual(expectedIds.sort());
+    expect(input.evidence.filter((item) => item.path?.includes("/manifests/")).length).toBe(3);
+    expect(evidence.artifacts).toHaveLength(PROGRESS_REVIEW_MAX_ARTIFACTS);
+    expect(evidence.artifacts.some((item) => /evidence\/(originals|projections)\//.test(item.file))).toBe(false);
+  });
+
   it("normalizes compacted child evidence ids to exposed parent ids", () => {
     const evidence = {
       evidence: [
@@ -989,6 +1026,12 @@ describe("progress-reviewer workflow", () => {
       runId,
     );
     mkdirSync(retainedSource, { recursive: true });
+    writeFileSync(join(retainedSource, "outcome.json"), JSON.stringify({ outcome: "Obsolete pre-intervention outcome" }));
+    const previousHandoff = retainRunArtifacts({
+      scopeRoot: workspaceRoot, runId, roots: [{ name: "outcome", path: retainedSource }],
+    });
+    const previousManifestPath = join(workspaceRoot, previousHandoff.manifestRef);
+    utimesSync(previousManifestPath, new Date("2020-01-01"), new Date("2020-01-01"));
     writeFileSync(
       join(retainedSource, "outcome.json"),
       JSON.stringify({
@@ -996,7 +1039,7 @@ describe("progress-reviewer workflow", () => {
           "The intervention task closed, but the same failure recurred after integration.",
       }),
     );
-    retainRunArtifacts({
+    const latestHandoff = retainRunArtifacts({
       scopeRoot: workspaceRoot,
       runId,
       roots: [{ name: "outcome", path: retainedSource }],
@@ -1068,6 +1111,8 @@ describe("progress-reviewer workflow", () => {
       expect(options.agentWriteScope).toBe("deny-all");
       expect(options.prompt).toContain("## Runtime evidence handoff");
       const readableRoots = options.readOnlyHostRoots ?? [];
+      expect(readableRoots).toContain(join(workspaceRoot, latestHandoff.manifestRef));
+      expect(readableRoots).not.toContain(previousManifestPath);
       expect(readableRoots.some((path) => path.includes("/originals/"))).toBe(false);
       const readableEvidence = readableRoots
         .filter((path) => path.endsWith(".jsonl"))
@@ -1076,6 +1121,7 @@ describe("progress-reviewer workflow", () => {
       expect(readableEvidence).toContain(
         "The intervention task closed, but the same failure recurred after integration.",
       );
+      expect(readableEvidence).not.toContain("Obsolete pre-intervention outcome");
       const currentManifest = readableRoots
         .filter((path) => path.includes("/manifests/") && path.endsWith(".json"))
         .map((path) => JSON.parse(readFileSync(path, "utf-8")) as RunArtifactManifest)

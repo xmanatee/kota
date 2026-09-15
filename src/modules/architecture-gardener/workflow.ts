@@ -22,7 +22,7 @@ import { architectureReviewRequested } from "./events.js";
 import { computeFingerprint } from "./fingerprint.js";
 import { emptyGardenerRunState, GARDENER_STATE_KEY } from "./gardener-state.js";
 import { type GardenerTaskSettlement, gardenerTaskFingerprint, readHeldTaskIds, stageGardenerTask } from "./gardener-task.js";
-import { collectObservationsOperation, deliveryObservations, normalizeObservationTarget, observationsForTarget } from "./observations.js";
+import { collectInvestigationEvidenceOperation, deliveryObservations, normalizeObservationTarget } from "./observations.js";
 import { ARCHITECTURE_GARDENER_RUN_ARTIFACT, readGardenerProposalIdentities } from "./proposal-identity.js";
 import type { ArchitectureGardenerRunState, ArchitectureObservation, GardenerProposalIdentity, StoredDispositionRecord } from "./types.js";
 
@@ -41,6 +41,7 @@ type InvestigationInput = {
   linkedTasks: Array<{ taskId: string; state: string; path: string; fingerprint: string }>;
   handoff: z.infer<typeof handoffSchema> | null;
   requestFingerprint: string | null;
+  repositoryFingerprint: string | null;
   previousJudgments: StoredDispositionRecord[];
   proposalIdentities: GardenerProposalIdentity[];
   unresolvedTaskIds: string[];
@@ -113,9 +114,6 @@ const inspect = typedCodeStep<InvestigationInput>({
       ? await ctx.runBlocking(repoWorkSupplyOperation, resolveRepoWorkSupplyInput({
         workspaceRoot: ctx.scopeRoot, scopeRoot: ctx.scopeRoot, stateDir: ctx.runtimeStateDir,
       })) : null;
-    const observations = await ctx.runBlocking(collectObservationsOperation, { workspaceRoot: ctx.workspaceRoot });
-    const projection = decodeAutonomyIssueProjection(ctx.state.read<AutonomyIssueProjection>(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value);
-    observations.push(...deliveryObservations(projection));
     const payload = ctx.trigger.payload;
     const handoff = ctx.trigger.event === improvementHandoffRequested.name ? handoffSchema.parse(payload) : null;
     const explicitRequest = handoff !== null || ctx.trigger.event === architectureReviewRequested.name || ctx.trigger.event === "manual";
@@ -123,7 +121,10 @@ const inspect = typedCodeStep<InvestigationInput>({
       ? normalizeObservationTarget(payload.targetScope) : "repo";
     const requestFingerprint = handoff ? computeFingerprint({ topicKey: handoff.topicKey, evidence: handoff.evidenceFingerprint })
       : explicitRequest && typeof payload.reason === "string" ? computeFingerprint(payload.reason.trim()) : null;
-    const relevant = observationsForTarget(observations, targetScope);
+    const { observations: relevant, repositoryFingerprint } = await ctx.runBlocking(collectInvestigationEvidenceOperation,
+      { workspaceRoot: ctx.workspaceRoot, targetScope });
+    const projection = decodeAutonomyIssueProjection(ctx.state.read<AutonomyIssueProjection>(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value);
+    relevant.push(...deliveryObservations(projection));
     const tasks = listFullRepoTasks(ctx.workspaceRoot);
     const previousJudgments = Object.values(state.dispositions).filter((record) => scopesOverlap(record.targetScope, targetScope));
     const allIdentities = await readGardenerProposalIdentities({ state,
@@ -148,6 +149,7 @@ const inspect = typedCodeStep<InvestigationInput>({
       previousReview: state.dispositions[targetScope]?.review,
       followUpFingerprints: terminalTaskEvidence,
       reviewedTaskEvidence: state.reviewedTaskEvidence,
+      repositoryFingerprint,
     });
     const deliveryRuns = new Set(queue?.owners.filter((owner) =>
       owner.state === "running" || owner.state === "integrating" || owner.state === "queued"
@@ -161,6 +163,7 @@ const inspect = typedCodeStep<InvestigationInput>({
     return {
       handoff,
       requestFingerprint,
+      repositoryFingerprint,
       previousJudgments,
       proposalIdentities,
       unresolvedTaskIds,
@@ -248,6 +251,7 @@ const finish = typedCodeStep<{ recorded: true }>({
           taskId: staged?.taskId ?? current.dispositions[targetScope]?.taskId ?? null,
           proposalIdentities,
           review: { decision,
+            repositoryFingerprint: input.repositoryFingerprint,
             assessments: settleGardenerAssessments(current.dispositions[targetScope]?.review, input.observations, decision),
             structuralCohort: input.admission.structuralCohort,
             deliveryCohort: relevantDeliveryCohort(input.observations, decision.revisit.deliveryIssueKeys),

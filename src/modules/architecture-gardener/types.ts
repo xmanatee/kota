@@ -44,6 +44,8 @@ export type GardenerAssessment = {
 
 export type SettledGardenerReview = {
   readonly decision: GardenerDecision;
+  /** Source baseline for the last maintenance investigation, not proof of exhaustive coverage. */
+  readonly repositoryFingerprint?: string | null;
   /** Each retained assessment keeps its own causal judgment and observed baseline. */
   readonly assessments?: readonly GardenerAssessment[];
   readonly structuralCohort: string;

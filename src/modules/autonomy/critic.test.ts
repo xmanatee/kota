@@ -56,8 +56,11 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck();
-    const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
+    const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP,
+      "Implemented the requested behavior; the external integration was not exercised.");
     expect(result).toMatch(/pass/);
+    expect(getPromptArg(mockRunAgentHarness.mock.calls[0]))
+      .toContain("the external integration was not exercised");
     expect(mockRunBlocking).toHaveBeenCalledWith(
       expect.objectContaining({ exportName: "inspectCriticReviewInWorker" }),
       expect.objectContaining({ reviewDir: dir }),

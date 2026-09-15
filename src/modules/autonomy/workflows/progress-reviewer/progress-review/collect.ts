@@ -4,11 +4,13 @@ import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import {
   type AutonomyIssueProjection,
   emptyAutonomyIssueProjection,
+  readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
 import { cloneDeadLetterEvidence, cloneEvidenceItem, evidenceRefs } from "./agent-packet.js";
 import { listArtifactEvidence } from "./artifact-evidence.js";
 import { listCanonicalProgressState } from "./canonical-state-evidence.js";
+import { PROGRESS_REVIEW_ARTIFACT } from "./constants.js";
 import { listBatchEvents } from "./event-evidence.js";
 import type { ProgressReviewGitEvidenceByScope } from "./git-evidence.js";
 import { listInterventionEvidence } from "./intervention-evidence.js";
@@ -64,12 +66,24 @@ function collectProgressReviewEvidenceForSource(args: {
   const excluded: string[] = [];
   const gitCollection = args.gitEvidenceByScope?.[args.source.scopeId];
   if (gitCollection) excluded.push(...gitCollection.excluded);
-  const scopedRuns = listRecentRunsForSources(
+  const collectedRuns = listRecentRunsForSources(
     [args.source],
     args.windowStartMs,
     args.trigger,
     excluded,
   );
+  const interventions = listInterventionEvidence(args.source, collectedRuns, excluded);
+  const currentIds = new Set(args.semanticInput.evidenceWindow?.current.map((run) => run.id));
+  const interventionPaths = new Set(interventions.map((item) => item.path));
+  const currentRuns = collectedRuns.filter((run) => currentIds.has(run.runId));
+  const interventionRuns = collectedRuns.filter((run) =>
+    interventionPaths.has(`.kota/runs/${run.runId}/${PROGRESS_REVIEW_ARTIFACT}`),
+  );
+  // Reserve room for both the outcomes being assessed and the decisions they test.
+  const prioritized = Array.from({ length: Math.max(currentRuns.length, interventionRuns.length) })
+    .flatMap((_, index) => [currentRuns[index], interventionRuns[index]])
+    .filter((run) => run !== undefined);
+  const scopedRuns = [...new Set([...prioritized, ...collectedRuns])];
   const runs = scopedRuns.map((run) => run.evidence);
   const tasks = listRecentTasks(
     [args.source],
@@ -98,7 +112,7 @@ function collectProgressReviewEvidenceForSource(args: {
     source: args.source,
     semanticInput: args.semanticInput,
     autonomyIssueProjection: args.autonomyIssueProjection,
-  }), ...listInterventionEvidence(args.source, scopedRuns, excluded)];
+  }), ...interventions];
   const allTasks = [
     ...tasks,
     ...listDeadLetterReferencedTasks(args.source, deadLetters, tasks, excluded),
@@ -184,7 +198,9 @@ export function collectProgressReviewEvidence(args: {
       eventJournal: args.eventJournal,
       semanticInput,
       gitEvidenceByScope: args.gitEvidenceByScope,
-      autonomyIssueProjection,
+      autonomyIssueProjection: source.scopeRoot === args.scopeRoot
+        ? autonomyIssueProjection
+        : readAutonomyIssueProjection(source.scopeRoot, source.authorityStateDir),
     }),
   );
   const runs = scopes.flatMap((scope) => scope.runs.map(cloneEvidenceItem));

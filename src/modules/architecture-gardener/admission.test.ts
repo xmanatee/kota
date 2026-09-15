@@ -24,6 +24,16 @@ const settle = (observations: ArchitectureObservation[], deliveryIssueKeys: stri
 });
 
 describe("gardener evidence admission", () => {
+  it("investigates changed source during idle capacity even when scanners find nothing", () => {
+    const input = { targetScope: "repo", observations: [], idle: true, explicitRequest: false,
+      requestFingerprint: null, previousReview: undefined, followUpFingerprints: [], reviewedTaskEvidence: [], repositoryFingerprint: "source-v1" };
+    expect(evaluateAdmission(input).admitted).toBe(true);
+    expect(evaluateAdmission({ ...input, idle: false }).admitted).toBe(false);
+    const previousReview = { ...settle([], []), repositoryFingerprint: "source-v1" };
+    expect(evaluateAdmission({ ...input, previousReview }).admitted).toBe(false);
+    expect(evaluateAdmission({ ...input, previousReview, repositoryFingerprint: "source-v2" }).admitted).toBe(true);
+  });
+
   it("reviews meaningful idle structural evidence once without requiring a delivery failure", () => {
     expect(evaluate([], undefined, true).admitted).toBe(false);
     expect(evaluate([friction], undefined, true).admitted).toBe(false);
@@ -78,8 +88,8 @@ describe("gardener evidence admission", () => {
     const first = review(undefined, [structural.fingerprint], [friction.id], "Receipt loading outcomes.");
     const both = JSON.parse(JSON.stringify(review(first, [second.fingerprint], [], "Second ownership."))) as SettledGardenerReview;
     expect(evaluate(observations, both, true)).toMatchObject({ admitted: false, unreviewedObservationFingerprints: [] });
-    expect(evaluate(observations, both, true).reason).toContain("Receipt loading outcomes.");
-    expect(evaluate(observations, both, true).reason).toContain("Second ownership.");
+    expect(both.assessments?.map((assessment) => assessment.revisit.reason))
+      .toEqual(["Receipt loading outcomes.", "Second ownership."]);
     const changed = [structural, second, { ...friction, fingerprint: "delivery-v2" }];
     expect(evaluate(changed, both).admitted).toBe(true);
     expect(evaluate([structural, second], both).admitted).toBe(true);

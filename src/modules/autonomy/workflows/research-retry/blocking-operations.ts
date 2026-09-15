@@ -2,7 +2,6 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   listResearchRetryCandidates,
-  type ResearchRetryCandidate,
 } from "./candidates.js";
 import {
   checkResearchRetryCapability,
@@ -11,24 +10,17 @@ import {
   writeMarkerForCandidate,
 } from "./precondition.js";
 import type {
-  CandidateSummary,
   ExaminedCandidate,
   InspectResult,
 } from "./shadow-review.js";
 
-function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary {
-  return {
-    id: candidate.id,
-    urls: candidate.urls,
-  };
-}
-
 export function inspectResearchRetryCandidatesInWorker(input: {
   workspaceRoot: string;
+  scopeRoot?: string;
 }): InspectResult {
   const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
-  const capability = checkResearchRetryCapability(input.workspaceRoot);
+  const capability = checkResearchRetryCapability(input.scopeRoot ?? input.workspaceRoot);
   const candidates = listResearchRetryCandidates(input.workspaceRoot);
 
   const examined: ExaminedCandidate[] = [];
@@ -43,7 +35,7 @@ export function inspectResearchRetryCandidatesInWorker(input: {
         dirty,
         candidateCount: candidates.length,
         capability,
-        candidate: summarizeCandidate(candidate),
+        candidate: { id: candidate.id, urls: candidate.urls, attemptableUrls: evaluation.attemptableUrls },
         fingerprint: evaluation.fingerprint,
         marker: evaluation.marker,
         examined,
@@ -68,21 +60,18 @@ export function inspectResearchRetryCandidatesInWorker(input: {
   };
 }
 
-export function markResearchRetryAttemptInWorker(input: {
-  workspaceRoot: string;
-  candidateId: string;
-}): MarkAttemptResult {
+export function markResearchRetryAttemptInWorker(input: Parameters<typeof writeMarkerForCandidate>[0]): MarkAttemptResult {
   return writeMarkerForCandidate(input);
 }
 
 export const inspectResearchRetryCandidatesOperation =
-  defineWorkflowBlockingOperation<{ workspaceRoot: string }, InspectResult>(
+  defineWorkflowBlockingOperation<{ workspaceRoot: string; scopeRoot: string }, InspectResult>(
     import.meta.url,
     "inspectResearchRetryCandidatesInWorker",
   );
 
 export const markResearchRetryAttemptOperation =
   defineWorkflowBlockingOperation<
-    { workspaceRoot: string; candidateId: string },
+    Parameters<typeof writeMarkerForCandidate>[0],
     MarkAttemptResult
   >(import.meta.url, "markResearchRetryAttemptInWorker");

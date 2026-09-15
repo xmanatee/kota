@@ -49,7 +49,7 @@ function trigger(files: string[]) {
   return {
     event: "autonomy.scope-improvement.requested",
     schemaRef: null,
-    payload: { evidenceRefs: files, reason: "test request" },
+    payload: { boundary: "initial-onboarding", evidenceRefs: files, reason: "Initial guidance discovery" },
   };
 }
 

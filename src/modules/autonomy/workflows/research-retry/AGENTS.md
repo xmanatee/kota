@@ -12,6 +12,13 @@ runtime can reach them.
   honestly whether the source became accessible, remained blocked, or no longer
   justifies retrying.
 - Browser output passes through injection defense and remains untrusted input.
+- Code collects sources through `workflow.runTool`; the agent reads its screened
+  output and does not require native access to KOTA tools. Source-access blocked
+  contracts use ordinary Markdown URLs, preferring pending URLs in `Blocked on`.
+- Retry records cover actual per-source calls, not the whole URL set. Unchanged
+  access waits 24 hours; refreshed profile metadata permits an immediate retry
+  for browser-attempted sources, not unrelated plain-HTTP reads.
+  Package/profile presence is only a scheduling hint, never authorization.
 - Its unbounded repair loop contributes the selected candidate evidence to the
   shared continuation authority. Because research retry has no task-decomposition
   consumer, a split or deferral preserves and yields the same run lineage.

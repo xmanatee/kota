@@ -64,6 +64,7 @@ export function evaluateAdmission(input: {
   previousReview: SettledGardenerReview | undefined;
   followUpFingerprints: readonly string[];
   reviewedTaskEvidence: readonly string[];
+  repositoryFingerprint?: string | null;
 }): AdmissionEvaluation {
   const structuralObservations = input.observations.filter(isStructuralObservation);
   const structuralCohort = combineFingerprints(structuralObservations.map((o) => o.fingerprint));
@@ -82,10 +83,12 @@ export function evaluateAdmission(input: {
   const newTaskEvidence = input.followUpFingerprints.some((fingerprint) => !input.reviewedTaskEvidence.includes(fingerprint));
   const newRequest = input.explicitRequest && (!previous ||
     (input.requestFingerprint !== null && input.requestFingerprint !== previous.requestFingerprint));
+  const idleSourceChange = input.idle && input.repositoryFingerprint != null &&
+    input.repositoryFingerprint !== previous?.repositoryFingerprint;
   const automatic = previous
     ? changedStructure || changedRelevantDelivery
     : structuralObservations.length > 0 && (input.idle || input.observations.some((o) => o.category === "delivery"));
-  const admitted = newRequest || newTaskEvidence || unreviewedIdleEvidence || automatic;
+  const admitted = newRequest || newTaskEvidence || unreviewedIdleEvidence || idleSourceChange || automatic;
   return {
     targetScope: input.targetScope,
     structuralCohort,
@@ -98,12 +101,14 @@ export function evaluateAdmission(input: {
         ? "Linked implementation has settled; inspect its actual outcome and any deferred proposal."
         : unreviewedIdleEvidence
           ? "Idle capacity permits investigation of unreviewed structural evidence; no improvement is verified."
+          : idleSourceChange
+            ? "Source changed since the last maintenance investigation; use idle capacity to inspect architecture beyond scanner findings."
           : admitted
             ? "Structural evidence or the settled judgment's relevant delivery evidence changed."
             : previous
               ? unreviewedObservationFingerprints.length > 0
                 ? "Unreviewed structural opportunities remain; investigation awaits idle capacity or changed relevant evidence."
-                : `Known structural opportunities are exhausted for this evidence; the settled judgment remains current. Revisit: ${[...new Set(assessments.map((assessment) => assessment.revisit.reason))].join("; ")}`
+                : "Known opportunities are settled for this source and evidence; prior assessments retain their individual revisit conditions."
               : "Automatic investigation needs structural evidence and either idle capacity or delivery friction; metrics alone are diagnostic.",
   };
 }

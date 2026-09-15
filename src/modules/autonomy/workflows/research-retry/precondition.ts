@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { z } from "zod";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   REPO_TASK_STATES,
@@ -14,7 +15,7 @@ import { isPlaywrightAvailable, readBrowserConfig } from "./runtime-detect.js";
 
 export type ResearchRetryUrlClass = "x-post" | "js-rendered" | "plain-http";
 
-const X_POST_RE = /^https?:\/\/(?:www\.)?x\.com\/[^/]+\/status\/\d+/i;
+const X_POST_RE = /^https?:\/\/(?:(?:www|mobile)\.)?(?:x|twitter)\.com\/[^/]+\/status\/\d+/i;
 const JS_RENDERED_HOSTS_RE = /^https?:\/\/(?:www\.)?openai\.com\/index\//i;
 
 /**
@@ -32,6 +33,7 @@ export type ResearchRetryCapability = {
   playwrightAvailable: boolean;
   authProfileConfigured: boolean;
   authProfileExists: boolean;
+  authProfileRevision: string | null;
 };
 
 /**
@@ -58,13 +60,19 @@ export function checkResearchRetryCapability(
       playwrightAvailable,
       authProfileConfigured: false,
       authProfileExists: false,
+      authProfileRevision: null,
     };
   }
   const resolved = isAbsolute(path) ? path : resolve(workspaceRoot, path);
+  const profile = statSync(resolved, { throwIfNoEntry: false });
   return {
     playwrightAvailable,
     authProfileConfigured: true,
-    authProfileExists: existsSync(resolved),
+    authProfileExists: profile?.isFile() ?? false,
+    // Detect refreshed credentials without reading or exposing their contents.
+    authProfileRevision: profile?.isFile()
+      ? computeResourceFingerprint([resolved, `${profile.dev}:${profile.ino}:${profile.size}:${profile.mtimeMs}:${profile.ctimeMs}`])
+      : null,
   };
 }
 
@@ -82,12 +90,7 @@ export function isUrlReadable(
   }
 }
 
-/**
- * Stable short fingerprint of a candidate's URL set. Used to detect "every
- * candidate URL has already been re-confirmed inaccessible since the task
- * last changed" — when the fingerprint matches a marker the workflow
- * previously wrote into the task body, the URL set is unchanged.
- */
+/** Diagnostic identity; retry eligibility is per source and access state. */
 export function computeResourceFingerprint(urls: readonly string[]): string {
   const normalized = urls
     .map((u) => u.trim())
@@ -96,21 +99,48 @@ export function computeResourceFingerprint(urls: readonly string[]): string {
   return createHash("sha256").update(normalized.join("\n")).digest("hex").slice(0, 16);
 }
 
-const MARKER_RE =
-  /<!--\s*research-retry-attempt:\s*fingerprint=([0-9a-f]{16})\s+attempted_at=([^\s>]+)\s*-->/;
+const MARKER_RE = /<!--\s*research-retry-attempt:\s*([\s\S]*?)\s*-->/g;
+export const SOURCE_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const researchSourceAttemptSchema = z.object({
+  url: z.url(),
+  accessFingerprint: z.string(),
+  attemptedAt: z.iso.datetime(),
+  tools: z.array(z.enum(["web_fetch", "rendered_article_read", "x_post_read"])).min(1),
+  outcome: z.enum(["readable", "unavailable"]),
+});
+const retryMarkerSchema = z.object({
+  fingerprint: z.string(),
+  attemptedAt: z.iso.datetime(),
+  attempts: z.array(researchSourceAttemptSchema),
+});
+export type ResearchSourceAttempt = z.infer<typeof researchSourceAttemptSchema>;
+export type ResearchRetryMarker = z.infer<typeof retryMarkerSchema>;
 
-export type ResearchRetryMarker = {
-  fingerprint: string;
-  attemptedAt: string;
-};
+export function sourceAccessFingerprint(
+  url: string,
+  capability: ResearchRetryCapability,
+  tools?: ResearchSourceAttempt["tools"],
+): string {
+  const kind = classifyResourceUrl(url);
+  const usedBrowser = tools?.some((tool) => tool !== "web_fetch") ?? kind !== "plain-http";
+  const access = usedBrowser ? capability : { playwrightAvailable: capability.playwrightAvailable };
+  return computeResourceFingerprint([kind, JSON.stringify(access)]);
+}
 
 export function readRetryMarker(taskBody: string): ResearchRetryMarker | null {
-  const match = taskBody.match(MARKER_RE);
-  return match ? { fingerprint: match[1], attemptedAt: match[2] } : null;
+  const match = [...taskBody.matchAll(MARKER_RE)].at(-1);
+  if (!match) return null;
+  try {
+    const parsed = retryMarkerSchema.safeParse(JSON.parse(match[1]!));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    // Legacy URL-set markers prove no individual source attempt.
+    return null;
+  }
 }
 
 export function renderRetryMarker(marker: ResearchRetryMarker): string {
-  return `<!-- research-retry-attempt: fingerprint=${marker.fingerprint} attempted_at=${marker.attemptedAt} -->`;
+  return `<!-- research-retry-attempt: ${JSON.stringify(marker).replace(/</g, "\\u003c").replace(/>/g, "\\u003e")} -->`;
 }
 
 export function upsertRetryMarker(
@@ -118,10 +148,7 @@ export function upsertRetryMarker(
   marker: ResearchRetryMarker,
 ): string {
   const rendered = renderRetryMarker(marker);
-  if (MARKER_RE.test(taskBody)) {
-    return taskBody.replace(MARKER_RE, rendered);
-  }
-  const trimmed = taskBody.replace(/\n+$/, "");
+  const trimmed = taskBody.replace(MARKER_RE, "").replace(/\n+$/, "");
   return `${trimmed}\n\n${rendered}\n`;
 }
 
@@ -133,12 +160,14 @@ export type CandidateEvaluationInput = {
   urls: string[];
   body: string;
   capability: ResearchRetryCapability;
+  now?: number;
 };
 
 export type CandidateEvaluation = {
   fingerprint: string;
   marker: ResearchRetryMarker | null;
   skipReason: ResearchRetrySkipReason | null;
+  attemptableUrls: string[];
 };
 
 export type ResearchRetryAvailability = {
@@ -180,17 +209,26 @@ export function evaluateCandidate(
     return {
       fingerprint,
       marker,
+      attemptableUrls: [],
       skipReason: { kind: "capability-absent", classes },
     };
   }
-  if (marker && marker.fingerprint === fingerprint) {
+  const now = input.now ?? Date.now();
+  const attemptableUrls = readable.filter((url) => {
+    const attempt = marker?.attempts.find((entry) => entry.url === url);
+    if (!attempt || attempt.accessFingerprint !== sourceAccessFingerprint(url, capability, attempt.tools)) return true;
+    const age = now - Date.parse(attempt.attemptedAt);
+    return age < 0 || age >= SOURCE_RETRY_INTERVAL_MS;
+  });
+  if (attemptableUrls.length === 0) {
     return {
       fingerprint,
       marker,
+      attemptableUrls,
       skipReason: { kind: "no-change-since-last-attempt", fingerprint },
     };
   }
-  return { fingerprint, marker, skipReason: null };
+  return { fingerprint, marker, attemptableUrls, skipReason: null };
 }
 
 export type MarkAttemptResult =
@@ -204,10 +242,8 @@ export type MarkAttemptResult =
 
 /**
  * Re-read the blocked candidate's task file from `data/tasks/` after the agent has run,
- * compute a fresh fingerprint of the URLs that remain in `## Resources`, and
- * write (or refresh) the attempt marker in the body. The marker is the
- * workflow's "this URL set was just re-confirmed" record — when the next
- * cycle's fingerprint matches, the agent step is skipped.
+ * retain only actual workflow source attempts for URLs still pending.
+ * Newly added or unattempted URLs never inherit another source's marker.
  *
  * Side effects:
  * - Edits the task file in place when the task still has `status: blocked`.
@@ -217,10 +253,9 @@ export type MarkAttemptResult =
 export function writeMarkerForCandidate(args: {
   workspaceRoot: string;
   candidateId: string;
-  attemptedAt?: string;
+  attempts: ResearchSourceAttempt[];
 }): MarkAttemptResult {
   const { workspaceRoot, candidateId } = args;
-  const attemptedAt = args.attemptedAt ?? new Date().toISOString();
 
   const located = locateTaskFile(workspaceRoot, candidateId);
   if (!located) return { written: false, reason: "task file not found" };
@@ -239,7 +274,15 @@ export function writeMarkerForCandidate(args: {
   }
 
   const fingerprint = computeResourceFingerprint(urls);
-  const newBody = upsertRetryMarker(split.body, { fingerprint, attemptedAt });
+  const recorded = z.array(researchSourceAttemptSchema).parse(args.attempts)
+    .filter((attempt) => urls.includes(attempt.url));
+  if (recorded.length === 0) return { written: false, reason: "no attempted sources remain" };
+  const attempts = [...new Map([
+    ...(readRetryMarker(split.body)?.attempts ?? []),
+    ...recorded,
+  ].filter((attempt) => urls.includes(attempt.url)).map((attempt) => [attempt.url, attempt])).values()];
+  const attemptedAt = recorded.map((attempt) => attempt.attemptedAt).sort().at(-1)!;
+  const newBody = upsertRetryMarker(split.body, { fingerprint, attemptedAt, attempts });
   if (newBody === split.body) {
     return { written: false, reason: "marker already current" };
   }

@@ -4,6 +4,7 @@ import { getToolEffect } from "#core/tools/index.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
+import { createPrReviewInputStep } from "#modules/autonomy/pr-review-input.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import type { GitHubPullRequestEventPayload } from "#modules/github-webhook/events.js";
 
@@ -129,8 +130,8 @@ function validateCommentPolicy(
   return obj;
 }
 
-function boundedReviewBody(draft: PrReviewDraft): string {
-  const prefix = `**Recommendation:** ${draft.recommendation}\n\n`;
+function boundedReviewBody(draft: PrReviewDraft, headSha: string): string {
+  const prefix = `**Recommendation:** ${draft.recommendation}\n**Reviewed head:** \`${headSha}\`\n\n`;
   const body = draft.body.trim();
   const full = `${prefix}${body}`;
   if (full.length <= MAX_REVIEW_COMMENT_BODY_CHARS) return full;
@@ -237,7 +238,8 @@ export const prepareComment = typedCodeStep<PreparedPrReviewComment>({
     const assessment = assessPr.outputRequired(ctx);
     if (assessment.skip) throw new Error("cannot prepare a PR review comment for a skipped assessment");
     const draft = validateReviewDraft(ctx.stepOutputs.review);
-    const body = boundedReviewBody(draft);
+    if (!prReviewInput.ready(ctx)) throw new Error("Cannot prepare a review without pinned PR evidence");
+    const body = boundedReviewBody(draft, assessment.headSha);
     assertOutboundGitHubCommentBodyIsSafe(body);
     return {
       repo: assessment.repo,
@@ -247,6 +249,8 @@ export const prepareComment = typedCodeStep<PreparedPrReviewComment>({
     };
   },
 });
+
+export const prReviewInput = createPrReviewInputStep((ctx) => assessPr.outputRequired(ctx));
 
 export const commentPolicy = typedCodeStep<PrReviewCommentPolicy>({
   id: "comment-policy",

@@ -1,9 +1,10 @@
 import type { Dirent } from "node:fs";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH,
   PROGRESS_REVIEW_MAX_ARTIFACTS,
+  PROGRESS_REVIEW_MAX_RUNS,
 } from "./constants.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
 import type {
@@ -41,6 +42,20 @@ function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactList
   const files: string[] = [];
   let hitDepthLimit = false;
   const unreadableDirectories: string[] = [];
+  const manifestsDir = join(root, "evidence", "manifests");
+  try {
+    if (existsSync(manifestsDir) && lstatSync(join(root, "evidence")).isDirectory() && lstatSync(manifestsDir).isDirectory()) {
+      const manifests = readdirSync(manifestsDir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name))
+        .map((entry) => ({ name: entry.name, modifiedAt: statSync(join(manifestsDir, entry.name)).mtimeMs }))
+        .sort((a, b) => b.modifiedAt - a.modifiedAt || a.name.localeCompare(b.name));
+      if (manifests[0]) files.push(`evidence/manifests/${manifests[0].name}`);
+    }
+  } catch (error) {
+    const code = error instanceof Error ? unreadableDirectoryCode(error) : null;
+    if (code === null) throw error;
+    unreadableDirectories.push(`evidence/manifests (${code})`);
+  }
   function visit(dir: string, relativeParts: string[]): boolean {
     if (files.length >= maxFiles) return true;
     const resolvedDir = resolve(dir);
@@ -71,6 +86,7 @@ function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactList
         continue;
       }
       if (entry.isDirectory()) {
+        if (nextParts[0] === "evidence" || nextParts[0] === "retained-runtime") continue;
         if (nextParts.length >= PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH) {
           hitDepthLimit = true;
           continue;
@@ -86,7 +102,7 @@ function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactList
   }
   const hitFileLimit = visit(root, []);
   return {
-    files: files.sort(),
+    files,
     hitFileLimit,
     hitDepthLimit,
     unreadableDirectories,
@@ -98,27 +114,12 @@ export function listArtifactEvidence(
   excluded: string[],
 ): ProgressReviewArtifactEvidence[] {
   const artifacts: ProgressReviewArtifactEvidence[] = [];
-  for (const run of runs) {
+  const listings = runs.slice(0, PROGRESS_REVIEW_MAX_RUNS).flatMap((run) => {
     const runsRoot = resolve(run.source.stateDir, "runs");
     const runDir = resolve(runsRoot, run.runId);
     assertPathInside(runsRoot, runDir, "progress-review run directory");
-    if (!existsSync(runDir)) continue;
-    const listing = listRunArtifactFiles(runDir, PROGRESS_REVIEW_MAX_ARTIFACTS - artifacts.length);
-    for (const name of listing.files) {
-      const path = resolve(runDir, ...name.split("/"));
-      assertPathInside(runDir, path, "progress-review artifact path");
-      artifacts.push({
-        id: sourceEvidenceId(run.source, `artifact:${run.runId}:${name}`),
-        kind: "artifact",
-        runId: run.runId,
-        file: name,
-        path: join(".kota", "runs", run.runId, ...name.split("/")),
-        summary: sourceSummary(
-          run.source,
-          `${name} from ${run.evidence.workflow} ${run.evidence.status} (${run.runId})`,
-        ),
-      });
-    }
+    if (!existsSync(runDir)) return [];
+    const listing = listRunArtifactFiles(runDir, PROGRESS_REVIEW_MAX_ARTIFACTS);
     if (listing.hitDepthLimit) {
       excluded.push(
         `artifacts for ${run.runId}: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
@@ -129,10 +130,28 @@ export function listArtifactEvidence(
         `artifacts for ${run.runId}: skipped unreadable directory ${directory}`,
       );
     }
-    if (listing.hitFileLimit) {
-      excluded.push(`artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`);
-      return artifacts;
+    return [{ run, listing }];
+  });
+  for (let index = 0; artifacts.length < PROGRESS_REVIEW_MAX_ARTIFACTS; index++) {
+    let added = false;
+    for (const { run, listing } of listings) {
+      const name = listing.files[index];
+      if (name === undefined) continue;
+      added = true;
+      artifacts.push({
+        id: sourceEvidenceId(run.source, `artifact:${run.runId}:${name}`),
+        kind: "artifact", runId: run.runId, file: name,
+        path: join(".kota", "runs", run.runId, ...name.split("/")),
+        summary: sourceSummary(run.source, `${name} from ${run.evidence.workflow} ${run.evidence.status} (${run.runId})`),
+      });
+      if (artifacts.length === PROGRESS_REVIEW_MAX_ARTIFACTS) break;
     }
+    if (!added) break;
   }
+  if (listings.some(({ listing }) => listing.hitFileLimit) ||
+      listings.reduce((count, { listing }) => count + listing.files.length, 0) > artifacts.length) {
+    excluded.push(`artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`);
+  }
+  if (runs.length > PROGRESS_REVIEW_MAX_RUNS) excluded.push(`artifacts: selected ${PROGRESS_REVIEW_MAX_RUNS} current/intervention runs; other run summaries remain available`);
   return artifacts;
 }

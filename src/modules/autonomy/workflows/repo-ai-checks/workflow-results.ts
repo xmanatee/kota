@@ -110,6 +110,7 @@ function extractForeachOutput(ctx: WorkflowStepContext): CheckForeachOutput {
 export function summarizeCheckResults(
   ctx: WorkflowStepContext,
   discovery: DiscoveredCheckRun,
+  unavailableReason?: string,
 ): RepoAiCheckSummary {
   const artifactDirPath = join(ctx.workflow.runDirPath, "repo-ai-checks");
   mkdirSync(artifactDirPath, { recursive: true });
@@ -117,6 +118,7 @@ export function summarizeCheckResults(
     const summary: RepoAiCheckSummary = {
       repo: discovery.repo,
       prNumber: discovery.prNumber,
+      headSha: discovery.headSha,
       total: 0,
       pass: 0,
       fail: 0,
@@ -129,16 +131,22 @@ export function summarizeCheckResults(
     return summary;
   }
 
-  const foreachOutput = extractForeachOutput(ctx);
+  const outputs = unavailableReason !== undefined
+    ? discovery.checks.map((_check, index) => ({
+      index, output: { verdict: "skip" as const, rationale: unavailableReason },
+    }))
+    : extractForeachOutput(ctx).results.map((item) => {
+      const step = item.steps["run-check"];
+      if (!step || step.status !== "success" || step.output === undefined) {
+        throw new Error(`repo AI check item ${item.index} did not produce a successful structured output`);
+      }
+      return { index: item.index, output: validateCheckAgentResult(step.output) };
+    });
   const results: RecordedCheckResult[] = [];
-  for (const item of foreachOutput.results.sort((a, b) => a.index - b.index)) {
+  for (const item of outputs.sort((a, b) => a.index - b.index)) {
     const check = discovery.checks[item.index];
     if (!check) throw new Error(`run-checks item ${item.index} has no matching discovered check`);
-    const step = item.steps["run-check"];
-    if (!step || step.status !== "success" || step.output === undefined) {
-      throw new Error(`repo AI check "${check.name}" did not produce a successful structured output`);
-    }
-    const output = validateCheckAgentResult(step.output);
+    const output = validateCheckAgentResult(item.output);
     const fileName = `${String(item.index + 1).padStart(2, "0")}-${artifactFilePart(check.id)}.json`;
     const artifactPath = join(discovery.artifactDir, fileName);
     writeJsonArtifact(
@@ -159,6 +167,7 @@ export function summarizeCheckResults(
   const summary: RepoAiCheckSummary = {
     repo: discovery.repo,
     prNumber: discovery.prNumber,
+    headSha: discovery.headSha,
     total: results.length,
     pass: countVerdicts(results, "pass"),
     fail: countVerdicts(results, "fail"),
@@ -175,6 +184,7 @@ export function boundedCommentBody(summary: RepoAiCheckSummary): string {
   const failed = summary.results.filter((result) => result.verdict === "fail");
   const lines = [
     `**KOTA repo-local AI checks:** ${summary.fail} failed, ${summary.pass} passed, ${summary.skip} skipped.`,
+    `**Reviewed head:** \`${summary.headSha}\``,
     "",
     ...failed.flatMap((result) => [
       `- **${result.name}** (${result.provenance.relativePath})`,

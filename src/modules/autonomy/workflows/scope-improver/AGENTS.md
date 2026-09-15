@@ -25,6 +25,8 @@ onboarding, cited systemic handoffs, and material durable guidance or policy cha
   for the same signature or overriding canonical task state.
   Automatic inputs use their typed latest
   semantic boundary and are rechecked against current guidance at execution.
+- Explicit reasons requiring judgment go to progress-reviewer in the consumption
+  transaction. Returned systemic handoffs materialize here without another review.
 - The review workflow is repository-free, reads the canonical scope root, and
   can therefore observe non-Git directories. Task proposals delegate to the
   `scope-improvement-actions` writer workflow; `RunLifecycle` owns its isolation

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -10,10 +10,11 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
+import { progressReviewRequested } from "../progress-reviewer/events.js";
 import scopeImprovementActionsWorkflow from "../scope-improvement-actions/workflow.js";
 import { computeScopeContentFingerprint } from "./scope-fingerprint.js";
 import { collectScopeImprovementInputs } from "./scope-improvement.js";
-import { publishScopeImprovement } from "./scope-improvement-publication.js";
+import { finalizeScopeImprovement, publishScopeImprovement } from "./scope-improvement-publication.js";
 import {
   emptyScopeImprovementState,
   reserveScopeImprovementInput,
@@ -66,6 +67,41 @@ describe("scope-improver semantic boundaries", () => {
     ]);
     expect(registered.triggers.some((trigger) => trigger.schedule || trigger.batch))
       .toBe(false);
+  });
+
+  it("routes explicit reasons once to the semantic owner and does not route its returned handoff again", async () => {
+    const workspaceRoot = track("explicit-semantic-owner");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
+    const trigger = { event: "autonomy.scope-improvement.requested", schemaRef: null, payload: {
+      reason: "Review whether guidance causes repeated repair loops", requestedBy: "owner", evidenceRefs: ["AGENTS.md"],
+    } };
+    const runId = "explicit-semantic-owner";
+    const run = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
+      workspaceRoot, runId, trigger, scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot), ports: { state },
+    }).run();
+    expect(run.status, run.error).toBe("success");
+    expect(run.emitted).toEqual([expect.objectContaining({ event: progressReviewRequested.name, payload: expect.objectContaining({
+      reason: trigger.payload.reason, requestedBy: "owner", evidenceRefs: ["AGENTS.md"], scopeId,
+    }) })]);
+    expect(run.steps["recommend-improvements"]?.output).toEqual({ recommendations: [] });
+    const emit = vi.fn();
+    finalizeScopeImprovement({ runId, scopeId, scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"), trigger, state, stepOutputs: {}, emit });
+    expect(emit).not.toHaveBeenCalled();
+    const returned = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
+      workspaceRoot, runId: "returned-guidance-handoff", ports: { state },
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot, [{
+        scopeId, reason: "Observe the returned guidance proposal",
+        autonomy: { defaultMode: "passive", maxMode: "passive" },
+        writes: { mode: "none" },
+      }]),
+      trigger: { event: "autonomy.improvement.handoff-requested", payload: {
+        owner: "scope-improver", topicKey: "improvement:repair-guidance", targetScope: scopeId,
+        reason: "Confirmed guidance gap", evidenceFingerprint: "a".repeat(64), evidenceRefs: ["AGENTS.md"],
+      } },
+    }).run();
+    expect(returned.status, returned.error).toBe("success");
+    expect(returned.emitted.some((event) => event.event === progressReviewRequested.name)).toBe(false);
   });
 
   it("returns a clean parked action outcome when current policy denies writes", async () => {

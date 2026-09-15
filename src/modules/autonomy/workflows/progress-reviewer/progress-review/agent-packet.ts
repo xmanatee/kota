@@ -145,6 +145,7 @@ function artifactFileFromEvidenceId(id: string): string | null {
 function agentArtifactEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
   const file = artifactFileFromEvidenceId(evidence.id);
   if (!file) return 0;
+  if (/^evidence\/manifests\/[a-f0-9]{64}\.json$/.test(file)) return -50;
   const highSignalPriority = HIGH_SIGNAL_ARTIFACTS.get(file);
   if (highSignalPriority !== undefined) return highSignalPriority;
   if (file.startsWith("steps/")) {
@@ -157,7 +158,8 @@ function agentEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
   // The comparison is the default assessment input, even when raw semantic
   // references fill the state bucket. Keep its scoped citation and summary.
   if (evidence.kind === "state" &&
-    (evidence.id === "state:systemic-window" || evidence.id.endsWith(":state:systemic-window"))) return -1;
+    /(?:^|:)state:(systemic-window|queue|autonomy-issues|recovery|owner-decisions)$/.test(evidence.id)) return -2;
+  if (evidence.kind === "state" && evidence.id.includes("intervention:")) return -1;
   if (evidence.kind === "git" && evidence.id.includes(":file:")) return 1;
   if (evidence.kind === "artifact") return agentArtifactEvidencePriority(evidence);
   return 0;
@@ -182,7 +184,9 @@ function compactAgentEvidence(
     const limit = PROGRESS_REVIEW_AGENT_KIND_LIMITS[kind];
     const bucket = [...(buckets.get(kind) ?? [])].sort((a, b) => {
       const byPriority = agentEvidencePriority(a) - agentEvidencePriority(b);
-      return byPriority !== 0 ? byPriority : a.id.localeCompare(b.id);
+      // The collector orders runs and artifacts jointly by cohort/intervention.
+      return byPriority !== 0 ? byPriority : kind === "run" || kind === "artifact"
+        ? 0 : a.id.localeCompare(b.id);
     });
     const remaining = PROGRESS_REVIEW_AGENT_MAX_EVIDENCE - selected.length;
     if (remaining <= 0) {

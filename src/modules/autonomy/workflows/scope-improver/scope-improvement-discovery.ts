@@ -9,7 +9,7 @@ import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operati
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { improvementHandoffObservationSchema, improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type { ScopeImprovementRequest } from "./events.js";
+import { type ScopeImprovementRequest, scopeImprovementRequested } from "./events.js";
 import {
   computeScopeContentFingerprint,
   isScopePolicyEvidenceRef,
@@ -167,6 +167,8 @@ export function collectScopeImprovementInputs(args: {
   }) : undefined;
   return {
     ...(handoff ? { handoff } : {}),
+    ...(payload.reason === undefined ? {} : { reason: payload.reason }),
+    ...(payload.requestedBy === undefined ? {} : { requestedBy: payload.requestedBy }),
     generatedAt: args.now.toISOString(),
     triggerKind: triggerKind(args.trigger),
     triggerEvent: args.trigger.event,
@@ -228,6 +230,7 @@ export function discoverScopeImprovementCandidates(
   inputs: ScopeImprovementInputs,
 ): ScopeImprovementCandidate[] {
   if (!inputs.config.enabled || inputs.alreadyConsumed) return [];
+  if (scopeImprovementNeedsSemanticReview(inputs)) return [];
   if (inputs.handoff) {
     const handoff = inputs.handoff;
     return [{
@@ -254,6 +257,13 @@ export function discoverScopeImprovementCandidates(
     }
   }
   return [...candidates, ...skippedCandidates].slice(0, inputs.config.maxActionsPerRun);
+}
+
+export function scopeImprovementNeedsSemanticReview(inputs: ScopeImprovementInputs): boolean {
+  return inputs.config.enabled && !inputs.semanticInput.automatic &&
+    inputs.triggerEvent === scopeImprovementRequested.name &&
+    inputs.triggerKind === "explicit-request" && !inputs.handoff &&
+    Boolean(inputs.reason?.trim());
 }
 
 export function gatherScopeImprovementEvidence(args: {

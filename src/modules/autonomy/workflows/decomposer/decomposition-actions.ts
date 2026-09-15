@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import {
   parseFlatFrontMatter,
   serializeFlatFrontMatter,
   splitFrontMatter,
 } from "#core/util/frontmatter.js";
+import { type RepositoryTextTree, readWorkingTextTree } from "#core/util/repository-tree.js";
 import {
   normalizeGeneratedTaskScalar,
   renderGeneratedTaskProse,
@@ -14,6 +15,7 @@ import {
   extractRepoTaskTitle,
   extractTaskSections,
   getRepoTaskContainerDir,
+  listFullRepoTasks,
   moveTaskById,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -22,6 +24,7 @@ import {
   slugifyTaskTitle,
   updateTaskBody,
 } from "#modules/repo-tasks/repo-tasks-operations.js";
+import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { checkDecompositionApplied } from "./decomposition-check.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 
@@ -74,6 +77,7 @@ export function applyDecompositionPlan(args: {
   taskId: string;
   failedRunId: string;
   plan: DecompositionPlan;
+  heldTaskIds: readonly string[];
 }): AppliedDecomposition {
   const original = showTask(args.workspaceRoot, args.taskId);
   if (!original.found || original.state === "done" || original.state === "dropped") {
@@ -140,6 +144,8 @@ export function applyDecompositionPlan(args: {
     }
   }
 
+  const changes = new Map<string, string>();
+  const stage = (path: string, content: string) => changes.set(relative(args.workspaceRoot, path), content);
   const openDir = getRepoTaskContainerDir(args.workspaceRoot, "open");
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;
@@ -166,8 +172,7 @@ export function applyDecompositionPlan(args: {
           ...dependsOn,
         ])];
         const { depends_on: _ignoredDependencies, ...existingAttrs } = parsed.attrs;
-        writeRepoTaskFile(
-          args.workspaceRoot,
+        stage(
           join(getRepoTaskContainerDir(args.workspaceRoot, existing.state), `${id}.md`),
           serializeFlatFrontMatter(
             {
@@ -187,8 +192,7 @@ export function applyDecompositionPlan(args: {
       priority: task.priority,
       ...(dependsOn.length > 0 ? { depends_on: dependsOn } : {}),
     };
-    writeRepoTaskFile(
-      args.workspaceRoot,
+    stage(
       join(openDir, `${id}.md`),
       serializeFlatFrontMatter(
         attrs,
@@ -204,10 +208,53 @@ export function applyDecompositionPlan(args: {
     );
   }
 
+  // Dependents need all replacement outcomes, not a permanently dropped predecessor.
+  for (const dependent of listFullRepoTasks(args.workspaceRoot, ["open", "blocked"])) {
+    if (dependent.id === args.taskId || !dependent.dependsOn.includes(args.taskId)) continue;
+    const path = join(getRepoTaskContainerDir(args.workspaceRoot, dependent.state), `${dependent.id}.md`);
+    const existing = showTask(args.workspaceRoot, dependent.id);
+    if (!existing.found) throw new Error(`Dependent task disappeared: ${dependent.id}`);
+    const parsed = parseFlatFrontMatter(changes.get(relative(args.workspaceRoot, path)) ?? existing.content);
+    const dependencies = parsed.attrs.depends_on as string[];
+    stage(path, serializeFlatFrontMatter({
+      ...parsed.attrs,
+      depends_on: [...new Set(dependencies.flatMap((id) => id === args.taskId ? subtaskIds : [id]))],
+    }, parsed.body));
+  }
+  const decomposedBody = `${originalBody.trim()}\n\n## Decomposed\n\n${subtaskIds.map((id) => `- ${id}`).join("\n")}`;
+  stage(droppedPath, serializeFlatFrontMatter({ status: "dropped" }, decomposedBody));
+  const originalPath = relative(args.workspaceRoot, join(getRepoTaskContainerDir(args.workspaceRoot, original.state), `${args.taskId}.md`));
+  const conflict = [...changes.keys()].map((path) => basename(path, ".md"))
+    .find((id) => args.heldTaskIds.includes(id));
+  if (conflict) throw new Error(`Decomposition conflicts with held task:${conflict}`);
+
+  // Validate the entire prospective queue before touching sandbox files. Runtime
+  // integration rechecks ownership and publishes this changeset atomically.
+  const current = readWorkingTextTree(args.workspaceRoot);
+  const proposed: RepositoryTextTree = {
+    read: (path) => changes.get(path) ?? current.read(path),
+    list: (directory) => {
+      const entries = new Map(current.list(directory)
+        .filter((entry) => `${directory}/${entry.name}` !== originalPath)
+        .map((entry) => [entry.name, entry]));
+      for (const path of changes.keys()) {
+        if (dirname(path) === directory) entries.set(basename(path), { name: basename(path), kind: "file" });
+        else if (path.startsWith(`${directory}/`)) {
+          const name = path.slice(directory.length + 1).split("/")[0]!;
+          if (!entries.has(name)) entries.set(name, { name, kind: "directory" });
+        }
+      }
+      return [...entries.values()];
+    },
+  };
+  assertTaskQueueValid(args.workspaceRoot, proposed);
+  for (const [path, content] of changes) {
+    if (path !== relative(args.workspaceRoot, droppedPath)) writeRepoTaskFile(args.workspaceRoot, join(args.workspaceRoot, path), content);
+  }
   const update = updateTaskBody(
     args.workspaceRoot,
     args.taskId,
-    `${originalBody.trim()}\n\n## Decomposed\n\n${subtaskIds.map((id) => `- ${id}`).join("\n")}`,
+    decomposedBody,
   );
   if (!update.ok) {
     throw new Error(`Could not annotate ${args.taskId} before decomposition: ${update.reason}`);

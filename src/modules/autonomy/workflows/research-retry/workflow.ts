@@ -22,12 +22,13 @@ import {
   createResearchRetryShadowReviewStep,
   type InspectResult,
 } from "./shadow-review.js";
+import { collectResearchSourceEvidence, type SourceEvidence, sourceEvidenceSchema } from "./source-evidence.js";
 import { assertResearchRetryTrigger, RESEARCH_RETRY_EVENT } from "./trigger.js";
 
 export const agent: AgentDef = {
   name: "research-retry",
   role:
-    "Retry one blocked research task's inaccessible sources using authenticated-browser and rendered-browser tools, then update task state honestly.",
+    "Assess workflow-collected source evidence for one blocked research task, then update task and inbox state honestly.",
   promptPath: "src/modules/autonomy/workflows/research-retry/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: [],
@@ -38,6 +39,7 @@ const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
   type: "code",
   exposeOutputToAgent: true,
+  exposedOutputTrust: "untrusted",
   validate: (raw) =>
     expectStructuredOutput<InspectResult>(raw, [
       "dirty",
@@ -48,9 +50,29 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ workspaceRoot, runBlocking, trigger }) => {
+  run: ({ workspaceRoot, scopeRoot, runBlocking, trigger }) => {
     assertResearchRetryTrigger(trigger);
-    return runBlocking(inspectResearchRetryCandidatesOperation, { workspaceRoot });
+    return runBlocking(inspectResearchRetryCandidatesOperation, { workspaceRoot, scopeRoot });
+  },
+});
+
+const collectSources = typedCodeStep<SourceEvidence>({
+  id: "collect-sources",
+  type: "code",
+  exposeOutputToAgent: true,
+  exposedOutputTrust: "untrusted",
+  validate: (raw) => sourceEvidenceSchema.parse(raw),
+  when: (ctx) => {
+    const inspection = inspectCandidates.outputRequired(ctx);
+    return !inspection.dirty && inspection.candidate !== null;
+  },
+  run: (ctx) => {
+    const inspection = inspectCandidates.outputRequired(ctx);
+    return collectResearchSourceEvidence({
+      urls: inspection.candidate!.attemptableUrls,
+      capability: inspection.capability,
+      runTool: ctx.runTool,
+    });
   },
 });
 
@@ -73,12 +95,14 @@ const markAttempt = typedCodeStep<MarkAttemptResult>({
     return ctx.runBlocking(markResearchRetryAttemptOperation, {
       workspaceRoot: ctx.workspaceRoot,
       candidateId: inspection.candidate.id,
+      attempts: collectSources.outputRequired(ctx).attempts,
     });
   },
 });
 
 const researchRetryShadowReview = createResearchRetryShadowReviewStep({
   inspectCandidates,
+  collectSources,
   markAttempt,
 });
 
@@ -93,6 +117,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
   triggers: [{ event: RESEARCH_RETRY_EVENT, cooldownMs: 60_000 }],
   steps: [
     inspectCandidates,
+    collectSources,
     {
       id: "retry",
       type: "agent",
@@ -101,10 +126,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => {
-        const inspection = inspectCandidates.outputRequired(ctx);
-        return !inspection.dirty && inspection.candidate !== null;
-      },
+      when: stepSucceeded("collect-sources"),
       repairLoop: {
         checks: [
           {

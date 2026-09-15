@@ -306,6 +306,8 @@ export type WorkflowRepairCheck = {
       run: (
         context: WorkflowStepContext,
         parentStep: WorkflowAgentStep,
+        /** Latest agent completion, supplied before the enclosing step settles. */
+        completion?: string,
       ) => Promise<unknown> | unknown;
       /**
        * Pure declaration for code checks that launch a judge agent. Definition

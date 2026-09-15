@@ -17,6 +17,7 @@ type ApplyDecompositionInput = {
   stateDir: string;
   assessment: Extract<DecomposerAssessment, { shouldDecompose: true }>;
   plan: DecompositionPlan;
+  heldTaskIds: readonly string[];
 };
 
 export function applyDecompositionInWorker(
@@ -28,6 +29,7 @@ export function applyDecompositionInWorker(
     taskId: input.assessment.taskId,
     failedRunId: input.assessment.failedRunId,
     plan: input.plan,
+    heldTaskIds: input.heldTaskIds,
   });
 }
 
