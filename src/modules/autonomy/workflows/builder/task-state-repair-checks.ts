@@ -1,9 +1,5 @@
-import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
-import { listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
-
-function taskIdFromPath(path: string): string | null {
-  return path.match(/^data\/tasks\/(?:archive\/)?(task-[^/]+)\.md$/)?.[1] ?? null;
-}
+import { readGitTextTree } from "#core/util/repository-tree.js";
+import { listFullRepoTasks, listRepoTasksFromTree, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export function requireResolvedTargetTask(
   tasks: readonly RepoTaskFullRecord[],
@@ -24,29 +20,23 @@ export function checkTargetTaskResolved(
   const tasks = listFullRepoTasks(workspaceRoot);
   requireResolvedTargetTask(tasks, taskId);
 
-  const terminalTaskIds = new Set(
-    tasks
-      .filter((candidate) => ["done", "blocked", "dropped"].includes(candidate.state))
-      .map((candidate) => candidate.id),
-  );
-  const completedTaskIds = [...new Set(
-    listWorkflowMutatedPaths(workspaceRoot)
-      .map(taskIdFromPath)
-      .filter(
-        (candidate): candidate is string =>
-          candidate !== null && terminalTaskIds.has(candidate),
-      ),
-  )];
-  if (!completedTaskIds.includes(taskId)) {
+  const { tree } = readGitTextTree(workspaceRoot, "HEAD", ["data/tasks"]);
+  const previous = new Map(listRepoTasksFromTree(tree).map((task) => [task.id, task.state]));
+  const current = new Map(tasks.map((task) => [task.id, task.state]));
+  if (previous.get(taskId) !== "open") {
     throw new Error(
-      `Builder targeted ${taskId} but its workspace diff does not contain a terminal task transition.`,
+      `Builder targeted ${taskId} but its workspace diff does not resolve an open target task.`,
     );
   }
-  const otherCompletedTaskIds = completedTaskIds.filter((candidate) => candidate !== taskId);
-  if (otherCompletedTaskIds.length > 0) {
+  // Compare states, not touched paths: evidence notes are not transitions, and
+  // deleting or reopening another task must not bypass the one-task contract.
+  const otherChangedTaskIds = [...new Set([...previous.keys(), ...current.keys()])]
+    .filter((id) => id !== taskId && previous.get(id) !== current.get(id) &&
+      !(previous.get(id) === undefined && current.get(id) === "open"));
+  if (otherChangedTaskIds.length > 0) {
     throw new Error(
-      `Builder targeted ${taskId} but its workspace diff also completes ${otherCompletedTaskIds.join(", ")}. ` +
-        "Finish only the targeted task in this run.",
+      `Builder targeted ${taskId} but its workspace diff also changes task state for ${otherChangedTaskIds.join(", ")}. ` +
+        "Resolve only the targeted task in this run.",
     );
   }
 

@@ -7,6 +7,9 @@ cleared.
   Shared runtime owns its sandbox, recovery, commit, and publication.
   Task selection stays bound to the admitted resource snapshot through recovery
   and cleanup; later blocked tasks belong to a later admission.
+- Retained writer edits do not gate promotion or owner follow-up. Runtime owns
+  checkout isolation and publication safety; task contract and resource checks
+  retain authority during recovery.
 - Promotion, owner-question selection, capture instructions, and the action
   artifact consume one blocker decision. Hard dependencies precede every
   follow-up; the attention digest shares that decision owner’s cadence.

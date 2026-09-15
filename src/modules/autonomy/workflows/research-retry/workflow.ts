@@ -41,7 +41,6 @@ const inspectCandidates = typedCodeStep<InspectResult>({
   exposedOutputTrust: "untrusted",
   validate: (raw) =>
     expectStructuredOutput<InspectResult>(raw, [
-      "dirty",
       "candidateCount",
       "capability",
       "candidate",
@@ -54,7 +53,6 @@ const inspectCandidates = typedCodeStep<InspectResult>({
     if (trigger.payload.triggeredByRunId !== handoff.sourceRunId) throw new Error("Research evidence is not bound to its collecting parent run");
     if (handoff.scopeId !== scopeId) throw new Error("Research evidence belongs to another scope");
     return {
-      dirty: false,
       candidateCount: 1,
       capability: handoff.capability,
       candidate: researchContractMatches(workspaceRoot, handoff) ? handoff.candidate : null,
@@ -73,7 +71,7 @@ const collectSources = typedCodeStep<SourceEvidence>({
   validate: (raw) => sourceEvidenceSchema.parse(raw),
   when: (ctx) => {
     const inspection = inspectCandidates.outputRequired(ctx);
-    return !inspection.dirty && inspection.candidate !== null;
+    return inspection.candidate !== null;
   },
   run: (ctx) => researchHandoffSchema.parse(ctx.trigger.payload).evidence,
 });
@@ -150,7 +148,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
           resolveSubject: (ctx) =>
             workflowRunContinuationSubject(ctx, {
               purpose:
-                "Retry the selected blocked research source and update its task state honestly.",
+                "Assess the collected evidence for the selected blocked research task and update its state honestly.",
               evidence: [{
                 label: "Research candidate inspection",
                 value: JSON.stringify(inspectCandidates.output(ctx) ?? null),

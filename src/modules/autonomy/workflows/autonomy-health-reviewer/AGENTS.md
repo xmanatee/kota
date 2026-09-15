@@ -10,7 +10,8 @@ concrete failures or repeated health patterns into bounded follow-up actions.
   Admit an error/critical outcome immediately, a warning after repeated
   observation, or any later update/clear for an existing durable issue.
   Module recoveries retain an operation-specific recovery boundary even before
-  failure backfill arrives; retaining that history requests no investigation.
+  failure backfill arrives; informational clears must reach this owner too.
+  Retaining that history requests no investigation.
   Later failures after operation recovery are admitted immediately, including
   recovery evidence carried in the same review batch.
   Module observation times come from the occurrence, never the audit or review;

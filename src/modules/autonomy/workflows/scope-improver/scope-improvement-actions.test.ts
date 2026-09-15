@@ -105,6 +105,18 @@ describe("scope improvement actions", () => {
     ))).toBe(true);
   });
 
+  it.each(["CLAUDE.md", "plans/CLAUDE.md"])("does not create missing-guidance work when %s supplies scoped instructions", (path) => {
+    const workspaceRoot = track("existing-guidance");
+    mkdirSync(join(workspaceRoot, "plans"), { recursive: true });
+    writeFileSync(join(workspaceRoot, path), "# Scope guidance\nPreserve the existing travel constraints.\n");
+    const result = runCycle(workspaceRoot, ["plans/trip.txt"]);
+
+    expect(result.actions.createdTaskIds).toEqual([]);
+    expect(result.actions.ownerQuestionIds).toEqual([]);
+    expect(result.recommendations.every((recommendation) => recommendation.kind === "skipped")).toBe(true);
+    expect(listFullRepoTasks(workspaceRoot)).toEqual([]);
+  });
+
   it("turns task candidates into owner questions in observe posture", () => {
     const workspaceRoot = track("observe");
     const inputs = collectScopeImprovementInputs({

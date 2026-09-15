@@ -1,16 +1,17 @@
 import { join } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  ATTENTION_DIGEST_COUNTER_STATE_KEY,
+  ATTENTION_DIGEST_STATE_KEY,
+  type AttentionItem,
   attentionDigestStepOperation,
 } from "./step.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {
   name: "attention-digest",
   description:
-    "Check for attention-worthy system conditions and emit a notification digest when any are found.",
+    "Report new or changed attention-worthy system conditions without repeating unchanged alerts.",
   repository: "read",
-  resources: () => [ATTENTION_DIGEST_COUNTER_STATE_KEY],
+  resources: () => [ATTENTION_DIGEST_STATE_KEY],
   triggers: [
     {
       event: "workflow.completed",
@@ -25,21 +26,15 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
       id: "digest",
       type: "code",
       run: async ({ scopeRoot, stateDir, runtimeStateDir, state, emit, runBlocking }) => {
-        const counter = state.read<{ count: number }>(
-          ATTENTION_DIGEST_COUNTER_STATE_KEY,
-        );
-        const count = (counter.value?.count ?? 0) + 1;
-        state.compareAndSet(
-          ATTENTION_DIGEST_COUNTER_STATE_KEY,
-          counter.revision,
-          { count },
-        );
+        const previous = state.read<AttentionItem[]>(ATTENTION_DIGEST_STATE_KEY);
         const result = await runBlocking(attentionDigestStepOperation, {
           scopeRoot,
           runtimeStateDir,
           runsDir: join(stateDir, "runs"),
-          count,
+          previousItems: previous.value ?? [],
         });
+        if (result === null) return;
+        state.compareAndSet(ATTENTION_DIGEST_STATE_KEY, previous.revision, result.items);
         if (result.event) {
           emit(result.event.name, result.event.payload, {
             delivery: "on-run-success",

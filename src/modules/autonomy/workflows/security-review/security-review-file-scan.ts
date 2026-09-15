@@ -2,6 +2,7 @@ import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "no
 import { extname, join, relative, sep } from "node:path";
 import {
   isSafeRepoRelativePath,
+  isSecurityReviewTaskRecord,
   MAX_SCANNED_FILE_BYTES,
   normalizeRepoPath,
   PREFERRED_SOURCE_PREFIXES,
@@ -100,6 +101,7 @@ export function scanSecurityReviewCandidatesForPath(
   const normalized = normalizeRepoPath(path);
   if (
     !isSafeRepoRelativePath(normalized) ||
+    isSecurityReviewTaskRecord(normalized) ||
     pathHasSkippedSecurityReviewSegment(normalized) ||
     !shouldScanSecurityReviewFile(normalized)
   ) {
@@ -153,6 +155,11 @@ export function securityReviewSurfacesForChangedPath(
   path: string,
   previousSurfaces: readonly SecurityReviewSurface[] = [],
 ): SecurityReviewSurface[] {
+  // Task publication is review evidence, not a changed implementation boundary.
+  // Explicit reports still track content changes through their retained surface.
+  if (isSecurityReviewTaskRecord(path)) {
+    return previousSurfaces.includes("reported-boundary") ? ["reported-boundary"] : [];
+  }
   const surfaces = new Set<SecurityReviewSurface>([...securityReviewSurfacesForPath(path), ...previousSurfaces]);
   for (const candidate of scanSecurityReviewCandidatesForPath(workspaceRoot, path)) {
     surfaces.add(candidate.surface);

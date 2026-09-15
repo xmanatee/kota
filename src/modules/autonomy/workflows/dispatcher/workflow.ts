@@ -84,7 +84,9 @@ export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
   if (!isDeepStrictEqual(securityState, securitySnapshot.value)) {
     state.compareAndSet(SECURITY_REVIEW_STATE_KEY, securitySnapshot.revision, validateSecurityReviewState(securityState));
   }
-  const { queue, researchRetryAvailability, builderTasks } = observation.inspection;
+  const { queue, researchRetryAvailability } = observation.inspection;
+  // Keep one batch ready without reserving the entire backlog ahead of feedback.
+  const builderTasks = observation.inspection.builderTasks.slice(0, Math.max(0, queue.capacity - queue.queuedCount));
   if (
     progressBoundary.nextState !== null &&
     !isDeepStrictEqual(progressBoundary.nextState, progressState.value)

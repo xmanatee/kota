@@ -148,8 +148,7 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
       type: "emit",
       when: (ctx) =>
         ctx.trigger.event !== BLOCKED_OWNER_DECISION_RESOLVED_EVENT &&
-        inspectBlocked.output(ctx)?.dirty === false &&
-        inspectBlocked.output(ctx)?.ownerAsk !== null,
+        inspectBlocked.outputRequired(ctx).ownerAsk !== null,
       event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
       payload: (ctx) => {
         const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;

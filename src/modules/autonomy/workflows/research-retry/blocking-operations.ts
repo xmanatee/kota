@@ -1,5 +1,5 @@
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
 import {
   listResearchRetryCandidates,
 } from "./candidates.js";
@@ -20,10 +20,8 @@ export function inspectResearchRetryCandidatesInWorker(input: {
   scopeRoot?: string;
   availableTools: readonly ResearchSourceTool[];
 }): InspectResult {
-  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
-  const dirty = worktree.available && worktree.dirty;
   const capability = checkResearchRetryCapability(input.scopeRoot ?? input.workspaceRoot, input.availableTools);
-  const candidates = listResearchRetryCandidates(input.workspaceRoot);
+  const candidates = listResearchRetryCandidates(input.workspaceRoot, readPublishedRepoTaskQueue(input.workspaceRoot).tasks);
 
   const examined: ExaminedCandidate[] = [];
   for (const candidate of candidates) {
@@ -34,7 +32,6 @@ export function inspectResearchRetryCandidatesInWorker(input: {
     });
     if (evaluation.skipReason === null) {
       return {
-        dirty,
         candidateCount: candidates.length,
         capability,
         candidate: { id: candidate.id, digest: candidate.digest, urls: candidate.urls, attemptableUrls: evaluation.attemptableUrls },
@@ -52,7 +49,6 @@ export function inspectResearchRetryCandidatesInWorker(input: {
   }
 
   return {
-    dirty,
     candidateCount: candidates.length,
     capability,
     candidate: null,

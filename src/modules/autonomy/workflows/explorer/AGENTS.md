@@ -16,8 +16,7 @@ This directory contains the explorer workflow definition and prompt.
   future work selection, and strategic range.
 - Keep tasks outcome-focused and concise. This workflow owns the queue contract,
   not the implementation plan.
-- Queue counts are lower bounds, not the goal. A healthy queue should not
-  collapse into one repeated kind of local work.
+- A healthy queue should not collapse into one repeated kind of local work.
 - Treat the inspect step's queue counts and availability fields as context for
   the exploration decision; task validation and writer integration own the
   hard gates.

@@ -33,7 +33,6 @@ export type ExaminedCandidate = {
 };
 
 export type InspectResult = {
-  dirty: boolean;
   candidateCount: number;
   capability: ResearchRetryCapability;
   candidate: CandidateSummary | null;

@@ -1,4 +1,3 @@
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { BlockerAction } from "./blocker-policy.js";
 import { evidenceDigest } from "./evidence.js";
@@ -17,7 +16,6 @@ import {
 } from "./promotion.js";
 
 export type InspectBlockedResult = {
-  dirty: boolean;
   blockedCount: number;
   ownerAsk: OwnerAskCandidate | null;
   actions: BlockerAction[];
@@ -30,11 +28,9 @@ export function inspectBlockedInWorker(input: {
   nowMs: number;
   taskIds: readonly string[];
 }): InspectBlockedResult {
-  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const records = listBlockedTasksWithPreconditions(input.workspaceRoot).filter((task) => input.taskIds.includes(task.id));
   const actions = classifyBlockedActions(records, input.workspaceRoot, input.nowMs, input.scopeRoot);
   return {
-    dirty: worktree.available && worktree.dirty,
     blockedCount: records.length,
     ownerAsk: pickOwnerAskCandidate(records, actions),
     actions,

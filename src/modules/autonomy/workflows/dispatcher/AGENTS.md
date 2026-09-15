@@ -5,6 +5,8 @@ This is the only autonomy workflow that listens to `runtime.idle`.
 
 Queue shape comes from the shared autonomy queue policy; task eligibility
 comes from the repo-tasks work-supply projection, including runtime ownership.
+Replenish one capacity-sized queued batch, preserving priority without reserving
+the entire backlog ahead of feedback or newly discovered work.
 Independent exploration uses a capacity-sized reserve of available tasks;
 retained runs and unrelated dependency waits never count as spare supply. Ordinary
 steps retain inspection evidence in the run directory. The finalization decision
@@ -17,8 +19,9 @@ which workflow should run next. The event catalog lives in code.
 
 Progress reflection retains a coalesced window of committed task transitions,
 agent outcomes and owner decisions until the review revision is consumed.
-Useful builder work has priority. Comparative outcomes or owner feedback can
-admit agent assessment; ordinary source growth alone stays pending. One pending
+Comparative outcomes and owner feedback admit assessment even with a delivery
+backlog; ordinary delivery-only reflection yields to builders and source growth
+alone stays pending. One pending
 revision owns the decision until publication or durable output rejection,
 including across restart.
 Idle reconciliation also releases accepted handoff evidence once its intervention

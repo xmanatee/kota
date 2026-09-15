@@ -9,6 +9,7 @@ import {
 import { decodeSecurityReviewState, type SecurityReviewState, securityReviewPathUnavailable } from "./review-state.js";
 import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 import {
+  isSecurityReviewTaskRecord,
   SECURITY_REVIEW_MAX_DUE_PATHS,
   type SecurityReviewSurface,
 } from "./security-review-scan-model.js";
@@ -190,7 +191,9 @@ export async function collectSecurityReviewGitEvidence(args: {
       comparison: lastReview.kind === "found" && lastReview.head.kind === "commit"
         ? { kind: "commit-range", baseSha: lastReview.head.sha, headSha: head }
         : { kind: "full-tree", reason: "no-review-evidence" },
-      changedPaths, contentDigests, previousSurfaces, pendingEvidence: state.evidenceRequests.some(({ request, reviewed }) => request.paths.some((path) => reviewed[path] !== contentDigests[path] && !securityReviewPathUnavailable(state, path, contentDigests, request.id))),
+      changedPaths: changedPaths.filter((path) => !isSecurityReviewTaskRecord(path) ||
+        previousSurfaces[path]?.includes("reported-boundary") || requestedPaths.has(path)),
+      contentDigests, previousSurfaces, pendingEvidence: state.evidenceRequests.some(({ request, reviewed }) => request.paths.some((path) => reviewed[path] !== contentDigests[path] && !securityReviewPathUnavailable(state, path, contentDigests, request.id))),
     };
   } catch (error) {
     return {

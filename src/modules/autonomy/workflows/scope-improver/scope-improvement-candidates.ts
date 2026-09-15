@@ -32,12 +32,12 @@ export function missingGuidanceCandidate(
     signature: `${inputs.scope.scopeId}:missing-scope-guidance`,
     title: `Add scope guidance for ${inputs.scope.displayName}`,
     summary:
-      "The scope has no AGENTS.md guidance, so improvement work lacks local constraints.",
+      "The scope has no AGENTS.md or CLAUDE.md guidance, so improvement work lacks local constraints.",
     evidenceIds: ["policy:scope-improvement"],
     preferredAction: "create-task",
     task: {
       problem:
-        "This scope has no AGENTS.md guidance, so autonomous work lacks durable local constraints.",
+        "This scope has no AGENTS.md or CLAUDE.md guidance, so autonomous work lacks durable local constraints.",
       desiredOutcome:
         "Add concise root AGENTS.md guidance that states the scope's purpose and the constraints future work must preserve.",
       constraints: [

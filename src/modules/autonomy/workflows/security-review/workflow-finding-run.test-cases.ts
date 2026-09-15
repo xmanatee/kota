@@ -121,7 +121,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
         trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: "independent", paths: [path], critical: true, reason: "New exploit" } } },
         stepOutputs: {
-          "investigate-candidates": { findings: [(({ verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Examined the independent boundary" }, ...(failure === "missing" ? [] : [{ path: `data/tasks/archive/${taskId}.md`, disposition: "reviewed", rationale: "Inspected historical task" }])] },
+          "investigate-candidates": { findings: [(({ verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Examined the independent boundary" }] },
           "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "Independent exploit reproduced" }], summary: "New supported finding" },
         },
       }).run();
@@ -150,7 +150,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
         trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: requestId, paths: [path], critical: true, reason: "Revalidate the reported database precondition" } } },
         stepOutputs: {
-          "investigate-candidates": { findings: [(( { verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Inspected the reported authority crossing" }, ...requestId === "first" ? [{ path: "data/tasks/task-database.md", disposition: "reviewed", rationale: "Inspected existing repair contract" }] : []] },
+          "investigate-candidates": { findings: [(( { verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Inspected the reported authority crossing" }] },
           "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "The nominated task owns the same invariant and repair" }], summary: "Supported evidence" },
         },
       }).run();
@@ -189,7 +189,7 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
         runId, workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
         trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: "revalidate-legacy", paths: [path], critical: true, reason: "Resolve retained evidence lineage" } } },
         stepOutputs: {
-          "investigate-candidates": { findings: findings.map(({ verdict: _verdict, rationale: _rationale, ...finding }) => finding), coverage: [{ path, disposition: "reviewed", rationale: "Examined the reported boundary" }, { path: `data/tasks/archive/${taskId}.md`, disposition: "reviewed", rationale: "Checked historical evidence" }] },
+          "investigate-candidates": { findings: findings.map(({ verdict: _verdict, rationale: _rationale, ...finding }) => finding), coverage: [{ path, disposition: "reviewed", rationale: "Examined the reported boundary" }] },
           "revalidate-findings": { findings: findings.map((finding) => ({ id: finding.id, verdict: "confirmed", rationale: "Checked exploit and common repair independently" })), summary: "Lineage and distinct exploit confirmed" },
         },
       }).run();

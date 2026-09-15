@@ -7,17 +7,23 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { initModuleEventRegistry, resetModuleEventRegistry } from "#core/events/module-event.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { initGitTestRepository } from "#core/util/git-repository-test-support.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { findRetryFromIndex } from "#core/workflow/run-executor-utils.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
+import { moduleOperationRecoveryPattern } from "#modules/autonomy/autonomy-issue-module-failure.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   emptyAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
+import { autonomyHealthSignal, normalizeHealthSignal } from "#modules/autonomy/health-signal.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
   RUNTIME_HEALTH_AUDIT_ARTIFACT,
@@ -58,7 +64,50 @@ describe("autonomy-health-reviewer workflow", () => {
   });
 
   afterEach(() => {
+    resetModuleEventRegistry();
     rmSync(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it("admits informational recovery without admitting ordinary informational observations", async () => {
+    initModuleEventRegistry().register("autonomy", autonomyHealthSignal);
+    const bus = new EventBus();
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const pbus = new ScopedEventBus(bus, scopeId);
+    const fixture = createTestWorkflowRuntime({
+      bus, pbus, scopeRoot: workspaceRoot, scopeId, idleIntervalMs: 60_000,
+      workflows: [{ ...autonomyHealthReviewerWorkflow, definitionPath: "health-reviewer-test", moduleRoot: process.cwd() }],
+    });
+    const observedAt = "2026-09-16T10:00:00.000Z";
+    const recovery = normalizeHealthSignal({
+      ...moduleOperationRecoveryPattern("telegram", "poll-loop"),
+      observation: "cleared", createdAt: observedAt, observationCount: 1,
+      evidenceRefs: [{ kind: "event", ref: "module.operation.recovered:telegram:poll-loop",
+        moduleOperation: { operation: "poll-loop", observedAt, observation: "cleared" } }],
+    });
+    fixture.runtime.start();
+    fixture.runtime.setDispatchPaused(true);
+    try {
+      pbus.emit(autonomyHealthSignal, normalizeHealthSignal({
+        ...recovery, signalId: "health-info", observation: "present",
+        source: { kind: "workflow", id: "builder" }, dedupeKey: "workflow:builder:info",
+        evidenceRefs: [{ kind: "event", ref: "ordinary-info" }],
+      }));
+      expect(fixture.runtime.getState().pendingRuns).toHaveLength(0);
+      pbus.emit(autonomyHealthSignal, recovery);
+      const queued = fixture.runtime.getState().pendingRuns;
+      expect(queued).toHaveLength(1);
+      const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+      const result = await new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
+        workspaceRoot, trigger: queued[0]!.trigger, ports: { state },
+      }).run();
+      expect(result.status, result.error).toBe("success");
+      expect(state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value).toMatchObject({
+        issues: [], moduleRecoveries: [{ module: "telegram", operation: "poll-loop", observedAt }],
+      });
+      expect(result.emitted).toEqual([]);
+    } finally {
+      await fixture.stop();
+    }
   });
 
   it("keeps health inspection read-only and delegates task writes", () => {

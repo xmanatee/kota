@@ -49,11 +49,12 @@ function changedFiles(trigger: WorkflowRunTrigger): string[] {
 }
 
 function instructionPathsForFiles(files: readonly string[]): string[] {
-  const paths = new Set(["AGENTS.md"]);
+  const paths = new Set(["AGENTS.md", "CLAUDE.md"]);
   for (const file of files) {
     const parts = file.split("/").filter(Boolean);
     for (let i = 1; i < parts.length; i++) {
       paths.add(join(...parts.slice(0, i), "AGENTS.md"));
+      paths.add(join(...parts.slice(0, i), "CLAUDE.md"));
     }
   }
   return [...paths].sort();

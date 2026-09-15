@@ -6,8 +6,7 @@ import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { WorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import { blockedAttentionItems } from "./blocked-attention.js";
 
-const DIGEST_EVERY_N_RUNS = 10;
-export const ATTENTION_DIGEST_COUNTER_STATE_KEY = "attention-digest/counter";
+export const ATTENTION_DIGEST_STATE_KEY = "attention-digest/snapshot";
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
 // KOTA_DIGEST_WARNINGS_WINDOW: how many recent builder runs to inspect (default 10)
 const DEFAULT_WARNINGS_COUNT = 3;
@@ -33,15 +32,16 @@ export type AttentionDigestStepInput = {
   scopeRoot: string;
   runtimeStateDir: string;
   runsDir: string;
-  count: number;
+  previousItems: AttentionItem[];
 };
 
 export type AttentionDigestStepResult = {
+  items: AttentionItem[];
   event?: {
     name: "workflow.attention.digest";
     payload: RenderedAttention;
   };
-};
+} | null;
 
 function builderFailureStreak(recentRuns: RunSummary[]): number {
   // recentRuns is most-recent-first; count consecutive builder failures from the head
@@ -140,9 +140,9 @@ function buildDigestText(items: AttentionItem[]): string {
 
 /**
  * Operator-initiated attention digest body. Runs the same detector + renderer
- * the cadence step uses, but does not touch the cadence counter and does not
+ * the event-driven step uses, but does not touch the attention snapshot or
  * emit `workflow.attention.digest`. When no items warrant attention the body
- * is a short fixed reply rather than the cadence-style empty header.
+ * is a short fixed reply rather than an empty digest header.
  *
  * Operator-facing only — this output must not be exposed to autonomy agents
  * in any prompt path.
@@ -165,28 +165,29 @@ export function renderOnDemandAttention(opts: {
 }
 
 /**
- * Inspect one cadence count. Durable counter ownership belongs to the workflow
- * runtime; this worker only performs repository and run-history reads.
+ * Inspect current attention against the last successful observation. The
+ * workflow runtime owns snapshot publication, including silent clears.
  */
 export function inspectAttentionDigestStep(
   input: AttentionDigestStepInput,
 ): AttentionDigestStepResult {
-  if (!Number.isSafeInteger(input.count) || input.count < 1) {
-    throw new Error("Attention digest count must be a positive integer");
-  }
-  if (input.count % DIGEST_EVERY_N_RUNS !== 0) return {};
-
-  const { items, text } = renderOnDemandAttention({
+  const { items } = renderOnDemandAttention({
     scopeRoot: input.scopeRoot,
     runsDir: input.runsDir,
     authority: { stateDir: input.runtimeStateDir, scopeRoot: input.scopeRoot },
   });
-  if (items.length === 0) return {};
+  const itemKey = ({ label, detail }: AttentionItem) => JSON.stringify([label, detail]);
+  const previous = new Set(input.previousItems.map(itemKey));
+  const current = new Set(items.map(itemKey));
+  const changedItems = items.filter((item) => !previous.has(itemKey(item)));
+  if (changedItems.length === 0 && current.size === previous.size) return null;
+  if (changedItems.length === 0) return { items };
 
   return {
+    items,
     event: {
       name: "workflow.attention.digest",
-      payload: { items, text },
+      payload: { items: changedItems, text: buildDigestText(changedItems) },
     },
   };
 }

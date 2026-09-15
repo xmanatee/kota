@@ -71,7 +71,7 @@ export async function collectResearchSourceEvidence(input: {
     }
     if (kind === "plain-http" && input.capability.playwrightAvailable &&
       input.capability.availableTools.includes("rendered_article_read") &&
-      /(?:requires?|enable) javascript|client.side render|no readable content/i.test(readings[0]!.content)) {
+      /(?:requires?|enable) javascript|client.side render|no readable (?:source )?content/i.test(readings[0]!.content)) {
       readings.push(await readSource(url, "rendered_article_read", input.runTool));
     }
     const result = readings.at(-1)!;

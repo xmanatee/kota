@@ -217,6 +217,10 @@ export function normalizeRepoPath(path: string): string {
   return path.split("\\").join("/");
 }
 
+export function isSecurityReviewTaskRecord(path: string): boolean {
+  return /^data\/tasks\/(?:archive\/)?task-[^/]+\.md$/.test(normalizeRepoPath(path));
+}
+
 export function isSafeRepoRelativePath(path: string): boolean {
   const normalized = normalizeRepoPath(path);
   return normalized.length > 0 &&

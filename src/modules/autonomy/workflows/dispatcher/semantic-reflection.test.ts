@@ -235,9 +235,10 @@ describe("semantic progress reflection", () => {
     });
   });
 
-  it("emits once when an owner decision resolves without a Git commit", async () => {
+  it("emits once when an owner decision resolves even with a full delivery backlog", async () => {
     const workspaceRoot = track("owner-decision");
     write(workspaceRoot, "README.md", "# Fixture\n");
+    for (let index = 0; index < 10; index++) writeTask(workspaceRoot, "open", `task-independent-${index}`);
     commit(workspaceRoot, "seed fixture");
     await inspect(workspaceRoot);
 
@@ -308,10 +309,10 @@ describe("semantic progress reflection", () => {
     expect((await inspect(root, root, consumed.lastConsumedRevision)).shouldEmit).toBe(false);
   });
 
-  it("compares repeated failures without commits and keeps review churn from driving another decision", async () => {
+  it("compares repeated failures despite a full backlog and keeps review churn from driving another decision", async () => {
     const root = track("failure-cohort");
     write(root, "README.md", "# Scope\n");
-    writeTask(root, "open", "task-independent");
+    for (let index = 0; index < 10; index++) writeTask(root, "open", `task-independent-${index}`);
     commit(root, "seed scope");
     await inspect(root);
     recordOutcome(root, "failure-one", "failed");

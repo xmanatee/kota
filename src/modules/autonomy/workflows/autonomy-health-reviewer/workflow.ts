@@ -28,6 +28,11 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   triggers: [
     {
       event: autonomyHealthSignal.name,
+      filter: { severity: "info", observation: "cleared" },
+      queueMode: "all",
+    },
+    {
+      event: autonomyHealthSignal.name,
       filter: { severity: "critical" },
       queueMode: "all",
     },

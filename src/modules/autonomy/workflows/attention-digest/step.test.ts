@@ -25,7 +25,7 @@ import {
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
 import {
-  ATTENTION_DIGEST_COUNTER_STATE_KEY,
+  type AttentionItem,
   inspectAttentionDigestStep,
   NO_ATTENTION_ITEMS_TEXT,
   renderOnDemandAttention,
@@ -106,6 +106,7 @@ describe("attention digest inspection", () => {
   let runsDir: string;
   let emittedEvents: Array<{ event: string; payload: Record<string, unknown> }>;
   let emit: (event: string, payload: Record<string, unknown>) => void;
+  let previousItems: AttentionItem[];
 
   beforeEach(() => {
     workspaceRoot = join(
@@ -116,6 +117,7 @@ describe("attention digest inspection", () => {
     runsDir = join(stateDir, "runs");
     mkdirSync(runsDir, { recursive: true });
     emittedEvents = [];
+    previousItems = [];
     emit = (event, payload) => emittedEvents.push({ event, payload });
   });
 
@@ -123,22 +125,18 @@ describe("attention digest inspection", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  function runSteps(n: number): void {
-    for (let count = 1; count <= n; count += 1) {
-      const result = inspectAttentionDigestStep({ scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, count });
+  function runSteps(n = 1): void {
+    for (let i = 0; i < n; i += 1) {
+      const result = inspectAttentionDigestStep({ scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, previousItems });
+      if (result === null) continue;
+      previousItems = result.items;
       if (result.event) emit(result.event.name, result.event.payload);
     }
   }
 
-  it("does not emit before 10 invocations", () => {
-    runSteps(9);
-    expect(emittedEvents).toHaveLength(0);
-  });
-
-  it("does not emit at 10 invocations when nothing warrants attention", () => {
-    makeTaskDir(workspaceRoot, "open", 1);
-    runSteps(10);
-    expect(emittedEvents).toHaveLength(0);
+  it("reports attention on the first observation", () => {
+    runSteps(1);
+    expect(emittedEvents).toHaveLength(1);
   });
 
   it("reads hosted authority from the canonical scope while retaining scope-local run evidence", async () => {
@@ -184,7 +182,6 @@ describe("attention digest inspection", () => {
       runtimeStateDir,
       publications: { stageEmit: (_stepId, event, payload) => emit(event, payload) },
     };
-    runContext.state.compareAndSet(ATTENTION_DIGEST_COUNTER_STATE_KEY, 0, { count: 9 });
     const bus = new EventBus();
     const ctx = createStepContext({
       id: "attention-hosted", workflow: "attention-digest", definitionPath: "workflow.ts",
@@ -207,12 +204,12 @@ describe("attention digest inspection", () => {
     expect(emittedEvents[0]?.payload.text).not.toContain("Empty task queue");
   });
 
-  it("emits workflow.attention.digest at exactly 10 invocations when builder failure streak >= 3", () => {
+  it("emits workflow.attention.digest immediately when builder failure streak >= 3", () => {
     writeRunMetadata(runsDir, "2026-03-27-run-c", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(1);
     expect(emittedEvents[0].event).toBe("workflow.attention.digest");
     const text = emittedEvents[0].payload.text as string;
@@ -220,19 +217,19 @@ describe("attention digest inspection", () => {
     expect(text).toContain("consecutive failures");
   });
 
-  it("does not emit at 10 invocations when builder failures < 3", () => {
+  it("does not emit when builder failures < 3", () => {
     makeTaskDir(workspaceRoot, "open", 1);
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(0);
   });
 
   it("emits digest when multiple tasks are blocked", () => {
     makeTaskDir(workspaceRoot, "blocked", 2);
 
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
     expect(text).toContain("Blocked tasks");
@@ -240,7 +237,7 @@ describe("attention digest inspection", () => {
   });
 
   it("emits digest when the open task queue is empty", () => {
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
     expect(text).toContain("Empty task queue");
@@ -249,7 +246,7 @@ describe("attention digest inspection", () => {
 
   it("does not emit when the open queue is populated and nothing else warrants attention", () => {
     makeTaskDir(workspaceRoot, "open", 1);
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(0);
   });
 
@@ -260,7 +257,7 @@ describe("attention digest inspection", () => {
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
-    runSteps(10);
+    runSteps();
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
     expect(text).toContain("Builder failure streak");
@@ -268,20 +265,37 @@ describe("attention digest inspection", () => {
     expect(text).toContain("2 items");
   });
 
-  it("emits digest every 10 invocations, not just once", () => {
+  it("does not repeat unchanged attention", () => {
     runSteps(20);
+    expect(emittedEvents).toHaveLength(1);
+    expect(inspectAttentionDigestStep({
+      scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, previousItems,
+    })).toBeNull();
+  });
+
+  it("reports only changed items and silently clears them so they can recur", () => {
+    runSteps();
+    makeTaskDir(workspaceRoot, "blocked", 2);
+    runSteps();
+    expect(emittedEvents[1].payload.items).toEqual([
+      { label: "Blocked tasks", detail: "2 blocked tasks" },
+    ]);
+    previousItems.reverse();
+    runSteps();
     expect(emittedEvents).toHaveLength(2);
-  });
-
-  it("digest text starts with attention digest header", () => {
-    runSteps(10);
-    const text = emittedEvents[0].payload.text as string;
-    expect(text).toMatch(/^Attention digest \(\d+ items?\):/);
-  });
-
-  it("emits digest without emit callback (no-op, no throw)", () => {
-    inspectAttentionDigestStep({ scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, count: 10 });
-    expect(emittedEvents).toHaveLength(0);
+    makeTaskDir(workspaceRoot, "blocked", 1);
+    runSteps();
+    expect(emittedEvents[2].payload.items).toEqual([
+      { label: "Blocked tasks", detail: "3 blocked tasks" },
+    ]);
+    makeTaskDir(workspaceRoot, "open", 1);
+    runSteps();
+    expect(emittedEvents).toHaveLength(3);
+    rmSync(join(workspaceRoot, "data", "tasks", "task-open-0.md"));
+    runSteps();
+    expect(emittedEvents[3].payload.items).toEqual([
+      { label: "Empty task queue", detail: "Builder has no open task to pick up." },
+    ]);
   });
 
   describe("warnings frequency check", () => {
@@ -303,7 +317,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 3; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Repeated warnings");
@@ -316,7 +330,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 2; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(0);
     });
 
@@ -328,7 +342,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 2; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Repeated warnings");
@@ -341,7 +355,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 3; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings", warnings);
       }
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("maxStepOutputBytes");
@@ -353,7 +367,7 @@ describe("attention digest inspection", () => {
       writeRunMetadata(runsDir, "2026-04-01-warn-0", "builder", "completed-with-warnings", [{ type: "typeA", message: "a" }]);
       writeRunMetadata(runsDir, "2026-04-01-warn-1", "builder", "completed-with-warnings", [{ type: "typeB", message: "b" }]);
       writeRunMetadata(runsDir, "2026-04-01-warn-2", "builder", "completed-with-warnings", [{ type: "typeA", message: "a2" }]);
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Repeated warnings");
@@ -367,7 +381,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 5; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "explorer", "completed-with-warnings");
       }
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(0);
     });
   });
@@ -387,7 +401,7 @@ describe("attention digest inspection", () => {
       // Just under 3 days (default threshold) — floor(ageDays) = 2
       writeBlockedTask(workspaceRoot, "task-fresh-a", { daysAgo: 2.9 });
       writeBlockedTask(workspaceRoot, "task-fresh-b", { daysAgo: 1 });
-      runSteps(10);
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Blocked tasks");
@@ -401,7 +415,7 @@ describe("attention digest inspection", () => {
       // daysAgo=3 with default threshold=3 → floor(ageDays)=3 ≥ 3
       writeBlockedTask(workspaceRoot, "task-threshold", { daysAgo: 3 });
       writeBlockedTask(workspaceRoot, "task-fresh", { daysAgo: 1 });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-threshold");
@@ -414,7 +428,7 @@ describe("attention digest inspection", () => {
       makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-stale-a", { daysAgo: 4 });
       writeBlockedTask(workspaceRoot, "task-fresh-b", { daysAgo: 1 });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-stale-a");
@@ -430,7 +444,7 @@ describe("attention digest inspection", () => {
         ownerBlocker: true,
       });
       writeBlockedTask(workspaceRoot, "task-stale", { daysAgo: 4 });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Owner decision pending");
       expect(text).toContain("task-owner");
@@ -443,7 +457,7 @@ describe("attention digest inspection", () => {
       makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-old-a", { daysAgo: 10 });
       writeBlockedTask(workspaceRoot, "task-old-b", { daysAgo: 5 });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).not.toContain("Blocked tasks");
       expect(text).toContain("task-old-a");
@@ -456,7 +470,7 @@ describe("attention digest inspection", () => {
       for (let i = 0; i < 7; i++) {
         writeBlockedTask(workspaceRoot, `task-old-${i}`, { daysAgo: 10 + i });
       }
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       // Oldest five surface — task-old-6 (16d) down to task-old-2 (12d)
       expect(text).toContain("task-old-6");
@@ -473,7 +487,7 @@ describe("attention digest inspection", () => {
       makeTaskDir(workspaceRoot, "open", 1);
       makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-day-old", { daysAgo: 1 });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-day-old");
@@ -481,12 +495,10 @@ describe("attention digest inspection", () => {
   });
 
   describe("renderOnDemandAttention", () => {
-    it("returns the same body cadence would emit when items exist", () => {
-      // Drive the cadence so we can compare its emitted text against the
-      // on-demand body for the exact same repo state.
-      runSteps(10);
+    it("returns the full current body even after an automated alert", () => {
+      runSteps();
       expect(emittedEvents).toHaveLength(1);
-      const cadenceText = emittedEvents[0].payload.text as string;
+      const firstAlertText = emittedEvents[0].payload.text as string;
 
       const result = renderOnDemandAttention({
         scopeRoot: workspaceRoot,
@@ -494,7 +506,13 @@ describe("attention digest inspection", () => {
         authority: { stateDir, scopeRoot: workspaceRoot },
       });
       expect(result.items.length).toBeGreaterThan(0);
-      expect(result.text).toBe(cadenceText);
+      expect(result.text).toBe(firstAlertText);
+      makeTaskDir(workspaceRoot, "blocked", 2);
+      runSteps();
+      expect(emittedEvents[1].payload.items).toHaveLength(1);
+      expect(renderOnDemandAttention({
+        scopeRoot: workspaceRoot, runsDir, authority: { stateDir, scopeRoot: workspaceRoot },
+      }).items).toHaveLength(2);
     });
 
     it("returns the short fixed reply when nothing warrants attention", () => {
@@ -509,15 +527,7 @@ describe("attention digest inspection", () => {
       expect(result.text).toBe(NO_ATTENTION_ITEMS_TEXT);
     });
 
-    it("does not depend on cadence state", () => {
-      expect(renderOnDemandAttention({
-        scopeRoot: workspaceRoot,
-        runsDir,
-        authority: { stateDir, scopeRoot: workspaceRoot },
-      }).items).toHaveLength(1);
-    });
-
-    it("does not emit workflow.attention.digest", () => {
+    it("does not emit or consume the next automated alert", () => {
       // Even though detection finds an item, the on-demand path must not emit.
       renderOnDemandAttention({
         scopeRoot: workspaceRoot,
@@ -525,6 +535,8 @@ describe("attention digest inspection", () => {
         authority: { stateDir, scopeRoot: workspaceRoot },
       });
       expect(emittedEvents).toHaveLength(0);
+      runSteps();
+      expect(emittedEvents).toHaveLength(1);
     });
   });
 
@@ -554,7 +566,7 @@ describe("attention digest inspection", () => {
           "",
         ].join("\n"),
       });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0]?.payload.text as string | undefined;
       // The aged escalation row is suppressed because blocked-promoter already actioned the slot.
       expect(text ?? "").not.toContain("Operator-gated blocker aged");
@@ -580,7 +592,7 @@ describe("attention digest inspection", () => {
           "",
         ].join("\n"),
       });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0]?.payload.text as string | undefined;
       expect(text ?? "").not.toContain("Operator-gated blocker aged");
       expect(text ?? "").not.toContain("task-actioned-capture");
@@ -605,7 +617,7 @@ describe("attention digest inspection", () => {
           "",
         ].join("\n"),
       });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Operator-gated blocker aged");
       expect(text).toContain("task-stale-marker");
@@ -635,7 +647,7 @@ describe("attention digest inspection", () => {
           "",
         ].join("\n"),
       });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Operator-gated blocker aged");
       expect(text).toContain("task-aged-owner");
@@ -658,7 +670,7 @@ describe("attention digest inspection", () => {
           "",
         ].join("\n"),
       });
-      runSteps(10);
+      runSteps();
       const text = emittedEvents[0].payload.text as string;
       expect(text).not.toContain("Operator-gated blocker aged");
     });

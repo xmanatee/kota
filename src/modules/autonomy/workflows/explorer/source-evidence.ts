@@ -102,9 +102,9 @@ export async function refreshExplorerSources(input: {
     shouldReview: evidenceAvailable && changed,
     reason: !evidenceAvailable
       ? observations.length === 0
-        ? "Source recheck is not due and no readable retained source evidence is available"
-        : "No readable fresh or retained source evidence is available; recheck access before proposing work"
-      : changed ? "Unreviewed source or task evidence" : "Source and task evidence already reviewed",
-    revisit: "Review again when observed source content or task intent changes; elapsed time only permits source rechecks",
+        ? "Watchlist recheck is not due and no readable retained watchlist evidence is available"
+        : "No readable watchlist evidence is available; these entries cannot support source claims"
+      : changed ? "Unreviewed watchlist or task evidence" : "Watchlist and task evidence already reviewed",
+    revisit: "Revisit this watchlist evidence when its content or task intent changes; independent online discovery follows queue demand",
   };
 }

@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const RUN_STATE_SCHEMA_VERSION = 7;
+export const RUN_STATE_SCHEMA_VERSION = 8;
 
 function tableExists(database: Database.Database, table: string): boolean {
   return database
@@ -388,6 +388,22 @@ function addNonWriterExecutionReceipt(database: Database.Database): void {
   `);
 }
 
+function retireAttentionDigestCounter(database: Database.Database): void {
+  database.exec(`
+    DELETE FROM scope_state_values WHERE state_key = 'attention-digest/counter';
+    DELETE FROM run_state_mutations WHERE state_key = 'attention-digest/counter';
+  `);
+  // Already admitted runs must contend with newly admitted snapshot readers.
+  for (const table of ["run_resources", "run_resource_requests"]) {
+    database.exec(`
+      UPDATE ${table}
+      SET resource_key = substr(resource_key, 1,
+        length(resource_key) - length('attention-digest/counter')) || 'attention-digest/snapshot'
+      WHERE resource_key LIKE 'scope:%:attention-digest/counter';
+    `);
+  }
+}
+
 const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   version: number;
   apply(database: Database.Database): void;
@@ -399,6 +415,7 @@ const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   { version: 5, apply: addDaemonStateValues },
   { version: 6, apply: restoreScopedAgentBackoff },
   { version: 7, apply: addNonWriterExecutionReceipt },
+  { version: 8, apply: retireAttentionDigestCounter },
 ];
 
 export function initializeRunStateSchema(database: Database.Database): void {

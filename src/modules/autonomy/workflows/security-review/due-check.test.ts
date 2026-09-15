@@ -9,8 +9,10 @@ import {
   collectSecurityReviewGitEvidence,
   type InspectSecurityReviewDueOptions,
   inspectSecurityReviewDue,
+  reconcileSecurityReviewObservation,
 } from "./due-check.js";
 import { decodeSecurityReviewState, type SecurityReviewState } from "./review-state.js";
+import { scanSecurityReviewCandidates } from "./security-review-candidate-selection.js";
 import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 
 describe("security-review due check", () => {
@@ -114,6 +116,39 @@ describe("security-review due check", () => {
     });
     return inspectSecurityReviewDue(workspaceRoot, options, gitEvidence);
   }
+
+  it("does not readmit routine review for task publication or archival, but retains explicit reports", async () => {
+    const source = "src/modules/example.ts";
+    writeProjectFile(source, "writeFileSync(taskPath, body);\n");
+    const reviewedSha = commitAll("reviewed source");
+    writeReviewEvidence({ runId: "reviewed-source", completedAt: "2026-09-15T00:00:00.000Z", commitSha: reviewedSha });
+    const paths = ["data/tasks/task-security-review-repair.md", "data/tasks/archive/task-security-review-done.md"];
+    for (const path of paths) {
+      const state = path.includes("/archive/") ? "status: done" : "status: open\npriority: p1";
+      writeProjectFile(path, `---\n${state}\n---\n# Security review\n\nConfirmed writeFileSync bypass; preserve permission checks.\n`);
+      reviewState.unreviewedSurfaces[path] = ["task-workflow-mutation"];
+    }
+    commitAll("publish security task records");
+
+    expect(await inspectDue({ stateDir: join(workspaceRoot, ".kota"), cooldownMs: 0 })).toMatchObject({
+      due: false, reason: "no-security-sensitive-change",
+    });
+    const gitEvidence = await collectSecurityReviewGitEvidence({ workspaceRoot, scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"), runCommand: runGitEvidenceCommand, reviewState });
+    expect(reconcileSecurityReviewObservation({ observedState: reviewState, currentState: reviewState,
+      git: gitEvidence, stateDir: join(workspaceRoot, ".kota"),
+      inspection: inspectSecurityReviewDue(workspaceRoot, { stateDir: join(workspaceRoot, ".kota"), cooldownMs: 0 }, gitEvidence),
+    }).due).toMatchObject({ due: false, reason: "no-security-sensitive-change" });
+    expect(scanSecurityReviewCandidates(workspaceRoot, { paths, previousSurfaces: reviewState.unreviewedSurfaces }).candidates).toEqual([]);
+    expect(scanSecurityReviewCandidates(workspaceRoot, { paths, evidencePaths: [paths[0]!] }).candidates).toMatchObject([
+      { path: paths[0], surface: "reported-boundary" },
+    ]);
+    // Previously reported boundaries still track changes, even when they are task files.
+    expect(securityReviewSurfacesForChangedPath(workspaceRoot, paths[0]!, ["reported-boundary"])).toEqual(["reported-boundary"]);
+    writeProjectFile(source, "writeFileSync(otherTaskPath, body);\n");
+    commitAll("change actual mutation owner");
+    expect(await inspectDue({ stateDir: join(workspaceRoot, ".kota"), cooldownMs: 0 })).toMatchObject({ due: true });
+  });
 
   it("reports due when security-sensitive source changes after the last review", async () => {
     writeProjectFile("README.md", "initial\n");

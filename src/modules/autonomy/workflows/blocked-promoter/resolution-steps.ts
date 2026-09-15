@@ -34,7 +34,6 @@ export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
   type: "code",
   validate: (raw) =>
     expectStructuredOutput<InspectBlockedResult>(raw, [
-      "dirty",
       "blockedCount",
       "ownerAsk",
       "actions",
@@ -55,7 +54,7 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   type: "code",
   when: (ctx) => {
     const inspection = inspectBlocked.outputRequired(ctx);
-    return !inspection.dirty && inspection.blockedCount > 0;
+    return inspection.blockedCount > 0;
   },
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
@@ -77,7 +76,6 @@ export const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
   id: "apply-ask-outcome",
   type: "code",
   when: (ctx) =>
-    inspectBlocked.output(ctx)?.dirty === false &&
     inspectOwnerDecisionResolution.output(ctx) !== undefined,
   validate: (raw) =>
     expectArrayOutput<AskOutcomeApplication>(raw, (item) =>
@@ -120,8 +118,7 @@ export const instructOperatorCapture = typedCodeStep<{
   type: "code",
   when: (ctx) => {
     const inspection = inspectBlocked.outputRequired(ctx);
-    return !inspection.dirty &&
-      inspection.actions.some((action) => action.kind === "operator-capture-due");
+    return inspection.actions.some((action) => action.kind === "operator-capture-due");
   },
   validate: (raw) =>
     expectStructuredOutput<{ instructions: OperatorCaptureInstruction[] }>(raw, [

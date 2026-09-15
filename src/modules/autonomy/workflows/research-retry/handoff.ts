@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { z } from "zod";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowPostReconcileInvariant } from "#core/workflow/types.js";
+import { readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
+import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { listResearchRetryCandidates } from "./candidates.js";
 import { researchRetryCapabilitySchema } from "./precondition.js";
 import { sourceEvidenceSchema } from "./source-evidence.js";
@@ -30,8 +32,8 @@ export const researchHandoffSchema = z.object({
 });
 export type ResearchHandoff = z.infer<typeof researchHandoffSchema>;
 
-export function researchContractMatches(workspaceRoot: string, handoff: ResearchHandoff): boolean {
-  return listResearchRetryCandidates(workspaceRoot).some((candidate) =>
+export function researchContractMatches(workspaceRoot: string, handoff: ResearchHandoff, tasks?: readonly RepoTaskFullRecord[]): boolean {
+  return listResearchRetryCandidates(workspaceRoot, tasks).some((candidate) =>
     candidate.id === handoff.candidate.id && candidate.digest === handoff.candidate.digest);
 }
 
@@ -44,7 +46,7 @@ export const verifyResearchContract: WorkflowPostReconcileInvariant = (input) =>
   ], { cwd: input.workspaceRoot, env: withProtectedGitBareRepositoryEnv(), encoding: "utf8" });
   if (changes.length === 0) return { satisfied: true };
   const handoff = researchHandoffSchema.parse(input.trigger.payload);
-  return researchContractMatches(input.repoRoot, handoff)
+  return researchContractMatches(input.repoRoot, handoff, readPublishedRepoTaskQueue(input.repoRoot).tasks)
     ? { satisfied: true }
     : { satisfied: false, reason: `Research task ${handoff.candidate.id} changed after source collection` };
 };

@@ -30,10 +30,7 @@ const ownerDecision = askOwnerSteps({
         ? `${candidate.context}\n\nBlocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`
         : `Blocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`,
       question: candidate.question,
-      reason: candidate.recommendedAnswer
-        ? "Re-asking on the 14-day cadence. Recommended default: " +
-          `'${candidate.recommendedAnswer}'. Reply with the chosen variant or 'unblock' to promote.`
-        : "Re-asking on the 14-day cadence. Reply with the chosen variant or 'unblock' to promote.",
+      reason: "Reply 'unblock' to authorize promotion. Other answers are recorded but leave the task blocked.",
       proposedAnswers: request.displayedAnswers,
       source: "blocked-promoter",
       taskId: candidate.taskId,

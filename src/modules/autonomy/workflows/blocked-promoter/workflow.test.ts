@@ -127,6 +127,36 @@ function runBlockedScenario(
 }
 
 describe("blocked-promoter workflow", () => {
+  it("promotes cleared work and requests unresolved owner input despite retained writer edits", async () => {
+    const workspaceRoot = makeScopeRoot();
+    const precondition = "## Blocked on\nkind: owner-decision\nslot: proceed\nquestion: Proceed?\nproposed_answers: unblock";
+    const clearedPath = join(workspaceRoot, "data/tasks/task-cleared.md");
+    writeFileSync(clearedPath, TASK_TEMPLATE("task-cleared", precondition,
+      renderOwnerResolvedMarker({ slot: "proceed", resolvedAt: "2026-04-24T00:00:00.000Z" })));
+    const waitingPath = join(workspaceRoot, "data/tasks/task-waiting.md");
+    writeFileSync(waitingPath, TASK_TEMPLATE("task-waiting", precondition));
+    commitInitial(workspaceRoot);
+    const retainedPath = join(workspaceRoot, "retained.txt");
+    try {
+      const result = await new WorkflowScenarioDriver(blockedPromoterWorkflow, {
+        workspaceRoot,
+        trigger: { event: "autonomy.queue.available", payload: {} },
+        setupWorkspace: (writer) => {
+          writeFileSync(join(writer, "retained.txt"), "Retained work must survive recovery.\n");
+        },
+        ports: { runCommand: successfulWorkflowCommandRun },
+      }).run();
+      expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+      expect(readFileSync(clearedPath, "utf8")).toContain("status: open");
+      expect(readFileSync(waitingPath, "utf8")).toContain("status: blocked");
+      expect(result.emitted.find((event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT)?.payload)
+        .toMatchObject({ candidate: { taskId: "task-waiting" } });
+      expect(readFileSync(retainedPath, "utf8")).toBe("Retained work must survive recovery.\n");
+    } finally {
+      rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("retains admitted task selection after the blocked queue changes", () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "blocked-resource-selection-"));
     mkdirSync(join(scopeRoot, "data/tasks"), { recursive: true });

@@ -359,6 +359,41 @@ describe("dispatcher workflow", () => {
     )).toBe(false);
   });
 
+  it("refills only one capacity-sized batch instead of reserving the whole backlog", async () => {
+    for (let index = 0; index < 10; index++) {
+      writeProjectFile(`data/tasks/task-${index}.md`, taskFixture(`task-${index}`, "open", {
+        priority: index === 9 ? "p0" : "p2",
+      }));
+    }
+    const first = await runDispatcherScenario();
+    expect(first.status, first.error).toBe("success");
+    const decision = dispatcherDecision(first);
+    const dispatched = first.emitted.filter((event) => event.event === "autonomy.queue.available");
+    expect(dispatched).toHaveLength(decision.capacity as number);
+    expect(dispatched[0]!.payload.taskId).toBe("task-9");
+    expect(decision.availableCount).toBe(10);
+
+    const database = new RunStateDatabase(join(workspaceRoot, ".kota", "scenario-state"));
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    for (const [index, event] of dispatched.entries()) {
+      database.admitRun({ id: `queued-builder-${index}`, scopeId, workflow: "builder", repository: "write",
+        trigger: { event: event.event, schemaRef: null, payload: event.payload },
+        resources: [`task:${event.payload.taskId}`], admittedAt: new Date().toISOString(),
+        notBeforeAt: new Date(Date.now() + 60_000).toISOString() });
+    }
+    database.close();
+    const full = await runDispatcherScenario();
+    expect(full.status, full.error).toBe("success");
+    expect(full.emitted.filter((event) => event.event === "autonomy.queue.available")).toHaveLength(0);
+
+    const resumed = new RunStateDatabase(join(workspaceRoot, ".kota", "scenario-state"));
+    resumed.cancelQueuedRun("queued-builder-0", new Date().toISOString());
+    resumed.close();
+    const refill = await runDispatcherScenario();
+    expect(refill.status, refill.error).toBe("success");
+    expect(refill.emitted.filter((event) => event.event === "autonomy.queue.available")).toHaveLength(1);
+  });
+
   it("does not admit builder work when the complete write decision denies it", async () => {
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-policy-denied.md"),

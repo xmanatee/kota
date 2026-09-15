@@ -151,6 +151,40 @@ describe("research-retry workflow", () => {
     ]);
   });
 
+  it("checks publication against published intent, not concurrent task drafts", async () => {
+    const urls = ["https://example.com/source"];
+    const repoRoot = createResearchProject([{ id: "task-source", urls }]);
+    const candidate = listResearchRetryCandidates(repoRoot)[0]!;
+    const runTool = async () => ({ content: "Observed source" });
+    const evidence = await collectResearchSourceEvidence({
+      urls, capability, httpReadings: await collectResearchHttpReadings({ urls, runTool }), runTool,
+    });
+    const handoff = researchHandoffSchema.parse({
+      scopeId: "scope", sourceRunId: "collector", candidate: { ...candidate, attemptableUrls: urls }, capability, evidence,
+    });
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-writer-"));
+    roots.push(workspaceRoot);
+    execFileSync("git", ["clone", "--quiet", repoRoot, workspaceRoot]);
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: workspaceRoot });
+    execFileSync("git", ["config", "user.name", "KOTA test"], { cwd: workspaceRoot });
+    const canonicalHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
+    const relativePath = "data/tasks/task-source.md";
+    const original = readFileSync(join(repoRoot, relativePath), "utf8");
+    writeFileSync(join(workspaceRoot, relativePath), `${original}\nObserved source findings.\n`);
+    execFileSync("git", ["add", relativePath], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "-qm", "writer findings"], { cwd: workspaceRoot });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: workspaceRoot, encoding: "utf8" }).trim();
+    writeFileSync(join(repoRoot, relativePath), `${original}\nUnpublished owner draft.\n`);
+
+    expect(verifyResearchContract({
+      workspaceRoot, repoRoot, stateDir: join(repoRoot, ".kota"), runId: "writer", workflowName: "research-retry",
+      trigger: { event: "workflow.triggered", schemaRef: null, payload: handoff },
+      baseHead: canonicalHead, canonicalHead, head, signal: new AbortController().signal,
+      readState: () => ({ revision: 0, value: null }),
+    })).toEqual({ satisfied: true });
+    expect(readFileSync(join(repoRoot, relativePath), "utf8")).toBe(`${original}\nUnpublished owner draft.\n`);
+  });
+
   it("rejects unsupported triggers and malformed availability before candidate inspection", () => {
     const valid = researchRetryTrigger();
     expect(() => assertResearchRetryTrigger(valid)).not.toThrow();
@@ -187,7 +221,7 @@ describe("research-retry workflow", () => {
     expect(result.steps["publish-research"].status).toBe("skipped");
   });
 
-  it("skips the agent step when worktree is dirty", async () => {
+  it("retains collected evidence despite editor changes when the writer is unavailable", async () => {
     const workspaceRoot = createResearchProject([
       {
         id: "task-a",
@@ -195,10 +229,13 @@ describe("research-retry workflow", () => {
       },
     ]);
 
+    cleanups.push(registerTool(webFetchTool, async () => ({ content: "Published source evidence" }),
+      "web-access", { effect: networkReadEffect() }));
     const harness = new WorkflowScenarioDriver(collectionWorkflow, {
-      workflows: [researchRetryWorkflow],
       trigger: researchRetryTrigger(),
       workspaceRoot,
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      ports: { runTool: "registered" },
       setupWorkspace: () => {
         writeFileSync(join(workspaceRoot, "dirty.txt"), "uncommitted\n");
       },
@@ -206,7 +243,29 @@ describe("research-retry workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.steps["publish-research"].status).toBe("skipped");
+    expect(result.status).toBe("failed");
+    expect(result.steps["collect-sources"].output).toMatchObject({
+      sources: [{ url: "https://example.com/article", readings: [{ content: "Published source evidence" }] }],
+    });
+    expect(result.steps["publish-research"].status).toBe("failed");
+    expect(readFileSync(join(workspaceRoot, "dirty.txt"), "utf8")).toBe("uncommitted\n");
+  });
+
+  it("does not collect draft URLs or draft tasks from the canonical checkout", () => {
+    const publishedUrl = "https://example.com/published";
+    const workspaceRoot = createResearchProject([{ id: "task-published", urls: [publishedUrl] }]);
+    const published = listResearchRetryCandidates(workspaceRoot)[0]!;
+    const path = join(workspaceRoot, "data/tasks/task-published.md");
+    const draft = readFileSync(path, "utf8").replace(publishedUrl, "https://example.com/private-draft");
+    writeFileSync(path, draft);
+    writeFileSync(join(workspaceRoot, "data/tasks/task-a-draft.md"), draft);
+
+    const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot, availableTools: ["web_fetch"] });
+    expect(output).toMatchObject({
+      candidateCount: 1,
+      candidate: { id: "task-published", digest: published.digest, urls: [publishedUrl], attemptableUrls: [publishedUrl] },
+    });
+    expect(readFileSync(path, "utf8")).toBe(draft);
   });
 
   it("classifies candidates as unavailable when every URL lacks its capability", () => {
@@ -273,6 +332,8 @@ describe("research-retry workflow", () => {
       attemptedAt: new Date().toISOString(),
       attempts: staleUrls.map((url) => attempt(url, checkResearchRetryCapability(workspaceRoot, capability.availableTools))),
     }));
+    execFileSync("git", ["add", "data/tasks/task-a-stale.md"], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "-qm", "published source attempt"], { cwd: workspaceRoot });
     const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot, availableTools: capability.availableTools });
     expect(output.candidate).toMatchObject({ id: "task-z-fresh" });
     expect(output.examined.map((e) => e.id)).toEqual(["task-a-stale"]);
@@ -467,6 +528,24 @@ describe("research-retry workflow", () => {
     expect(evaluateCandidate({ urls: [last.url], body, capability: { ...capability, playwrightAvailable: true } }).attemptableUrls).toEqual([]);
     expect(evaluateCandidate({ urls: [last.url], body, capability: { ...capability, playwrightAvailable: true, authProfileRevision: "restored" } }).attemptableUrls).toEqual([last.url]);
     await expect(collectResearchHttpReadings({ urls: ["https://example.com/no"], runTool: async () => { throw new Error("policy denied"); } })).rejects.toThrow("policy denied");
+  });
+
+  it("recovers unavailable HTML extraction through an authorized rendered reader", async () => {
+    const url = "https://example.com/rendered-source";
+    const runTool = async (tool: string) => tool === "web_fetch"
+      ? { content: "Error: no readable source content after HTML extraction\n\nTitle: Research", is_error: true }
+      : { content: "The rendered source describes its measured result." };
+    const httpReadings = await collectResearchHttpReadings({ urls: [url], runTool });
+    const evidence = await collectResearchSourceEvidence({
+      urls: [url], capability: { ...capability, playwrightAvailable: true }, httpReadings, runTool,
+    });
+    expect(evidence.attempts).toMatchObject([{ tools: ["web_fetch", "rendered_article_read"], outcome: "readable" }]);
+    expect(evidence.sources[0]?.readings.at(-1)?.content).toBe("The rendered source describes its measured result.");
+    const denied = await collectResearchSourceEvidence({
+      urls: [url], capability: { ...capability, playwrightAvailable: true, availableTools: ["web_fetch"] },
+      httpReadings, runTool: async () => { throw new Error("Browser fallback is not authorized"); },
+    });
+    expect(denied.attempts).toMatchObject([{ tools: ["web_fetch"], outcome: "unavailable" }]);
   });
 });
 

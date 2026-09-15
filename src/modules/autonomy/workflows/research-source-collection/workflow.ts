@@ -13,7 +13,7 @@ const inspectCandidates = typedCodeStep<InspectResult>({
   type: "code",
   // Selection must survive recovery: changing it would rebind durable tool identities.
   validate: (raw) => expectStructuredOutput<InspectResult>(raw, [
-    "dirty", "candidateCount", "capability", "candidate", "fingerprint", "marker", "examined",
+    "candidateCount", "capability", "candidate", "fingerprint", "marker", "examined",
   ]),
   run: ({ scopeRoot, trigger, runBlocking, scopePolicySnapshot }) => {
     assertResearchRetryTrigger(trigger);
@@ -31,7 +31,7 @@ const collectHttp = typedCodeStep<HttpReadings>({
   validate: (raw) => httpReadingsSchema.parse(raw),
   when: (ctx) => {
     const inspection = inspectCandidates.outputRequired(ctx);
-    return !inspection.dirty && inspection.candidate !== null;
+    return inspection.candidate !== null;
   },
   run: (ctx) => collectResearchHttpReadings({
     urls: inspectCandidates.outputRequired(ctx).candidate!.attemptableUrls,
@@ -45,7 +45,7 @@ const collectSources = typedCodeStep<SourceEvidence>({
   validate: (raw) => sourceEvidenceSchema.parse(raw),
   when: (ctx) => {
     const inspection = inspectCandidates.outputRequired(ctx);
-    return !inspection.dirty && inspection.candidate !== null;
+    return inspection.candidate !== null;
   },
   run: (ctx) => {
     const inspection = inspectCandidates.outputRequired(ctx);

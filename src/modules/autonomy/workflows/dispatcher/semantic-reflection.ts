@@ -174,15 +174,19 @@ export async function inspectProgressSemanticBoundary(args: {
     !(entry.currentTask && hasGeneratedWorkRetirement({ task: entry.currentTask })));
   const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args, stateDir: args.runtimeStateDir }), readPublishedRepoTaskQueue(args.workspaceRoot));
   if (!queue.ownershipAvailable) return quiet("systemic evidence retained: queue ownership is unavailable", previous);
-  if (queue.dispatchableCount > queue.availableCount || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity) {
-    return quiet("systemic evidence coalesced while useful builder work has priority", previous);
-  }
   // These are opportunities to compare independent outcomes, not architectural
   // conclusions or a build-count schedule. Source growth alone never admits AI.
   const baselineProfiles = new Set(previous.baseline.runs.filter((run) => !run.observationOnly).map(outcomeProfile));
   const changedOutcome = drivers.some((run) => !baselineProfiles.has(outcomeProfile(run)));
   const repeatedFailure = drivers.filter((run) => run.status !== "success" || run.errors.length > 0).length > 1;
   const crossRun = drivers.length > 1 && (changedOutcome || repeatedFailure || outcomeYieldChanged(previous.baseline.outcomeCohort, drivers));
+  // Delivery backlog is not evidence that feedback can wait indefinitely.
+  // Admit one reserved review for changed outcomes or owner feedback through
+  // the normal queue; routine delivery-only reflection can use spare capacity.
+  if (decisions.length === 0 && dispositions.length === 0 && !crossRun &&
+      (queue.dispatchableCount > queue.availableCount || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity)) {
+    return quiet("systemic evidence coalesced while useful builder work has priority", previous);
+  }
   const deliveryBoundary = !queue.hasDispatchableWork && queue.runningCount === 0 && queue.queuedCount === 0 && deliveries.length > 1;
   const boundary = decisions.length > 0 ? "owner-decision-resolution" as const
     : dispositions.length > 0 ? "task-disposition" as const

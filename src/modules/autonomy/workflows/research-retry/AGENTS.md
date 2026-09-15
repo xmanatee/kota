@@ -9,8 +9,9 @@ durable browser effects to the source URL and tool so fallback branches cannot
 shift their identities.
 
 - Only the collector listens to blocked-research availability. It reads canonical
-  task intent; the writer validates that same task contract before editing and
-  after reconciliation. A stale handoff completes without mutation; the invariant
+  published task intent, never editor drafts; the writer validates that same
+  contract before editing and against published intent after reconciliation.
+  A stale handoff completes without mutation; the invariant
   permits that completion only if the writer has no changes relative to canonical.
   Neither phase selects another task during recovery.
 - Browser tools keep their destructive network declarations. Automatic collection

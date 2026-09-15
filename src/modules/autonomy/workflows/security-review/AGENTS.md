@@ -4,6 +4,8 @@ This workflow runs bounded, agent-assisted application-security review for
 KOTA itself.
 
 - Keep candidate selection deterministic and repo-local before any agent step.
+- Task records are evidence and existing ownership, not routine scan targets.
+  Explicit reports may still select them and retain their content coverage.
 - Expose only bounded candidate identity and location metadata for agent
   judgment. Keep raw excerpts, scan coverage, and miss diagnostics in run
   artifacts so untrusted prose and growing commit ranges do not inflate the
