@@ -17,9 +17,8 @@ export type NativeCliScopeProjection = {
 };
 
 /**
- * Native adapters expose no KOTA modules, deny tool network access, and use
- * their CLI's fail-closed confirmation mode. This projection therefore only
- * has to narrow the remaining local filesystem capability.
+ * Project filesystem authority for native adapters. Provider-hosted capabilities
+ * are separately constrained by the adapter using the same resolved scope policy.
  */
 export function projectNativeCliScope(args: {
   cwd: string;

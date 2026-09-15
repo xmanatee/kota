@@ -21,6 +21,7 @@ import {
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
+import { decideScopePolicy } from "#core/daemon/scope-policy.js";
 import { collectTextFromCodexCli } from "./cli-runner.js";
 import { readCodexWeeklyQuota } from "./quota.js";
 import { resolveCodexHome } from "./runtime-home.js";
@@ -251,6 +252,12 @@ export const codexAgentHarness: AgentHarness = {
         cwd: options.cwd ?? process.cwd(),
         model: options.model,
         effort: options.effort,
+        webSearch: options.scopePolicy !== undefined && decideScopePolicy(options.scopePolicy, {
+          kind: "tool-effect",
+          toolName: "codex.web_search",
+          effectKind: "read",
+          effectScope: "external-network",
+        }).outcome === "allow",
         writableRoots: scope.writableRoots,
         runtimeWritableRoots: [
           options.agentOutputDir,

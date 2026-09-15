@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as egress from "#core/agent-harness/native-cli-egress-proxy.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import * as config from "#core/config/config.js";
+import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
 import { codexAgentHarness } from "./adapter.js";
 
 const roots: string[] = [];
@@ -48,7 +49,7 @@ async function launchProfile(
   workspace: string,
   sourceHome: string,
   readOnlyHostRoots?: readonly string[],
-  options: Pick<AgentHarnessRunOptions, "authorityConfigPath" | "agentWriteScope" | "agentOutputDir"> = {},
+  options: Pick<AgentHarnessRunOptions, "authorityConfigPath" | "agentWriteScope" | "agentOutputDir" | "scopePolicy"> = {},
 ): Promise<string> {
   vi.spyOn(egress, "startNativeCliEgressProxy").mockResolvedValue({
     address: { kind: "tcp", host: "127.0.0.1", port: 43217 },
@@ -74,6 +75,28 @@ async function launchProfile(
 // Owner portfolio: native agents rely on the adapter's generated permission
 // profile. Control only provider/network ports; exercise real root projection.
 describe("Codex configuration read authority", () => {
+  it.each([undefined, "allow", "deny", "confirm"] as const)(
+    "projects hosted search authority without granting shell networking (%s)",
+    async (networkRead) => {
+      const { workspace, sourceHome } = fixture(false);
+      const scopePolicy = networkRead === undefined ? undefined : resolveScopePolicy({
+        projection: {
+          rootScopeId: "global", defaultScopeId: "scope",
+          scopes: [
+            { scopeId: "global", displayName: "Global" },
+            { scopeId: "scope", parentScopeId: "global", displayName: "Research", directoryRoot: workspace },
+          ],
+        },
+        scopeId: "scope",
+        fragments: [{ scopeId: "scope", reason: "Research authority", externalEffects: { networkRead } }],
+      });
+      const profile = await launchProfile(workspace, sourceHome, [], { scopePolicy });
+      expect(profile).toContain(`web_search = "${networkRead === "allow" ? "live" : "disabled"}"`);
+      expect(profile).toContain("[permissions.kota-native.network]\nenabled = false");
+      expect(profile).toContain('approval_policy = "never"');
+    },
+  );
+
   it.each([false, true])("does not grant external configuration link targets (directory link: %s)", async (directoryLink) => {
     const { workspace, target, sourceHome } = fixture(directoryLink);
     const profile = await launchProfile(workspace, sourceHome);

@@ -29,6 +29,7 @@ export function prepareCodexRuntimeEnvironment(
   context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
   sessionStorageDir?: string,
+  webSearch = false,
 ): NodeJS.ProcessEnv {
   const sourceAuthPath = join(resolveCodexHome(env), "auth.json");
   const runtimeHome = join(context.invocationRoot, "codex-home");
@@ -47,7 +48,7 @@ export function prepareCodexRuntimeEnvironment(
   }
   writeFileSync(
     join(runtimeHome, "config.toml"),
-    codexPermissionProfile(context, runtimeHome, sourceAuthPath, sessionStorageDir),
+    codexPermissionProfile(context, runtimeHome, sourceAuthPath, sessionStorageDir, webSearch),
     { mode: 0o600 },
   );
   return { ...env, CODEX_HOME: runtimeHome };
@@ -58,6 +59,7 @@ function codexPermissionProfile(
   runtimeHome: string,
   sourceAuthPath: string,
   sessionStorageDir?: string,
+  webSearch = false,
 ): string {
   const readProtectedPaths = [
     ...context.readProtectedPaths,
@@ -95,7 +97,7 @@ function codexPermissionProfile(
   return [
     `default_permissions = ${JSON.stringify(CODEX_PERMISSION_PROFILE)}`,
     'approval_policy = "never"',
-    'web_search = "disabled"',
+    `web_search = "${webSearch ? "live" : "disabled"}"`,
     "",
     `[permissions.${CODEX_PERMISSION_PROFILE}.filesystem]`,
     '":minimal" = "read"',

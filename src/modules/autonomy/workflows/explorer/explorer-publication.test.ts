@@ -69,7 +69,7 @@ describe("explorer post-integration publication", () => {
     try {
       expect(database.readScopeStateValue<ExplorerState>(deriveDirectoryScopeId(workspaceRoot), EXPLORER_STATE_KEY)).toMatchObject({
         revision: 2,
-        value: { observedAt: expect.any(String), lastExplorationAt: null, lastReviewedFingerprint: null, sources: {
+        value: { observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {
           [sourceUrl]: source,
         } },
       });

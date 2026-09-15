@@ -44,10 +44,10 @@ const validationCommand = [
 
 export const agent: AgentDef = {
   name: "explorer",
-  role: "Find strong external ideas and promising new directions when the local queue is empty or running thin.",
+  role: "Research relevant systems and practices online, turning promising discoveries into research leads or adoption tasks.",
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  writeScope: ["data/tasks/", "data/watchlist.yaml"],
+  writeScope: ["data/tasks/", "data/inbox/", "data/watchlist.yaml"],
 };
 
 export { EXPLORATION_REFRESH_MS } from "./assessment.js";

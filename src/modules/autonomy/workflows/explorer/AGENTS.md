@@ -2,9 +2,16 @@
 
 This directory contains the explorer workflow definition and prompt.
 
-- This workflow owns external product discovery and roadmap expansion when the local
-  queue is otherwise empty or down to a thin tail.
-- Study the codebase and relevant outside ideas, but write only under `data/`.
+- This workflow owns online research into relevant systems and practices when
+  the local queue is empty or thin. The watchlist helps discovery; it does not
+  define or limit the research agenda.
+- Inspect local context to evaluate external ideas, not to replace research with
+  gardener's local cleanup or improver's operational analysis.
+- Write research leads to `data/inbox/`, grounded research or adoption tasks to
+  `data/tasks/`, and evolving sources to `data/watchlist.yaml`. Inbox leads need
+  not already justify implementation. Preserve sources and open questions.
+- Verify the selected harness can actually search and retrieve online material;
+  report unavailable research capability rather than claiming offline work as research.
 - Keep this workflow focused on high-leverage external discovery, meaningful
   future work selection, and strategic range.
 - Keep tasks outcome-focused and concise. This workflow owns the queue contract,

@@ -42,10 +42,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 2. Spawn a strict-config `codex exec --json` process with user
    plugins and hooks disabled and the selected model. Codex owns the single
    tool sandbox through an invocation-generated permission profile: model
-   tools stay offline, writes follow the projected scope, project and provider
+   shell tools stay offline, writes follow the projected scope, project and provider
    credentials are denied, and approvals fail closed. KOTA owns the isolated
    runtime, provider proxy, process lifecycle, and live-policy abort.
-3. Parse JSONL events from stdout. Completed command executions are projected
+3. Parse JSONL events from stdout. Completed commands and native web searches are projected
    into neutral tool-call/result evidence, while `item.completed` agent-message
    events are streamed to the optional `AgentHarnessWriter` and collected as
    final text.
@@ -70,6 +70,11 @@ scope-policy evaluator to the model. It declares `toolControl: "native"` and
 rejects unsupported neutral options before Codex CLI starts. The generated
 permission profile enforces scope independently of the prompt, and a stricter
 live policy revision aborts the process.
+Provider-hosted live web search is enabled only when the resolved scope policy
+allows external-network reads. Missing, denied, or confirmation-required authority
+disables it. This does not grant shell networking or KOTA module access. Search
+completion events retain queries; source results remain in the native conversation
+and cited findings, not fabricated tool-result bodies.
 `askOwnerToolName` is therefore `null`, so workflow prompts do not advertise a
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.

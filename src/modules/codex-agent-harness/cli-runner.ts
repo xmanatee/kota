@@ -44,6 +44,7 @@ type CodexCliEvent = {
     type?: string;
     text?: string;
     command?: string;
+    query?: string;
     aggregated_output?: string;
     exit_code?: number;
     status?: string;
@@ -113,6 +114,7 @@ type CollectTextFromCodexCliArgs = {
   scopeRoot?: string;
   model: string;
   effort: AgentEffort;
+  webSearch: boolean;
   writableRoots: readonly string[];
   runtimeWritableRoots?: readonly string[];
   readOnlyHostRoots: readonly string[];
@@ -261,6 +263,20 @@ async function runCodexCliProcess(
               content: event.item.aggregated_output ?? "",
             }, sessionId),
           );
+        } else if (event.type === "item.completed" && event.item?.type === "web_search") {
+          const toolUseId = event.item.id ?? `web-search-${++commandSequence}`;
+          await emitCodexMessage(args.onMessage, withSession({
+            type: "tool_call",
+            toolName: "codex.web_search",
+            toolUseId,
+            input: { query: event.item.query ?? "" },
+          }, sessionId));
+          await emitCodexMessage(args.onMessage, withSession({
+            type: "tool_result",
+            toolUseId,
+            isError: false,
+            content: "Native web search completed. Codex CLI does not expose the result body in this event.",
+          }, sessionId));
         } else if (event.type === "item.completed" && event.item?.type === "agent_message") {
           const text = event.item.text ?? "";
           streamedChunks.push(text);
@@ -431,7 +447,9 @@ export async function collectTextFromCodexCli(
       readOnlyHostRoots: args.readOnlyHostRoots,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_ENDPOINTS.map((endpoint) => endpoint.host),
-      prepareEnvironment: (context, env) => prepareCodexRuntimeEnvironment(context, env, args.persistSession === false ? undefined : args.sessionStorageDir),
+      prepareEnvironment: (context, env) => prepareCodexRuntimeEnvironment(
+        context, env, args.persistSession === false ? undefined : args.sessionStorageDir, args.webSearch,
+      ),
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),
   );

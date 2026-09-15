@@ -187,6 +187,10 @@ describe("codexAgentHarness", () => {
         }),
         JSON.stringify({
           type: "item.completed",
+          item: { id: "search-1", type: "web_search", query: "agent runtime research" },
+        }),
+        JSON.stringify({
+          type: "item.completed",
           item: { type: "agent_message", text: "all done" },
         }),
         JSON.stringify({
@@ -298,6 +302,20 @@ describe("codexAgentHarness", () => {
         toolUseId: "command-1",
         isError: false,
         content: "tests passed",
+      },
+      {
+        type: "tool_call",
+        sessionId: "thread-1",
+        toolUseId: "search-1",
+        toolName: "codex.web_search",
+        input: { query: "agent runtime research" },
+      },
+      {
+        type: "tool_result",
+        sessionId: "thread-1",
+        toolUseId: "search-1",
+        isError: false,
+        content: "Native web search completed. Codex CLI does not expose the result body in this event.",
       },
       {
         type: "text",
