@@ -68,7 +68,7 @@ describe("autonomy-health-reviewer workflow", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("admits informational recovery without admitting ordinary informational observations", async () => {
+  it("preserves pending observations while admitting informational recovery, not informational noise", async () => {
     initModuleEventRegistry().register("autonomy", autonomyHealthSignal);
     const bus = new EventBus();
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
@@ -84,21 +84,34 @@ describe("autonomy-health-reviewer workflow", () => {
       evidenceRefs: [{ kind: "event", ref: "module.operation.recovered:telegram:poll-loop",
         moduleOperation: { operation: "poll-loop", observedAt, observation: "cleared" } }],
     });
-    fixture.runtime.start();
-    fixture.runtime.setDispatchPaused(true);
+    fixture.runState.admitRun({
+      id: "pending-health-batch", scopeId, workflow: autonomyHealthReviewerWorkflow.name,
+      repository: "read", resources: [AUTONOMY_ISSUE_PROJECTION_RESOURCE], admittedAt: observedAt,
+      trigger: { event: "workflow.batch.flushed", schemaRef: null, payload: {
+        scopeId, sourceEventName: autonomyHealthSignal.name, groupingKey: "retained-incident",
+        reason: "count", count: 1,
+        window: { firstEventAt: observedAt, lastEventAt: observedAt, flushedAt: observedAt },
+        inputEvents: [{ event: autonomyHealthSignal.name, schemaRef: null, receivedAt: observedAt,
+          payload: { ...recovery, severity: "warning", observation: "present" } }],
+        batch: { workflow: autonomyHealthReviewerWorkflow.name, triggerIndex: 1,
+          maxBufferSize: 20, overflow: "flush-oldest", droppedInputCount: 0 },
+      } },
+    });
+    fixture.runtime.start("paused");
     try {
+      expect(fixture.runState.getRun("pending-health-batch")?.state).toBe("queued");
       pbus.emit(autonomyHealthSignal, normalizeHealthSignal({
         ...recovery, signalId: "health-info", observation: "present",
         source: { kind: "workflow", id: "builder" }, dedupeKey: "workflow:builder:info",
         evidenceRefs: [{ kind: "event", ref: "ordinary-info" }],
       }));
-      expect(fixture.runtime.getState().pendingRuns).toHaveLength(0);
+      expect(fixture.runtime.getState().pendingRuns).toHaveLength(1);
       pbus.emit(autonomyHealthSignal, recovery);
       const queued = fixture.runtime.getState().pendingRuns;
-      expect(queued).toHaveLength(1);
+      expect(queued).toHaveLength(2);
       const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
       const result = await new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
-        workspaceRoot, trigger: queued[0]!.trigger, ports: { state },
+        workspaceRoot, trigger: queued.find((run) => run.runId !== "pending-health-batch")!.trigger, ports: { state },
       }).run();
       expect(result.status, result.error).toBe("success");
       expect(state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value).toMatchObject({

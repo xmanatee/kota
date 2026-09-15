@@ -32,6 +32,8 @@ Autonomy workflows and their co-located prompts live here.
 Only `dispatcher` listens to `runtime.idle`. Other workflows trigger on typed
 events describing domain state. A `workflow.completed` trigger must exclude its
 own completion; validation rejects self-trigger loops.
+Batch and watch trigger positions are persisted. Preserve existing positions
+when adding triggers, and verify queued work survives definition updates.
 
 Dispatcher emits queue-shape events rather than a fixed workflow graph:
 
