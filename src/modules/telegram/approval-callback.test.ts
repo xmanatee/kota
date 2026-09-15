@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   buildApprovalCallbackData,
@@ -14,13 +15,6 @@ vi.mock("./client.js", () => ({ callTelegramApi: vi.fn() }));
 const approveLocal = vi.fn();
 const rejectLocal = vi.fn();
 
-vi.mock("#modules/approval-queue/local-client.js", () => ({
-  buildLocalApprovalsClient: () => ({
-    approve: approveLocal,
-    reject: rejectLocal,
-  }),
-}));
-
 describe("Telegram approval callback receipts", () => {
   beforeEach(() => {
     vi.mocked(callTelegramApi).mockReset().mockResolvedValue(undefined as never);
@@ -28,7 +22,7 @@ describe("Telegram approval callback receipts", () => {
     rejectLocal.mockReset();
   });
 
-  it("refuses a stale message after an approval ID is reused", async () => {
+  it.each([true, false])("preserves receipt safety with client available=%s", async available => {
     const oldDigest = "a".repeat(64);
     const currentDigest = "b".repeat(64);
     const callbackData = buildApprovalCallbackData("approve", oldDigest);
@@ -37,6 +31,8 @@ describe("Telegram approval callback receipts", () => {
     if (!parsed) throw new Error("Expected a valid approval callback receipt");
 
     approveLocal.mockResolvedValue({ ok: false, reason: "review_mismatch" });
+    const client = createKotaClientTestDouble({ approvals: { approve: approveLocal, reject: rejectLocal } });
+    const forScope = vi.spyOn(client, "forScope");
     const pending: Map<string, PendingApprovalMessage> = new Map([
       [pendingApprovalMessageKey(99, 10), {
         approvalId: "reused-id",
@@ -69,18 +65,19 @@ describe("Telegram approval callback receipts", () => {
       parsed.action,
       parsed.reviewReceipt,
       pending,
-      undefined,
+      available ? client : undefined,
     );
 
-    expect(approveLocal).toHaveBeenCalledWith(
-      "reused-id",
-      oldDigest,
-      undefined,
-      { scopeId: "test-scope" },
-    );
+    if (available) {
+      expect(forScope).toHaveBeenCalledWith("test-scope");
+      expect(approveLocal).toHaveBeenCalledWith("reused-id", oldDigest);
+    } else {
+      expect(approveLocal).not.toHaveBeenCalled();
+      expect(pending.has(pendingApprovalMessageKey(99, 10))).toBe(true);
+    }
     expect(callTelegramApi).toHaveBeenCalledWith("token", "answerCallbackQuery", {
       callback_query_id: "cq-stale",
-      text: "Approval already resolved or not found.",
+      text: available ? "Approval already resolved or not found." : "Approval service unavailable. Try again.",
       show_alert: true,
     });
   });

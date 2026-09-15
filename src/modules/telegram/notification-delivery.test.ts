@@ -300,6 +300,35 @@ it("does not send Telegram message when credentials are missing", async () => {
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
   });
 
+it.each(["approval", "owner-question"])("reports %s lookup failure without an unhandled rejection or callback binding", async kind => {
+    const bus = new EventBus();
+    const failingList = vi.fn(async () => { throw new Error("Unknown scope: removed-scope"); });
+    const ctx = makeStubCtx(bus, makeStubClient({
+      approvals: { list: failingList },
+      ownerQuestions: { list: failingList },
+    }));
+    const state = createTelegramRuntimeState();
+    onTestFinished(loadTelegramModule(ctx, state));
+    if (kind === "approval") {
+      bus.emit("approval.requested", {
+        scopeId: TEST_SCOPE.scopeId, id: "abc123", tool: "bash", risk: "high",
+        reason: "review", source: "builder", sessionId: "",
+      });
+    } else {
+      bus.emit("owner.question.asked", {
+        scopeId: TEST_SCOPE.scopeId, id: "oq-failed", question: "Proceed?",
+        reason: "review", source: "builder", context: null, proposedAnswers: [],
+        answerBehavior: "record-only", origin: { kind: "manual", source: "test" },
+        timeoutMs: 60000, defaultResolution: "dismiss", defaultAnswer: null,
+      });
+    }
+    await flushAsyncNotifications();
+    expect(ctx.log.error).toHaveBeenCalledWith(expect.stringContaining("Unknown scope: removed-scope"));
+    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(state.pendingApprovalMessages.size).toBe(0);
+    expect(state.pendingOwnerQuestionMessages.size).toBe(0);
+  });
+
 it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
     const dispose = loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState());

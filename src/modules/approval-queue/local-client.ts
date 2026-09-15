@@ -6,8 +6,7 @@ import {
 	getApprovalQueue,
 	isApprovalId,
 } from "#core/daemon/approval-queue.js";
-import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import {
 	type ScopeSelector,
 	selectedScopeSelectorId,
@@ -32,8 +31,10 @@ type LocalApprovalTarget = {
 	executionContext?: ToolRunnerContext;
 };
 
-function resolveLocalApprovalTarget(selector?: ScopeSelector): LocalApprovalTarget {
-	const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+type ScopeProviderSource = () => DaemonScopeProvider | null;
+
+function resolveLocalApprovalTarget(getScopeProvider: ScopeProviderSource, selector?: ScopeSelector): LocalApprovalTarget {
+	const scopeProvider = getScopeProvider();
 	const scopeId = selectedScopeSelectorId(selector);
 	if (!scopeProvider) {
 		if (scopeId) throw new Error(`Unknown scope: ${scopeId}`);
@@ -52,10 +53,10 @@ function resolveLocalApprovalTarget(selector?: ScopeSelector): LocalApprovalTarg
 	};
 }
 
-function listLocalApprovals(filter?: ApprovalListFilter) {
+function listLocalApprovals(getScopeProvider: ScopeProviderSource, filter?: ApprovalListFilter) {
 	const config = loadConfig();
 	const ttlMs = config.approvalTtlMs ?? defaultApprovalPendingTtlMs();
-	const { queue } = resolveLocalApprovalTarget(filter);
+	const { queue } = resolveLocalApprovalTarget(getScopeProvider, filter);
 	queue.expireStale(ttlMs);
 	const status = filter?.status;
 	if (status === undefined) {
@@ -77,13 +78,14 @@ function failedApprovalMutation(
 }
 
 async function approveLocalApproval(
+	getScopeProvider: ScopeProviderSource,
 	id: string,
 	reviewDigest: string,
 	note?: string,
 	scopeSelector?: ApprovalScopeSelection,
 ): Promise<ApprovalApproveResult> {
 	if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-	const { queue, executionContext } = resolveLocalApprovalTarget(scopeSelector);
+	const { queue, executionContext } = resolveLocalApprovalTarget(getScopeProvider, scopeSelector);
 	const selection = queue.getExecutionSnapshot(id);
 	if (!selection.ok) return failedApprovalMutation(selection.reason) as ApprovalApproveResult;
 	if (selection.snapshot.descriptor.reviewDigest !== reviewDigest) {
@@ -123,15 +125,15 @@ async function approveLocalApproval(
 	}
 }
 
-export function buildLocalApprovalsClient(): ApprovalsClient {
+export function buildLocalApprovalsClient(getScopeProvider: ScopeProviderSource): ApprovalsClient {
 	return {
 		async list(filter) {
-			return listLocalApprovals(filter);
+			return listLocalApprovals(getScopeProvider, filter);
 		},
-		approve: approveLocalApproval,
+		approve: (id, reviewDigest, note, selector) => approveLocalApproval(getScopeProvider, id, reviewDigest, note, selector),
 		async reject(id, reason, scopeSelector) {
 			if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-			const item = resolveLocalApprovalTarget(scopeSelector).queue.reject(id, reason);
+			const item = resolveLocalApprovalTarget(getScopeProvider, scopeSelector).queue.reject(id, reason);
 			return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 		},
 	};

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import {
   buildApprovalCallbackData,
   pendingApprovalMessageKey,
@@ -28,12 +29,7 @@ const TOKEN = "test-token";
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
 
-vi.mock("#modules/approval-queue/local-client.js", () => ({
-  buildLocalApprovalsClient: () => ({
-    approve: mockApprove,
-    reject: mockReject,
-  }),
-}));
+const approvalClient = () => createKotaClientTestDouble({ approvals: { approve: mockApprove, reject: mockReject } });
 
 const mockOwnerGet = vi.fn();
 const mockOwnerAnswer = vi.fn();
@@ -162,15 +158,13 @@ describe("startCallbackPoll", () => {
         }],
       ]);
 
-      const stop = startCallbackPoll(TOKEN, pending, new Map(), stubLog);
+      const stop = startCallbackPoll(TOKEN, pending, new Map(), stubLog, approvalClient());
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
       expect(mockApprove).toHaveBeenCalledWith(
         "id1",
         "a".repeat(64),
-        undefined,
-        { scopeId: "test-scope" },
       );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq1",
@@ -222,14 +216,12 @@ describe("startCallbackPoll", () => {
         }],
       ]);
 
-      const stop = startCallbackPoll(TOKEN, pending, new Map(), stubLog);
+      const stop = startCallbackPoll(TOKEN, pending, new Map(), stubLog, approvalClient());
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
       expect(mockReject).toHaveBeenCalledWith(
         "id2",
-        undefined,
-        { scopeId: "test-scope" },
       );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq2",

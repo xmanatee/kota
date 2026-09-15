@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type ApprovalQueue, resetApprovalQueue, setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
-import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import { getProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { clearCustomTools, deregisterTool, type ToolRunnerContext } from "#core/tools/index.js";
 import { captureLocalToolApprovalDeclaration } from "#core/tools/local-tool-approval-binding.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
@@ -66,6 +67,19 @@ describe("approval execution scope", () => {
     resetProviderRegistry();
     resetApprovalQueue();
     rmSync(rootDir, { recursive: true, force: true });
+  });
+  it("keeps local approvals bound to their host and fails closed after provider withdrawal", async () => {
+    let provider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null;
+    const client = buildLocalApprovalsClient(() => provider);
+    const item = enqueueScopedTool(scopeB, TOOL_NAMES.fileWrite,
+      { path: "review.txt", content: "pending" }, "moderate", "review");
+    resetProviderRegistry();
+    const filter = { scopeId: scopeB.scope.scopeId };
+    expect((await client.list(filter)).approvals.map(approval => approval.id)).toEqual([item.id]);
+    await expect(client.list({ scopeId: "unhosted" })).rejects.toThrow("Unknown scope");
+    provider = null;
+    await expect(client.list(filter)).rejects.toThrow("Unknown scope");
+    expect(scopeB.approvalQueue.get(item.id)?.status).toBe("pending");
   });
   it("keeps concurrent scope approvals scoped through enqueue, listing, approval, and execution", async () => {
     setApprovalQueueInstance(scopeB.approvalQueue);
@@ -536,7 +550,7 @@ describe("approval execution scope", () => {
     const review = scopeB.approvalQueue.projectForClient(item).review;
     if (review.status !== "available") throw new Error("Expected review");
     if (surface === "local-client") {
-      expect(await buildLocalApprovalsClient().approve(item.id, review.digest, undefined, {
+      expect(await buildLocalApprovalsClient(() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null).approve(item.id, review.digest, undefined, {
         scopeId: scopeB.scope.scopeId,
       })).toMatchObject({ ok: true, resolution: { kind: "tool_execution", execution: { status: "succeeded" } } });
     } else {

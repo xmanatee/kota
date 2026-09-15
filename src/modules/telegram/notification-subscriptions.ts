@@ -1,4 +1,5 @@
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { redactSensitiveText } from "#core/evidence/policy.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { pendingApprovalMessageKey } from "./approval-callback.js";
 import {
@@ -131,7 +132,9 @@ export function loadTelegramModule(
             );
           }
         },
-      );
+      ).catch((error: unknown) => {
+        ctx.log.error(`Telegram approval notification failed: ${redactSensitiveText(String(error))}`);
+      });
     }),
     ctx.events.subscribe("owner.question.asked", (payload) => {
       const creds = getCredentials(ctx);
@@ -184,7 +187,9 @@ export function loadTelegramModule(
             proposedAnswers,
           });
         }
-      })();
+      })().catch((error: unknown) => {
+        ctx.log.error(`Telegram owner-question notification failed: ${redactSensitiveText(String(error))}`);
+      });
     }),
   ];
   return () => {

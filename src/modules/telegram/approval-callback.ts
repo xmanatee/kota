@@ -1,9 +1,5 @@
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-	ApprovalApproveResult,
-	ApprovalRejectResult,
-} from "#modules/approval-queue/client.js";
-import { buildLocalApprovalsClient } from "#modules/approval-queue/local-client.js";
+import type { ApprovalApproveResult } from "#modules/approval-queue/client.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
 	callTelegramApi,
@@ -75,11 +71,18 @@ export async function handleApprovalCallback(
 		return;
 	}
 	const approvalId = info.approvalId;
-	const mutate = client
-		? action === "approve"
-			? await client.forScope(info.scopeId).approvals.approve(approvalId, info.reviewDigest)
-			: await client.forScope(info.scopeId).approvals.reject(approvalId)
-		: await resolveLocalApproval(action, approvalId, info);
+	if (!client) {
+		await sendCallbackUpdate(token, "answerCallbackQuery", {
+			callback_query_id: callback.id,
+			text: "Approval service unavailable. Try again.",
+			show_alert: true,
+		}, log);
+		return;
+	}
+	const approvals = client.forScope(info.scopeId).approvals;
+	const mutate = action === "approve"
+		? await approvals.approve(approvalId, info.reviewDigest)
+		: await approvals.reject(approvalId);
 
 	if (!mutate.ok) {
 		pending.delete(pendingKey);
@@ -161,25 +164,4 @@ async function sendCallbackUpdate(
 		if (log === undefined) throw error;
 		log.warn(`Telegram ${method} failed: ${(error as Error).message}`);
 	}
-}
-
-async function resolveLocalApproval(
-	action: ApprovalCallbackAction,
-	approvalId: string,
-	info: PendingApprovalMessage,
-): Promise<ApprovalApproveResult | ApprovalRejectResult> {
-	const approvals = buildLocalApprovalsClient();
-	if (action === "reject") {
-		return approvals.reject(
-			approvalId,
-			undefined,
-			{ scopeId: info.scopeId },
-		);
-	}
-	return approvals.approve(
-		approvalId,
-		info.reviewDigest,
-		undefined,
-		{ scopeId: info.scopeId },
-	);
 }

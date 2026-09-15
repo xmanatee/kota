@@ -59,7 +59,7 @@ const approvalQueueModule: KotaModule = {
 	controlRoutes: (ctx) =>
 		approvalControlRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 
-	localClient: () => ({ approvals: buildLocalApprovalsClient() }),
+	localClient: (ctx) => ({ approvals: buildLocalApprovalsClient(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)) }),
 
 	daemonClient: (link) => ({ approvals: buildApprovalsDaemonHandler(link) }),
 };
