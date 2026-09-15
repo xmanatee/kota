@@ -33,8 +33,12 @@ treating that replacement as a redirect or copying the old source's snapshot.
 Daily rechecks are the default; weekly suits slower research and specifications.
 Access failures follow the same cadence and preserve the source for recovery.
 Source rechecks are deterministic reads through the normal web tool boundary.
-A time-due recheck does not itself authorize another AI review: the last actual
-review consumes a fingerprint of observed source content, watchlist intent and task intent.
+Queue demand admits discovery through the existing cooldown; unchanged or
+unavailable watchlist content cannot veto independent research. The last actual
+review consumes a fingerprint of observed source content, watchlist intent and
+task intent to distinguish settled material from new leads. Exhausted known
+leads call for a different investigation direction, not repeated review of the
+same material or fabricated tasks. Time alone does not create queue demand.
 Failed fetches, including unavailable readable content, preserve the last useful
 content identity. Page metadata and layout markup are access evidence, not
 upstream product changes. Observations and reviewed fingerprints publish

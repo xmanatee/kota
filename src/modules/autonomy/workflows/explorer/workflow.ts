@@ -136,7 +136,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => inspectWatchlist.output(ctx)?.shouldReview === true,
+      when: stepSucceeded("inspect-watchlist"),
       repairLoop: {
         checks: [
           {

@@ -1,5 +1,6 @@
-Inspect the current queue, repository, runtime evidence, watchlist, and relevant
-outside signals to decide whether any future work is worth recording.
+Replenish useful independent work when the queue cannot sustain delivery. Inspect
+the repository, operator journeys, runtime evidence and relevant outside ideas;
+the watchlist is a starting point, not the boundary of discovery.
 
 Your write scope is `data/tasks/` and `data/watchlist.yaml`.
 
@@ -22,10 +23,15 @@ in their existing task or decision records; finding or citing an article does no
 require adding a monitor or a task. Use weekly refresh for slower sources; the
 default is daily. An inaccessible source remains eligible for later recovery.
 
-The `inspect-watchlist`
-step contains paths to fresh and retained readable source observations, inaccessible results, and the reason
-this evidence needs review. Use those observations and fetch additional sources
-only when they may add current value. Retained material establishes what was
+The `inspect-watchlist` step identifies fresh and retained observations and
+whether those particular inputs need another review. Settled or inaccessible
+watchlist inputs do not mean discovery is exhausted. Consult previous explorer
+outcomes and related archived tasks; pursue a different grounded question instead
+of repeating a rejected proposal. Inspect an unmet product journey, an unexplored
+capability or a maintenance problem, and research relevant sources beyond the
+watchlist. Turn verified opportunities into coherent, implementable tasks; do
+not require an upstream project to change before improving this one.
+Retained material establishes what was
 read at its original observation time, not current upstream behavior. An
 unavailable optional source does not block independent ideas grounded in readable
 material. Edit `data/watchlist.yaml` directly when
@@ -40,7 +46,8 @@ the last useful snapshot; remove that status when a fresh fetch succeeds, not me
 `canonicalized_from` only for evidenced durable redirects, retaining prior URLs
 on one canonical entry without duplicate resources or lost operator notes.
 
-If nothing is worth changing, leave the repository untouched and finish with a
-concise explanation of the evidence considered and the specific source or
-product change that would warrant revisiting. Elapsed time alone is not that
-change. A no-op is a successful exploration result.
+If a pass finds no justified task, leave the repository untouched. Record the
+questions investigated, concrete reasons for rejecting those leads and a
+different promising direction for the next pass in the run summary. A no-op is
+valid evidence about that investigation, not a conclusion that no useful work
+exists. Never fabricate defects, duplicate tasks or weaken security to fill slots.

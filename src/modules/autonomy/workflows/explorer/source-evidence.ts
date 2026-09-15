@@ -21,7 +21,7 @@ export function explorationFingerprint(workspaceRoot: string, sources: ExplorerS
   return createHash("sha256").update(JSON.stringify({ tasks, evidence })).digest("hex");
 }
 
-/** Time admits network observation; only changed evidence admits another AI review. */
+/** Refresh known sources and identify material not yet reviewed; queue demand owns discovery admission. */
 export async function refreshExplorerSources(input: {
   workspaceRoot: string;
   current: ExplorerState;

@@ -12,6 +12,7 @@ import {
 } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
+import { explorationFingerprint } from "./source-evidence.js";
 import explorerWorkflow from "./workflow.js";
 
 function stateWithLastExplorationAt(tempDir: string, lastExplorationAt: string) {
@@ -113,11 +114,17 @@ describe("explorer workflow refresh", () => {
     expect(result.steps.explore.status).toBe("skipped");
   });
 
-  it("does not starve exploration when skipped runs repeatedly complete", async () => {
+  it("continues empty-queue discovery after known evidence is settled and skipped runs complete", async () => {
     const thirtyFiveMinutesAgo = new Date(
       Date.now() - 35 * 60 * 1000,
     ).toISOString();
     const state = stateWithLastExplorationAt(tempDir, thirtyFiveMinutesAgo);
+    const previous = state.read<ExplorerState>(EXPLORER_STATE_KEY);
+    state.compareAndSet(EXPLORER_STATE_KEY, previous.revision, {
+      ...previous.value,
+      sources: {},
+      lastReviewedFingerprint: explorationFingerprint(tempDir, {}),
+    });
 
     const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -146,5 +153,6 @@ describe("explorer workflow refresh", () => {
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");
+    expect(result.steps["inspect-watchlist"].output).toMatchObject({ shouldReview: false });
   });
 });
