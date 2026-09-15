@@ -18,7 +18,9 @@ runtime can reach them.
 - Retry records cover actual per-source calls, not the whole URL set. Unchanged
   access waits 24 hours; refreshed profile metadata permits an immediate retry
   for browser-attempted sources, not unrelated plain-HTTP reads.
-  Package/profile presence is only a scheduling hint, never authorization.
+  Admission requires both package/profile readiness and a registered tool allowed
+  by scope policy and the shared writer-effect contract. Execution rechecks live
+  authority; denied or confirmation-required sources remain blocked, not retried.
 - Its unbounded repair loop contributes the selected candidate evidence to the
   shared continuation authority. Because research retry has no task-decomposition
   consumer, a split or deferral preserves and yields the same run lineage.

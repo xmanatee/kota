@@ -14,6 +14,7 @@ import type {
 import {
   inspectResearchRetryAvailability,
   type ResearchRetryAvailability,
+  type ResearchSourceTool,
 } from "../research-retry/precondition.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import {
@@ -42,6 +43,7 @@ export type DispatcherInspectionInput = {
   workSupplyInput: RepoWorkSupplyInput;
   nowIso: string;
   scopePolicySnapshot: ScopePolicySnapshot | null;
+  researchSourceTools: readonly ResearchSourceTool[];
   scopeImprovementState: ScopeImprovementState;
   securityReviewGitEvidence: SecurityReviewGitEvidence;
 };
@@ -62,7 +64,7 @@ export function inspectDispatcherStateInWorker(
   return {
     queue,
     builderTasks: published ? listAvailableBuilderTasks({ ...input, published, supply: queue }) : [],
-    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot, published?.tasks ?? []),
+    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot, input.researchSourceTools, published?.tasks ?? []),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,
       stateDir: input.stateDir,

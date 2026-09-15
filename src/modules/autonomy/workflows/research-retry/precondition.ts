@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import { decideScopePolicy } from "#core/daemon/scope-policy-decisions.js";
+import { getToolEffect } from "#core/tools/index.js";
+import { getModuleToolEffectMetadata } from "#core/tools/tool-effect-registry.js";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
+import { isRunLocalEffect } from "#core/workflow/transaction-effect-policy.js";
 import {
   REPO_TASK_STATES,
   type RepoTaskFullRecord,
@@ -14,6 +19,28 @@ import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.j
 import { isPlaywrightAvailable, readBrowserConfig } from "./runtime-detect.js";
 
 export type ResearchRetryUrlClass = "x-post" | "js-rendered" | "plain-http";
+export type ResearchSourceTool = "web_fetch" | "rendered_article_read" | "x_post_read";
+
+export function researchSourceTool(url: string): ResearchSourceTool {
+  const kind = classifyResourceUrl(url);
+  return kind === "x-post" ? "x_post_read" : kind === "js-rendered" ? "rendered_article_read" : "web_fetch";
+}
+
+/** Resolve on the host, before crossing into the registry-free inspection worker. */
+export function availableResearchSourceTools(policy: ResolvedScopePolicy | undefined): ResearchSourceTool[] {
+  if (!policy) return [];
+  const tools: ResearchSourceTool[] = ["web_fetch", "rendered_article_read", "x_post_read"];
+  return tools.filter((name) => {
+    const moduleName = getModuleToolEffectMetadata(name)?.moduleName;
+    if (moduleName && (policy.modules.overrides.find((entry) => entry.moduleName === moduleName)?.availability ??
+      policy.modules.defaultAvailability) !== "enabled") return false;
+    const effect = getToolEffect(name);
+    return effect !== undefined && isRunLocalEffect(effect) &&
+      decideScopePolicy(policy, {
+        kind: "tool-effect", toolName: name, effectKind: effect.kind, effectScope: effect.scope,
+      }).outcome === "allow";
+  });
+}
 
 const X_POST_RE = /^https?:\/\/(?:(?:www|mobile)\.)?(?:x|twitter)\.com\/[^/]+\/status\/\d+/i;
 const JS_RENDERED_HOSTS_RE = /^https?:\/\/(?:www\.)?openai\.com\/index\//i;
@@ -30,6 +57,7 @@ export function classifyResourceUrl(url: string): ResearchRetryUrlClass {
 }
 
 export type ResearchRetryCapability = {
+  availableTools: readonly ResearchSourceTool[];
   playwrightAvailable: boolean;
   authProfileConfigured: boolean;
   authProfileExists: boolean;
@@ -47,6 +75,7 @@ export type ResearchRetryCapability = {
  */
 export function checkResearchRetryCapability(
   workspaceRoot: string,
+  availableTools: readonly ResearchSourceTool[],
 ): ResearchRetryCapability {
   const playwrightAvailable = isPlaywrightAvailable();
   const browserConfig = readBrowserConfig(workspaceRoot);
@@ -57,6 +86,7 @@ export function checkResearchRetryCapability(
       : null;
   if (!path) {
     return {
+      availableTools,
       playwrightAvailable,
       authProfileConfigured: false,
       authProfileExists: false,
@@ -66,6 +96,7 @@ export function checkResearchRetryCapability(
   const resolved = isAbsolute(path) ? path : resolve(workspaceRoot, path);
   const profile = statSync(resolved, { throwIfNoEntry: false });
   return {
+    availableTools,
     playwrightAvailable,
     authProfileConfigured: true,
     authProfileExists: profile?.isFile() ?? false,
@@ -80,6 +111,7 @@ export function isUrlReadable(
   url: string,
   capability: ResearchRetryCapability,
 ): boolean {
+  if (!capability.availableTools.includes(researchSourceTool(url))) return false;
   switch (classifyResourceUrl(url)) {
     case "plain-http":
       return true;
@@ -177,9 +209,10 @@ export type ResearchRetryAvailability = {
 
 export function inspectResearchRetryAvailability(
   workspaceRoot: string,
+  availableTools: readonly ResearchSourceTool[],
   tasks?: readonly RepoTaskFullRecord[],
 ): ResearchRetryAvailability {
-  const capability = checkResearchRetryCapability(workspaceRoot);
+  const capability = checkResearchRetryCapability(workspaceRoot, availableTools);
   const candidates = listResearchRetryCandidates(workspaceRoot, tasks);
   let attemptableCount = 0;
   for (const candidate of candidates) {

@@ -9,6 +9,7 @@ import { basename, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initGitTestRepository } from "#core/util/git-repository-test-support.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
+import { findRetryFromIndex } from "#core/workflow/run-executor-utils.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
@@ -22,6 +23,7 @@ import {
   RUNTIME_HEALTH_AUDIT_ARTIFACT,
   type RuntimeHealthAudit,
 } from "../runtime-health-auditor/runtime-health-audit.js";
+import { writeRuntimeHealthModuleLog } from "../runtime-health-auditor/runtime-health-audit-test-context.js";
 import runtimeHealthAuditorWorkflow, {
   runtimeHealthAuditStepOutput,
 } from "../runtime-health-auditor/workflow.js";
@@ -176,14 +178,27 @@ describe("autonomy-health-reviewer workflow", () => {
     expect(outputBytes).toBeLessThan(DEFAULT_MAX_STEP_OUTPUT_BYTES);
     expect(output).toMatchObject({
       artifactPath,
+      signalCount: 0,
       patternCount: 0,
       evidenceGapCount: 5000,
     });
+    expect(output).not.toHaveProperty("signals");
     expect(output).not.toHaveProperty("patterns");
     expect(output).not.toHaveProperty("evidenceGaps");
   });
 
-  it("writes the full runtime audit artifact before review uses compact output", async () => {
+  it("publishes all oversized runtime audit signals through the retained artifact", async () => {
+    const observedAt = new Date(Date.now() - 1000).toISOString();
+    for (const module of ["fixture-a", "fixture-b"]) {
+      writeRuntimeHealthModuleLog(workspaceRoot, module, Array.from({ length: 500 }, (_, index) =>
+        JSON.stringify({
+          ts: observedAt,
+          level: "warn",
+          message: `fetch failed: ${index} ${"provider temporarily unavailable ".repeat(10)}`,
+          data: { operation: "poll-loop" },
+        }),
+      ));
+    }
     const harness = new WorkflowScenarioDriver(runtimeHealthAuditorWorkflow, {
       workspaceRoot,
       trigger: {
@@ -199,6 +214,8 @@ describe("autonomy-health-reviewer workflow", () => {
 
     expect(result.status, result.error).toBe("success");
     expect(output).not.toHaveProperty("audit");
+    expect(output).not.toHaveProperty("signals");
+    expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThan(DEFAULT_MAX_STEP_OUTPUT_BYTES);
     expect(output.artifactPath.startsWith(
       `${join(workspaceRoot, ".kota", "runs")}${sep}`,
     )).toBe(true);
@@ -207,9 +224,38 @@ describe("autonomy-health-reviewer workflow", () => {
     const artifact = JSON.parse(
       readFileSync(output.artifactPath, "utf-8"),
     ) as RuntimeHealthAudit;
-    expect(artifact.signals).toEqual(output.signals);
+    expect(Buffer.byteLength(JSON.stringify(artifact.signals))).toBeGreaterThan(DEFAULT_MAX_STEP_OUTPUT_BYTES);
+    expect(artifact.signals).toHaveLength(2);
+    expect(artifact.signals.map((signal) => signal.evidenceRefs.length)).toEqual([500, 500]);
+    expect(output.signalCount).toBe(artifact.signals.length);
+    expect(result.emitted.filter((entry) => entry.event === autonomyHealthSignal.name)
+      .map(({ payload: { scopeId: _scopeId, ...signal } }) => signal)).toEqual(artifact.signals);
     expect(result.steps["publish-runtime-health-signals"].output).toEqual({
-      published: output.signals.length,
+      published: artifact.signals.length,
     });
+  });
+
+  it("rebuilds the audit when retrying a retained successful-but-truncated step", () => {
+    const timing = {
+      startedAt: "2026-09-15T20:40:31.150Z",
+      completedAt: "2026-09-15T20:40:41.088Z",
+      durationMs: 9938,
+    };
+    expect(findRetryFromIndex([
+      {
+        ...timing,
+        id: "build-runtime-audit",
+        type: "code",
+        status: "success",
+        output: { truncated: true, originalBytes: 266279, message: "Step output truncated" },
+      },
+      {
+        ...timing,
+        id: "verify-runtime-audit-artifact",
+        type: "code",
+        status: "failed",
+        error: 'Step "build-runtime-audit" output failed validation (persisted): missing required field "signals"',
+      },
+    ], runtimeHealthAuditorWorkflow.steps)).toBe(0);
   });
 });

@@ -11,6 +11,7 @@ import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import { decodeProgressReviewConsumptionState, PROGRESS_REVIEW_STATE_KEY } from "../progress-reviewer/semantic-input.js";
 import { progressReviewHandoffPayload, reconcileProgressReviewHandoffs } from "../progress-reviewer/semantic-publication.js";
+import { availableResearchSourceTools } from "../research-retry/precondition.js";
 import {
   scopeImprovementChanged,
   scopeImprovementRequested,
@@ -301,6 +302,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             workSupplyInput: resolveRepoWorkSupplyInput({ workspaceRoot: scopeRoot, scopeRoot, stateDir: runtimeStateDir }),
             nowIso: new Date().toISOString(),
             scopePolicySnapshot: scopePolicySnapshot ?? null,
+            researchSourceTools: availableResearchSourceTools(scopePolicySnapshot?.policy),
             scopeImprovementState,
             securityReviewGitEvidence,
           }),

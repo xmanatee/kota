@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
+  expectArrayOutput,
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
@@ -7,6 +9,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type AutonomyHealthSignal,
   autonomyHealthSignal,
+  normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
   collectRuntimeHealthAuditOperation,
@@ -17,7 +20,7 @@ export const AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT =
   "autonomy.runtime-health.audit.scheduled";
 
 export type RuntimeAuditStepOutput = {
-  signals: AutonomyHealthSignal[];
+  signalCount: number;
   generatedAt: string;
   windowStart: string;
   inspected: RuntimeHealthAudit["inspected"];
@@ -31,7 +34,7 @@ export function runtimeHealthAuditStepOutput(
   artifactPath: string,
 ): RuntimeAuditStepOutput {
   return {
-    signals: audit.signals,
+    signalCount: audit.signals.length,
     generatedAt: audit.generatedAt,
     windowStart: audit.windowStart,
     inspected: audit.inspected,
@@ -44,9 +47,11 @@ export function runtimeHealthAuditStepOutput(
 const buildRuntimeAudit = typedCodeStep<RuntimeAuditStepOutput>({
   id: "build-runtime-audit",
   type: "code",
+  // Retries collect fresh observations and own a new audit artifact.
+  rerunOnRetry: true,
   validate: (raw) =>
     expectStructuredOutput<RuntimeAuditStepOutput>(raw, [
-      "signals",
+      "signalCount",
       "artifactPath",
       "patternCount",
       "evidenceGapCount",
@@ -86,7 +91,19 @@ const publishRuntimeHealthSignals = typedCodeStep<{ published: number }>({
   validate: (raw) =>
     expectStructuredOutput<{ published: number }>(raw, ["published"]),
   run: (ctx) => {
-    const signals = buildRuntimeAudit.outputRequired(ctx).signals;
+    const output = buildRuntimeAudit.outputRequired(ctx);
+    const artifact = expectStructuredOutput<{ signals: unknown }>(
+      readOptionalJsonFile<unknown>(output.artifactPath),
+      ["signals"],
+    );
+    const signals = expectArrayOutput(artifact.signals, (signal) =>
+      normalizeHealthSignal(
+        expectStructuredOutput<AutonomyHealthSignal>(signal, ["signalId"]),
+      ),
+    );
+    if (signals.length !== output.signalCount) {
+      throw new Error(`runtime health audit signal count changed: ${output.artifactPath}`);
+    }
     for (const signal of signals) {
       ctx.emit(autonomyHealthSignal.name, signal);
     }

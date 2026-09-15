@@ -5,6 +5,7 @@ import {
   type ResearchRetryCapability,
   type ResearchSourceAttempt,
   researchSourceAttemptSchema,
+  researchSourceTool,
   sourceAccessFingerprint,
 } from "./precondition.js";
 
@@ -35,8 +36,9 @@ export async function collectResearchSourceEvidence(input: {
       readings.push({ tool, content: result.content, isError: result.is_error === true });
       return result;
     };
-    let result = await read(kind === "x-post" ? "x_post_read" : kind === "js-rendered" ? "rendered_article_read" : "web_fetch");
+    let result = await read(researchSourceTool(url));
     if (kind === "plain-http" && input.capability.playwrightAvailable &&
+      input.capability.availableTools.includes("rendered_article_read") &&
       /(?:requires?|enable) javascript|client.side render|no readable content/i.test(result.content)) {
       result = await read("rendered_article_read");
     }

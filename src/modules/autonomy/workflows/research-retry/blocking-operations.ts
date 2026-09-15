@@ -7,6 +7,7 @@ import {
   checkResearchRetryCapability,
   evaluateCandidate,
   type MarkAttemptResult,
+  type ResearchSourceTool,
   writeMarkerForCandidate,
 } from "./precondition.js";
 import type {
@@ -17,10 +18,11 @@ import type {
 export function inspectResearchRetryCandidatesInWorker(input: {
   workspaceRoot: string;
   scopeRoot?: string;
+  availableTools: readonly ResearchSourceTool[];
 }): InspectResult {
   const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
-  const capability = checkResearchRetryCapability(input.scopeRoot ?? input.workspaceRoot);
+  const capability = checkResearchRetryCapability(input.scopeRoot ?? input.workspaceRoot, input.availableTools);
   const candidates = listResearchRetryCandidates(input.workspaceRoot);
 
   const examined: ExaminedCandidate[] = [];
@@ -65,7 +67,7 @@ export function markResearchRetryAttemptInWorker(input: Parameters<typeof writeM
 }
 
 export const inspectResearchRetryCandidatesOperation =
-  defineWorkflowBlockingOperation<{ workspaceRoot: string; scopeRoot: string }, InspectResult>(
+  defineWorkflowBlockingOperation<{ workspaceRoot: string; scopeRoot: string; availableTools: readonly ResearchSourceTool[] }, InspectResult>(
     import.meta.url,
     "inspectResearchRetryCandidatesInWorker",
   );

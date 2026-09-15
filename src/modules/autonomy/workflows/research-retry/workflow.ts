@@ -17,7 +17,7 @@ import {
   inspectResearchRetryCandidatesOperation,
   markResearchRetryAttemptOperation,
 } from "./blocking-operations.js";
-import type { MarkAttemptResult } from "./precondition.js";
+import { availableResearchSourceTools, type MarkAttemptResult } from "./precondition.js";
 import {
   createResearchRetryShadowReviewStep,
   type InspectResult,
@@ -38,6 +38,7 @@ export const agent: AgentDef = {
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
   type: "code",
+  rerunOnRetry: true,
   exposeOutputToAgent: true,
   exposedOutputTrust: "untrusted",
   validate: (raw) =>
@@ -50,9 +51,12 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking, trigger }) => {
+  run: ({ workspaceRoot, scopeRoot, runBlocking, trigger, scopePolicySnapshot }) => {
     assertResearchRetryTrigger(trigger);
-    return runBlocking(inspectResearchRetryCandidatesOperation, { workspaceRoot, scopeRoot });
+    return runBlocking(inspectResearchRetryCandidatesOperation, {
+      workspaceRoot, scopeRoot,
+      availableTools: availableResearchSourceTools(scopePolicySnapshot?.policy),
+    });
   },
 });
 

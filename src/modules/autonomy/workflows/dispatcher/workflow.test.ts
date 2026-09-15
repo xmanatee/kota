@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { networkReadEffect } from "#core/tools/effect.js";
+import { registerTool } from "#core/tools/tool-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
@@ -14,6 +16,7 @@ import {
 import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import { listFullRepoTasks, moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { webFetchTool } from "#modules/web-access/web-fetch.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import { progressReviewTaskProposal } from "../progress-reviewer/progress-review/action-writers.js";
@@ -530,7 +533,13 @@ describe("dispatcher workflow", () => {
         resources: ["https://example.com/research-note"],
       }),
     );
-    const result = await runDispatcherScenario();
+    const unregister = registerTool(webFetchTool, async () => { throw new Error("Admission must not execute sources"); }, "web-access", { effect: networkReadEffect() });
+    let result: WorkflowScenarioResult;
+    try {
+      result = await runDispatcherScenario();
+    } finally {
+      unregister();
+    }
 
     const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
@@ -686,7 +695,7 @@ describe("dispatcher workflow", () => {
       attempts: resources.map((url) => ({
         url,
         attemptedAt: new Date().toISOString(),
-        accessFingerprint: sourceAccessFingerprint(url, checkResearchRetryCapability(workspaceRoot)),
+        accessFingerprint: sourceAccessFingerprint(url, checkResearchRetryCapability(workspaceRoot, ["web_fetch"])),
         tools: ["web_fetch"],
         outcome: "unavailable",
       })),

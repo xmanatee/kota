@@ -9,15 +9,18 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { networkReadEffect } from "#core/tools/effect.js";
+import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import { registerTool } from "#core/tools/tool-registry.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import { xPostReadTool } from "#modules/browser/x-post-read.js";
 import { webFetchTool } from "#modules/web-access/web-fetch.js";
+import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import { inspectResearchRetryCandidatesInWorker } from "./blocking-operations.js";
 import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.js";
 import {
+  availableResearchSourceTools,
   checkResearchRetryCapability,
   computeResourceFingerprint,
   evaluateCandidate,
@@ -37,6 +40,7 @@ function bodyFromUrls(urls: string[]): string {
 }
 
 const capability: ResearchRetryCapability = {
+  availableTools: ["web_fetch", "rendered_article_read", "x_post_read"],
   playwrightAvailable: false, authProfileConfigured: false, authProfileExists: false, authProfileRevision: null,
 };
 function attempt(url: string, access = capability, attemptedAt = new Date().toISOString()): ResearchSourceAttempt {
@@ -232,9 +236,9 @@ describe("research-retry workflow", () => {
     writeFileSync(path, readFileSync(path, "utf8") + renderRetryMarker({
       fingerprint: computeResourceFingerprint(staleUrls),
       attemptedAt: new Date().toISOString(),
-      attempts: staleUrls.map((url) => attempt(url, checkResearchRetryCapability(workspaceRoot))),
+      attempts: staleUrls.map((url) => attempt(url, checkResearchRetryCapability(workspaceRoot, capability.availableTools))),
     }));
-    const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot });
+    const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot, availableTools: capability.availableTools });
     expect(output.candidate).toMatchObject({ id: "task-z-fresh" });
     expect(output.examined.map((e) => e.id)).toEqual(["task-a-stale"]);
   });
@@ -258,6 +262,7 @@ describe("research-retry workflow", () => {
     const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: researchRetryTrigger(),
       workspaceRoot,
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
       ports: {
         runCommand: successfulWorkflowCommandRun,
         runTool: "registered",
@@ -383,6 +388,24 @@ describe("research-retry workflow", () => {
     expect(listResearchRetryCandidates("unused", [task])).toHaveLength(1);
     expect(listResearchRetryCandidates("unused", [{ ...task, body: "## Blocked on\nkind: owner-decision\nslot: approval\nquestion: Implement https://example.com/new?" }])).toEqual([]);
     expect(extractResourceUrls("See <https://example.com/auto> and [ref][1].\n[1]: https://example.com/reference")).toEqual(["https://example.com/auto", "https://example.com/reference"]);
+  });
+
+  it("requires legal writer tool access, not just a configured browser", () => {
+    const root = createResearchProject();
+    const policy = scopePolicySnapshotForTest(root).policy;
+    cleanups.push(registerTool(webFetchTool, vi.fn(), "web-access", { effect: networkReadEffect() }));
+    cleanups.push(registerTool(xPostReadTool, vi.fn(), "browser", { effect: networkDestructiveEffect() }));
+    expect(availableResearchSourceTools(policy)).toEqual(["web_fetch"]);
+    expect(availableResearchSourceTools(undefined)).toEqual([]);
+    const xUrl = "https://x.com/a/status/1";
+    expect(evaluateCandidate({ urls: [xUrl], body: bodyFromUrls([xUrl]), capability: {
+      ...capability, playwrightAvailable: true, authProfileExists: true,
+      availableTools: availableResearchSourceTools(policy),
+    } }).attemptableUrls).toEqual([]);
+    const denied = scopePolicySnapshotForTest(root, [{ scopeId: policy.scopeId,
+      reason: "Disable network reads", externalEffects: { networkRead: "deny" },
+    }]);
+    expect(availableResearchSourceTools(denied.policy)).toEqual([]);
   });
 
   it("collects through the supplied tool boundary and propagates policy failures", async () => {
