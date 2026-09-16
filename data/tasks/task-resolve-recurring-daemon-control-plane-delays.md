@@ -3,7 +3,7 @@ status: open
 priority: p1
 ---
 
-# Diagnose and resolve recurring daemon control-plane delays
+# Keep lifecycle maintenance from blocking the daemon control plane
 
 ## Observed problem
 
@@ -13,28 +13,38 @@ by 05:30. Dispatch was quota-held, with no active agents, retained sandboxes,
 or resource leases. Four Telegram poll timeouts recovered during the last
 interval. Their relationship to the timer delays is not established.
 
-Fresh API requests during the final check took 1-136ms; the latest timer delay
-was 1-3ms. This is an intermittent latency signal, not a proven current stall.
-macOS recorded no actual sleep/wake since September 12. A 12-second native
-sample of PID 28215 at 05:30 mostly showed an idle event loop; it did not catch
-the delay. Do not treat that healthy sample as proof the problem is resolved.
+Healthy-phase API requests took 1-136ms, but September 16 checks at 17:29-17:30
+took 3.726s and 5.507s with fresh timer delays of 15.488s and 14.081s. There was
+no host sleep since September 12. A 70-second native sample starting 17:31 caught
+704 of 3,324 main-thread samples under a timer callback, including recursive
+synchronous directory enumeration, stat and file reads. JavaScript frames were
+unsymbolicated; do not attribute every historical delay to that sample.
+
+The owning maintenance path is concrete: `src/core/daemon/daemon-startup.ts`
+invokes `collector.sweep()` from the session sweep timer every 60 seconds by
+default. Despite its async signature, `lifecycle-collector.ts` calls synchronous
+collectors. `collectRunArtifacts()` measures every run directory recursively
+before applying target-run and retention decisions. A single authenticated,
+read-only `GET /lifecycle/status?scopeId=8nrg1m` reproduced a 14.595-second sweep
+over 2,279 candidates. No destructive sweep was requested by the monitor.
 
 ## Investigation and outcome
 
-- Identify whether this is real host-active blocking, process scheduling/GC,
-  suspension, or a measurement artifact before choosing a correction. The
-  existing latency monitor uses `Date.now()` and does not timestamp its maximum;
-  make existing evidence trustworthy and attributable where necessary, rather
-  than introducing a second monitoring subsystem.
-- Measure the owning callback or operation with representative retained state.
-  Account quota polling already uses asynchronous child-process RPC. The event
-  journal is about 409MB and some approval/storage operations are synchronous;
-  these are investigation leads, not established causes. Avoid speculative
-  rewrites, repeated full-history scans, and changes justified only by file size.
-- Correct the measured owner with existing asynchronous/blocking-operation
-  mechanisms as appropriate. Preserve filesystem authority checks, approval
-  semantics, event history, quota holds, and shared concurrency. Do not mask
-  failures, drop evidence, add another scheduler/store, or bypass the reserve.
+- Make periodic, terminal-run and explicit lifecycle inspection/collection
+  responsive through the existing lifecycle owner. Measure stages to distinguish
+  required retention work from unnecessary whole-history sizing/scanning. Targeted
+  collection must not recursively size unrelated retained artifacts. Merely
+  lengthening the timer or adding `async` without yielding is not a correction.
+- Use existing asynchronous/blocking-operation mechanisms where appropriate.
+  Keep inspection and deletion consistent, prevent overlapping destructive
+  sweeps, and revalidate live ownership before acting on previously read evidence.
+  Preserve active/pending runs, dirty work, filesystem authority checks, retention,
+  quota holds and shared concurrency. Do not drop history, add another collector,
+  scheduler/store, or bypass the reserve. Remove replaced paths and duplicate proof.
+- Verify concurrent control requests remain responsive during a representative
+  maintenance pass, with equivalent retention decisions and safe targeted cleanup.
+  Account quota polling is already asynchronous; journal size (about 409MB) and
+  other synchronous owners are secondary leads, not excuses for unrelated rewrites.
 - Check responsiveness during quota hold, evidence admission and subsequent
   normal dispatch. Use bounded representative validation, recording limitations
   honestly. The operational monitor owns later canonical deployment observation;
@@ -50,6 +60,7 @@ this remaining measured concern and remove any replaced path with its fix.
 
 Use `/health`, `.kota/events/journal.jsonl`, `.kota/kota.sqlite` read-only, and
 the daemon log `.kota/daemon-managed-1787730296.err` around the times above.
-The temporary healthy-phase sample is
-`/tmp/kota-daemon-health-20260916-0531.sample.txt` if still available; new bounded
-measurement is required to attribute a delay. Do not copy raw logs into Git.
+The captured maintenance sample is
+`/tmp/kota-daemon-health-20260916-1731.sample.txt` if still available. An earlier
+healthy-phase sample at `...-0531.sample.txt` missed the work. Use bounded stage
+measurements to validate the correction; do not copy raw logs into Git.
