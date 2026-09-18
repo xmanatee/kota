@@ -46,7 +46,13 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
     {
       event: autonomyHealthSignal.name,
       filter: { severity: "info", observation: "cleared" },
-      queueMode: "all",
+      batch: {
+        pending: "coalesce",
+        maxCount: 1,
+        groupBy: ["scopeId", "dedupeKey"],
+        maxBufferSize: 20,
+        overflow: "flush-oldest",
+      },
     },
   ],
   steps: [

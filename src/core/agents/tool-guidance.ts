@@ -63,16 +63,3 @@ export function formatResolvedToolGuidance(tools: readonly KotaTool[]): string {
     "",
   ].join("\n");
 }
-
-export function formatResolvedToolNameGuidance(toolNames: readonly string[]): string {
-  const names = [...new Set(toolNames)].sort();
-  if (names.length === 0) return "";
-  return [
-    "",
-    "<available-tools>",
-    "Generated from the resolved native harness tool allow-list for this sub-agent. Use the harness tool schemas as the source of truth.",
-    ...names.map((name) => `- ${name}`),
-    "</available-tools>",
-    "",
-  ].join("\n");
-}

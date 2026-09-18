@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  defineSessionResourceKey,
+  getSessionEnvironmentResource,
   injectSessionEnvironmentVariable,
   registerSessionEnvironment,
   registerSessionEnvironmentResource,
@@ -114,5 +116,41 @@ describe("session credential environments", () => {
         "value",
       )
     ).toThrow("is not a valid environment variable");
+  });
+
+  it("owns keyed resources through the final reference without crossing sessions or scopes", async () => {
+    const key = defineSessionResourceKey<string[]>("scratchpad");
+    const get = (context: typeof sessionAScopeA) => getSessionEnvironmentResource(
+      context, key, () => [], (entries) => { entries.length = 0; },
+    );
+    registerSessionEnvironment(sessionAScopeA);
+    registerSessionEnvironment(sessionAScopeA);
+    registerSessionEnvironment(sessionBScopeA);
+    registerSessionEnvironment(sessionAScopeB);
+    const original = get(sessionAScopeA)!;
+    original.push("private");
+    expect(get(sessionAScopeA)).toBe(original);
+    expect(get(sessionBScopeA)).toEqual([]);
+    expect(get(sessionAScopeB)).toEqual([]);
+    await unregisterSessionEnvironment(sessionAScopeA);
+    expect(get(sessionAScopeA)).toEqual(["private"]);
+    await unregisterSessionEnvironment(sessionAScopeA);
+    expect(original).toEqual([]);
+    expect(get(sessionAScopeA)).toBeUndefined();
+    expect(get(sessionBScopeA)).toEqual([]);
+    registerSessionEnvironment(sessionAScopeA);
+    expect(get(sessionAScopeA)).toEqual([]);
+    expect(get(sessionAScopeA)).not.toBe(original);
+  });
+
+  it("does not initialize resources without a live identity or cache a failed initialization", () => {
+    const key = defineSessionResourceKey<string[]>("scratchpad");
+    const fail = (): string[] => { throw new Error("failed to initialize"); };
+    expect(getSessionEnvironmentResource(undefined, key, fail)).toBeUndefined();
+    expect(getSessionEnvironmentResource({ scopeId: "scope-a" }, key, fail)).toBeUndefined();
+    expect(getSessionEnvironmentResource(sessionAScopeA, key, fail)).toBeUndefined();
+    registerSessionEnvironment(sessionAScopeA);
+    expect(() => getSessionEnvironmentResource(sessionAScopeA, key, fail)).toThrow("failed to initialize");
+    expect(getSessionEnvironmentResource(sessionAScopeA, key, () => ["ready"])).toEqual(["ready"]);
   });
 });

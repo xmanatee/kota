@@ -13,45 +13,38 @@
 
 
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ModuleStorage } from "#core/modules/module-storage.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import { createDirectoryScopeSelector } from "#core/daemon/scope-selection.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { sessionWriteEffect } from "#core/tools/effect.js";
-import type { ToolResult } from "#core/tools/index.js";
+import { daemonWriteEffect, readOnlySessionEffect } from "#core/tools/effect.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import {
-	decodeWorkingMemoryFile,
-	encodeWorkingMemoryFile,
-} from "./persistence.js";
-import {
-	clearAll,
-	getEntry,
-	getPersistentEntries,
-	getWorkingMemoryState,
-	listEntries,
-	loadEntries,
-	removeEntry,
-	setEntry,
-} from "./store.js";
+  defineSessionResourceKey,
+  getSessionEnvironmentResource,
+} from "#core/tools/session-environment.js";
+import { readPersistentEntries } from "./persistence.js";
+import { WorkingMemoryStore } from "./store.js";
 
-const STORAGE_KEY = "entries";
+const memoryKey = defineSessionResourceKey<WorkingMemoryStore>("working-memory");
 
-function savePersistent(storage: ModuleStorage): void {
-	const entries = getPersistentEntries();
-	if (entries.length === 0) {
-		storage.delete(STORAGE_KEY);
-		return;
-	}
-	storage.setJSON(STORAGE_KEY, encodeWorkingMemoryFile(entries));
+function createMemoryResolver(ctx: ModuleContext) {
+  const selectScope = createDirectoryScopeSelector({
+    defaultScopeRoot: ctx.cwd,
+    getDaemonScopeProvider: () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+  });
+  return (execution: ToolRunnerContext | undefined): WorkingMemoryStore | undefined => {
+    if (!execution?.sessionId || !execution.scopeId) return undefined;
+    const selected = execution.resolveRuntimeScope
+      ? execution.resolveRuntimeScope(execution.scopeId)
+      : selectScope(execution.scopeId);
+    if (!selected.ok) return undefined;
+    const scope = "runtime" in selected ? selected.runtime.scope : selected.scope;
+    return getSessionEnvironmentResource(execution, memoryKey,
+      () => new WorkingMemoryStore(new ModuleStorage(scope.scopeRoot, "working-memory")),
+      (memory) => memory.dispose());
+  };
 }
-
-function loadPersistent(storage: ModuleStorage): number {
-	const raw = storage.getJSON(STORAGE_KEY);
-	if (raw === undefined) return 0;
-	const decoded = decodeWorkingMemoryFile(raw);
-	if (decoded.migrated) storage.setJSON(STORAGE_KEY, encodeWorkingMemoryFile(decoded.entries));
-	return loadEntries(decoded.entries);
-}
-
-type Action = "write" | "read" | "list" | "remove" | "clear";
 
 const workingMemoryTool: KotaTool = {
 	name: "working_memory",
@@ -78,7 +71,7 @@ const workingMemoryTool: KotaTool = {
 			persist: {
 				type: "boolean",
 				description:
-					"If true, entry survives session restarts. Default: false (session-only).",
+					"If true, entry survives session restarts within this scope. Omit to retain an existing setting; new entries default to session-only. False removes the durable copy.",
 			},
 		},
 		required: ["action"],
@@ -86,31 +79,36 @@ const workingMemoryTool: KotaTool = {
 };
 
 function makeRunner(ctx: ModuleContext) {
-	return async (input: Record<string, unknown>): Promise<ToolResult> => {
-		const action = input.action as Action;
-		const key = input.key as string | undefined;
-		const value = input.value as string | undefined;
-		const persist = input.persist as boolean | undefined;
+	const resolveMemory = createMemoryResolver(ctx);
+	return async (input: Record<string, unknown>, execution?: ToolRunnerContext): Promise<ToolResult> => {
+		const memory = resolveMemory(execution);
+		if (!memory) return { content: "Working memory requires a live session in an available directory scope.", is_error: true };
+		const action = input.action;
+		const key = typeof input.key === "string" ? input.key : undefined;
+		const value = typeof input.value === "string" ? input.value : undefined;
+		if (input.persist !== undefined && typeof input.persist !== "boolean") {
+			return { content: "Error: persist must be a boolean", is_error: true };
+		}
+		const persist = input.persist;
 
 		switch (action) {
 			case "write": {
 				if (!key) return { content: "Error: key is required for write", is_error: true };
-				if (!value) return { content: "Error: value is required for write", is_error: true };
-				const err = setEntry(key, value, persist);
+				if (value === undefined) return { content: "Error: value is required for write", is_error: true };
+				const err = memory.setEntry(key, value, persist);
 				if (err) return { content: `Error: ${err}`, is_error: true };
-				if (persist !== undefined) savePersistent(ctx.storage);
-				const label = persist ? " (persistent)" : "";
+				const label = memory.getEntry(key)?.persistent ? " (persistent)" : "";
 				return { content: `Working memory "${key}" updated${label}.` };
 			}
 			case "read": {
 				if (!key) return { content: "Error: key is required for read", is_error: true };
-				const entry = getEntry(key);
+				const entry = memory.getEntry(key);
 				if (!entry) return { content: `No entry "${key}" in working memory.`, is_error: true };
 				const tag = entry.persistent ? " [persistent]" : "";
 				return { content: `${entry.key}: ${entry.value}${tag}` };
 			}
 			case "list": {
-				const entries = listEntries();
+				const entries = memory.listEntries();
 				if (entries.length === 0) return { content: "Working memory is empty." };
 				const lines = entries.map((e) => {
 					const tag = e.persistent ? " [persistent]" : "";
@@ -120,15 +118,11 @@ function makeRunner(ctx: ModuleContext) {
 			}
 			case "remove": {
 				if (!key) return { content: "Error: key is required for remove", is_error: true };
-				const was = getEntry(key);
-				if (!removeEntry(key)) return { content: `No entry "${key}" to remove.`, is_error: true };
-				if (was?.persistent) savePersistent(ctx.storage);
+				if (!memory.removeEntry(key)) return { content: `No entry "${key}" to remove.`, is_error: true };
 				return { content: `Removed "${key}" from working memory.` };
 			}
 			case "clear": {
-				const hadPersistent = getPersistentEntries().length > 0;
-				const count = clearAll();
-				if (hadPersistent) savePersistent(ctx.storage);
+				const count = memory.clearAll();
 				return { content: count > 0 ? `Cleared ${count} entries from working memory.` : "Working memory was already empty." };
 			}
 			default:
@@ -146,14 +140,20 @@ const workingMemoryModule: KotaModule = {
 		{
 			tool: workingMemoryTool,
 			runner: makeRunner(ctx),
-			effect: sessionWriteEffect(),
+			effect: daemonWriteEffect(),
+			resolveEffect: ({ action }) => action === "read" || action === "list"
+				? readOnlySessionEffect()
+				: daemonWriteEffect(),
 		},
 	],
 
 	onLoad: (ctx) => {
-		const count = loadPersistent(ctx.storage);
-		if (count > 0) ctx.log.info(`Restored ${count} persistent working memory entries`);
-		ctx.registerDynamicStateProvider("working-memory", getWorkingMemoryState);
+		readPersistentEntries(ctx.storage);
+		const resolveMemory = createMemoryResolver(ctx);
+		ctx.registerDynamicStateProvider("working-memory", ({ activeTools, execution }) => {
+			if (!activeTools.has("working_memory")) return "";
+			return resolveMemory(execution)?.getWorkingMemoryState() ?? "";
+		});
 	},
 
 	skills: [{ name: "working-memory", promptPath: "src/modules/working-memory/working-memory.md", roles: ["builder", "improver"] }],

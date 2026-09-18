@@ -252,6 +252,9 @@ describe("improver issue disposition workflow", () => {
     const first = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
       trigger,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "retained.md"), "Useful retained work\n");
+      },
       stepOutputs: { "review-issue": OBSERVED_DISPOSITION },
       ports: {
         runCommand: improverCommandRunner(workspaceRoot),
@@ -261,6 +264,7 @@ describe("improver issue disposition workflow", () => {
 
     expect(first.status, JSON.stringify(first, null, 2)).toBe("success");
     expect(first.steps["review-issue"].status).toBe("success");
+    expect(readFileSync(join(workspaceRoot, "retained.md"), "utf8")).toBe("Useful retained work\n");
     expect(projection.issues[0]?.disposition.kind).toBe("needs-decision");
     projection = publishImproverDisposition({
       scopeRoot: workspaceRoot,

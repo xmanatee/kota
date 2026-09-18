@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
-import { executeTool } from "#core/tools/index.js";
+import { classifyRisk, getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
+import { executeTool, getToolEffect } from "#core/tools/index.js";
 import renderingModule from "#modules/rendering/index.js";
 import memoryModule from "./index.js";
 
@@ -30,6 +31,14 @@ describe("memory module lifecycle", () => {
   it("makes persisted memory behavior available only while the module is active", async () => {
     await loader.load(renderingModule);
     await loader.load(memoryModule);
+
+    expect(getToolMcpAnnotations("memory")).toMatchObject({ readOnlyHint: false });
+    for (const action of ["save", "update"]) {
+      expect(getToolEffect("memory", { action })?.kind).toBe("write");
+    }
+    expect(getToolEffect("memory", { action: "search" })?.kind).toBe("read");
+    expect(getToolEffect("memory", { action: "list" })?.kind).toBe("read");
+    expect(classifyRisk("memory", { action: "delete", id: "entry" }).risk).toBe("dangerous");
 
     expect(
       await executeTool("memory", {

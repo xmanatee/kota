@@ -14,6 +14,9 @@ Autonomy workflows and their co-located prompts live here.
 - Definitions describe semantic work. `RunStateDatabase`, `RunCoordinator`,
   `RunLifecycle`, and `IntegrationQueue` own queueing, capacity, isolation,
   resources, processes, recovery, commit, validation, and publication.
+- Retained changes in a run-owned sandbox are unfinished work, not a reason
+  to skip the workflow. Canonical cleanliness and safe publication belong to
+  the shared runtime; do not duplicate those gates inside domain steps.
 - Do not add workflow-specific claims, worktrees, branches, staging helpers,
   merge gates, port leases, or synthetic recovery triggers. Local completion
   bookkeeping uses the shared synchronous success hook.

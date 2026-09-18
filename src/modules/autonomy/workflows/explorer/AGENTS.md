@@ -6,7 +6,8 @@ This directory contains the explorer workflow definition and prompt.
   the local queue is empty or thin. The watchlist helps discovery; it does not
   define or limit the research agenda.
 - Inspect local context to evaluate external ideas, not to replace research with
-  gardener's local cleanup or improver's operational analysis.
+  gardener's local cleanup, progress-reviewer's systemic learning, or improver's
+  incident investigation.
 - Write research leads to `data/inbox/`, grounded research or adoption tasks to
   `data/tasks/`, and evolving sources to `data/watchlist.yaml`. Inbox leads need
   not already justify implementation. Preserve sources and open questions.

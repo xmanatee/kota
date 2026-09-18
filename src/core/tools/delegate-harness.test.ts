@@ -56,6 +56,8 @@ describe("runDelegateHarness native invalidation", () => {
       expect(options.allowedTools).toBeUndefined();
       expect(options.canUseTool).toBeUndefined();
       expect(options.scopePolicyAuthority).toBeUndefined();
+      expect(options.agentWriteScope).toEqual(["data/"]);
+      expect(options.systemPrompt).not.toContain("<available-tools>");
       return finish();
     });
     registerAgentHarness(nativeHarness("native-terminal", run));
@@ -140,7 +142,7 @@ describe("runDelegateHarness native invalidation", () => {
     registerAgentHarness(nativeHarness("native-unsafe", run));
 
     await expect(
-      runDelegateHarness("unsafe", "execute", { harness: "native-unsafe" }),
+      runDelegateHarness("unsafe", "execute", { harness: "native-unsafe", basePrompt: "Execute the task.", tools: [] }),
     ).rejects.toThrow(
       /native-unsafe.*parent AbortSignal.*scope id.*scope-policy authority.*current scope-policy snapshot.*refusing to launch/,
     );
@@ -180,10 +182,11 @@ function runWithLiveContext(
     getScopePolicySnapshot,
     scopeId: SCOPE_ID,
     signal: parent.signal,
+    agentWriteScope: ["data/"],
     canUseTool: async () => ({ behavior: "allow" }),
   };
   return withToolCallExecutionOptions(options, () =>
-    runDelegateHarness("exercise native invalidation", "execute", { harness })
+    runDelegateHarness("exercise native invalidation", "execute", { harness, basePrompt: "Execute the task.", tools: [] })
   );
 }
 

@@ -16,10 +16,6 @@ import {
 import { taskQueueIntegrationPolicy } from "#modules/repo-tasks/task-integration-policy.js";
 import { applyDispositionOperation } from "./apply-disposition.js";
 import {
-  type ImproverWorktreeInspection,
-  inspectImproverWorktreeOperation,
-} from "./blocking-operations.js";
-import {
   type AppliedDisposition,
   finalizeImproverDisposition,
   IMPROVER_DISPOSITION_ARTIFACT,
@@ -39,18 +35,6 @@ export const agent: AgentDef = {
   ...AUTONOMY_AGENT_DEFAULTS,
   writeScope: "deny-all",
 };
-
-const inspectWorktree = typedCodeStep<ImproverWorktreeInspection>({
-  id: "inspect-worktree",
-  type: "code",
-  validate: (raw) =>
-    expectStructuredOutput<ImproverWorktreeInspection>(raw, [
-      "dirty",
-      "summary",
-    ]),
-  run: ({ workspaceRoot, runBlocking }) =>
-    runBlocking(inspectImproverWorktreeOperation, { workspaceRoot }),
-});
 
 const applyDisposition = typedCodeStep<AppliedDisposition>({
   id: "apply-disposition",
@@ -128,7 +112,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "autonomous",
   triggers: [{ event: autonomyIssueDecisionRequested.name }],
   steps: [
-    inspectWorktree,
     selectIssue,
     {
       id: "review-issue",
@@ -141,9 +124,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: issueDispositionOutputSchema,
       validate: decodeIssueDisposition,
-      when: (ctx) =>
-        selectIssue.output(ctx)?.eligible === true &&
-        inspectWorktree.output(ctx)?.dirty === false,
+      when: (ctx) => selectIssue.output(ctx)?.eligible === true,
     },
     applyDisposition,
     writeCommitMessage,

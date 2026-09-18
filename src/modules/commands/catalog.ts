@@ -6,7 +6,6 @@
  */
 
 import { readFileSync } from "node:fs";
-import { isAbsolute, resolve as resolvePath } from "node:path";
 import type { SkillDef } from "#core/agents/agent-types.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import type {
@@ -14,6 +13,7 @@ import type {
   SlashCommandAction,
   SlashCommandCatalog,
 } from "#core/modules/slash-command-provider.js";
+import { resolveKotaPromptPath } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export type {
@@ -56,9 +56,7 @@ function findSkill(
 }
 
 function readSkillPrompt(skill: SkillDef, scopeRoot: string): string {
-  const path = isAbsolute(skill.promptPath)
-    ? skill.promptPath
-    : resolvePath(scopeRoot, skill.promptPath);
+  const path = resolveKotaPromptPath(scopeRoot, skill.promptPath);
   return readFileSync(path, "utf8").trim();
 }
 

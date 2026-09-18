@@ -166,6 +166,20 @@ async function runDelegateWithBudget(
     getCurrentHandoffAgentRuntime()?.tokenBudget ??
     delegateConfig.tokenBudget;
   const toolExecutionOptions = getCurrentToolCallExecutionOptions();
+  const prompts = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT };
+  const promptName = input.prompt as string | undefined;
+  const promptVars = (input.prompt_vars as Record<string, string>) || {};
+  let basePrompt = prompts[mode];
+  if (promptName) {
+    const resolved = resolvePromptTemplate(promptName, promptVars, cwd);
+    if (resolved.error) return { content: resolved.error, is_error: true };
+    basePrompt = resolved.content!;
+  }
+  const toolSets = { explore: getExploreToolSet, execute: getExecuteToolSet, research: getResearchToolSet };
+  let { tools: builtinTools, runners } = toolSets[mode]();
+  if (delegateConfig.delegateBudget.isAtDepthLimit(budgetLease.depth)) {
+    ({ tools: builtinTools, runners } = omitRecursiveDelegateTool({ tools: builtinTools, runners }));
+  }
 
   const resolvedBackend = delegateConfig.backend ?? modelRoute?.backend ?? "thin";
   if (resolvedBackend === "agent-sdk") {
@@ -182,6 +196,8 @@ async function runDelegateWithBudget(
       message: `[kota] delegate(${mode}) budget ${formatBudgetStatus(budgetLease)}`,
     });
     return runDelegateHarness(task, mode, {
+      basePrompt,
+      tools: builtinTools,
       cwd,
       ...(context?.sessionId !== undefined && context.toolUseId !== undefined
         ? { continuityKey: `delegate:${context.sessionId}:${context.toolUseId}:${mode}` }
@@ -200,14 +216,7 @@ async function runDelegateWithBudget(
     });
   }
 
-  const TOOLSET_BY_MODE = { explore: getExploreToolSet, execute: getExecuteToolSet, research: getResearchToolSet } as const;
   const TURNS_BY_MODE = { explore: EXPLORE_MAX_TURNS, execute: EXECUTE_MAX_TURNS, research: RESEARCH_MAX_TURNS } as const;
-  const PROMPT_BY_MODE = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT } as const;
-
-  let { tools: builtinTools, runners } = TOOLSET_BY_MODE[mode]();
-  if (delegateConfig.delegateBudget.isAtDepthLimit(budgetLease.depth)) {
-    ({ tools: builtinTools, runners } = omitRecursiveDelegateTool({ tools: builtinTools, runners }));
-  }
 
   const mcpMgr = delegateConfig.mcpManager;
   const mcpTools = mcpMgr ? mcpMgr.getTools() : [];
@@ -217,16 +226,6 @@ async function runDelegateWithBudget(
     : rawTools;
   const maxTurns = TURNS_BY_MODE[mode];
 
-  const promptName = input.prompt as string | undefined;
-  const promptVars = (input.prompt_vars as Record<string, string>) || {};
-  let basePrompt: string;
-  if (promptName) {
-    const resolved = resolvePromptTemplate(promptName, promptVars, cwd);
-    if (resolved.error) return { content: resolved.error, is_error: true };
-    basePrompt = resolved.content!;
-  } else {
-    basePrompt = PROMPT_BY_MODE[mode];
-  }
   const systemPrompt = buildSubAgentPrompt(basePrompt, {
     cwd,
     scopeContext: delegateConfig.scopeContext,

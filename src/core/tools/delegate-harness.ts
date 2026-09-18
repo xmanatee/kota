@@ -13,11 +13,10 @@ import {
   routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import {
   buildSubAgentPrompt,
-  EXECUTE_PROMPT,
-  EXPLORE_PROMPT,
   type PromptConfig,
 } from "#core/agents/delegate-prompts.js";
 import {
@@ -37,22 +36,9 @@ import type { ToolResult } from "./index.js";
 import { getCurrentToolCallExecutionOptions } from "./tool-runner-runtime.js";
 import type { ToolCallExecutionOptions } from "./tool-runner-types.js";
 
-const EXPLORE_HARNESS_TOOLS = [
-  "Read",
-  "Glob",
-  "Grep",
-  "WebSearch",
-  "WebFetch",
-  "Bash",
-];
-
-const EXECUTE_HARNESS_TOOLS = [
-  ...EXPLORE_HARNESS_TOOLS,
-  "Edit",
-  "Write",
-];
-
 export type DelegateHarnessConfig = {
+  basePrompt: string;
+  tools: readonly KotaTool[];
   cwd?: string;
   continuityKey?: string;
   scopeRoot?: string;
@@ -110,17 +96,11 @@ export async function runDelegateHarness(
   config: DelegateHarnessConfig,
 ): Promise<ToolResult> {
   const isExecute = mode === "execute";
-  const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
   const promptConfig: PromptConfig = {
     cwd: config.cwd,
     scopeContext: config.scopeContext,
     instructionContext: config.instructionContext,
   };
-  const allowedTools = isExecute ? EXECUTE_HARNESS_TOOLS : EXPLORE_HARNESS_TOOLS;
-  const systemPrompt = buildSubAgentPrompt(basePrompt, {
-    ...promptConfig,
-    toolNames: allowedTools,
-  });
   const transport = config.transport;
   const taskChars = [...task];
   const taskPreview =
@@ -134,6 +114,15 @@ export async function runDelegateHarness(
   const harnessName = config.harness;
   const harness = resolveAgentHarness(harnessName);
   const inheritedToolExecution = getCurrentToolCallExecutionOptions();
+  const tools = config.tools.filter((tool) =>
+    !inheritedToolExecution?.disallowedTools?.includes(tool.name) &&
+    (!inheritedToolExecution?.allowedTools?.length || inheritedToolExecution.allowedTools.includes(tool.name))
+  );
+  const allowedTools = tools.map((tool) => tool.name);
+  const systemPrompt = buildSubAgentPrompt(config.basePrompt, {
+    ...promptConfig,
+    ...(harness.toolControl === "kota" ? { tools } : {}),
+  });
   const scopePolicySnapshot = inheritedToolExecution?.getScopePolicySnapshot?.();
   const scopePolicy = scopePolicySnapshot?.policy
     ?? inheritedToolExecution?.scopePolicy;
@@ -166,9 +155,17 @@ export async function runDelegateHarness(
         ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
         modelOutputTokenLimits: config.modelOutputTokenLimits,
         systemPrompt,
+        agentWriteScope: isExecute ? inheritedToolExecution?.agentWriteScope : "deny-all",
+        agentReadScope: inheritedToolExecution?.agentReadScope,
+        agentOutputDir: inheritedToolExecution?.agentOutputDir,
         ...routeKotaToolControlOptions(harness, {
           allowedTools,
-          canUseTool: inheritedToolExecution?.canUseTool,
+          canUseTool: async (name, input, context) => {
+            if (!allowedTools.includes(name)) {
+              return { behavior: "deny", message: `Tool "${name}" is outside the ${mode} delegate's capabilities.` };
+            }
+            return inheritedToolExecution?.canUseTool?.(name, input, context) ?? { behavior: "allow" };
+          },
           scopePolicy,
           scopePolicyAuthority: inheritedToolExecution?.scopePolicyAuthority,
           getScopePolicySnapshot: inheritedToolExecution?.getScopePolicySnapshot,

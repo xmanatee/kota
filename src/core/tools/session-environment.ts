@@ -2,7 +2,7 @@ import type { ToolRunnerContext } from "./index.js";
 
 type SessionEnvironmentContext = Pick<
   ToolRunnerContext,
-  "sessionId" | "scopeId" | "scopeId" | "workflow"
+  "sessionId" | "scopeId" | "workflow"
 >;
 
 type SessionEnvironmentIdentity = {
@@ -15,7 +15,18 @@ type SessionEnvironment = {
   version: number;
   values: Map<string, string>;
   resources: Set<() => void | Promise<void>>;
+  keyedResources: Map<symbol, object>;
 };
+
+declare const sessionResourceBrand: unique symbol;
+
+export type SessionResourceKey<T extends object> = symbol & {
+  readonly [sessionResourceBrand]: (value: T) => T;
+};
+
+export function defineSessionResourceKey<T extends object>(name: string): SessionResourceKey<T> {
+  return Symbol(name) as SessionResourceKey<T>;
+}
 
 const ENVIRONMENT_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const environmentsByScope = new Map<string, Map<string, SessionEnvironment>>();
@@ -46,8 +57,6 @@ function resolveIdentity(
     context.workflow?.spanId;
   const scopeId = oneIdentityValue("scope id", [
     context.scopeId,
-    context.scopeId,
-    context.workflow?.scopeId,
     context.workflow?.scopeId,
   ]);
   if (sessionId === undefined || scopeId === undefined) return null;
@@ -92,6 +101,7 @@ export function registerSessionEnvironment(
     version: nextEnvironmentVersion++,
     values: new Map(),
     resources: new Set(),
+    keyedResources: new Map(),
   });
 }
 
@@ -111,6 +121,7 @@ export async function unregisterSessionEnvironment(
   if (current.activeReferences > 0) return;
   const resources = [...current.resources];
   current.resources.clear();
+  current.keyedResources.clear();
   current.values.clear();
   sessions.delete(identity.sessionId);
   if (sessions.size === 0) environmentsByScope.delete(identity.scopeId);
@@ -188,4 +199,25 @@ export function registerSessionEnvironmentResource(
   return () => {
     environment.resources.delete(cleanup);
   };
+}
+
+/** Lazily attach a typed value to a live session; ended or unidentified callers cannot create one. */
+export function getSessionEnvironmentResource<T extends object>(
+  context: SessionEnvironmentContext | undefined,
+  key: SessionResourceKey<T>,
+  create: () => T,
+  dispose?: (resource: T) => void | Promise<void>,
+): T | undefined {
+  if (!context?.sessionId || !context.scopeId) return undefined;
+  const identity = resolveIdentity(context);
+  if (identity === null) return undefined;
+  const environment = environmentForIdentity(identity);
+  if (environment === undefined || environment.activeReferences < 1) return undefined;
+  const existing = environment.keyedResources.get(key);
+  // The invariant key type binds every insertion and retrieval to the same resource type.
+  if (existing !== undefined) return existing as T;
+  const resource = create();
+  environment.keyedResources.set(key, resource);
+  if (dispose) environment.resources.add(() => dispose(resource));
+  return resource;
 }

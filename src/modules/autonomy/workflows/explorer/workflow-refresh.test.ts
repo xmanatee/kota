@@ -95,7 +95,7 @@ describe("explorer workflow refresh", () => {
     expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toEqual(before);
   });
 
-  it("skips explore when worktree is dirty", async () => {
+  it("continues exploration with retained work in its owned sandbox", async () => {
     const harness = new WorkflowScenarioDriver(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
@@ -103,15 +103,17 @@ describe("explorer workflow refresh", () => {
       setupWorkspace: (workspaceDir) => {
         writeFileSync(join(workspaceDir, "dirty.txt"), "uncommitted\n");
       },
+      stepOutputs: { explore: { turns: [], totalCostUsd: 0.02 } },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
 
     const result = await harness.run();
 
     expect(result.steps["inspect-queue"].output).toMatchObject({
-      dirty: true,
-      needsAttention: false,
+      needsAttention: true,
     });
-    expect(result.steps.explore.status).toBe("skipped");
+    expect(result.status, result.error).toBe("success");
+    expect(result.steps.explore.status).toBe("success");
   });
 
   it("continues empty-queue discovery after known evidence is settled and skipped runs complete", async () => {

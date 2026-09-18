@@ -181,6 +181,9 @@ describe("github-mention-intake workflow", () => {
     const harness = new WorkflowScenarioDriver(githubMentionIntakeWorkflow, {
       workspaceRoot,
       trigger: makeTrigger(),
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "retained.md"), "Useful retained work\n");
+      },
       ports: {
         runTool: tools.runTool,
         runCommand,
@@ -190,6 +193,7 @@ describe("github-mention-intake workflow", () => {
     const result = await harness.run();
 
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+    expect(readFileSync(join(workspaceRoot, "retained.md"), "utf8")).toBe("Useful retained work\n");
     expect(result.steps["assess-mention-intake"].output).toMatchObject({
       decision: "create_task",
       taskEligible: true,

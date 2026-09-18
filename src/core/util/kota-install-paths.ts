@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +17,15 @@ export const kotaRuntimeAssetRoot =
 
 export function resolveKotaRuntimeAsset(sourceRelativePath: string): string {
   return resolve(kotaRuntimeAssetRoot, sourceRelativePath);
+}
+
+/** Project-local prompts take precedence; only source-tree paths fall back to packaged assets. */
+export function resolveKotaPromptPath(scopeRoot: string, promptPath: string): string {
+  const projectPath = resolve(scopeRoot, promptPath);
+  if (existsSync(projectPath)) return projectPath;
+  if (!promptPath.startsWith("src/")) return projectPath;
+  const installPath = resolveKotaRuntimeAsset(promptPath);
+  return existsSync(installPath) ? installPath : projectPath;
 }
 
 export function resolveKotaBinary(): string {

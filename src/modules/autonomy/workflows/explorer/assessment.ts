@@ -1,4 +1,3 @@
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
 import { inspectRepoWorkSupply, type RepoWorkSupply } from "#modules/repo-tasks/work-supply.js";
@@ -6,7 +5,6 @@ import { inspectRepoWorkSupply, type RepoWorkSupply } from "#modules/repo-tasks/
 export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
 export type ExplorerAssessment = RepoWorkSupply & {
-  dirty: boolean;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
 };
@@ -18,18 +16,14 @@ export function inspectExplorerAssessment(input: {
   capacity: number;
   lastExplorationAt: string | null;
 }): ExplorerAssessment {
-  const { workspaceRoot, lastExplorationAt } = input;
-  const worktree = getRepoWorktreeStatus(workspaceRoot);
-  const dirty = worktree.available && worktree.dirty;
+  const { lastExplorationAt } = input;
   const queue = inspectRepoWorkSupply(input);
   const explorationRefreshDue = !lastExplorationAt ||
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const { explorationEligible } = assessAutonomyQueue(queue);
   return {
     ...queue,
-    dirty,
-    needsAttention:
-      !dirty && explorationEligible && explorationRefreshDue,
+    needsAttention: explorationEligible && explorationRefreshDue,
     explorationRefreshDue,
   };
 }

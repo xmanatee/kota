@@ -1,5 +1,4 @@
 import { join, relative } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
@@ -35,12 +34,6 @@ export function createMentionTaskInWorker(input: {
   taskSummary: string;
   taskBody: string;
 }): CreatedTaskReference {
-  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
-  if (worktree.available && worktree.dirty) {
-    throw new Error(
-      `Repository has existing changes before GitHub mention intake can create a task: ${worktree.summary}`,
-    );
-  }
   const taskId = taskIdFromTitle(input.taskTitle);
   const existing = showTask(input.workspaceRoot, taskId);
   if (existing.found) {

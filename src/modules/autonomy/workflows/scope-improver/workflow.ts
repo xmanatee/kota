@@ -152,7 +152,7 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
   repository: "none",
   finalize: finalizeScopeImprovement,
   description:
-    "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
+    "Route scope guidance and policy changes to systemic review, then materialize accepted recommendations under current scope authority.",
   tags: ["systemic-observer", "scope-improvement"],
   triggerAdmission: admitScopeImprovementTrigger,
   triggers: [...scopeImproverTriggers, { event: improvementHandoffRequested.name, filter: { owner: "scope-improver" }, queueMode: "all" }],

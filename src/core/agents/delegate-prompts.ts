@@ -2,14 +2,14 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ResolvedToolSet } from "#core/tools/tool-registry.js";
 import { resolveRegisteredToolSetByEffect } from "#core/tools/tool-registry.js";
 import { detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
-import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
+import { formatResolvedToolGuidance } from "./tool-guidance.js";
 
 // --- Sub-agent system prompts ---
 
 export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information and return a clear, structured answer.
 
 ## Strategy
-- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Use the tools actually exposed by your harness as the source of truth for capability names, schemas, and limits.
 - Orient broadly first, then read targeted details. Prefer summaries or file lists before large content.
 - For source research, prefer primary sources over summaries. Note publication dates and flag stale or conflicting evidence.
 - If a source is inaccessible, record that honestly and try another source when available.
@@ -36,7 +36,7 @@ export const RESEARCH_PROMPT = `You are a deep research sub-agent. Conduct multi
 6. **Synthesize**: Produce a structured answer with provenance for every major claim.
 
 ## Tool Strategy
-- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Use the tools actually exposed by your harness as the source of truth for capability names, schemas, and limits.
 - Use search, fetch, API, code, and file-inspection tools only when those capabilities are actually present.
 - Use file handoff or structured outputs for data-heavy pages or large responses.
 - Compute statistics and parse structured data programmatically when a code or query tool is available.
@@ -59,7 +59,7 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 
 ## Approach
 - Read files before editing. Understand existing code and patterns first.
-- Use the generated available-tool metadata below as the source of truth for capability names, schemas, and limits.
+- Use the tools actually exposed by your harness as the source of truth for capability names, schemas, and limits.
 - Prefer targeted edits for small changes, batch edits for repeated mechanical changes, and new-file creation only when the task needs it.
 - For computation, prototyping, or data checks, use an available execution or query tool rather than mental math.
 - For docs or API lookup during implementation, use available web or HTTP tools and cite what matters.
@@ -98,7 +98,6 @@ export type PromptConfig = {
   scopeContext?: string;
   instructionContext?: string;
   tools?: readonly KotaTool[];
-  toolNames?: readonly string[];
 };
 
 /** Build a sub-agent system prompt enriched with scope context. */
@@ -113,9 +112,6 @@ export function buildSubAgentPrompt(
     if (config.tools.some((tool) => tool.name === "shell")) {
       parts.push("Delegated shell commands have a maximum timeout of 60 seconds.");
     }
-  } else if (config.toolNames) {
-    const toolGuidance = formatResolvedToolNameGuidance(config.toolNames);
-    if (toolGuidance) parts.push(toolGuidance);
   }
   if (config.cwd) {
     parts.push(`\nWorking directory: ${config.cwd}`);

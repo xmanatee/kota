@@ -107,15 +107,22 @@ describe("autonomy-health-reviewer workflow", () => {
       }));
       expect(fixture.runtime.getState().pendingRuns).toHaveLength(1);
       pbus.emit(autonomyHealthSignal, recovery);
+      const laterRecoveryAt = "2026-09-16T10:05:00.000Z";
+      pbus.emit(autonomyHealthSignal, normalizeHealthSignal({
+        ...recovery, signalId: "later-recovery", createdAt: laterRecoveryAt,
+        evidenceRefs: [{ kind: "event", ref: "module.operation.recovered:telegram:poll-loop:later",
+          moduleOperation: { operation: "poll-loop", observedAt: laterRecoveryAt, observation: "cleared" } }],
+      }));
       const queued = fixture.runtime.getState().pendingRuns;
       expect(queued).toHaveLength(2);
+      expect(queued.find((run) => run.runId !== "pending-health-batch")!.trigger.payload).toMatchObject({ count: 2 });
       const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
       const result = await new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
         workspaceRoot, trigger: queued.find((run) => run.runId !== "pending-health-batch")!.trigger, ports: { state },
       }).run();
       expect(result.status, result.error).toBe("success");
       expect(state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value).toMatchObject({
-        issues: [], moduleRecoveries: [{ module: "telegram", operation: "poll-loop", observedAt }],
+        issues: [], moduleRecoveries: [{ module: "telegram", operation: "poll-loop", observedAt: laterRecoveryAt }],
       });
       expect(result.emitted).toEqual([]);
     } finally {

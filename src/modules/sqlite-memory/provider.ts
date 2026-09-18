@@ -2,7 +2,7 @@
  * SQLite-backed memory provider — alternative to the file-based MemoryStore.
  *
  * Uses the `sqlite3` CLI (same approach as src/core/tools/sqlite.ts) so no library
- * dependency is needed. Stores memories in `.kota/memory.db`.
+ * dependency is needed. Stores memories in the supplied module storage directory.
  *
  * Advantages over file-based:
  * - SQL-powered search (LIKE, date ranges, tag filtering)

@@ -64,7 +64,6 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "actionableCount",
       "dispatchableCount",
       "hasDispatchableWork",
-      "dirty",
       "needsAttention",
       "explorationRefreshDue",
     ]),

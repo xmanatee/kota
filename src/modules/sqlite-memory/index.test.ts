@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -228,7 +228,7 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 		expect(remaining.every((m: { content: string }) => m.content === "updated")).toBe(true);
 	});
 
-	it("healthCheck returns healthy after load", async () => {
+	it("healthCheck probes CLI readiness without creating a database", async () => {
 		const dir = join(testDir, `run-${Date.now()}`);
 		mkdirSync(dir, { recursive: true });
 		const ctx = makeStubCtx(dir);
@@ -236,6 +236,13 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 		sqliteMemoryModule.onLoad!(ctx);
 		const result = await sqliteMemoryModule.healthCheck!();
 		expect(result.status).toBe("healthy");
+		expect(existsSync(join(ctx.storage.getDir(), "memory.db"))).toBe(false);
+		vi.stubEnv("PATH", dir);
+		try {
+			expect((await sqliteMemoryModule.healthCheck!()).status).toBe("unhealthy");
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("healthCheck returns healthy with existing db", async () => {

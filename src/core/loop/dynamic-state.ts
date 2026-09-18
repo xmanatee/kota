@@ -1,3 +1,5 @@
+import type { ToolRunnerContext } from "#core/tools/tool-registry.js";
+
 /**
 * Dynamic State Registry — per-turn system-prompt contributions from modules.
 *
@@ -23,6 +25,8 @@
 */
 export type DynamicStateContext = {
 	activeTools: ReadonlySet<string>;
+	/** The same execution identity and scope authority supplied to tool runners. */
+	execution?: ToolRunnerContext;
 };
 
 type StateProvider = (ctx: DynamicStateContext) => string;

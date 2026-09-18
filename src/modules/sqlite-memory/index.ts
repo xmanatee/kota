@@ -6,7 +6,7 @@
  * SQLite instead of the default JSON file. Activate via config:
  *   { "providers": { "memory": "sqlite-memory" } }
  *
- * Data is stored in `.kota/memory.db`.
+ * Data is stored under this module's runtime storage directory.
  */
 
 import { execFileSync } from "node:child_process";
@@ -21,9 +21,8 @@ let storageDir: string | null = null;
 function checkSqliteHealth(): HealthCheckResult {
 	if (!storageDir) return { status: "unhealthy", message: "Module not loaded" };
 	const dbPath = join(storageDir, "memory.db");
-	if (!existsSync(dbPath)) return { status: "healthy", message: "No database yet (will be created on first write)" };
 	try {
-		execFileSync("sqlite3", [dbPath, "SELECT 1"], { timeout: 2000, stdio: ["pipe", "pipe", "pipe"] });
+		execFileSync("sqlite3", [existsSync(dbPath) ? dbPath : ":memory:", "SELECT 1"], { timeout: 2000, stdio: ["pipe", "pipe", "pipe"] });
 		return { status: "healthy" };
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
@@ -34,7 +33,7 @@ function checkSqliteHealth(): HealthCheckResult {
 const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",
 	version: "1.0.0",
-	description: "SQLite-backed memory provider — SQL-powered search, no size limits",
+	description: "SQLite-backed persistent memory with keyword, tag, and date filtering",
 	dependencies: ["memory"],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {

@@ -8,24 +8,31 @@ import {
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import { EXPLORE_PROMPT, RESEARCH_PROMPT } from "#core/agents/delegate-prompts.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
 import { runDelegate, setDelegateConfig } from "./delegate.js";
+import * as delegateConfig from "./delegate-config.js";
 import {
   modelClient,
   modelResponse,
   TestStream,
 } from "./delegate-test-support.js";
+import { localWriteEffect, readOnlyLocalEffect } from "./effect.js";
+import { registerTool } from "./tool-registry.js";
 
 const TIER_MODELS = {
   fast: "openai/gpt-5.6-luna",
   balanced: "openai/gpt-5.6-terra",
   capable: "openai/gpt-5.6-sol",
 };
+const toolDisposers: (() => void)[] = [];
 
 describe("runDelegate model output-token limits", () => {
   afterEach(() => {
+    for (const dispose of toolDisposers.splice(0)) dispose();
     clearAgentHarnessRegistryForTest();
     setDelegateConfig({ model: "gpt-5.6-sol" });
+    vi.restoreAllMocks();
   });
 
   it("uses the selected non-default tier model's output-token budget", async () => {
@@ -132,7 +139,15 @@ describe("runDelegate model output-token limits", () => {
     );
   });
 
-  it("passes explicit output-token limits and workflow metadata to the agent-harness backend", async () => {
+  it.each([
+    { mode: "explore", prompt: EXPLORE_PROMPT },
+    { mode: "research", prompt: RESEARCH_PROMPT },
+  ] as const)("preserves $mode instructions, read-only scope and metadata through the harness backend", async ({ mode, prompt }) => {
+    for (const [name, effect] of [["probe_read", readOnlyLocalEffect()], ["probe_write", localWriteEffect()]] as const) {
+      toolDisposers.push(registerTool({
+        name, description: `A ${name} capability.`, input_schema: { type: "object", properties: {} },
+      }, async () => ({ content: "done" }), "delegate-fixture", { effect }));
+    }
     let receivedOptions: AgentHarnessRunOptions | undefined;
     registerAgentHarness({
       name: "openai-tools",
@@ -175,7 +190,7 @@ describe("runDelegate model output-token limits", () => {
     const result = await runDelegate(
       {
         task: "Research vector search options",
-        mode: "explore",
+        mode,
       },
       {
         workflow: workflowMetadata,
@@ -187,7 +202,21 @@ describe("runDelegate model output-token limits", () => {
       model: "openai/operator-model",
       modelOutputTokenLimits: { "operator-model": 7777 },
       workflowContext: workflowMetadata,
+      agentWriteScope: "deny-all",
     });
+    expect(receivedOptions?.systemPrompt).toContain(prompt);
+    expect(receivedOptions?.allowedTools).toContain("probe_read");
+    expect(receivedOptions?.allowedTools).not.toContain("probe_write");
+    expect(receivedOptions?.systemPrompt).toContain("- probe_read:");
+    expect(receivedOptions?.systemPrompt).not.toContain("- probe_write:");
+    expect(await receivedOptions?.canUseTool?.("probe_write", {}, {
+      signal: new AbortController().signal, toolUseId: "write-attempt",
+    })).toMatchObject({ behavior: "deny" });
+    vi.spyOn(delegateConfig, "resolvePromptTemplate").mockReturnValue({ content: "Investigate the selected interface." });
+    await runDelegate({ task: "Research the interface", mode, prompt: "interface" });
+    expect(receivedOptions?.systemPrompt).toContain("Investigate the selected interface.");
+    expect(receivedOptions?.systemPrompt).not.toContain(prompt);
+    expect(receivedOptions?.agentWriteScope).toBe("deny-all");
   });
 });
 

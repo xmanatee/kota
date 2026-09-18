@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ModuleSummary } from "#core/modules/module-types.js";
+import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { buildSlashCommandCatalog, COMMAND_WORKFLOW_TAG } from "./catalog.js";
 
@@ -121,20 +122,48 @@ describe("buildSlashCommandCatalog", () => {
     expect(catalog.resolve("internal")).toBeNull();
   });
 
-  it("resolves a skill command to the skill's prompt body", () => {
+  it.each(["relative", "absolute"])("resolves an installed skill's %s prompt path", (pathKind) => {
     writeFileSync(join(tmp, "skills", "deep-research.md"), "  investigate thoroughly  \n");
     const catalog = buildSlashCommandCatalog({
       getContributedWorkflows: () => [],
       getModuleSummaries: () => [
-        makeSummary("research", [
-          { name: "deep-research", promptPath: "skills/deep-research.md" },
-        ]),
+        {
+          ...makeSummary("research", [{
+            name: "deep-research",
+            promptPath: pathKind === "absolute"
+              ? join(tmp, "skills/deep-research.md")
+              : "skills/deep-research.md",
+          }]),
+          source: "installed",
+        },
       ],
       scopeRoot: tmp,
     });
     expect(catalog.resolve("skill:deep-research")).toEqual({
       kind: "skill",
       prompt: "investigate thoroughly",
+    });
+  });
+
+  it("resolves bundled skill assets outside KOTA while preserving project-local precedence", () => {
+    const promptPath = "src/modules/memory/memory.md";
+    const catalog = buildSlashCommandCatalog({
+      getContributedWorkflows: () => [],
+      getModuleSummaries: () => [makeSummary("memory", [{ name: "memory", promptPath }])],
+      scopeRoot: tmp,
+    });
+
+    expect(catalog.resolve("skill:memory")).toEqual({
+      kind: "skill",
+      prompt: readFileSync(resolveKotaRuntimeAsset(promptPath), "utf8").trim(),
+    });
+
+    const projectPromptPath = join(tmp, promptPath);
+    mkdirSync(dirname(projectPromptPath), { recursive: true });
+    writeFileSync(projectPromptPath, "Project-local memory guidance.\n");
+    expect(catalog.resolve("skill:memory")).toEqual({
+      kind: "skill",
+      prompt: "Project-local memory guidance.",
     });
   });
 

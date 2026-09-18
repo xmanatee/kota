@@ -3,8 +3,9 @@
 This workflow owns cross-run systemic operational and product learning.
 
 - Collect structured evidence first, then let the reviewer assess it.
-- Automatic reviews consume a pinned, coalesced evidence window when builder
-  demand leaves capacity. Compare delivery, repair and review outcomes; source
+- Automatic reviews consume a pinned, coalesced evidence window. Changed outcomes
+  and owner feedback need not wait for an empty builder queue; delivery-only
+  reflection uses spare capacity. Compare delivery, repair and review outcomes; source
   growth and elapsed time alone do not justify work. The agent decides evidence
   sufficiency for the proposed decision and can choose no action.
 - Retain baseline/current outcome summaries with scoped raw references. Follow

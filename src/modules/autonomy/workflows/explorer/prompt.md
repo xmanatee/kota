@@ -7,7 +7,8 @@ search beyond known sources and follow promising connections.
 Read repository guidance, current and archived tasks, inbox entries, and prior
 discovery decisions to understand relevance and avoid duplicates. Local inspection
 supports external research; it is not a substitute for it. Gardener owns local
-architecture cleanup and improver owns learning from KOTA's execution history.
+architecture cleanup, progress-reviewer owns cross-run learning, and improver
+owns individual runtime incidents.
 
 Use available web search and retrieval tools to investigate the questions.
 Prefer primary sources, inspect how approaches actually work, and compare their

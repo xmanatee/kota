@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
@@ -11,6 +11,7 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import { createDelegateBudget } from "./delegate-budget.js";
 import { setDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
@@ -170,6 +171,33 @@ describe("handoff_agent", () => {
         childSessionId: "child-session-1",
       },
     });
+  });
+
+  it.each(["bundled", "project-local"])("loads %s agent guidance outside KOTA before resolved skills", async (source) => {
+    reviewer.promptPath = "src/modules/architecture-gardener/prompt.md";
+    const expectedPrompt = source === "bundled"
+      ? readFileSync(resolveKotaRuntimeAsset(reviewer.promptPath), "utf8")
+      : "Project-local agent guidance.\n";
+    if (source === "project-local") {
+      const projectPromptPath = join(scopeRoot, reviewer.promptPath);
+      mkdirSync(dirname(projectPromptPath), { recursive: true });
+      writeFileSync(projectPromptPath, expectedPrompt);
+    }
+
+    const result = await runHandoffAgent({
+      agent: "reviewer",
+      mode: "call",
+      input: { task: "Review the external project." },
+      reason: "Use the registered agent's guidance.",
+      autonomy_mode: "autonomous",
+      budget: { max_turns: 3 },
+      scope: scopeInput(scopeRoot),
+    });
+
+    expect(result.is_error).toBeUndefined();
+    expect(receivedOptions).toHaveLength(1);
+    expect(receivedOptions[0].cwd).toBe(scopeRoot);
+    expect(receivedOptions[0].systemPrompt).toBe(`${expectedPrompt}\n\nSkill prompt.`);
   });
 
   it("passes scoped runtime model provider selection into child harness dispatch", async () => {

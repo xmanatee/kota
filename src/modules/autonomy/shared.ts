@@ -24,8 +24,6 @@ export type {
   WorkflowDeliveryDispositionKind,
 };
 
-export const READY_TASK_TARGET = 4;
-export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 export const AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS = 60 * 60 * 1000;

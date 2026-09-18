@@ -1,74 +1,100 @@
-/**
- * A module tool write must reach the next session turn through the loaded
- * dynamic-state provider. The model port captures the actual system prompt.
- */
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetEventBus } from "./core/events/event-bus.js";
+/** Tool execution and per-turn prompt assembly must share the live session/scope identity. */
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "./core/daemon/scope-provider.js";
+import { ScopeRegistry } from "./core/daemon/scope-registry.js";
+import { initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { AgentSession } from "./core/loop/loop.js";
 import { BufferTransport } from "./core/loop/transport.js";
-import {
-	createMockClient,
-	type MockApiCall,
-	textResponse,
-	toolUseResponse,
-} from "./core/model/mock-client.test-support.js";
-import { resetWorkingMemory } from "./modules/working-memory/store.js";
+import { createMockClient, textResponse, toolUseResponse } from "./core/model/mock-client.test-support.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import { registerCustomGroup } from "./core/tools/tool-groups.js";
+import workingMemoryModule from "./modules/working-memory/index.js";
 
-vi.spyOn(console, "error").mockImplementation(() => {});
+describe("session working-memory prompt isolation", () => {
+  let root: string;
+  let otherRoot: string;
+  let loader: ModuleLoader;
+  const sessions: AgentSession[] = [];
 
-function createTestSession(
-	responses: Parameters<typeof createMockClient>[0],
-): { session: AgentSession; transport: BufferTransport; calls: MockApiCall[] } {
-	const [client, calls] = createMockClient(responses);
-	const transport = new BufferTransport();
-	const session = new AgentSession({
-		autonomyMode: "autonomous",
-		client,
-		transport,
-		model: "claude-haiku-4-5-20251001",
-		noHistory: true,
-		verbose: false,
-	});
-	return { session, transport, calls };
-}
+  beforeEach(async () => {
+    root = mkdtempSync(join(tmpdir(), "kota-session-working-memory-"));
+    otherRoot = join(root, "other-scope");
+    mkdirSync(otherRoot);
+    const registry = new ScopeRegistry({ stateDir: join(root, "state"), scopes: [{ scopeRoot: root }, { scopeRoot: otherRoot }] });
+    loader = new ModuleLoader({}, false, { scopeRoot: root });
+    loader.setCwd(root);
+    loader.setBus(initEventBus());
+    loader.getProviderRegistry().register(DAEMON_SCOPE_PROVIDER_TYPE, "host", {
+      getScopeRegistryProjection: () => registry.toProjection(),
+      getActiveScopeId: () => null,
+      resolveScopeRuntime: () => { throw new Error("Selection does not resolve runtime services"); },
+    });
+    await loader.load(workingMemoryModule);
+  });
 
-describe("Module E2E: working memory → system prompt", () => {
-	beforeEach(() => {
-		resetWorkingMemory();
-	});
+  afterEach(async () => {
+    for (const session of sessions.splice(0)) await session.dispose();
+    await loader.unloadAll();
+    resetEventBus();
+    rmSync(root, { recursive: true, force: true });
+  });
 
-	afterEach(() => {
-		resetEventBus();
-		resetWorkingMemory();
-	});
+  function createSession(responses: Parameters<typeof createMockClient>[0], scopeRoot = root) {
+    const [client, calls] = createMockClient(responses);
+    const session = new AgentSession({
+      autonomyMode: "autonomous", client, transport: new BufferTransport(),
+      model: "claude-haiku-4-5-20251001", noHistory: true, verbose: false,
+      scopeRoot, moduleLoader: loader,
+    });
+    sessions.push(session);
+    return { session, calls };
+  }
 
-	it("working memory entries appear in system prompt on subsequent turns", async () => {
-		const { session, calls } = createTestSession([
-			// Turn 1: agent writes to working memory
-			toolUseResponse("working_memory", {
-				action: "write",
-				key: "research",
-				value: "Found 3 relevant papers on context management",
-			}),
-			textResponse("Noted in working memory."),
-			// Turn 2: agent just responds (we check the system prompt)
-			textResponse("Based on my working memory, I found 3 papers."),
-		]);
-		// Turn 1: write to working memory
-		await session.send("Research context management papers");
-		// Turn 2: verify system prompt includes working memory
-		await session.send("What did you find?");
-		await session.dispose();
-		expect(calls).toHaveLength(3);
-		// Turn 1's first API call should NOT have actual working memory entries
-		// (the module prompt section mentions <working-memory> as documentation,
-		// but actual entries use the format "- **key**: value")
-		const turn1SystemText = JSON.stringify(calls[0].system);
-		expect(turn1SystemText).not.toContain("**research**");
-		// Turn 2 call (calls[2]) SHOULD have the working memory entry
-		const turn2SystemText = JSON.stringify(calls[2].system);
-		expect(turn2SystemText).toContain("**research**");
-		expect(turn2SystemText).toContain("Found 3 relevant papers");
-	});
+  it("keeps two live scratchpads and another scope private through tool writes, clear, policy changes, and disposal", async () => {
+    const a = createSession([
+      toolUseResponse("working_memory", { action: "write", key: "research", value: "alpha findings" }),
+      textResponse("Stored."),
+      toolUseResponse("working_memory", { action: "clear" }),
+      textResponse("Cleared."),
+    ]);
+    const b = createSession([
+      toolUseResponse("working_memory", { action: "write", key: "research", value: "beta findings" }),
+      textResponse("Stored."),
+      textResponse("Still available."),
+      textResponse("Tool unavailable."),
+      textResponse("Available again."),
+    ]);
+    const other = createSession([textResponse("Empty.")], otherRoot);
+    await a.session.send("Record alpha");
+    await b.session.send("Record beta");
+    await other.session.send("Check current state");
+    expect(JSON.stringify(a.calls[0].system)).not.toContain("**research**");
+    expect(JSON.stringify(a.calls[1].system)).toContain("alpha findings");
+    expect(JSON.stringify(b.calls[0].system)).not.toContain("alpha findings");
+    expect(JSON.stringify(b.calls[1].system)).toContain("beta findings");
+    expect(JSON.stringify(other.calls[0].system)).not.toContain("**research**");
+    await a.session.send("Clear state");
+    expect(JSON.stringify(a.calls[2].system)).toContain("alpha findings");
+    expect(JSON.stringify(a.calls[2].system)).not.toContain("beta findings");
+    expect(JSON.stringify(a.calls[3].system)).not.toContain("**research**");
+    await a.session.dispose();
+    await b.session.send("Check retained state");
+    expect(JSON.stringify(b.calls[2].system)).toContain("beta findings");
+
+    const reveal = registerCustomGroup("working-memory-policy-test", ["working_memory"]);
+    try {
+      await b.session.send("Continue");
+      expect(JSON.stringify(b.calls[3].system)).not.toContain("**research**");
+    } finally {
+      reveal();
+    }
+    await b.session.send("Continue");
+    expect(JSON.stringify(b.calls[4].system)).toContain("beta findings");
+    const fresh = createSession([textResponse("Empty.")]);
+    await fresh.session.send("Check new state");
+    expect(JSON.stringify(fresh.calls[0].system)).not.toContain("**research**");
+  });
 });

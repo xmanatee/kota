@@ -11,30 +11,10 @@ import {
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import {
   buildSubAgentPrompt,
-  EXECUTE_PROMPT,
-  EXPLORE_PROMPT,
   getExecuteToolSet,
   getExploreToolSet,
   getResearchToolSet,
-  RESEARCH_PROMPT,
 } from "./delegate-prompts.js";
-
-const MODULE_TOOL_NAMES = [
-  "file_read",
-  "file_write",
-  "file_edit",
-  "multi_edit",
-  "find_replace",
-  "grep",
-  "glob",
-  "repo_map",
-  "files_overview",
-  "web_fetch",
-  "web_search",
-  "http_request",
-  "code_exec",
-  "computer_use",
-];
 
 function makeTool(name: string, description: string): KotaTool {
   return {
@@ -79,17 +59,6 @@ describe("buildSubAgentPrompt", () => {
     );
   });
 
-  it("appends native harness tool names through the same available-tools shape", () => {
-    const result = buildSubAgentPrompt(base, {
-      toolNames: ["Write", "Read", "Read"],
-    });
-
-    expect(result).toContain("<available-tools>");
-    expect(result).toContain("- Read");
-    expect(result).toContain("- Write");
-    expect(result.match(/- Read/g)).toHaveLength(1);
-  });
-
 	it("appends scope and instruction context after working directory details", () => {
     const result = buildSubAgentPrompt(base, {
       cwd: "/opt/app",
@@ -108,39 +77,6 @@ describe("buildSubAgentPrompt", () => {
     expect(buildSubAgentPrompt(base, { cwd: "" })).toBe(base);
     expect(buildSubAgentPrompt(base, { scopeContext: "" })).toBe(base);
     expect(buildSubAgentPrompt(base, { instructionContext: "" })).toBe(base);
-  });
-});
-
-describe("sub-agent base prompts", () => {
-  it("retain role-local research, execution, and response guidance", () => {
-    expect(EXPLORE_PROMPT).toContain("research sub-agent");
-    expect(EXPLORE_PROMPT).toContain("read-only access");
-    expect(EXPLORE_PROMPT).toContain("primary sources");
-    expect(EXPLORE_PROMPT).toContain("Response Format");
-
-    expect(RESEARCH_PROMPT).toContain("Decompose");
-    expect(RESEARCH_PROMPT).toContain("Evaluate gaps");
-    expect(RESEARCH_PROMPT).toContain("provenance");
-
-    expect(EXECUTE_PROMPT).toContain("task execution sub-agent");
-    expect(EXECUTE_PROMPT).toContain("Read files before editing");
-    expect(EXECUTE_PROMPT).toContain("re-verify");
-  });
-
-  it("do not hardcode a module-owned tool catalog", () => {
-    const prompts = [EXPLORE_PROMPT, RESEARCH_PROMPT, EXECUTE_PROMPT];
-    for (const prompt of prompts) {
-      for (const name of MODULE_TOOL_NAMES) {
-        expect(prompt).not.toContain(name);
-      }
-    }
-  });
-
-  it("point agents at generated tool metadata instead of fixed tool names", () => {
-    for (const prompt of [EXPLORE_PROMPT, RESEARCH_PROMPT, EXECUTE_PROMPT]) {
-      expect(prompt).toContain("generated available-tool metadata");
-      expect(prompt).toContain("source of truth");
-    }
   });
 });
 

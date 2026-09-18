@@ -147,7 +147,16 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       const telemetrySummary = getToolTelemetry().getSummary();
       const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
       const toolGuidance = formatResolvedToolGuidance(activeTools);
-      const dynamicState = toolGuidance + state.context.getDynamicState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
+      const dynamicState = toolGuidance + state.context.getDynamicState() + changesSummary + collectDynamicState({
+        activeTools: activeToolNames,
+        execution: {
+          sessionId: state.sessionId,
+          scopeId: state.scopeId,
+          scopeRoot: state.scopeRoot,
+          resolveRuntimeScope: state.resolveRuntimeScope,
+          cwd: state.scopeRoot,
+        },
+      }) + telemetryBlock;
       if (dynamicState) {
         system.push({ type: "text", text: dynamicState });
       }

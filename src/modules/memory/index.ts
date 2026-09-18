@@ -3,7 +3,7 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import { readOnlyDaemonEffect } from "#core/tools/effect.js";
+import { daemonDestructiveEffect, daemonWriteEffect, readOnlyDaemonEffect } from "#core/tools/effect.js";
 import { createMemoryDaemonClient } from "#root/client/kota-client.generated.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
@@ -39,7 +39,12 @@ const memoryModule: KotaModule = {
         if (!provider) throw new Error("memory provider is not registered");
         return runMemory(input, provider);
       },
-      effect: readOnlyDaemonEffect(),
+      effect: daemonWriteEffect(),
+      resolveEffect: ({ action }) => action === "delete"
+        ? daemonDestructiveEffect()
+        : action === "search" || action === "list"
+          ? readOnlyDaemonEffect()
+          : daemonWriteEffect(),
       group: "management",
     },
   ],
