@@ -1,4 +1,5 @@
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import type { AgentEffort, AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -6,11 +7,6 @@ import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient, ModelProviderSelection } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
-import {
-  PRESET_ENV_VAR,
-  resolvePreset,
-  resolveTierModel,
-} from "#core/model/preset.js";
 import {
   createDelegateBudget,
   type DelegateBudget,
@@ -34,6 +30,7 @@ export function streamBackoff(attempt: number): Promise<void> {
 
 export type DelegateConfig = {
   model: string;
+  effort: AgentEffort;
   modelTiers?: ModelTiers;
   modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: ModelOutputTokenLimits;
@@ -44,6 +41,8 @@ export type DelegateConfig = {
   costTracker?: CostTracker;
   transport?: Transport;
   mcpManager?: McpManager;
+  mcpServers?: AgentHarnessRunOptions["mcpServers"];
+  mcpScopeConfigPolicy?: AgentHarnessRunOptions["mcpScopeConfigPolicy"];
   /** Override backend selection: "thin" (default KOTA loop) or "agent-sdk" (Claude Code runtime). */
   backend?: DelegateBackend;
   /**
@@ -63,37 +62,14 @@ export type ResolvedDelegateConfig = DelegateConfig & {
   delegateBudget: DelegateBudget;
 };
 
-/**
- * Default delegate config used before `setDelegateConfig` runs (e.g. when a
- * tool surface accesses the delegate without an active session). The model is
- * the active preset's `capable` tier, resolved via env + shipped default — no
- * literal model id baked in. The session-time `setDelegateConfig` call from
- * `loop-constructor` overwrites this with the operator's resolved
- * `editorModel`.
- */
-function buildDefaultDelegateConfig(): ResolvedDelegateConfig {
-  const { preset } = resolvePreset({ env: process.env[PRESET_ENV_VAR] });
-  return {
-    model: resolveTierModel(preset, "capable"),
-    delegateBudget: createDelegateBudget(),
-  };
-}
-
-let delegateConfig: ResolvedDelegateConfig | null = null;
-
-export function setDelegateConfig(config: DelegateConfig): void {
+export function resolveDelegateConfig(config: DelegateConfig): ResolvedDelegateConfig {
   if (config.delegateBudget && config.delegateBudgetLimits) {
     throw new Error("Delegate config accepts either delegateBudget or delegateBudgetLimits, not both.");
   }
-  delegateConfig = {
+  return {
     ...config,
     delegateBudget: config.delegateBudget ?? createDelegateBudget(config.delegateBudgetLimits),
   };
-}
-
-export function getDelegateConfig(): ResolvedDelegateConfig {
-  if (!delegateConfig) delegateConfig = buildDefaultDelegateConfig();
-  return delegateConfig;
 }
 
 export type PromptResolverFn = (

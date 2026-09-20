@@ -15,16 +15,16 @@ import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { createDelegateBudget } from "./delegate-budget.js";
 import {
+  type DelegationRuntime,
+  withDelegationRuntime,
+} from "./delegation-runtime.js";
+import {
   localWriteEffect,
   networkReadEffect,
   readOnlyLocalEffect,
   type ToolEffect,
 } from "./effect.js";
 import { runHandoffAgent } from "./handoff-agent.js";
-import {
-  type HandoffAgentRuntime,
-  withHandoffAgentRuntime,
-} from "./handoff-agent-runtime.js";
 import {
   handoffScopePolicyAuthority as authorityFor,
   HANDOFF_POLICY_HARNESS as HARNESS,
@@ -118,7 +118,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
       },
     });
     const authority = authorityFor(args.policy);
-    const runtime: HandoffAgentRuntime = {
+    const runtime: DelegationRuntime = { effort: "low", model: "test-model",
       cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
@@ -132,7 +132,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
       approvalQueue,
     };
 
-    const result = await withHandoffAgentRuntime(runtime, () =>
+    const result = await withDelegationRuntime(runtime, () =>
       runHandoffAgent(
         {
           agent: "child",
@@ -236,8 +236,8 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
     });
     const authorityConfigPath = join(scopeRoot, ".machine", "config.json");
 
-    const result = await withHandoffAgentRuntime(
-      {
+    const result = await withDelegationRuntime(
+      { effort: "low", model: "test-model",
         cwd: scopeRoot,
         harness: HARNESS,
         resolveAgentDef: (name) => (name === agent.name ? agent : undefined),

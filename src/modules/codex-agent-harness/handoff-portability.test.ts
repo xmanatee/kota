@@ -12,8 +12,8 @@ import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { runHandoffAgent } from "#core/tools/handoff-agent.js";
-import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import { codexAgentHarness } from "./adapter.js";
 
 describe("Codex handoff portability", () => {
@@ -63,8 +63,8 @@ describe("Codex handoff portability", () => {
     };
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
 
-    const result = await withHandoffAgentRuntime(
-      {
+    const result = await withDelegationRuntime(
+      { effort: "low", model: "test-model",
         cwd: workspaceRoot,
         harness: codexAgentHarness.name,
         resolveAgentDef: (name) => name === agent.name ? agent : undefined,

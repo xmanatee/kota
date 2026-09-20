@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
+import { resolveDelegateConfig } from "#core/tools/delegate-config.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import type { AgentLoopState } from "./loop-init.js";
@@ -61,6 +62,7 @@ function textResponse(text: string) {
 
 function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState {
   return {
+    delegationRuntime: resolveDelegateConfig({ model: "claude-sonnet-4-6", effort: "low" }),
     initialized: true,
     initPromise: Promise.resolve(),
     sessionStartTime: 0,

@@ -13,7 +13,7 @@ import {
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
-import type { ModelClient } from "#core/model/model-client.js";
+import type { AgentEffort, ModelClient } from "#core/model/model-client.js";
 import {
   type ModelOutputTokenLimits,
   resolveModelOutputTokenLimit,
@@ -51,6 +51,7 @@ export type TurnLoopOptions = {
   mcpMgr: McpManager | undefined;
   isExecute: boolean;
   selectedModel: string;
+  effort?: AgentEffort;
   modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
   maxTurns: number;
   mode: DelegateMode;
@@ -99,12 +100,16 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       return tokenBudgetEarlyError(exhaustion.message, lastText, totalTurns);
     }
 
+    const signal = runnerContext?.signal ?? toolExecutionOptions?.signal;
+    signal?.throwIfAborted();
     let response!: KotaModelResponse;
     let streamSuccess = false;
     for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
       try {
         const stream = client.messages.stream({
           model: selectedModel,
+          effort: opts.effort,
+          signal,
           max_tokens: outputTokenLimit.maxTokens,
           system: systemBlocks,
           tools,
@@ -124,6 +129,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         streamSuccess = true;
         break;
       } catch (err) {
+        signal?.throwIfAborted();
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("too long") || msg.includes("too many tokens") || msg.includes("context length")) {
           if (transport) transport.emit({ type: "error", message: `[kota] delegate(${mode}) context overflow at turn ${turn + 1}` });

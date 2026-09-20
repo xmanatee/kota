@@ -12,6 +12,7 @@ import {
   findWriteScopeViolations,
 } from "#core/workflow/steps/agent-write-scope.js";
 import { capAutonomyMode } from "./autonomy-mode.js";
+import { type DelegationRuntime, withDelegationRuntime } from "./delegation-runtime.js";
 import {
   budgetFailureResult,
   buildRequestedToolPolicy,
@@ -33,7 +34,6 @@ import {
   validateStructuredInput,
 } from "./handoff-agent-input.js";
 import { formatCompletedHandoffResult } from "./handoff-agent-result.js";
-import { withHandoffAgentRuntime } from "./handoff-agent-runtime.js";
 import {
   buildSystemPrompt,
   createChildAbortController,
@@ -48,6 +48,7 @@ import type { ToolResult, ToolRunnerContext } from "./index.js";
 export async function runHandoffAgent(
   input: ToolInput,
   context?: ToolRunnerContext,
+  explicitRuntime?: DelegationRuntime,
 ): Promise<ToolResult> {
   const agentName = readRequiredString(input, "agent");
   if (typeof agentName !== "string") return agentName;
@@ -83,7 +84,7 @@ export async function runHandoffAgent(
     return errorResult("resume_session_id is only valid with transfer mode");
   }
 
-  const runtime = resolveHandoffRuntime();
+  const runtime = resolveHandoffRuntime(explicitRuntime);
   if (isErrorResult(runtime)) return runtime;
   const scopePolicy = runtime.getScopePolicySnapshot?.().policy ?? runtime.scopePolicy;
   const parentCappedAutonomyMode = capAutonomyMode(
@@ -138,7 +139,7 @@ export async function runHandoffAgent(
   const budgetLease = budgetStart.lease;
   try {
     return await budgetLease.run(async () => {
-      const cwd = context?.cwd ?? runtime.cwd;
+      const cwd = context?.cwd ?? runtime.cwd ?? process.cwd();
       const current = currentScope(cwd, context);
       if (runtime.scopeId !== undefined && runtime.scopeId !== current.scopeId) {
         return errorResult(
@@ -199,7 +200,7 @@ export async function runHandoffAgent(
         : runtime.tokenBudget;
       let result: Awaited<ReturnType<typeof runAgentHarness>>;
       try {
-        result = await withHandoffAgentRuntime(
+        result = await withDelegationRuntime(
           {
             ...runtime,
             cwd,
@@ -212,6 +213,8 @@ export async function runHandoffAgent(
             {
             prompt: buildAgentHandoffPrompt(request),
             model: agent.model,
+            mcpServers: runtime.mcpServers,
+            mcpScopeConfigPolicy: runtime.mcpScopeConfigPolicy,
             ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
             modelOutputTokenLimits: runtime.modelOutputTokenLimits,
             systemPrompt,

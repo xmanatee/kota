@@ -93,7 +93,6 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
 }));
 
 vi.mock("#core/tools/delegate.js", () => ({
-  setDelegateConfig: vi.fn(),
   delegateTool: { name: "delegate", description: "", input_schema: { type: "object", properties: {} } },
 }));
 vi.mock("#core/daemon/task-store.js", () => ({

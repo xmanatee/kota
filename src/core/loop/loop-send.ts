@@ -4,6 +4,7 @@ import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { getAllTools } from "#core/tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "#core/tools/tool-groups.js";
 import { executeToolCalls, FailureTracker, type ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
@@ -76,7 +77,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
     let lastResult = "";
     const preSendResults = await runPreSendHooks({
-      executeTools: (blocks) => executeToolCalls(blocks, toolExecutionOptions(state, signal)),
+      executeTools: (blocks) => executeSessionTools(state, blocks, toolExecutionOptions(state, signal)),
       client: state.client,
       model: state.model,
       editorModel: state.editorModel,
@@ -234,7 +235,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         state.stateMachine.transition("acting", { toolCount: toolBlocks.length });
       }
 
-      const validResults = await executeToolCalls(toolBlocks,
+      const validResults = await executeSessionTools(state, toolBlocks,
         toolExecutionOptions(state, signal, mcpPromptToolDeclarationFingerprints));
       throwIfAborted(signal);
       state.context.addToolResults(validResults);
@@ -305,4 +306,27 @@ function toolExecutionOptions(
       : {}),
     signal,
   };
+}
+
+function executeSessionTools(
+  state: AgentLoopState,
+  blocks: KotaToolUseBlock[],
+  options: ToolCallExecutionOptions,
+) {
+  return withDelegationRuntime({
+    ...state.delegationRuntime,
+    mcpManager: state.mcpManager ?? undefined,
+    mcpServers: state.mcpServers,
+    tokenBudget: getAgentLoopTokenBudget(state),
+    autonomyMode: options.autonomyMode,
+    scopeRoot: state.scopeRoot,
+    scopeId: state.scopeId,
+    scopePolicy: options.scopePolicy,
+    scopePolicyAuthority: options.scopePolicyAuthority,
+    getScopePolicySnapshot: options.getScopePolicySnapshot,
+    authorityConfigPath: options.authorityConfigPath,
+    approvalQueue: options.approvalQueue,
+    guardrailsConfig: options.guardrailsConfig,
+    idempotencyStore: options.idempotencyStore,
+  }, () => executeToolCalls(blocks, options));
 }

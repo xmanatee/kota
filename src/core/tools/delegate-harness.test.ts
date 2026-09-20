@@ -76,7 +76,7 @@ describe("runDelegateHarness native invalidation", () => {
     expect(authority.listenerCount()).toBe(0);
   });
 
-  it("links the inherited parent signal to native quarantine", async () => {
+  it.each(["native", "kota"] as const)("links the inherited parent signal to %s execution", async (toolControl) => {
     const authority = mutableAuthority(snapshot(0, policy("scope-directory")));
     const parent = new AbortController();
     const reason = new Error("parent tool call aborted");
@@ -87,10 +87,11 @@ describe("runDelegateHarness native invalidation", () => {
     });
     const run = vi.fn(async (options: AgentHarnessRunOptions) => {
       options.abortQuarantine?.register(quarantine);
+      expect(options.effort).toBe("low");
       markStarted();
       return new Promise<typeof OK_RESULT>(() => {});
     });
-    registerAgentHarness(nativeHarness("native-parent-abort", run));
+    registerAgentHarness({ ...nativeHarness("native-parent-abort", run), toolControl });
 
     const execution = runWithLiveContext(
       "native-parent-abort",
@@ -101,8 +102,8 @@ describe("runDelegateHarness native invalidation", () => {
     parent.abort(reason);
 
     await expect(execution).rejects.toBe(reason);
-    expect(quarantine).toHaveBeenCalledOnce();
-    expect(authority.unsubscribeCount()).toBe(1);
+    expect(quarantine).toHaveBeenCalledTimes(toolControl === "native" ? 1 : 0);
+    expect(authority.unsubscribeCount()).toBe(toolControl === "native" ? 1 : 0);
     expect(authority.listenerCount()).toBe(0);
   });
 
@@ -142,7 +143,7 @@ describe("runDelegateHarness native invalidation", () => {
     registerAgentHarness(nativeHarness("native-unsafe", run));
 
     await expect(
-      runDelegateHarness("unsafe", "execute", { harness: "native-unsafe", basePrompt: "Execute the task.", tools: [] }),
+      runDelegateHarness("unsafe", "execute", { effort: "low", model: "test-model", harness: "native-unsafe", basePrompt: "Execute the task.", tools: [] }),
     ).rejects.toThrow(
       /native-unsafe.*parent AbortSignal.*scope id.*scope-policy authority.*current scope-policy snapshot.*refusing to launch/,
     );
@@ -186,7 +187,7 @@ function runWithLiveContext(
     canUseTool: async () => ({ behavior: "allow" }),
   };
   return withToolCallExecutionOptions(options, () =>
-    runDelegateHarness("exercise native invalidation", "execute", { harness, basePrompt: "Execute the task.", tools: [] })
+    runDelegateHarness("exercise native invalidation", "execute", { effort: "low", model: "test-model", harness, basePrompt: "Execute the task.", tools: [] })
   );
 }
 

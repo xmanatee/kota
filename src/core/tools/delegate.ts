@@ -26,9 +26,7 @@ import {
   type DelegateMode,
   EXECUTE_MAX_TURNS,
   EXPLORE_MAX_TURNS,
-  getDelegateConfig,
   RESEARCH_MAX_TURNS,
-  type ResolvedDelegateConfig,
   resolvePromptTemplate,
 } from "./delegate-config.js";
 import {
@@ -37,8 +35,8 @@ import {
   type DelegateMetadata,
 } from "./delegate-format.js";
 import { runDelegateTurns } from "./delegate-turn.js";
+import { type DelegationRuntime, getCurrentDelegationRuntime, withDelegationRuntime } from "./delegation-runtime.js";
 import { localWriteEffect } from "./effect.js";
-import { getCurrentHandoffAgentRuntime } from "./handoff-agent-runtime.js";
 import type { ResolvedToolSet, ToolResult, ToolRunnerContext } from "./index.js";
 import { getCurrentToolCallExecutionOptions } from "./tool-runner-runtime.js";
 
@@ -50,7 +48,7 @@ export {
   type DelegateBudgetLimits,
 } from "./delegate-budget.js";
 export type { DelegateConfig, DelegateMode } from "./delegate-config.js";
-export { setDelegateConfig } from "./delegate-config.js";
+export { resolveDelegateConfig } from "./delegate-config.js";
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 export const delegateTool: KotaTool = {
@@ -114,6 +112,7 @@ const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"
 export async function runDelegate(
   input: DelegateInput,
   context?: ToolRunnerContext,
+  explicitRuntime?: DelegationRuntime,
 ): Promise<ToolResult> {
   const task = input.task as string;
   const rawMode = (input.mode as string) || "explore";
@@ -125,7 +124,8 @@ export async function runDelegate(
     return { content: `Error: mode must be "explore", "execute", or "research", got "${rawMode}"`, is_error: true };
   }
   const mode = rawMode as DelegateMode;
-  const delegateConfig = getDelegateConfig();
+  const delegateConfig = explicitRuntime ?? getCurrentDelegationRuntime();
+  if (!delegateConfig) return { content: "Error: delegate requires an owning delegation runtime", is_error: true };
   const budgetStart = delegateConfig.delegateBudget.tryStart();
   if (!budgetStart.ok) {
     const result = budgetFailureResult(budgetStart.failure);
@@ -139,7 +139,8 @@ export async function runDelegate(
 
   try {
     return await budgetLease.run(() =>
-      runDelegateWithBudget(input, task, mode, delegateConfig, budgetLease, context),
+      withDelegationRuntime(delegateConfig, () =>
+        runDelegateWithBudget(input, task, mode, delegateConfig, budgetLease, context)),
     );
   } finally {
     budgetLease.release();
@@ -150,7 +151,7 @@ async function runDelegateWithBudget(
   input: DelegateInput,
   task: string,
   mode: DelegateMode,
-  delegateConfig: ResolvedDelegateConfig,
+  delegateConfig: DelegationRuntime,
   budgetLease: DelegateBudgetLease,
   context?: ToolRunnerContext,
 ): Promise<ToolResult> {
@@ -163,7 +164,6 @@ async function runDelegateWithBudget(
   const selectedModel = modelRoute?.model ?? delegateConfig.model;
   const tokenBudget =
     context?.tokenBudget ??
-    getCurrentHandoffAgentRuntime()?.tokenBudget ??
     delegateConfig.tokenBudget;
   const toolExecutionOptions = getCurrentToolCallExecutionOptions();
   const prompts = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT };
@@ -197,17 +197,22 @@ async function runDelegateWithBudget(
     });
     return runDelegateHarness(task, mode, {
       basePrompt,
-      tools: builtinTools,
+      tools: [...builtinTools, ...((toolExecutionOptions?.mcpManager ?? delegateConfig.mcpManager)?.getTools() ?? [])],
+      mcpServers: delegateConfig.mcpServers,
+      mcpScopeConfigPolicy: delegateConfig.mcpScopeConfigPolicy,
       cwd,
       ...(context?.sessionId !== undefined && context.toolUseId !== undefined
         ? { continuityKey: `delegate:${context.sessionId}:${context.toolUseId}:${mode}` }
         : {}),
-      scopeRoot: context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? cwd,
+      scopeRoot: context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? delegateConfig.scopeRoot ?? cwd,
+      env: delegateConfig.env,
+      signal: context?.signal ?? toolExecutionOptions?.signal,
       scopeContext: delegateConfig.scopeContext,
       instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
       model: selectedModel,
+      effort: delegateConfig.effort,
       modelProvider: delegateConfig.modelProvider,
       modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
       harness: delegateConfig.harness,
@@ -240,7 +245,7 @@ async function runDelegateWithBudget(
   const searchQueries = new Set<string>();
 
   const client = delegateConfig.client ?? createModelClient({
-    model: delegateConfig.model,
+    model: selectedModel,
     provider: delegateConfig.modelProvider?.provider,
     baseUrl: delegateConfig.modelProvider?.baseUrl,
     apiKey: delegateConfig.modelProvider?.apiKey,
@@ -262,9 +267,9 @@ async function runDelegateWithBudget(
     });
   }
 
-  const scopeRoot = context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? cwd ?? process.cwd();
+  const scopeRoot = context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? delegateConfig.scopeRoot ?? cwd ?? process.cwd();
   const continuity = prepareSessionContinuity({ name: "delegate-model-client" }, {
-    prompt: task, model: selectedModel, effort: "xhigh", scopeRoot, cwd,
+    prompt: task, model: selectedModel, effort: delegateConfig.effort, scopeRoot, cwd,
     modelProvider: delegateConfig.modelProvider,
     ...(context?.sessionId !== undefined && context.toolUseId !== undefined
       ? { continuityKey: `delegate:${context.sessionId}:${context.toolUseId}:${mode}` }
@@ -286,6 +291,7 @@ async function runDelegateWithBudget(
           },
           systemBlocks, tools, runners, runnerContext: context, mcpMgr,
           isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
+          effort: delegateConfig.effort,
           maxTurns, mode, transport, costTracker, tokenBudget, toolExecutionOptions,
           modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
         });

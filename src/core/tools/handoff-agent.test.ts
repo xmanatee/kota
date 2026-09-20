@@ -11,11 +11,14 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import { createDelegateBudget } from "./delegate-budget.js";
-import { setDelegateConfig } from "./delegate-config.js";
+import { resolveDelegateConfig } from "./delegate-config.js";
+import { withDelegationRuntime } from "./delegation-runtime.js";
 import { runHandoffAgent } from "./handoff-agent.js";
-import { withHandoffAgentRuntime } from "./handoff-agent-runtime.js";
+
+let delegationConfig: DelegationRuntime;
 
 function initGit(scopeRoot: string): void {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
@@ -81,7 +84,7 @@ describe("handoff_agent", () => {
         };
       }),
     });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "unused",
       modelProvider: delegateModelProvider,
       cwd: scopeRoot,
@@ -94,7 +97,7 @@ describe("handoff_agent", () => {
   afterEach(() => {
     rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
   });
 
   it("dispatches a registered agent with trace links, workflow metadata, and validated structured output", async () => {
@@ -138,8 +141,7 @@ describe("handoff_agent", () => {
         sessionId: "parent-session",
         toolUseId: "tool-use-1",
         workflow: workflowMetadata,
-      },
-    );
+      }, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions).toHaveLength(1);
@@ -192,7 +194,7 @@ describe("handoff_agent", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions).toHaveLength(1);
@@ -207,8 +209,8 @@ describe("handoff_agent", () => {
       apiKey: "sk-scoped-provider",
     };
 
-    const result = await withHandoffAgentRuntime(
-      {
+    const result = await withDelegationRuntime(
+      { effort: "low", model: "test-model",
         cwd: scopeRoot,
         harness: "handoff-test",
         resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
@@ -242,7 +244,7 @@ describe("handoff_agent", () => {
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
       allowed_tools: [],
-    });
+    }, undefined, delegationConfig);
 
     expect(result).toMatchObject({ is_error: true });
     expect(result.content).toContain(
@@ -273,8 +275,7 @@ describe("handoff_agent", () => {
           cwd: selectedScopeRoot,
           scopeId: selectedScope.scope_id,
           sessionId: "session-b",
-        },
-      );
+        }, delegationConfig);
 
       expect(result.is_error).toBeUndefined();
       expect(receivedOptions).toHaveLength(1);
@@ -295,7 +296,7 @@ describe("handoff_agent", () => {
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions).toHaveLength(1);
@@ -320,7 +321,7 @@ describe("handoff_agent", () => {
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Passive agent steps may only allow read-only tools");

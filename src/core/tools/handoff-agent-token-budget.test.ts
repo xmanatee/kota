@@ -12,8 +12,12 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { setDelegateConfig } from "./delegate-config.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { runDelegate } from "./delegate.js";
+import { resolveDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
+
+let delegationConfig: DelegationRuntime;
 
 function initGit(scopeRoot: string): void {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
@@ -59,6 +63,11 @@ describe("handoff_agent token budgets", () => {
       toolControl: "kota",
       run: vi.fn(async (options) => {
         receivedOptions.push(options);
+        if (receivedOptions.length === 1) {
+          const nested = await runDelegate({ task: "Inspect the review context", mode: "explore" });
+          expect(nested.is_error, nested.content).toBeUndefined();
+          expect(nested.content).toContain("review complete");
+        }
         return {
           text: "review complete",
           streamedText: "review complete",
@@ -74,13 +83,18 @@ describe("handoff_agent token budgets", () => {
   afterEach(() => {
     rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
   });
 
-  it("passes a narrower child token budget that still debits the parent ledger", async () => {
+  it("binds a generic grandchild to the named child settings and narrower token ledger", async () => {
     const parentTokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "unused",
+      backend: "thin",
+      modelProvider: { provider: "openai", baseUrl: "https://review.invalid", apiKey: "fixture-review-key" },
+      instructionContext: "Outer session instructions.",
+      mcpServers: { review: { command: "review-mcp" } },
+      mcpScopeConfigPolicy: "disabled",
       cwd: scopeRoot,
       harness: "handoff-test",
       resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
@@ -94,22 +108,33 @@ describe("handoff_agent token budgets", () => {
       input: { task: "Review the patch." },
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
-      budget: { max_turns: 3, max_total_tokens: 8 },
+      budget: { max_turns: 3, max_total_tokens: 16 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
-    expect(result.is_error).toBeUndefined();
-    expect(receivedOptions).toHaveLength(1);
+    expect(result.is_error, result.content).toBeUndefined();
+    expect(receivedOptions).toHaveLength(2);
+    for (const options of receivedOptions) {
+      expect(options.model).toBe("test-review-model");
+      expect(options.effort).toBe("medium");
+      expect(options.modelProvider).toEqual(delegationConfig.modelProvider);
+      expect(options.mcpServers).toEqual(delegationConfig.mcpServers);
+      expect(options.mcpScopeConfigPolicy).toBe("disabled");
+      expect(options.systemPrompt).toContain("Reviewer prompt.");
+      expect(options.systemPrompt).not.toContain("Outer session instructions.");
+      expect(options.cwd).toBe(scopeRoot);
+    }
+    expect(receivedOptions[1].tokenBudget).toBe(receivedOptions[0].tokenBudget);
     const childTokenBudget = receivedOptions[0].tokenBudget;
     expect(childTokenBudget).toBeDefined();
     expect(childTokenBudget).not.toBe(parentTokenBudget);
     expect(childTokenBudget?.snapshot()).toMatchObject({
-      budget: { maxTotalTokens: 8 },
-      usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+      budget: { maxTotalTokens: 16 },
+      usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
     });
     expect(parentTokenBudget.snapshot()).toMatchObject({
       budget: { maxTotalTokens: 100 },
-      usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+      usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
     });
   });
 });

@@ -47,7 +47,6 @@ vi.mock("./scope-context.js", () => ({ loadScopeContext: vi.fn(() => "") }));
 vi.mock("./instruction-files.js", () => ({ loadInstructionContext: vi.fn(() => "") }));
 vi.mock("#root/init.js", () => ({ buildSessionWarmup: vi.fn(() => "") }));
 vi.mock("#core/tools/delegate.js", () => ({
-  setDelegateConfig: vi.fn(),
   delegateTool: { name: "delegate", description: "", input_schema: { type: "object", properties: {} } },
 }));
 vi.mock("#core/daemon/task-store.js", () => ({

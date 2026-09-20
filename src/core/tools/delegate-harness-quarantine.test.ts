@@ -15,15 +15,19 @@ import {
   scopePolicyRestrictiveAreas,
 } from "#core/daemon/scope-policy.js";
 import { BufferTransport } from "#core/loop/transport.js";
-import { setDelegateConfig } from "./delegate.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { resolveDelegateConfig } from "./delegate.js";
 import { executeToolCalls } from "./tool-runner.js";
+
+let delegationConfig: DelegationRuntime;
 
 const SCOPE_ID = "native-delegate-fixture";
 const SCOPE_ROOT = process.cwd();
 const HARNESS = "native-hosted-route";
 afterEach(() => {
   clearAgentHarnessRegistryForTest();
-  setDelegateConfig({ model: "gpt-5.6-sol" });
+
   vi.restoreAllMocks();
 });
 it("quarantines hosted native activity after a mid-run restriction", async () => {
@@ -106,7 +110,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
       };
     });
     registerAgentHarness(nativeHarness(run));
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "gpt-5.6-sol",
       backend: "agent-sdk",
       harness: HARNESS,
@@ -114,7 +118,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
       transport,
     });
     const initial = authority.getSnapshot(SCOPE_ID);
-    const execution = executeToolCalls(
+    const execution = withDelegationRuntime(delegationConfig, () => executeToolCalls(
       [{
         type: "tool_use",
         id: "parent-delegate-call",
@@ -135,7 +139,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
         cwd: SCOPE_ROOT,
         signal: parent.signal,
       },
-    );
+    ));
     recordRuntimeEvent("parent_delegate_dispatched", {
       authorityRevision: initial.revision,
       tool: "delegate",

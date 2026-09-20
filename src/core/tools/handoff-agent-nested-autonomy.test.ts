@@ -12,11 +12,11 @@ import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import { createDelegateBudget } from "./delegate-budget.js";
-import { runHandoffAgent } from "./handoff-agent.js";
 import {
-  type HandoffAgentRuntime,
-  withHandoffAgentRuntime,
-} from "./handoff-agent-runtime.js";
+  type DelegationRuntime,
+  withDelegationRuntime,
+} from "./delegation-runtime.js";
+import { runHandoffAgent } from "./handoff-agent.js";
 import {
   HANDOFF_POLICY_HARNESS as HARNESS,
   handoffApprovalQueue,
@@ -113,7 +113,7 @@ describe("handoff_agent nested autonomy inheritance", () => {
         };
       },
     });
-    const runtime: HandoffAgentRuntime = {
+    const runtime: DelegationRuntime = { effort: "low", model: "test-model",
       cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => agents.find((agent) => agent.name === name),
@@ -126,7 +126,7 @@ describe("handoff_agent nested autonomy inheritance", () => {
       approvalQueue,
     };
 
-    const result = await withHandoffAgentRuntime(runtime, () =>
+    const result = await withDelegationRuntime(runtime, () =>
       runHandoffAgent(
         {
           agent: "child",

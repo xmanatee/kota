@@ -2,8 +2,8 @@ import { modelProviderSelectionFromConfig } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { runHandoffAgent } from "#core/tools/handoff-agent.js";
-import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import type {
   InboundSignalAgentTriggerOptions,
   InboundSignalAgentTriggerResult,
@@ -16,8 +16,11 @@ export async function triggerInboundSignalAgent(
 ): Promise<InboundSignalAgentTriggerResult> {
   const harness = ctx.config.defaultAgentHarness ?? resolveActivePresetFromConfig(ctx.config).harness;
   const modelProvider = modelProviderSelectionFromConfig(ctx.config);
-  const result = await withHandoffAgentRuntime(
+  const result = await withDelegationRuntime(
     {
+      model: resolveActivePresetFromConfig(ctx.config).defaultModel,
+      effort: ctx.config.defaultAgentEffort ?? resolveActivePresetFromConfig(ctx.config).defaultEffort,
+      backend: "agent-sdk",
       cwd: ctx.cwd,
       scopeRoot: ctx.cwd,
       harness,

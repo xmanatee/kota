@@ -10,7 +10,8 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import { EXPLORE_PROMPT, RESEARCH_PROMPT } from "#core/agents/delegate-prompts.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
-import { runDelegate, setDelegateConfig } from "./delegate.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { resolveDelegateConfig, runDelegate } from "./delegate.js";
 import * as delegateConfig from "./delegate-config.js";
 import {
   modelClient,
@@ -19,6 +20,8 @@ import {
 } from "./delegate-test-support.js";
 import { localWriteEffect, readOnlyLocalEffect } from "./effect.js";
 import { registerTool } from "./tool-registry.js";
+
+let delegationConfig: DelegationRuntime;
 
 const TIER_MODELS = {
   fast: "openai/gpt-5.6-luna",
@@ -31,7 +34,7 @@ describe("runDelegate model output-token limits", () => {
   afterEach(() => {
     for (const dispose of toolDisposers.splice(0)) dispose();
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
     vi.restoreAllMocks();
   });
 
@@ -40,7 +43,7 @@ describe("runDelegate model output-token limits", () => {
       (_params: MessageStreamParams) =>
         new TestStream(modelResponse([{ type: "text", text: "fast done" }])),
     );
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "openai/gpt-5.6-sol",
       modelTiers: TIER_MODELS,
       client: modelClient(stream),
@@ -49,7 +52,7 @@ describe("runDelegate model output-token limits", () => {
     const result = await runDelegate({
       task: "Research vector search options",
       mode: "explore",
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(stream).toHaveBeenCalledWith(
@@ -69,7 +72,7 @@ describe("runDelegate model output-token limits", () => {
       .mockReturnValueOnce(
         new TestStream(modelResponse([{ type: "text", text: "capable done" }])),
       );
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "openai/gpt-5.6-sol",
       modelTiers: TIER_MODELS,
       modelOutputTokenLimits: {
@@ -79,8 +82,8 @@ describe("runDelegate model output-token limits", () => {
       client: modelClient(stream),
     });
 
-    await runDelegate({ task: "Research vector search options", mode: "explore" });
-    await runDelegate({ task: "Plan the migration phases", mode: "explore" });
+    await runDelegate({ task: "Research vector search options", mode: "explore" }, undefined, delegationConfig);
+    await runDelegate({ task: "Plan the migration phases", mode: "explore" }, undefined, delegationConfig);
 
     expect(stream.mock.calls[0][0]).toMatchObject({
       model: "openai/gpt-5.6-luna",
@@ -97,7 +100,7 @@ describe("runDelegate model output-token limits", () => {
       (_params: MessageStreamParams) =>
         new TestStream(modelResponse([{ type: "text", text: "unused" }])),
     );
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
@@ -107,7 +110,7 @@ describe("runDelegate model output-token limits", () => {
     });
 
     await expect(
-      runDelegate({ task: "Research vector search options", mode: "explore" }),
+      runDelegate({ task: "Research vector search options", mode: "explore" }, undefined, delegationConfig),
     ).rejects.toThrow(
       /No output-token limit configured for model "openai\/operator-model"/,
     );
@@ -119,7 +122,7 @@ describe("runDelegate model output-token limits", () => {
       (_params: MessageStreamParams) =>
         new TestStream(modelResponse([{ type: "text", text: "custom done" }])),
     );
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
@@ -129,7 +132,7 @@ describe("runDelegate model output-token limits", () => {
       client: modelClient(stream),
     });
 
-    await runDelegate({ task: "Research vector search options", mode: "explore" });
+    await runDelegate({ task: "Research vector search options", mode: "explore" }, undefined, delegationConfig);
 
     expect(stream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,7 +171,7 @@ describe("runDelegate model output-token limits", () => {
         };
       }),
     });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
@@ -194,8 +197,7 @@ describe("runDelegate model output-token limits", () => {
       },
       {
         workflow: workflowMetadata,
-      },
-    );
+      }, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions).toMatchObject({
@@ -213,7 +215,7 @@ describe("runDelegate model output-token limits", () => {
       signal: new AbortController().signal, toolUseId: "write-attempt",
     })).toMatchObject({ behavior: "deny" });
     vi.spyOn(delegateConfig, "resolvePromptTemplate").mockReturnValue({ content: "Investigate the selected interface." });
-    await runDelegate({ task: "Research the interface", mode, prompt: "interface" });
+    await runDelegate({ task: "Research the interface", mode, prompt: "interface" }, undefined, delegationConfig);
     expect(receivedOptions?.systemPrompt).toContain("Investigate the selected interface.");
     expect(receivedOptions?.systemPrompt).not.toContain(prompt);
     expect(receivedOptions?.agentWriteScope).toBe("deny-all");
@@ -227,16 +229,16 @@ it("preserves direct ModelClient delegates under their parent tool-call identity
     requests.push(structuredClone(params));
     return new TestStream(modelResponse([{ type: "text", text: "Selected blue." }]));
   };
-  setDelegateConfig({ model: "openai/gpt-5.6-luna", cwd: root, client: modelClient(stream) });
+  delegationConfig = resolveDelegateConfig({ effort: "low", model: "openai/gpt-5.6-luna", cwd: root, client: modelClient(stream) });
   const context = { cwd: root, scopeRoot: root, sessionId: "parent", toolUseId: "child-call" };
   try {
-    await runDelegate({ task: "Choose a color", mode: "explore" }, context);
-    await runDelegate({ task: "Continue", mode: "explore" }, context);
-    await runDelegate({ task: "Independent work", mode: "explore" }, { ...context, toolUseId: "another-child" });
+    await runDelegate({ task: "Choose a color", mode: "explore" }, context, delegationConfig);
+    await runDelegate({ task: "Continue", mode: "explore" }, context, delegationConfig);
+    await runDelegate({ task: "Independent work", mode: "explore" }, { ...context, toolUseId: "another-child" }, delegationConfig);
     expect(JSON.stringify(requests[1].messages)).toContain("Selected blue.");
     expect(JSON.stringify(requests[2].messages)).not.toContain("Selected blue.");
   } finally {
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
     rmSync(root, { recursive: true, force: true });
   }
 });

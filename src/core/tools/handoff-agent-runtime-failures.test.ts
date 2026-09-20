@@ -11,9 +11,12 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { createDelegateBudget } from "./delegate-budget.js";
-import { setDelegateConfig } from "./delegate-config.js";
+import { resolveDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
+
+let delegationConfig: DelegationRuntime;
 
 function initGit(scopeRoot: string): void {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
@@ -71,7 +74,7 @@ describe("handoff_agent runtime failure handling", () => {
         };
       }),
     });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "unused",
       cwd: scopeRoot,
       harness: "handoff-test",
@@ -83,7 +86,7 @@ describe("handoff_agent runtime failure handling", () => {
   afterEach(() => {
     rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
   });
 
   it("routes transfer handoffs to an existing child session when resume_session_id is set", async () => {
@@ -96,7 +99,7 @@ describe("handoff_agent runtime failure handling", () => {
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
       resume_session_id: "child-session-existing",
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions[0]).toMatchObject({
@@ -111,7 +114,7 @@ describe("handoff_agent runtime failure handling", () => {
 
   it("uses the shared delegate budget for recursive depth rejection", async () => {
     const budget = createDelegateBudget({ maxDepth: 1, maxActiveChildren: 4 });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "unused",
       cwd: scopeRoot,
       harness: "handoff-test",
@@ -131,7 +134,7 @@ describe("handoff_agent runtime failure handling", () => {
           autonomy_mode: "autonomous",
           budget: { max_turns: 3 },
           scope: scopeInput(scopeRoot),
-        }),
+        }, undefined, delegationConfig),
       );
 
       expect(result.is_error).toBe(true);
@@ -170,7 +173,7 @@ describe("handoff_agent runtime failure handling", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain('child agent "reviewer" failed');
@@ -192,7 +195,7 @@ describe("handoff_agent runtime failure handling", () => {
         required: ["verdict"],
         additionalProperties: false,
       },
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("child structured output validation failed");
@@ -230,7 +233,7 @@ describe("handoff_agent runtime failure handling", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("wrote outside writeScope");

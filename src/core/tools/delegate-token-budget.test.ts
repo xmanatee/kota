@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   AgentTokenBudgetLedger,
   TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
@@ -9,7 +9,10 @@ import type {
   KotaModelResponse,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
-import { runDelegate, setDelegateConfig } from "./delegate.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { resolveDelegateConfig, runDelegate } from "./delegate.js";
+
+let delegationConfig: DelegationRuntime;
 
 class TestStream implements KotaMessageStream {
   constructor(private readonly response: KotaModelResponse) {}
@@ -42,9 +45,6 @@ function modelResponse(
 }
 
 describe("runDelegate token budgets", () => {
-  afterEach(() => {
-    setDelegateConfig({ model: "gpt-5.6-sol" });
-  });
 
   it("uses a runner-context token budget for child delegate turns", async () => {
     const stream = vi.fn(() =>
@@ -57,7 +57,7 @@ describe("runDelegate token budgets", () => {
       },
     };
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 20 });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "test-model",
       modelOutputTokenLimits: { "test-model": 1234 },
       client,
@@ -74,8 +74,7 @@ describe("runDelegate token budgets", () => {
           spanId: "run-1:build",
           scopeId: "scope-1",
         },
-      },
-    );
+      }, delegationConfig);
 
     expect(result.is_error).toBeUndefined();
     expect(tokenBudget.snapshot()).toMatchObject({
@@ -100,7 +99,7 @@ describe("runDelegate token budgets", () => {
       },
     };
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 1 });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "test-model",
       modelOutputTokenLimits: { "test-model": 1234 },
       client,
@@ -108,8 +107,7 @@ describe("runDelegate token budgets", () => {
 
     const result = await runDelegate(
       { task: "Spend too many tokens", mode: "explore" },
-      { tokenBudget },
-    );
+      { tokenBudget }, delegationConfig);
 
     expect(result).toMatchObject({ is_error: true });
     expect(result.content).toContain(TOKEN_BUDGET_EXHAUSTED_SUBTYPE);

@@ -13,6 +13,10 @@ module lifecycle. General-purpose capabilities belong in modules.
   roots before filesystem access, failing closed on opaque targets. Nested calls
   inherit its permissions, scope and session context; module callbacks alone
   grant no tool authority.
+- Delegation settings belong to the owning session and effective harness invocation.
+  Generic delegates and named handoffs share `delegation-runtime`; direct callers
+  supply explicit runtime configuration. Async initialization never publishes
+  session settings process-wide.
 - `tool-middleware` provides one continuation per invocation. Retry and caching
   belong to the capability that knows an operation's effects and resource identity.
 - `guardrails-config.ts` owns configuration decoding and policy snapshots;

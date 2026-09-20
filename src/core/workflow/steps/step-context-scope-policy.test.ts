@@ -16,12 +16,14 @@ import {
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
-import { setDelegateConfig } from "#core/tools/delegate.js";
+import { resolveDelegateConfig } from "#core/tools/delegate.js";
 import {
   modelClient,
   modelResponse,
   TestStream,
 } from "#core/tools/delegate-test-support.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
 import { localWriteEffect, networkWriteEffect } from "#core/tools/effect.js";
 import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js";
 import {
@@ -39,6 +41,8 @@ import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { executeToolStep } from "./step-executor.js";
+
+let delegationConfig: DelegationRuntime;
 
 const POLICY_WRITE_TOOL = "workflow_scope_policy_write_fixture";
 const POLICY_NETWORK_TOOL = "workflow_scope_policy_network_fixture";
@@ -76,7 +80,7 @@ afterEach(() => {
   deregisterTool(POLICY_WRITE_TOOL);
   deregisterTool(POLICY_NETWORK_TOOL);
   deregisterTool(POLICY_DELEGATE_CHILD_TOOL);
-  setDelegateConfig({ model: "gpt-5.6-sol" });
+
 });
 
 describe("workflow step context scope policy", () => {
@@ -297,7 +301,7 @@ describe("workflow step context scope policy", () => {
         if (!response) throw new Error("Unexpected delegate turn");
         return new TestStream(response);
       });
-      setDelegateConfig({
+      delegationConfig = resolveDelegateConfig({ effort: "low",
         model: "test-model",
         modelOutputTokenLimits: { "test-model": 1_024 },
         client: modelClient(stream),
@@ -331,10 +335,10 @@ describe("workflow step context scope policy", () => {
         },
       );
 
-      const result = await context.runTool("delegate", {
+      const result = await withDelegationRuntime(delegationConfig, () => context.runTool("delegate", {
         task: "Exercise delegated live authorization.",
         mode: "execute",
-      });
+      }));
 
       expect(result).toMatchObject({ content: expect.stringContaining("delegate complete") });
       expect(childRunner).toHaveBeenCalledTimes(1);

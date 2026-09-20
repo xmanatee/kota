@@ -24,7 +24,7 @@ import {
   setToolDescriptionQualityProvider,
 } from "#core/tools/agent-status.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
-import { setDelegateConfig } from "#core/tools/delegate.js";
+import { resolveDelegateConfig } from "#core/tools/delegate-config.js";
 import {
   cloneGuardrailsConfig,
   createGuardrailsSnapshot,
@@ -240,8 +240,9 @@ export function initAgentSession(
     : undefined;
   const hasDelegateModelProvider =
     delegateModelProvider !== undefined && Object.keys(delegateModelProvider).length > 0;
-  setDelegateConfig({
+  state.delegationRuntime = resolveDelegateConfig({
     model: state.editorModel,
+    effort: agentRuntime.effort,
     modelTiers: agentRuntime.tiers,
     ...(hasDelegateModelProvider ? { modelProvider: delegateModelProvider } : {}),
     modelOutputTokenLimits: options.config?.modelOutputTokenLimits,

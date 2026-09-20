@@ -6,6 +6,7 @@
  */
 
 import {
+  type AgentHarnessRunOptions,
   type AgentTokenBudgetLedger,
   createNativeAgentInvalidationLifecycle,
   type NativeAgentInvalidationLifecycle,
@@ -25,7 +26,7 @@ import {
 } from "#core/daemon/scope-policy.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
-import type { ModelProviderSelection } from "#core/model/model-client.js";
+import type { AgentEffort, ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import {
   assembleDelegateResult,
@@ -39,20 +40,25 @@ import type { ToolCallExecutionOptions } from "./tool-runner-types.js";
 export type DelegateHarnessConfig = {
   basePrompt: string;
   tools: readonly KotaTool[];
+  mcpServers?: AgentHarnessRunOptions["mcpServers"];
+  mcpScopeConfigPolicy?: AgentHarnessRunOptions["mcpScopeConfigPolicy"];
   cwd?: string;
   continuityKey?: string;
+  signal?: AbortSignal;
+  env?: Record<string, string>;
   scopeRoot?: string;
   scopeContext?: string;
   instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
   model?: string;
+  effort: AgentEffort;
   modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   /**
    * Registered agent-harness name to run this delegate on. Required — the
    * caller must plumb it through from `config.defaultAgentHarness` (see
-   * `setDelegateConfig` callers in the loop modules). If unset, the delegate
+   * session runtime in the loop modules). If unset, the delegate
    * fails loudly rather than silently re-pinning subagents to claude.
    */
   harness: string;
@@ -138,6 +144,13 @@ export async function runDelegateHarness(
       )
     : undefined;
 
+  const abortController = invalidation?.abortController ?? new AbortController();
+  const parentSignal = config.signal ?? inheritedToolExecution?.signal;
+  const onAbort = () => abortController.abort(parentSignal?.reason);
+  if (!invalidation) {
+    if (parentSignal?.aborted) onAbort();
+    else parentSignal?.addEventListener("abort", onAbort, { once: true });
+  }
   let result: Awaited<ReturnType<typeof runAgentHarness>>;
   try {
     if (transport) {
@@ -155,6 +168,8 @@ export async function runDelegateHarness(
         ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
         modelOutputTokenLimits: config.modelOutputTokenLimits,
         systemPrompt,
+        mcpServers: config.mcpServers,
+        mcpScopeConfigPolicy: config.mcpScopeConfigPolicy,
         agentWriteScope: isExecute ? inheritedToolExecution?.agentWriteScope : "deny-all",
         agentReadScope: inheritedToolExecution?.agentReadScope,
         agentOutputDir: inheritedToolExecution?.agentOutputDir,
@@ -185,13 +200,12 @@ export async function runDelegateHarness(
         ...(inheritedToolExecution?.authorityConfigPath !== undefined
           ? { authorityConfigPath: inheritedToolExecution.authorityConfigPath }
           : {}),
-        ...(invalidation !== undefined
-          ? { abortController: invalidation.abortController }
-          : {}),
+        abortController,
+        env: config.env,
         autonomyMode,
         scopeRoot: config.scopeRoot ?? config.cwd ?? process.cwd(),
         cwd: config.cwd ?? process.cwd(),
-        effort: "xhigh",
+        effort: config.effort,
         tokenBudget: config.tokenBudget,
         ...(config.workflowContext !== undefined
           ? { workflowContext: config.workflowContext }
@@ -212,6 +226,7 @@ export async function runDelegateHarness(
     );
   } finally {
     invalidation?.dispose();
+    if (!invalidation) parentSignal?.removeEventListener("abort", onAbort);
   }
 
   let completionReason: CompletionReason = "done";

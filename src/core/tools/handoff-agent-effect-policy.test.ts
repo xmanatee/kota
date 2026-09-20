@@ -11,11 +11,11 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { createDelegateBudget } from "./delegate-budget.js";
-import { networkReadEffect } from "./effect.js";
 import {
-  type HandoffAgentRuntime,
-  withHandoffAgentRuntime,
-} from "./handoff-agent-runtime.js";
+  type DelegationRuntime,
+  withDelegationRuntime,
+} from "./delegation-runtime.js";
+import { networkReadEffect } from "./effect.js";
 import {
   HANDOFF_POLICY_HARNESS as HARNESS,
   handoffApprovalQueue,
@@ -106,7 +106,7 @@ describe("handoff_agent aggregate effect policy", () => {
       openWorld: true,
     });
 
-    const runtime: HandoffAgentRuntime = {
+    const runtime: DelegationRuntime = { effort: "low", model: "test-model",
       cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
@@ -118,7 +118,7 @@ describe("handoff_agent aggregate effect policy", () => {
       getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
       approvalQueue,
     };
-    const [result] = await withHandoffAgentRuntime(runtime, () =>
+    const [result] = await withDelegationRuntime(runtime, () =>
       executeToolCalls(
         [{ type: "tool_use", id: "outer-handoff", name: "handoff_agent", input }],
         {

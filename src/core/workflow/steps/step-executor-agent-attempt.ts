@@ -5,7 +5,7 @@ import {
   createNativeAgentInvalidationLifecycle,
   type KotaAgentMessage,
 } from "#core/agent-harness/index.js";
-import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
+import { withDelegationRuntime } from "#core/tools/delegation-runtime.js";
 import type { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { AgentBackoffAdmissionError } from "../agent-backoff.js";
 import { WorkflowContinuationCheckpointRequest } from "../continuation.js";
@@ -204,8 +204,11 @@ export async function runAgentAttempt(input: {
       log: agentConfig.log,
     });
     const harnessRun = agentConfig.delegateBudget
-      ? withHandoffAgentRuntime(
+      ? withDelegationRuntime(
           {
+            model: resolvedModel,
+            effort: harnessRunOptions.options.effort,
+            backend: "agent-sdk",
             scopeRoot: agentConfig.scopeRoot,
             cwd: agentConfig.workspaceRoot ?? agentConfig.scopeRoot,
             harness: resolvedHarness.name,

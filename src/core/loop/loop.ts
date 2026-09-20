@@ -16,6 +16,7 @@ import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js"
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
 import {
   cloneGuardrailsConfig,
   createGuardrailsSnapshot,
@@ -101,6 +102,7 @@ export type GuardrailsConfigReplacement = {
  */
 export class AgentSession implements AgentLoopState {
   client!: ModelClient;
+  delegationRuntime!: DelegationRuntime;
   context!: Context;
   costTracker!: CostTracker;
   model!: string;

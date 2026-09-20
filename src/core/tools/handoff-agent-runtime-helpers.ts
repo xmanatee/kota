@@ -7,12 +7,11 @@ import {
   tryCaptureWorkflowMutationSnapshot,
   type WorkflowMutationSnapshot,
 } from "#core/workflow/steps/agent-write-scope-snapshot.js";
-import { getDelegateConfig } from "./delegate-config.js";
-import { errorResult } from "./handoff-agent-input.js";
 import {
-  getCurrentHandoffAgentRuntime,
-  type HandoffAgentRuntime,
-} from "./handoff-agent-runtime.js";
+  type DelegationRuntime,
+  getCurrentDelegationRuntime,
+} from "./delegation-runtime.js";
+import { errorResult } from "./handoff-agent-input.js";
 import type { ToolResult, ToolRunnerContext } from "./index.js";
 
 export function currentScope(
@@ -40,7 +39,7 @@ export function createChildAbortController(
   return controller;
 }
 
-export function createHarnessWriter(transport: HandoffAgentRuntime["transport"]) {
+export function createHarnessWriter(transport: DelegationRuntime["transport"]) {
   if (!transport) return undefined;
   return {
     write(text: string): boolean {
@@ -54,38 +53,14 @@ export function createHarnessWriter(transport: HandoffAgentRuntime["transport"])
   };
 }
 
-export function resolveHandoffRuntime(): HandoffAgentRuntime | ToolResult {
-  const scopedRuntime = getCurrentHandoffAgentRuntime();
-  if (scopedRuntime) return scopedRuntime;
-
-  const delegateConfig = getDelegateConfig();
-  if (!delegateConfig.resolveAgentDef) {
-    return errorResult("agent registry unavailable for handoff_agent");
-  }
-  if (!delegateConfig.harness) {
-    return errorResult("handoff_agent requires config.defaultAgentHarness so the child run has an explicit harness");
-  }
-  return {
-    cwd: delegateConfig.cwd ?? process.cwd(),
-    harness: delegateConfig.harness,
-    resolveAgentDef: delegateConfig.resolveAgentDef,
-    ...(delegateConfig.resolveSkillsPrompt !== undefined
-      ? { resolveSkillsPrompt: delegateConfig.resolveSkillsPrompt }
-      : {}),
-    ...(delegateConfig.modelProvider !== undefined
-      ? { modelProvider: delegateConfig.modelProvider }
-      : {}),
-    ...(delegateConfig.modelOutputTokenLimits !== undefined
-      ? { modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits }
-      : {}),
-    delegateBudget: delegateConfig.delegateBudget,
-    ...(delegateConfig.transport !== undefined
-      ? { transport: delegateConfig.transport }
-      : {}),
-    ...(delegateConfig.tokenBudget !== undefined
-      ? { tokenBudget: delegateConfig.tokenBudget }
-      : {}),
-  };
+export function resolveHandoffRuntime(
+  explicitRuntime?: DelegationRuntime,
+): (DelegationRuntime & { harness: string; resolveAgentDef: NonNullable<DelegationRuntime["resolveAgentDef"]> }) | ToolResult {
+  const runtime = explicitRuntime ?? getCurrentDelegationRuntime();
+  if (!runtime) return errorResult("handoff_agent requires an owning delegation runtime");
+  if (!runtime.resolveAgentDef) return errorResult("agent registry unavailable for handoff_agent");
+  if (!runtime.harness) return errorResult("handoff_agent requires an explicit harness");
+  return { ...runtime, harness: runtime.harness, resolveAgentDef: runtime.resolveAgentDef };
 }
 
 export function buildSystemPrompt(

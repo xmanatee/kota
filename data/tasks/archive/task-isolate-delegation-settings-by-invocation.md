@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Keep delegated execution bound to its owning session and invocation
@@ -43,3 +42,31 @@ handoffs; do not repair only the builder or a single backend.
 The same audit already corrects harness mode/template selection, the hard-coded
 Claude tool catalog and read-only native write scope in the delegation owner.
 Preserve those corrections; this task addresses the separate configuration owner.
+
+## Outcome
+
+Delegation configuration now belongs to each session and effective harness
+invocation. Generic delegates and named handoffs share that context; direct
+callers supply an explicit runtime. The mutable global settings and asynchronous
+MCP reinitialization workaround are removed. Nested harness calls inherit their
+immediate parent's model, effort, provider and token ledger. Existing tool
+selection, native sandbox ownership and continuity remain with their owners.
+
+Validation includes two interleaved real sessions with delayed MCP initialization,
+nested calls, distinct instructions and model/tool ports, accounting and teardown;
+named-to-generic child settings and budget inheritance; and hosted/native
+cancellation. All 82 tests in the 18 affected files passed. The broader scoped
+run passed 579 tests, with five additional suites prevented by this execution
+sandbox's host-path/network restrictions. Static checks and production build
+passed. No live provider or deployment claims are made.
+
+Hosted children also retain the invocation's explicit MCP server declarations
+and scope-discovery policy. Their permitted tool catalog includes the owning
+tool invocation's discovered MCP tools, still filtered by parent tool limits.
+A real hosted-adapter regression verifies two overlapping invocations execute
+their own remote lookups, deny excluded tools, suppress planted scope MCP
+configuration and close their connections independently. Named handoff tests
+verify declarations and discovery policy survive the named-to-generic boundary.
+The repair passed 156 tests across 31 owner/protocol/resilience files, the static
+gate and production build. Two additional integration failures reproduce against
+original HEAD source; they are not claimed passing.

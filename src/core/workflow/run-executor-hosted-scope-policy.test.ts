@@ -18,7 +18,6 @@ import {
 } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { setDelegateConfig } from "#core/tools/delegate.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
 import {
@@ -106,7 +105,7 @@ const TRIGGER: WorkflowRunTrigger = {
 afterEach(() => {
   clearAgentHarnessRegistryForTest();
   deregisterTool(TOOL_NAME);
-  setDelegateConfig({ model: "gpt-5.6-sol" });
+
 });
 
 describe("workflow hosted tool live scope policy", () => {
@@ -205,11 +204,6 @@ describe("workflow hosted tool live scope policy", () => {
             isError: false,
           };
         },
-      });
-      setDelegateConfig({
-        model: "test-model",
-        backend: "agent-sdk",
-        harness: HARNESS_NAME,
       });
       writeFileSync(join(workspaceRoot, "prompt.md"), "Exercise hosted authorization.\n");
       const definition: WorkflowDefinition = {

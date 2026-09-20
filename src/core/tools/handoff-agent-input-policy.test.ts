@@ -11,8 +11,11 @@ import {
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { setDelegateConfig } from "./delegate-config.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
+import { resolveDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
+
+let delegationConfig: DelegationRuntime;
 
 function initGit(scopeRoot: string): void {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
@@ -70,7 +73,7 @@ describe("handoff_agent input and policy rejection", () => {
         };
       }),
     });
-    setDelegateConfig({
+    delegationConfig = resolveDelegateConfig({ effort: "low",
       model: "unused",
       cwd: scopeRoot,
       harness: "handoff-test",
@@ -82,7 +85,7 @@ describe("handoff_agent input and policy rejection", () => {
   afterEach(() => {
     rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.6-sol" });
+
   });
 
   it("rejects passive handoffs on harnesses that cannot enforce KOTA tool scope", async () => {
@@ -116,7 +119,7 @@ describe("handoff_agent input and policy rejection", () => {
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain('agent harness "handoff-test" cannot honor named handoff tool policy');
@@ -132,7 +135,7 @@ describe("handoff_agent input and policy rejection", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain('unknown registered agent "missing"');
@@ -154,7 +157,7 @@ describe("handoff_agent input and policy rejection", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: scopeInput(scopeRoot),
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("input failed input_schema validation");
@@ -170,7 +173,7 @@ describe("handoff_agent input and policy rejection", () => {
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
       scope: { scope_id: "other-scope" },
-    });
+    }, undefined, delegationConfig);
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("does not match current scope");

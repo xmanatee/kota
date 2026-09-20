@@ -18,13 +18,12 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
+import type { DelegationRuntime } from "#core/tools/delegation-runtime.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import type { LoopContinuity } from "./loop-continuity.js";
-import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionStateMachine } from "./session-state.js";
 import type { ProxyTransport, Transport } from "./transport.js";
 
@@ -41,6 +40,7 @@ export interface AgentLoopState {
   scopeId: string;
   context: Context;
   client: ModelClient;
+  delegationRuntime: DelegationRuntime;
   model: string;
   editorModel: string;
   maxTokens: number;
@@ -103,32 +103,6 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         : {}),
     });
     if (state.mcpManager.getToolCount() > 0) {
-      // Preserve any harness name the loop constructor already wired in from
-      // `config.defaultAgentHarness` — re-calling setDelegateConfig here must
-      // not silently drop it.
-      const previousDelegateConfig = getDelegateConfig();
-      const previousHarness = previousDelegateConfig.harness;
-      const previousResolveAgentDef = previousDelegateConfig.resolveAgentDef;
-      const previousResolveSkillsPrompt = previousDelegateConfig.resolveSkillsPrompt;
-      const previousModelProvider = previousDelegateConfig.modelProvider;
-      setDelegateConfig({
-        model: state.editorModel,
-        modelTiers: state.modelTiers,
-        ...(previousModelProvider !== undefined ? { modelProvider: previousModelProvider } : {}),
-        modelOutputTokenLimits: state.modelOutputTokenLimits,
-        client: state.client,
-        cwd: state.scopeRoot,
-        scopeContext: state.scopeContext || undefined,
-        instructionContext: state.instructionContext || undefined,
-        costTracker: state.costTracker,
-        transport: state.transport,
-        mcpManager: state.mcpManager,
-        ...(previousHarness !== undefined ? { harness: previousHarness } : {}),
-        ...(previousResolveAgentDef !== undefined ? { resolveAgentDef: previousResolveAgentDef } : {}),
-        ...(previousResolveSkillsPrompt !== undefined ? { resolveSkillsPrompt: previousResolveSkillsPrompt } : {}),
-        delegateBudget: previousDelegateConfig.delegateBudget,
-        tokenBudget: getAgentLoopTokenBudget(state),
-      });
       if (state.verbose) {
         state.transport.emit({
           type: "status",
