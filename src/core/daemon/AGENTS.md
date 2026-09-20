@@ -31,6 +31,15 @@ scope hosting, and live state.
 
 Normal stop and failed start share `runDaemonShutdown`.
 
+Lifecycle inspection and collection share one serialized, coalescing sweep.
+Shutdown drains it before releasing stores. Historical metadata and journal
+preparation use the shared blocking-operation worker; recursive sizing and Git
+use asynchronous I/O. Retention selects candidates before sizing, and targeted
+sweeps measure only their run. Recheck live ownership after asynchronous reads
+before destructive effects. Directory reclamation detaches the selected path
+before yielding; journal replacement preserves a bounded concurrent append tail
+or defers to a later sweep.
+
 Integrated changes to the executing KOTA installation enter the existing restart
 drain only after terminal publication is durable. The drain closes global
 admission without changing persistent operator pauses or provider backoff. Runtime

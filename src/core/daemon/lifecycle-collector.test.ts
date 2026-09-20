@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,9 @@ import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { InteractiveSession } from "./daemon-control-types.js";
 import { LifecycleCollector } from "./lifecycle-collector.js";
 import { buildDirectoryScope, ScopeRegistry } from "./scope-registry.js";
+
+// Only the filesystem read port is delayed; retention and durable admission remain real.
+vi.mock("node:fs/promises", async (original) => ({ ...await original<typeof import("node:fs/promises")>() }));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -441,6 +445,64 @@ describe("LifecycleCollector", () => {
     expect(existsSync(join(runsDir, oldestRunId))).toBe(false);
     for (const runId of runIds.slice(1)) {
       expect(existsSync(join(runsDir, runId))).toBe(true);
+    }
+  });
+
+  it("serializes cleanup and rechecks a run admitted while its artifact size is being read", async () => {
+    const scope = scopeRegistry.list()[0]!;
+    const runsDir = join(scopeRootA, ".kota", "runs");
+    const target = "terminal-race-00";
+    for (let index = 0; index < 11; index++) {
+      const id = `terminal-race-${String(index).padStart(2, "0")}`;
+      const runDir = join(runsDir, id);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "metadata.json"), JSON.stringify({
+        metadataVersion: WORKFLOW_RUN_METADATA_VERSION, id, workflow: "builder",
+        definitionPath: "workflow.ts", trigger: { event: "test", schemaRef: null, payload: {} },
+        startedAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+        completedAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+        status: "success", runDir, steps: [],
+      }));
+    }
+    const collector = new LifecycleCollector({ stateDir, scopeRegistry, runState });
+    let entered!: () => void;
+    const reading = new Promise<void>(resolve => { entered = resolve; });
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const original = fsPromises.readdir;
+    const reads: string[] = [];
+    const read = vi.spyOn(fsPromises, "readdir").mockImplementation(async (...args: Parameters<typeof original>) => {
+      reads.push(String(args[0]));
+      if (String(args[0]) === join(runsDir, target)) { entered(); await held; }
+      return original(...args);
+    });
+    const options = { scopeId: scope.scopeId, targetRunId: target, now: new Date("2026-09-20") };
+    const sweep = collector.sweep(options);
+    const duplicate = collector.sweep(options);
+    const inspection = collector.sweep({ ...options, dryRun: true });
+    try {
+      await reading;
+      let drained = false;
+      const closing = collector.close().then(() => { drained = true; });
+      await expect(collector.sweep()).rejects.toThrow("closed");
+      expect(drained).toBe(false);
+      runState.admitRun({ id: target, scopeId: scope.scopeId, workflow: "builder", repository: "none",
+        trigger: { event: "test", schemaRef: null, payload: {} }, resources: [], admittedAt: new Date().toISOString() });
+      release();
+      const reports = await Promise.all([sweep, duplicate, inspection]);
+      for (const report of reports) {
+        expect(report.candidates.filter(candidate => candidate.store === "run-artifacts"))
+          .toEqual([expect.objectContaining({ candidate: target, decision: "keep", reason: "protected-workflow-run" })]);
+        expect(report.reclaimedCount).toBe(0);
+      }
+      expect(reads).toEqual([join(runsDir, target)]);
+      expect(existsSync(join(runsDir, target, "metadata.json"))).toBe(true);
+      await closing;
+      expect(drained).toBe(true);
+    } finally {
+      release();
+      await Promise.allSettled([sweep, duplicate, inspection]);
+      read.mockRestore();
     }
   });
 

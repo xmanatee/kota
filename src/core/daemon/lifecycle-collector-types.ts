@@ -36,6 +36,7 @@ export type LifecycleCandidate = {
   reason: string;
   age: number;
   owner: string;
+  /** Reclaim estimate; retained run trees are not recursively measured. */
   estimatedBytes: number;
   remediation?: string;
 };

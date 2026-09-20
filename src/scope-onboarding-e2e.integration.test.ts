@@ -13,10 +13,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { Readable, Writable } from "node:stream";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -25,6 +23,7 @@ import {
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
+import { dispatchControlRequest } from "#core/daemon/control-request-test-support.integration.js";
 import { Daemon } from "#core/daemon/daemon.js";
 import {
   type DaemonControlAddress,
@@ -79,89 +78,6 @@ type CliTranscriptEntry = {
   stdout: string;
   stderr: string;
 };
-
-type InProcessControlDispatcher = {
-  handleRequest(req: IncomingMessage, res: ServerResponse): void;
-};
-
-function responseHeaderValue(value: number | string | readonly string[]): string {
-  return Array.isArray(value) ? value.join(", ") : String(value);
-}
-
-async function dispatchControlRequest(
-  server: DaemonControlServer,
-  token: string,
-  method: string,
-  path: string,
-  init: DaemonRawRequestInit = {},
-): Promise<Response> {
-  const suppliedHeaders = new Headers(init.headers);
-  if (!suppliedHeaders.has("authorization")) {
-    suppliedHeaders.set("authorization", `Bearer ${token}`);
-  }
-  const requestHeaders: Record<string, string> = {};
-  suppliedHeaders.forEach((value, name) => {
-    requestHeaders[name.toLowerCase()] = value;
-  });
-  const requestBody = init.body === undefined || init.body === null
-    ? []
-    : [Buffer.from(String(init.body))];
-  const req = Object.assign(Readable.from(requestBody), {
-    headers: requestHeaders,
-    method,
-    url: path,
-    socket: { remoteAddress: "127.0.0.1" },
-  }) as unknown as IncomingMessage;
-
-  return await new Promise<Response>((resolveResponse, rejectResponse) => {
-    const chunks: Buffer[] = [];
-    const headers = new Headers();
-    const res = new Writable({
-      write(chunk, _encoding, callback) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        callback();
-      },
-    }) as unknown as ServerResponse;
-    res.statusCode = 200;
-    let headersSent = false;
-    Object.defineProperty(res, "headersSent", {
-      configurable: true,
-      get: () => headersSent,
-    });
-    res.setHeader = (name, value) => {
-      headers.set(name, responseHeaderValue(value));
-      return res;
-    };
-    res.getHeader = (name) => headers.get(name) ?? undefined;
-    res.hasHeader = (name) => headers.has(name);
-    res.removeHeader = (name) => headers.delete(name);
-    res.writeHead = ((statusCode: number, reasonOrHeaders?: unknown, maybeHeaders?: unknown) => {
-      res.statusCode = statusCode;
-      headersSent = true;
-      const rawHeaders = typeof reasonOrHeaders === "object" && reasonOrHeaders !== null
-        ? reasonOrHeaders
-        : maybeHeaders;
-      if (typeof rawHeaders === "object" && rawHeaders !== null) {
-        for (const [name, value] of Object.entries(rawHeaders)) {
-          if (value !== undefined) headers.set(name, responseHeaderValue(value));
-        }
-      }
-      return res;
-    }) as ServerResponse["writeHead"];
-    res.once("finish", () => {
-      resolveResponse(new Response(Buffer.concat(chunks), {
-        status: res.statusCode,
-        headers,
-      }));
-    });
-    res.once("error", rejectResponse);
-    try {
-      (server as unknown as InProcessControlDispatcher).handleRequest(req, res);
-    } catch (error) {
-      rejectResponse(error);
-    }
-  });
-}
 
 function createInProcessDaemonTransport(
   server: DaemonControlServer,
@@ -411,6 +327,7 @@ describe("self-service external scope onboarding acceptance", () => {
   let generatedTaskId: string | null;
   let priorOperatorTokenPath: string | undefined;
   let priorSessionId: string | undefined;
+  let priorGitCeiling: string | undefined;
   let ttyDescriptor: PropertyDescriptor | undefined;
   const events: BusEnvelope[] = [];
   const transcript: CliTranscriptEntry[] = [];
@@ -420,6 +337,10 @@ describe("self-service external scope onboarding acceptance", () => {
     events.splice(0);
     transcript.splice(0);
     root = mkdtempSync(join(tmpdir(), "kota-scope-onboarding-e2e-"));
+    // A run-owned scratch root may itself live inside KOTA's repository.
+    // Non-code fixtures must not discover that unrelated ancestor repository.
+    priorGitCeiling = process.env.GIT_CEILING_DIRECTORIES;
+    process.env.GIT_CEILING_DIRECTORIES = root;
     hostRoot = join(root, "host");
     codeRoot = join(root, "code-scope");
     observeRoot = join(root, "observe-scope");
@@ -503,6 +424,8 @@ describe("self-service external scope onboarding acceptance", () => {
     }
     if (priorSessionId === undefined) delete process.env.KOTA_SESSION_ID;
     else process.env.KOTA_SESSION_ID = priorSessionId;
+    if (priorGitCeiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = priorGitCeiling;
     rmSync(root, { recursive: true, force: true });
   });
 

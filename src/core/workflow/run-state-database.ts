@@ -1983,8 +1983,9 @@ export class RunStateDatabase {
 
   compact(): { bytesReclaimed: number } {
     const sizeBefore = existsSync(this.path) ? statSync(this.path).size : 0;
-    this.database.pragma("wal_checkpoint(TRUNCATE)");
-    this.database.pragma("incremental_vacuum");
+    // Maintenance must not wait for active readers to release the WAL.
+    this.database.pragma("wal_checkpoint(PASSIVE)");
+    this.database.pragma("incremental_vacuum(100)");
     const sizeAfter = existsSync(this.path) ? statSync(this.path).size : 0;
     return { bytesReclaimed: Math.max(0, sizeBefore - sizeAfter) };
   }
