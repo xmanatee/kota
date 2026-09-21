@@ -13,6 +13,7 @@ export type DaemonRuntimeScope = Pick<
   | "deadLetterQueue"
   | "runStore"
   | "runState"
+  | "idempotencyStore"
   | "ownerQuestionQueue"
 > & {
   workflowRuntime: Pick<WorkflowRuntime, "enqueuePendingRun" | "getState">;

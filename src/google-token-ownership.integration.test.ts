@@ -1,13 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
+import { createScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { outboundHttp } from "#core/outbound-http/index.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { getToolEffect, resolveToolSet } from "#core/tools/index.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import daemonOps from "#modules/daemon-ops/index.js";
 import git from "#modules/git/index.js";
 import googleWorkspace from "#modules/google-workspace/index.js";
@@ -28,7 +34,18 @@ it("keeps registered Google tool credentials and token lifetimes isolated across
   const config = { modules: { "google-workspace": credentials("A") } };
   const loader = new ModuleLoader(config);
   loader.setCwd(cwd);
-  loader.setBus(new EventBus());
+  const bus = new EventBus();
+  loader.setBus(bus);
+  const scope = buildDirectoryScope({ scopeRoot: cwd });
+  const runState = new RunStateDatabase(join(cwd, "state"));
+  const daemonEpoch = runState.beginDaemonSession(new Date().toISOString()).epoch;
+  const runCoordinator = new RunCoordinator({ store: runState, daemonEpoch, concurrency: 1,
+    execute: async () => { throw new Error("No workflows in this tool journey"); } });
+  const runtime = createScopeRuntime({ scope, bus, runState, runCoordinator, daemonEpoch, installSingletons: false, onLog: () => {} });
+  loader.getProviderRegistry().register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
+    resolve: (scopeId) => scopeId === scope.scopeId ? { ok: true, runtime } : { ok: false, scopeId },
+  });
+  const calendarEvents = new Map<string, Record<string, unknown>>();
   const transcript: unknown[] = [];
   const refreshes = new Map<string, number>();
   let failAccount: string | undefined;
@@ -57,11 +74,19 @@ it("keeps registered Google tool credentials and token lifetimes isolated across
     const id = `account-${account}`;
     if (url.pathname.includes("/messages")) {
       if (url.pathname.endsWith("/messages")) return Response.json({ messages: [{ id }] });
-      return Response.json({ id, threadId: id, snippet: id, payload: { headers: [{ name: "Subject", value: id }] } });
+      return Response.json({ id, threadId: id, snippet: id, payload: { mimeType: "text/plain", body: { data: Buffer.from(id).toString("base64url") }, headers: [{ name: "Subject", value: id }] } });
     }
     if (url.pathname.includes("/calendar/")) {
-      const event = { id, summary: id };
-      return Response.json(request.method === "POST" ? event : { items: [event] });
+      if (url.pathname.endsWith("/calendars/primary")) return Response.json({ id });
+      if (request.method === "POST") {
+        const body = JSON.parse(String(request.body));
+        const event = { ...body, status: "confirmed", creator: { email: id }, organizer: { email: id } };
+        calendarEvents.set(body.id, event);
+        return Response.json(event);
+      }
+      if (url.pathname.endsWith("/events")) return Response.json({ items: [{ id, summary: id }] });
+      const event = calendarEvents.get(url.pathname.split("/").at(-1)!);
+      return Response.json(event ?? {}, { status: event ? 200 : 404 });
     }
     if (url.pathname.includes("/drive/")) {
       if (url.searchParams.get("alt") === "media") return new Response(id);
@@ -76,7 +101,7 @@ it("keeps registered Google tool credentials and token lifetimes isolated across
     gmail_get_message: { id: "message" },
     gmail_send: { to: "synthetic@example.invalid", subject: "Synthetic", body: "Synthetic" },
     calendar_list_events: {},
-    calendar_create_event: { summary: "Synthetic", start: "2026-09-21T10:00:00Z", end: "2026-09-21T11:00:00Z" },
+    calendar_create_event: { operationId: randomUUID(), summary: "Synthetic", start: "2026-09-21T10:00:00Z", end: "2026-09-21T11:00:00Z" },
     drive_list_files: {},
     drive_read_file: { id: "file" },
   };
@@ -84,8 +109,11 @@ it("keeps registered Google tool credentials and token lifetimes isolated across
   type ToolSet = ReturnType<typeof resolveToolSet>;
   async function call(set: ToolSet, name: string, account: string, generation: number) {
     const start = transcript.length;
-    const result = await set.runners[name](inputs[name]);
-    expect(result.is_error).not.toBe(true);
+    const input = name === "calendar_create_event"
+      ? { ...inputs[name], operationId: randomUUID(), summary: `account-${account}` }
+      : inputs[name];
+    const result = await set.runners[name](input);
+    expect(result.is_error, `${name}: ${result.content}`).not.toBe(true);
     expect(result.content).toContain(`account-${account}`);
     const requests = transcript.slice(start).filter((entry): entry is { bearer: string } =>
       typeof entry === "object" && entry !== null && "bearer" in entry,
@@ -157,6 +185,9 @@ it("keeps registered Google tool credentials and token lifetimes isolated across
     process.stdout.write(`Synthetic Google tool transcript:\n${JSON.stringify(transcript, null, 2)}\n`);
   } finally {
     await loader.unloadAll();
+    runtime.scheduler.stopTimer();
+    runtime.scheduler.disconnectBus();
+    runState.close();
     vi.restoreAllMocks();
     rmSync(cwd, { recursive: true, force: true });
   }

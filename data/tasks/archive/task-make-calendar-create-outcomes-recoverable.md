@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Make uncertain calendar creation understandable and safely recoverable
 
@@ -69,3 +68,26 @@ defines calendar-local ID constraints and limits collision detection guarantees.
 Both were read online September 21, 2026. Provider identity and verification are
 promising implementation options, not an exactly-once guarantee. No Microsoft
 integration or general-purpose retry redesign is part of this outcome.
+
+## Implementation Outcome
+
+Calendar create now requires an operation UUID preserved across approvals and
+recovery. The existing scope idempotency store retains parameter/account/calendar
+bindings; provider event IDs and verified event metadata establish completion.
+The read-only `calendar_check_event` supports uncertainty and redacted queued
+approval results. An authorized unchanged create repeat can complete the same
+operation, while a fresh UUID allows a deliberate second meeting. Malformed
+success, unavailable reads, conflicting parameters and identity mismatches never
+claim success. No automatic POST retry or parallel store/approval owner was added.
+
+Builder run `2026-09-21T07-23-54-627Z-builder-g1v1wx` retains the actual inline and
+queued approval journeys in `calendar-recovery-transcript.json` and `.log`, plus
+`calendar-recovery-summary.md` with source contracts, commands and limits.
+140 focused owner tests and 3 integration journeys passed; `pnpm check:fast`
+passed. The unchanged approval local-client test failed in an additional selection
+because its fixture supplies no `ctx.getProvider`; this is recorded separately
+and is not claimed as passing. Relevant approval execution/security tests passed.
+
+No live Calendar writes were needed. This is provider-aware recovery, not an
+exactly-once guarantee. Legacy events created without an operation ID remain
+unattributable; unavailable live scope storage fails closed.

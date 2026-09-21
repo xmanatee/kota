@@ -44,6 +44,17 @@ Values starting with `$` are resolved through the shared secret provider, so set
 
 - All tools are in the `productivity` tool group.
 - Write tools (`gmail_send`, `calendar_create_event`) are classified as dangerous and queue for approval in autonomous mode.
+- Calendar creates require a caller-chosen random operation UUID before approval.
+  Preserve it and the original parameters for recovery; a new meeting uses a new
+  UUID even when its details match. `calendar_check_event` checks provider truth
+  without writing, including after a redacted queued-approval result. An approved
+  repeat of `calendar_create_event` uses the same provider event identity.
+- Calendar operation fingerprints use the existing scope-owned idempotency store
+  with retained intent, not cached results. Creation requires a live scope store;
+  missing authority fails closed. Never expire these bindings into fresh work.
+  Provider reads verify the authenticated account, resolved calendar, operation
+  marker and current event details. A collision or matching title/time is not
+  confirmation. Legacy unkeyed events cannot be attributed by this mechanism.
 - Each configured tool set owns one credential-bound token getter, shared by Gmail,
   Calendar and Drive. Reload creates a fresh cache; readiness always verifies
   credentials with a fresh refresh request. Tokens refresh before expiry.

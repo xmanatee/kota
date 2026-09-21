@@ -21,6 +21,7 @@
  */
 
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   KotaModule,
@@ -37,7 +38,8 @@ import {
   inboundSignalReceived,
 } from "#modules/inbound-signals/events.js";
 import { createGoogleAccessTokenGetter, resolveSecretReference } from "./auth.js";
-import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
+import { makeCalendarListEvents } from "./calendar.js";
+import { makeCalendarCreateTools } from "./calendar-create.js";
 import {
   createGoogleWorkspaceReadinessSource,
   GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID,
@@ -428,7 +430,15 @@ const googleWorkspaceModule: KotaModule = {
       makeGmailGetMessage(getToken, userId),
       makeGmailSend(getToken, userId),
       makeCalendarListEvents(getToken, calendarId),
-      makeCalendarCreateEvent(getToken, calendarId),
+      ...makeCalendarCreateTools({
+        getToken,
+        calendarId,
+        defaultScopeId: deriveDirectoryScopeId(ctx.cwd),
+        resolveStore: (scopeId) => {
+          const selected = ctx.getProvider(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId);
+          return selected?.ok ? selected.runtime.idempotencyStore : null;
+        },
+      }),
       makeDriveListFiles(getToken),
       makeDriveReadFile(getToken),
     ];

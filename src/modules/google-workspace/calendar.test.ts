@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
-import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
+import { makeCalendarListEvents } from "./calendar.js";
 
 let requestMock = vi.fn();
 const http = outboundHttpRequestPort((request) =>
@@ -238,56 +238,4 @@ describe("calendar_list_events: runner", () => {
       expect(requestMock).not.toHaveBeenCalled();
     },
   );
-});
-
-describe("calendar_create_event: runner", () => {
-  it("creates event and returns link", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
-    stubFetch({
-      data: {
-        id: "ev-new",
-        summary: "New Event",
-        htmlLink: "https://calendar.google.com/event/ev-new",
-      },
-    });
-
-    const result = await def.runner({
-      summary: "New Event",
-      start: "2026-04-11T10:00:00Z",
-      end: "2026-04-11T11:00:00Z",
-    });
-
-    expect(result.content).toContain("New Event");
-    expect(result.content).toContain("ev-new");
-    expect(result.content).toContain("https://calendar.google.com/event/ev-new");
-  });
-
-  it("sends attendees in body when provided", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
-    stubFetch({ data: { id: "ev2", summary: "Meeting" } });
-
-    await def.runner({
-      summary: "Meeting",
-      start: "2026-04-11T14:00:00Z",
-      end: "2026-04-11T15:00:00Z",
-      attendees: ["a@test.com", "b@test.com"],
-    });
-
-    const [, opts] = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0];
-    const body = JSON.parse(opts.body as string);
-    expect(body.attendees).toEqual([{ email: "a@test.com" }, { email: "b@test.com" }]);
-  });
-
-  it("returns error on API failure", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
-    stubFetch({ ok: false, status: 400, data: { error: { message: "Bad Request" } } });
-
-    const result = await def.runner({
-      summary: "X",
-      start: "2026-04-11T10:00:00Z",
-      end: "2026-04-11T11:00:00Z",
-    });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("400");
-  });
 });

@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
-import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
+import { networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { apiError, googleFetch } from "./auth.js";
+import { googleFetch } from "./auth.js";
 
 const MAX_LIST_PAGES = 10;
 const eventTimeSchema = z.object({
@@ -160,77 +160,6 @@ export function makeCalendarListEvents(
         kind: "partial",
         reason: `The ${MAX_LIST_PAGES}-page limit was reached. Narrow the time window.`,
       });
-    },
-  };
-}
-
-export function makeCalendarCreateEvent(
-  getToken: () => Promise<string>,
-  calendarId: string,
-  http: OutboundHttpRequestPort = outboundHttp,
-): ToolDef {
-  return {
-    effect: networkDestructiveEffect(),
-    group: "productivity",
-    tool: {
-      name: "calendar_create_event",
-      description:
-        "Create a Google Calendar event. Requires operator approval in autonomous mode.",
-      input_schema: {
-        type: "object" as const,
-        properties: {
-          summary: { type: "string", description: "Event title" },
-          start: {
-            type: "string",
-            description: "Start time as ISO 8601 (e.g. 2026-04-10T10:00:00-07:00)",
-          },
-          end: {
-            type: "string",
-            description: "End time as ISO 8601",
-          },
-          description: { type: "string", description: "Event description (optional)" },
-          location: { type: "string", description: "Event location (optional)" },
-          attendees: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of attendee email addresses (optional)",
-          },
-          calendarId: {
-            type: "string",
-            description: "Calendar ID (default: configured or 'primary')",
-          },
-        },
-        required: ["summary", "start", "end"],
-      },
-    },
-    async runner(input): Promise<ToolResult> {
-      const token = await getToken();
-      const cal = (input.calendarId as string | undefined) ?? calendarId;
-
-      const body: Record<string, unknown> = {
-        summary: input.summary,
-        start: { dateTime: input.start },
-        end: { dateTime: input.end },
-      };
-      if (input.description) body.description = input.description;
-      if (input.location) body.location = input.location;
-      if (Array.isArray(input.attendees) && input.attendees.length > 0) {
-        body.attendees = (input.attendees as string[]).map((email) => ({ email }));
-      }
-
-      const res = await googleFetch(
-        token,
-        "POST",
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events`,
-        body,
-        http,
-      );
-      if (!res.ok) return apiError("create event", res.status, res.data);
-
-      const event = res.data as { id: string; summary?: string; htmlLink?: string };
-      return {
-        content: `Event created: ${event.summary ?? "(no title)"}\nID: ${event.id}\n${event.htmlLink ?? ""}`,
-      };
     },
   };
 }
