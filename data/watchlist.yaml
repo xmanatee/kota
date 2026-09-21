@@ -4,6 +4,10 @@
 # Inaccessible sources remain listed for recovery, without inferred contents.
 
 resources:
+  - url: https://github.com/docling-project/docling
+    added: "2026-09-21"
+    refresh: weekly
+    notes: "Monitor document-conversion releases for page coverage, OCR selection and confidence reporting relevant to KOTA's read_document capability. The September 21 research lead in data/inbox/task-recognize-incomplete-pdf-reading.md asks whether mixed text/scanned PDFs yield an understandable partial-read outcome. Revisit with changes to coverage reporting or local setup requirements; external feature claims alone do not establish KOTA extraction quality."
   - url: https://github.com/zhengkid/Dream-RSI
     added: "2026-09-21"
     refresh: weekly
