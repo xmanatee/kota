@@ -21,8 +21,6 @@ type TokenCache = {
   expiresAt: number;
 };
 
-let tokenCache: TokenCache | null = null;
-
 export type GoogleAccessTokenRefresh = {
   accessToken: string;
   expiresIn: number;
@@ -59,28 +57,32 @@ export async function refreshGoogleAccessToken(
   };
 }
 
-export async function getAccessToken(
+/** One getter owns the cached token for one configured tool set. */
+export function createGoogleAccessTokenGetter(
   clientId: string,
   clientSecret: string,
   refreshToken: string,
   http: OutboundHttpRequestPort = outboundHttp,
-): Promise<string> {
-  const now = Date.now();
-  if (tokenCache && tokenCache.expiresAt > now + 60_000) {
-    return tokenCache.accessToken;
-  }
+): () => Promise<string> {
+  let tokenCache: TokenCache | null = null;
+  return async () => {
+    const now = Date.now();
+    if (tokenCache && tokenCache.expiresAt > now + 60_000) {
+      return tokenCache.accessToken;
+    }
 
-  const refreshed = await refreshGoogleAccessToken(
-    clientId,
-    clientSecret,
-    refreshToken,
-    http,
-  );
-  tokenCache = {
-    accessToken: refreshed.accessToken,
-    expiresAt: now + refreshed.expiresIn * 1000,
+    const refreshed = await refreshGoogleAccessToken(
+      clientId,
+      clientSecret,
+      refreshToken,
+      http,
+    );
+    tokenCache = {
+      accessToken: refreshed.accessToken,
+      expiresAt: now + refreshed.expiresIn * 1000,
+    };
+    return tokenCache.accessToken;
   };
-  return tokenCache.accessToken;
 }
 
 export async function googleFetch(

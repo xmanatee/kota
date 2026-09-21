@@ -44,7 +44,9 @@ Values starting with `$` are resolved through the shared secret provider, so set
 
 - All tools are in the `productivity` tool group.
 - Write tools (`gmail_send`, `calendar_create_event`) are classified as dangerous and queue for approval in autonomous mode.
-- The access token is cached in-process and refreshed automatically before expiry.
+- Each configured tool set owns one credential-bound token getter, shared by Gmail,
+  Calendar and Drive. Reload creates a fresh cache; readiness always verifies
+  credentials with a fresh refresh request. Tokens refresh before expiry.
 - Credentials are never logged or included in error messages.
 - When `inbound` is configured, the module contributes bearer-token-protected
   `POST /api/webhooks/google-workspace/gmail` and

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
-import { apiError, getAccessToken, googleFetch, resolveSecretReference } from "./auth.js";
+import { apiError, createGoogleAccessTokenGetter, googleFetch, resolveSecretReference } from "./auth.js";
 
 let requestMock = vi.fn();
 const http = outboundHttpRequestPort((request) =>
@@ -34,16 +34,10 @@ describe("resolveSecretReference", () => {
   });
 });
 
-describe("getAccessToken", () => {
-  // Each test jumps far enough into the future to expire any prior cached token.
-  // The cache stores expiresAt = Date.now() + expires_in*1000, so jumping > 1 hour
-  // past the last test's time guarantees a miss.
-  let epoch = Date.now() + 100_000_000;
-
+describe("createGoogleAccessTokenGetter", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    epoch += 100_000_000;
-    vi.setSystemTime(epoch);
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
   });
 
   afterEach(() => {
@@ -57,7 +51,7 @@ describe("getAccessToken", () => {
       json: () => Promise.resolve({ access_token: "fresh-token", expires_in: 3600 }),
     });
 
-    const token = await getAccessToken("cid", "cs", "rt", http);
+    const token = await createGoogleAccessTokenGetter("cid", "cs", "rt", http)();
     expect(token).toBe("fresh-token");
     expect(requestMock).toHaveBeenCalledOnce();
   });
@@ -72,8 +66,9 @@ describe("getAccessToken", () => {
       });
     });
 
-    const t1 = await getAccessToken("a", "b", "c", http);
-    const t2 = await getAccessToken("a", "b", "c", http);
+    const getToken = createGoogleAccessTokenGetter("a", "b", "c", http);
+    const t1 = await getToken();
+    const t2 = await getToken();
     expect(t1).toBe("token-1");
     expect(t2).toBe("token-1");
     expect(requestMock).toHaveBeenCalledOnce();
@@ -89,10 +84,11 @@ describe("getAccessToken", () => {
       });
     });
 
-    await getAccessToken("x", "y", "z", http);
+    const getToken = createGoogleAccessTokenGetter("x", "y", "z", http);
+    await getToken();
     // Advance time past the cache window (3600s - 60s buffer)
-    vi.advanceTimersByTime(3600_000);
-    const t2 = await getAccessToken("x", "y", "z", http);
+    vi.advanceTimersByTime(3540_000);
+    const t2 = await getToken();
     expect(t2).toBe("tok-2");
     expect(requestMock).toHaveBeenCalledTimes(2);
   });
@@ -104,7 +100,7 @@ describe("getAccessToken", () => {
       text: () => Promise.resolve("invalid_grant"),
     });
 
-    await expect(getAccessToken("a", "b", "c", http)).rejects.toThrow(
+    await expect(createGoogleAccessTokenGetter("a", "b", "c", http)()).rejects.toThrow(
       "Google token refresh failed (401)",
     );
   });
@@ -115,7 +111,7 @@ describe("getAccessToken", () => {
       json: () => Promise.resolve({ access_token: "t", expires_in: 3600 }),
     });
 
-    await getAccessToken("my-cid", "my-cs", "my-rt", http);
+    await createGoogleAccessTokenGetter("my-cid", "my-cs", "my-rt", http)();
 
     const call = requestMock.mock.calls[0];
     expect(call[0]).toBe("https://oauth2.googleapis.com/token");

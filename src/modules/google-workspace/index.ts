@@ -36,7 +36,7 @@ import {
   type InboundSignalJsonObject,
   inboundSignalReceived,
 } from "#modules/inbound-signals/events.js";
-import { getAccessToken, resolveSecretReference } from "./auth.js";
+import { createGoogleAccessTokenGetter, resolveSecretReference } from "./auth.js";
 import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
 import {
   createGoogleWorkspaceReadinessSource,
@@ -421,7 +421,7 @@ const googleWorkspaceModule: KotaModule = {
 
     const userId = config.userId ?? "me";
     const calendarId = config.calendarId ?? "primary";
-    const getToken = () => getAccessToken(clientId, clientSecret, refreshToken);
+    const getToken = createGoogleAccessTokenGetter(clientId, clientSecret, refreshToken);
 
     return [
       makeGmailListMessages(getToken, userId),
