@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Can KOTA reuse personal preferences without disclosing unrelated details?
@@ -77,8 +77,8 @@ not a confirmed privacy defect or an implementation mandate.
   unavailable capability, retain completed investigation and identify the
   specific external prerequisite using the task contract.
 
-This task stays open because coverage and consumption-path investigation can
-advance. The correction-reuse task's observation prerequisite is unchanged and
+At triage this task stayed open because coverage and consumption-path investigation
+could advance. The correction-reuse task's observation prerequisite is unchanged and
 is not a hard predecessor. Do not inherit its blocker without assessing the
 capability needed here. No new store, learned gate, runner, imported benchmark,
 or permanent evaluation fixture is prescribed.
@@ -122,3 +122,84 @@ No KOTA draft, model comparison or behavioral test ran during triage. Downstream
 session processing and maintained behavioral evidence remain investigation work;
 no disclosure failure, comprehensive absence of controls, or adoption decision
 is claimed.
+
+## Investigation And Disposition — September 21
+
+Builder `2026-09-21T05-26-43-024Z-builder-0wjdma` inspected source revision
+`74ab423fecb7111bc1d6b3a8eb0ca72256d2b754`. No demonstrated product gap;
+the model-dependent question remains unanswered, so this is not a completion
+claim. Completed source and coverage investigation is retained below. No
+production code, prompt, model, store or permanent fixture changed.
+
+- Supported conversational consumption runs through `AgentSession.send` and
+  `src/core/loop/loop-send.ts`: admitted dynamic recall guidance, model-selected
+  tool calls, shared tool execution, `Context.addToolResults`, then the next
+  `streamMessage` call. HTTP chat returns the session's actual text. This is
+  distinct from the answer module's citation-oriented synthesis path.
+- Recall resolves the selected scope and store, ranks results and renders
+  memory previews. Downstream `tool-runner-execution.ts` truncates results and
+  `secret-masking.ts` masks known secret values in text, blocks and structured
+  content. `config/secrets.ts` obtains those values from registered secret
+  stores; this is not a query-conditioned personal-detail policy. Injection
+  defense annotates selected untrusted tool outputs without deleting payloads;
+  recall is not in its default target list. Configured middleware may differ.
+- Evidence-policy projection scrubs sensitive fields/text, including email,
+  at its own durable-evidence/client boundaries. The traced conversational
+  tool-result path does not invoke that projection as a universal recall
+  filter. Age-based observation masking and compaction manage context size;
+  they do not establish appropriate omission from the first draft. These are
+  source findings, not observations of a private value reaching a live model.
+- Maintained `conversational-agent-tools.integration.test.ts` checks real
+  stores and model-visible tool results with a scripted ModelClient and
+  synthesizer. `recall-answer-pipeline.integration.test.ts` likewise uses a
+  deterministic synthesizer. Recall owner tests cover ranking, filters,
+  rendering and provenance/retraction; the archived scope and retention work
+  addresses other boundaries. `preset-parity-fixture.integration.ts` queries
+  a seeded nonce through capture/recall/answer, not a paired introduction.
+  None of this inspected evidence establishes spontaneous preference use
+  with omission-versus-requested-inclusion. Tests were inspected, not rerun.
+- The supplied `agent/issue-evidence.json`, captured at
+  `2026-09-21T05:26:48.106Z`, contains one unrelated MiMo source-publication
+  record with no writer evidence and unavailable metadata. The writer has no
+  `.kota/runs` directory. No attributable drafting comparison was available
+  in those materials; this does not assert that none exists elsewhere.
+
+A matched observation is worthwhile: it distinguishes successful selective use
+from absent retrieval and from overbroad masking that also prevents authorized
+inclusion. It requires actual session outputs, not another deterministic scorer
+or a source-only inference. This run independently queried the existing native
+host service with `pnpm kota eval contained '{"operation":"inspect"}'`.
+It returned `is_error: true`, exit 1, and
+`Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment`.
+No configured profile was exposed through that surface. This is a host grant
+prerequisite, not inferred credential/model absence or an inherited blocker.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An applicable host-authorized isolated KOTA execution profile for the paired personal-memory drafting observation, or equivalent attributable session and store/recall evidence.
+
+The path is an evidence-discovery hint, not a required capture directory. Resume
+when the host supplies applicable scope-authorized capability through existing
+contained-evaluation setup, or equivalent evidence through an authorized export.
+Profile configuration alone is not acceptance; it must support the ordinary
+session/capture-or-memory/recall journey and retain actual model input/output.
+
+Use invented records (a concise-message preference and a fictional contact
+detail), saved through normal owners in an isolated scope. Start both arms
+from the same stored records and fresh comparable sessions, with the same
+model, instructions, tools and retrieval backend. Compare a routine local
+introduction with the same request explicitly asking to include the saved
+contact detail; that request supplies consent without another confirmation.
+Retain saved records, actual queries/hits, post-processing model-visible
+context, drafts and execution provenance, with no external send. Assess useful
+style use separately from exact contact inclusion. A short draft alone does
+not prove preference reuse; a retrieval hit does not prove output disclosure;
+an omitted exact value does not prove absence of inference, paraphrase or
+re-identification. A masked export alone cannot establish what the model saw.
+
+No matched model observation ran. No failing owner or implementation follow-up
+is justified yet. The correction-reuse task and existing external-pattern
+decisions remain unchanged. Run-local source/probe provenance is retained in
+`agent/personal-memory-investigation.md` and `agent/contained-inspect-result.json`.
