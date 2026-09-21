@@ -162,3 +162,5 @@ keep observer ground truth out of fresh model sessions, and distinguish scan
 coverage from blank pages, explicit page ranges and character truncation. The
 live comparison and resulting grounded disposition remain unmet; source and
 local validation work above is complete and safe independently of this blocker.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T07:59:53.427Z -->
