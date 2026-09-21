@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 
@@ -88,3 +88,81 @@ surfaced token ownership, inbound mail, reply and calendar recovery coverage,
 but did not establish the paired conversational outcome. Further coverage and
 consumption-path investigation remains useful, so the task starts open. No
 model observation or execution-readiness probe ran during triage.
+
+## Investigation — September 21, 2026
+
+Builder run `2026-09-21T14-34-28-503Z-builder-gm45bw` inspected source HEAD
+`49c1723f71ae256dc1c4474b473278bd73abca90`. Maintained Google integration
+coverage establishes token ownership, inbound body propagation, reply approval
+and calendar recovery. The cross-store conversational journey uses scripted
+model responses; no inspected fixture or supplied retained evidence establishes
+the matched Gmail/Calendar answer distinction. The related relative-date task
+also explicitly lacks final model answers. This is a bounded search, not a
+claim about every historical conversation.
+
+The production listing owner preserves complete/partial/unavailable state.
+Service adapters render it into tool content and `is_error`; the conversation
+context forwards both to the model. Setup guidance is a separate discovery path:
+Workspace declares OAuth requirements, and resource discovery exposes
+`kota setup list --json` and the applicable
+`kota setup start google-workspace oauth-credentials` route. The list error
+itself includes no setup route. A service 403 does not establish a particular
+credential failure; missing config can instead remove the entire tool set.
+
+Four deterministic production-tool calls compared Gmail unavailable (403) plus
+Calendar complete-empty against both complete-empty, with a fixed September 22,
+2026 UTC window, invented credentials and a controlled HTTP port. The available
+Calendar result survived; unavailable Gmail did not become “No messages found.”
+All 95 existing tests in `gmail.test.ts`, `calendar.test.ts` and `listing.test.ts`
+passed. These establish adapter behavior, not model selection or answer meaning.
+
+Retained evidence is under this run's artifact directory, `source-availability/`:
+`findings.md`, `adapter-probe.mjs`, `adapter-observations.json`, and command
+captures with argv, timestamps, exit codes and stream hashes. The observations
+retain source hashes, request/window, source states, tool definitions, authored
+arguments, provider payloads and exact returned results. Model-visible results
+and final answers are explicitly absent. The probe's initial ISO-format-only
+assertion failure and corrected passing run are both retained.
+
+Disposition: keep this as an unresolved research question. No model observation
+supports either a no-change conclusion or an implementation follow-up. No
+production source, prompt, connector, readiness store or permanent fixture changed.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An authorized model-backed KOTA matched source-availability observation, or equivalent attributable session, tool-result and final-answer evidence.
+
+The path is a discovery hint, not a required capture location. A fresh authorized
+`pnpm kota eval contained '{"operation":"inspect"}'` reached the host and
+returned `is_error`, exit 1, explicitly requiring `KOTA_EVAL_CONTAINED_PROFILES`
+in the trusted host environment. The original stdout capture was hidden by the
+review artifact policy, so post-check repair repeated the writer inspection at
+2026-09-21T14:41:47Z–14:41:50Z, obtaining the same diagnostic with tool use
+`tool-744ccbfb844b627d63c9177775371047`.
+
+`source-availability/host-inspect-diagnostic.json` retains that exact public
+setup diagnostic, invocation id, request, timestamps, exit status and SHA-256
+of the captured stream. Extraction verifies the known public diagnostic and
+includes no profile values or provider data. `verify-diagnostic-projection.mjs`
+checks its equality to the captured response and confirms these fields survive
+the production agent-context projection, including filename classification;
+`diagnostic-review-projection.json` retains the passing projection. Original
+streams and execution metadata remain in the `host-inspect-repair` captures.
+Worker requests cannot configure the host grant. The critic's separate native
+writer authorization denial does not establish host configuration; the writer's
+successful inspection transport supplies the setup diagnostic. Neither result
+establishes that provider credentials are absent.
+
+Resume when an authorized scoped model observation can use the existing tools
+with controlled HTTP responses under the required isolation/auth/egress, or when
+equivalent attributable evidence becomes available. Keep request, window, model,
+instructions and tool policy comparable; retain actual model-selected arguments,
+visible results, final answers and effects. The prepared paired request and
+judgment criteria are in `source-availability/findings.md`. Verify disclosure of
+missing mail coverage, preservation of the empty Calendar result, appropriately
+scoped empty conclusions and existing setup guidance without collecting secrets
+in chat. Do not prescribe call order or treat deterministic checks as answers.
+The original consumer acceptance remains unmet; safe retained changes are this
+task disposition and run evidence only.
