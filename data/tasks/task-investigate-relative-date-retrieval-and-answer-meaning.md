@@ -162,3 +162,5 @@ assumption disclosure independently. Deterministic adapter checks cannot substit
 for this missing observation. No speculative treatment or failure follow-up is
 justified yet. Safe retained changes are limited to this task disposition and run
 artifacts; the original acceptance remains unmet.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T11:59:42.529Z -->
