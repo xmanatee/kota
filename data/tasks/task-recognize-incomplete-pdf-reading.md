@@ -138,6 +138,43 @@ and source attribution, setup logs and findings are retained under this run's
 No production code, dependency, store or evaluation suite changed. No new task is
 justified before this task's remaining comparison; OCR benefit/cost is unmeasured.
 
+## Source Retry Findings — September 21, 2026
+
+Reviewed the four `web_fetch` readings collected at 08:00:02 UTC by
+`2026-09-21T07-58-09-519Z-research-source-collection-01r1k3`, handed to
+`research-retry-child-61a0031acd8f7d9a3be7e1ca`. All four calls returned readable
+content without a reported access gate. Findings against the research outcome:
+
+- [pypdf extraction guidance](https://pypdf.readthedocs.io/en/stable/user/extract-text.html):
+  the supplied excerpt demonstrates page extraction, orientation selection and
+  layout options, including whether rotated text is retained. These options
+  matter when attributing extraction scope; they do not establish complete
+  reading. This excerpt contains no discussion of scanned images or OCR
+  limitations, so those earlier source notes are preserved, not freshly verified.
+- [Docling confidence](https://docling-project.github.io/docling/concepts/confidence_scores/):
+  page assessments and document `mean_grade`/`low_grade` support conversion
+  triage; the documentation recommends grades over numerical scores whose
+  computation can change. Table confidence remains unimplemented. This offers
+  a possible review signal, not evidence that KOTA read the decisive appendix
+  or that a blank page represents missing content.
+- [Full-page OCR](https://docling-project.github.io/docling/_generated/examples/full_page_ocr/):
+  the example uses `OcrMode.FULL_PAGE`, requires backend dependencies and notes
+  slower processing than hybrid detection. Its CI branch limits page range.
+  Any later comparison must attribute the actual processed range and measure
+  recovery and latency; this reading does not measure OCR benefit for KOTA.
+- [Advanced options](https://docling-project.github.io/docling/usage/advanced_options/):
+  model prefetching supports offline execution, while remote document processing
+  requires explicit opt-in. The native PDF pipeline omits layout, OCR and table
+  models; page rendering and document limits are separately configurable.
+  These distinctions inform setup and coverage attribution, not a mandate to
+  adopt Docling or evidence of installed capabilities.
+
+Source access is available, but the declared blocker is an authorized supported
+session comparison. These readings supply neither evaluation grants nor that
+capture. No PDF conversion, session comparison, environment re-probe or new
+source call ran in this writer step. Keep `blocked` with the same prerequisite
+below; the live outcome and grounded disposition remain unmet.
+
 ## Blocked on
 
 kind: operator-capture
@@ -164,3 +201,5 @@ live comparison and resulting grounded disposition remain unmet; source and
 local validation work above is complete and safe independently of this blocker.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T07:59:53.427Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"3770d71221148926","attemptedAt":"2026-09-21T08:00:02.785Z","attempts":[{"url":"https://pypdf.readthedocs.io/en/stable/user/extract-text.html","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T08:00:02.389Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://docling-project.github.io/docling/concepts/confidence_scores/","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T08:00:02.535Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://docling-project.github.io/docling/_generated/examples/full_page_ocr/","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T08:00:02.656Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://docling-project.github.io/docling/usage/advanced_options/","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T08:00:02.785Z","tools":["web_fetch"],"outcome":"readable"}]} -->
