@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   type InboundSignalActorTrust,
@@ -56,6 +57,36 @@ export type GoogleWorkspaceCalendarDateTime = {
   timeZone?: string;
 };
 
+const calendarTimeZoneSchema = z.string().min(1).refine((value) => {
+  if (value.trim() !== value || /^[+-]/.test(value)) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}, "Expected an IANA time zone");
+
+// Original occurrence identity is either an all-day date or a timed value.
+// A local wall time is meaningful only with the supplied named time zone.
+const calendarOriginalStartTimeSchema = z.union([
+  z.object({
+    date: z.iso.date(),
+    dateTime: z.never().optional(),
+    timeZone: calendarTimeZoneSchema.optional(),
+  }),
+  z.object({
+    date: z.never().optional(),
+    dateTime: z.iso.datetime({ offset: true, local: true }),
+    timeZone: calendarTimeZoneSchema.optional(),
+  }).refine((value) => value.timeZone !== undefined ||
+    /(?:Z|[+-]\d{2}:\d{2})$/.test(value.dateTime),
+  "Expected a UTC offset or timeZone"),
+]);
+
+export type GoogleWorkspaceCalendarOriginalStartTime =
+  z.infer<typeof calendarOriginalStartTimeSchema>;
+
 export type GoogleWorkspaceCalendarAttendee = GoogleWorkspaceCalendarActor & {
   responseStatus?: string;
 };
@@ -70,6 +101,7 @@ export type GoogleWorkspaceCalendarEventChange = {
   htmlLink?: string;
   iCalUID?: string;
   recurringEventId?: string;
+  originalStartTime?: GoogleWorkspaceCalendarOriginalStartTime;
   created?: string;
   updated?: string;
   organizer?: GoogleWorkspaceCalendarActor;
@@ -481,6 +513,11 @@ export function googleWorkspaceCalendarEventChangeFromInboundRequest(
   try {
     const event = inputEnvelope(raw, "event");
     const attendees = optionalInputArray(event.attendees, "attendees") ?? [];
+    const originalStartTime = calendarOriginalStartTimeSchema.optional()
+      .safeParse(event.originalStartTime);
+    if (!originalStartTime.success) {
+      throw new Error("originalStartTime must contain a valid date or dateTime with a UTC offset or timeZone");
+    }
     return {
       ok: true,
       value: {
@@ -497,6 +534,7 @@ export function googleWorkspaceCalendarEventChangeFromInboundRequest(
           event.recurringEventId,
           "recurringEventId",
         ),
+        originalStartTime: originalStartTime.data,
         created: optionalInputString(event.created, "created"),
         updated: optionalInputString(event.updated, "updated"),
         organizer: calendarActorInput(event.organizer, "organizer"),
@@ -611,6 +649,7 @@ export function calendarEventChangeToInboundSignal(
         htmlLink: nullableString(sourceUrl),
         iCalUID: nullableString(change.iCalUID),
         recurringEventId: nullableString(change.recurringEventId),
+        originalStartTime: calendarDateTimeJson(change.originalStartTime),
         created: nullableString(change.created),
         updated: nullableString(change.updated),
         organizer: calendarActorJson(change.organizer),

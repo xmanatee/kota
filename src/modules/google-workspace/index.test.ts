@@ -6,7 +6,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleTools } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { type InboundSignalJsonValue, inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import googleWorkspaceModule from "./index.js";
 
 function makeCtx(
@@ -229,7 +229,74 @@ describe("google-workspace module inbound routes", () => {
     });
   });
 
-  it("emits a typed inbound signal for a configured Calendar change source", async () => {
+  it.each([
+    {
+      name: "ordinary change", event: {},
+      expected: { recurringEventId: null, originalStartTime: null },
+    },
+    {
+      name: "moved timed occurrence",
+      event: {
+        recurringEventId: "series-1",
+        originalStartTime: { dateTime: "2026-05-25T08:00:00+01:00", timeZone: "Europe/London" },
+      },
+      expected: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: null, dateTime: "2026-05-25T08:00:00+01:00", timeZone: "Europe/London" },
+      },
+    },
+    {
+      name: "sparse timed cancellation",
+      event: {
+        status: "cancelled", organizer: undefined, start: undefined, end: undefined,
+        recurringEventId: "series-1",
+        originalStartTime: { dateTime: "2026-05-25T08:00:00Z" },
+      },
+      expected: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: null, dateTime: "2026-05-25T08:00:00Z", timeZone: null },
+      },
+    },
+    {
+      name: "sparse all-day cancellation",
+      event: {
+        status: "cancelled", organizer: undefined, start: undefined, end: undefined,
+        recurringEventId: "series-1", originalStartTime: { date: "2026-05-25" },
+      },
+      expected: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: "2026-05-25", dateTime: null, timeZone: null },
+      },
+    },
+    {
+      name: "local time with a named zone",
+      event: {
+        recurringEventId: "series-1",
+        originalStartTime: { dateTime: "2026-05-25T08:00:00", timeZone: "Europe/London" },
+      },
+      expected: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: null, dateTime: "2026-05-25T08:00:00", timeZone: "Europe/London" },
+      },
+    },
+    {
+      name: "moved all-day occurrence",
+      event: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: "2028-02-29", timeZone: "Europe/London" },
+        start: { date: "2028-03-01" }, end: { date: "2028-03-02" },
+      },
+      expected: {
+        recurringEventId: "series-1",
+        originalStartTime: { date: "2028-02-29", dateTime: null, timeZone: "Europe/London" },
+      },
+    },
+    {
+      name: "single-event deletion",
+      event: { status: "cancelled", organizer: undefined, start: undefined, end: undefined },
+      expected: { recurringEventId: null, originalStartTime: null },
+    },
+  ])("emits occurrence metadata for $name through the configured Calendar route", async ({ event, expected }) => {
     const bus = new EventBus();
     const emitted: Record<string, unknown>[] = [];
     bus.on(inboundSignalReceived, (payload) =>
@@ -254,47 +321,77 @@ describe("google-workspace module inbound routes", () => {
     if (!route) throw new Error("expected Calendar inbound route");
     const res = makeFakeResponse();
 
-    await route.handler(
-      makeFakeRequest(
-        JSON.stringify({
-          event: {
-            id: "calendar-event-2",
-            status: "confirmed",
-            summary: "Planning review",
-            htmlLink: "https://calendar.google.com/event?eid=calendar-event-2",
-            updated: "2026-05-25T03:20:00.000Z",
-            organizer: {
-              email: "organizer@example.com",
-              displayName: "Organizer",
-            },
-            start: { dateTime: "2026-05-25T09:00:00.000Z" },
-            end: { dateTime: "2026-05-25T09:30:00.000Z" },
+    const input = {
+      id: "calendar-event-2",
+      status: "confirmed",
+      organizer: { email: "organizer@example.com", displayName: "Organizer" },
+      start: { dateTime: "2026-05-25T09:00:00.000Z" },
+      end: { dateTime: "2026-05-25T09:30:00.000Z" },
+      ...event,
+    };
+    // Both supported request shapes must preserve occurrence identity.
+    for (const body of [input, { event: input }]) {
+      emitted.length = 0;
+      await route.handler(
+        makeFakeRequest(JSON.stringify(body)), res as unknown as ServerResponse, {},
+      );
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body!)).toMatchObject({
+        ok: true,
+        event: inboundSignalReceived.name,
+        scopeId: deriveDirectoryScopeId("/tmp"),
+        channel: "calendar.event",
+        actorTrust: input.organizer ? "trusted" : "untrusted",
+      });
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0]).toMatchObject({
+        provider: "google-workspace",
+        channel: "calendar.event",
+        actor: { trust: input.organizer ? "trusted" : "untrusted" },
+        sourceId: "google:calendar:owner@example.com:primary",
+        body: {
+          kind: "action",
+          action: input.status === "cancelled" ? "google.calendar.event.cancelled" : "google.calendar.event.changed",
+          data: {
+            calendarId: "primary", eventId: input.id, ...expected,
+            start: input.start ? { date: null, dateTime: null, timeZone: null, ...input.start } : null,
+            end: input.end ? { date: null, dateTime: null, timeZone: null, ...input.end } : null,
           },
-        }),
-      ),
+        },
+      });
+    }
+  });
+
+  it.each<InboundSignalJsonValue>([
+    null, "2026-05-25", [], 42, {},
+    { date: 20260525 }, { date: null }, { date: "" },
+    { date: "2026-02-29" }, { date: "2026-13-01" },
+    { date: "2026-05-25", dateTime: "2026-05-25T08:00:00Z" },
+    { dateTime: false }, { dateTime: null }, { dateTime: "not-a-time" },
+    { dateTime: "2026-02-30T08:00:00Z" }, { dateTime: "2026-05-25T25:00:00Z" },
+    { dateTime: "2026-05-25T08:00:00" },
+    { dateTime: "2026-05-25T08:00:00Z", timeZone: 1 },
+    { dateTime: "2026-05-25T08:00:00Z", timeZone: null },
+    { dateTime: "2026-05-25T08:00:00", timeZone: "Mars/Olympus" },
+    { dateTime: "2026-05-25T08:00:00", timeZone: "+01:00" },
+    { dateTime: "2026-05-25T08:00:00Z", timeZone: "" },
+  ])("rejects malformed originalStartTime without emitting: %j", async (originalStartTime) => {
+    const bus = new EventBus();
+    const emit = vi.fn();
+    bus.on(inboundSignalReceived, emit);
+    const route = googleWorkspaceModule.routes?.(makeCtx({ inbound: {} }, bus))
+      .find((candidate) => candidate.path.endsWith("/calendar"));
+    if (!route) throw new Error("expected Calendar inbound route");
+    const res = makeFakeResponse();
+    await route.handler(
+      makeFakeRequest(JSON.stringify({
+        id: "cancelled-instance", status: "cancelled", originalStartTime,
+      })),
       res as unknown as ServerResponse,
       {},
     );
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body!)).toMatchObject({
-      ok: true,
-      event: inboundSignalReceived.name,
-      scopeId: deriveDirectoryScopeId("/tmp"),
-      channel: "calendar.event",
-      actorTrust: "trusted",
-    });
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]).toMatchObject({
-      provider: "google-workspace",
-      channel: "calendar.event",
-      actor: { trust: "trusted" },
-      sourceId: "google:calendar:owner@example.com:primary",
-      body: {
-        kind: "action",
-        action: "google.calendar.event.changed",
-        data: { calendarId: "primary" },
-      },
-    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body!)).toEqual({ error: expect.stringContaining("originalStartTime") });
+    expect(emit).not.toHaveBeenCalled();
   });
 });

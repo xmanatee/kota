@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Preserve which calendar occurrence was cancelled or moved
 
@@ -58,3 +57,28 @@ Overlap checked: the archived inbound-adapter/routing tasks own normalization
 and routing generally; calendar completeness owns list pagination, and creation
 recovery owns uncertain writes. No active task owns this occurrence metadata
 loss. Existing external-pattern decisions remain unchanged.
+
+## Completion
+
+The Google Workspace inbound decoder now validates optional original occurrence
+metadata as an all-day date or timed value and preserves its supplied timezone.
+The calendar signal carries it separately from current start/end. Ordinary
+deletions remain valid without recurrence metadata; unidentified organizers
+remain untrusted. Invalid supplied occurrence data returns HTTP 400 without an
+emitted signal. Ownership remains in the adapter and existing signal contract.
+
+Verification in builder run `2026-09-21T08-16-13-015Z-builder-wxrac9`:
+
+- `pnpm test:owner src/modules/google-workspace/index.test.ts src/modules/google-workspace/inbound-signal.test.ts`:
+  44 tests passed. Configured-route cases cover both request shapes, moved timed
+  and all-day instances, sparse cancellations, ordinary deletions, local times
+  with named zones, and malformed dates/times/zones rejected before emission.
+- `pnpm check:fast` passed production/test typechecking, lint, task validation,
+  client-binding checks and module admission.
+- Run artifacts `calendar-occurrence-probe.mjs` and
+  `calendar-occurrence-transcript.json` retain the configured POST handler's
+  inputs, responses, emitted payloads and production source hashes. Four valid
+  cases emitted original/current times and trust as expected; an invalid date
+  returned 400 with no emission. This executes production decoding and the event
+  bus using in-memory HTTP streams; live Google, a daemon, and model evaluation
+  were not used or needed for this deterministic adapter outcome.

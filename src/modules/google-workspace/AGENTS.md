@@ -71,6 +71,9 @@ Values starting with `$` are resolved through the shared secret provider, so set
   `POST /api/webhooks/google-workspace/calendar` routes. Those routes accept
   Google API-shaped message/event JSON or the module's normalized adapter
   shape, then emit `inbound.signal.received`.
+- Calendar occurrence identity preserves the supplied original date/time and
+  timezone separately from current start/end. Sparse cancellations do not imply
+  a known organizer or authorize inferred occurrence times.
 - Gmail and Calendar inbound routes only normalize Google source metadata,
   actor trust, and content into `inbound.signal.received`. The shared
   inbound-signals dispatcher decides source eligibility and workflow routing;
