@@ -160,8 +160,7 @@ describe("drive_read_file: runner", () => {
     ]);
 
     const result = await def.runner({ id: "f1" });
-    expect(result.content).toContain("notes.txt");
-    expect(result.content).toContain("File content here");
+    expect(result.content).toBe("File: notes.txt\nType: text/plain\n\nFile content here");
 
     // Second fetch should use alt=media
     const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
@@ -176,22 +175,31 @@ describe("drive_read_file: runner", () => {
     ]);
 
     const result = await def.runner({ id: "doc1" });
-    expect(result.content).toContain("Exported text content");
+    expect(result.content).toBe("File: My Doc\nType: application/vnd.google-apps.document\n\nExported text content");
 
     const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
     expect(secondUrl).toContain("export");
     expect(secondUrl).toContain("mimeType=text/plain");
   });
 
-  it("exports Google Sheets as CSV", async () => {
+  it.each([
+    { text: "a,b,c\n1,2,3", maxChars: 100, expected: "a,b,c\n1,2,3" },
+    { text: "a,b,c\n1,2,3", maxChars: 5, expected: "a,b,c\n... (truncated)" },
+    { text: "a,b,c", maxChars: 5, expected: "a,b,c" },
+    { text: "", maxChars: 5, expected: "" },
+  ])("discloses first-sheet coverage independently of maxChars: %j", async ({ text, maxChars, expected }) => {
     const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
       { data: { name: "My Sheet", mimeType: "application/vnd.google-apps.spreadsheet" } },
-      { text: "a,b,c\n1,2,3" },
+      { text },
     ]);
 
-    const result = await def.runner({ id: "sheet1" });
-    expect(result.content).toContain("a,b,c");
+    const result = await def.runner({ id: "sheet1", maxChars });
+    expect(result.is_error).not.toBe(true);
+    expect(result.content).toBe(
+      "File: My Sheet\nType: application/vnd.google-apps.spreadsheet\n" +
+      "Export: CSV (text/csv), first sheet only. Other sheets, if any, are not read.\n\n" + expected,
+    );
 
     const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
     expect(secondUrl).toContain("export");
@@ -220,15 +228,15 @@ describe("drive_read_file: runner", () => {
     expect(result.content).toContain("404");
   });
 
-  it("returns error when content fetch fails", async () => {
+  it.each(["text/plain", "application/vnd.google-apps.spreadsheet"])("returns an error without claiming a read when content fetch fails: %s", async (mimeType) => {
     const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
-      { data: { name: "file.txt", mimeType: "text/plain" } },
+      { data: { name: "file", mimeType } },
       { ok: false, status: 500, text: "Internal Server Error" },
     ]);
 
     const result = await def.runner({ id: "f1" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("500");
+    expect(result.content).toBe("Google Drive error (500): Internal Server Error");
   });
 });

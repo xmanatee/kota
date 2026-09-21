@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Disclose first-sheet-only coverage when reading Google spreadsheets
 
@@ -46,9 +45,25 @@ returned text cannot establish what the other sheets contain.
   external account setup is not a prerequisite for this boundary correction.
 
 The owner is `src/modules/google-workspace/drive.ts`. The active
-[workbook-edit investigation](task-investigate-workbook-edit-verification.md)
+[workbook-edit investigation](../task-investigate-workbook-edit-verification.md)
 owns local XLSX editing, recalculation and delivery observations; its CSV
 source note does not cover this read-result contract. The archived Google
 Workspace module task established basic tool availability. Neither is a
 predecessor or duplicate of this disclosure outcome.
 
+## Completion
+
+The Google Workspace Drive reader now labels successful spreadsheet reads as
+CSV exports of the first sheet only. The notice stays outside `maxChars`, so
+shortened exports retain both coverage and truncation information. Discovery
+also describes the export behavior. No sheet count, name or other-sheet content
+is inferred; ordinary text, Google Docs and provider errors retain their behavior.
+
+The focused Drive owner suite passed all 23 cases, including empty, exact-limit,
+untruncated and truncated exports, ordinary text/Docs and failed exports.
+Run `2026-09-21T12-15-51-166Z-builder-uxfi0y` retains
+`artifacts/drive-read-probe.mjs` and `artifacts/drive-read-transcript.json` with
+production reader results, controlled provider inputs, URLs and a source hash.
+The transcript covers both spreadsheet limits, text/Docs and provider failure.
+This is tool-boundary evidence using a dummy token, not a live Google export
+or evidence of a downstream model answer.

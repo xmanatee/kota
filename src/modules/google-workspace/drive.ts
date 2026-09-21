@@ -108,7 +108,8 @@ export function makeDriveReadFile(
       name: "drive_read_file",
       description:
         "Read the plain text content of a Google Drive file by its ID. " +
-        "Google Docs are exported as plain text; other text files are downloaded directly.",
+        "Google Docs are exported as plain text; Google spreadsheets are exported as CSV (first sheet only); " +
+        "other text files are downloaded directly. maxChars limits the returned text separately from sheet coverage.",
       input_schema: {
         type: "object" as const,
         properties: {
@@ -136,11 +137,12 @@ export function makeDriveReadFile(
       if (!metaRes.ok) return apiError("get file metadata", metaRes.status, metaRes.data);
 
       const meta = metaRes.data as { name: string; mimeType: string };
+      const isSpreadsheet = meta.mimeType === "application/vnd.google-apps.spreadsheet";
 
       let url: string;
       if (meta.mimeType === "application/vnd.google-apps.document") {
         url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
-      } else if (meta.mimeType === "application/vnd.google-apps.spreadsheet") {
+      } else if (isSpreadsheet) {
         url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
       } else {
         url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
@@ -155,9 +157,12 @@ export function makeDriveReadFile(
       const text = await res.text();
       const truncated = text.length > maxChars;
       const content = truncated ? `${text.slice(0, maxChars)}\n... (truncated)` : text;
+      const exportNotice = isSpreadsheet
+        ? "\nExport: CSV (text/csv), first sheet only. Other sheets, if any, are not read."
+        : "";
 
       return {
-        content: `File: ${meta.name}\nType: ${meta.mimeType}\n\n${content}`,
+        content: `File: ${meta.name}\nType: ${meta.mimeType}${exportNotice}\n\n${content}`,
       };
     },
   };
