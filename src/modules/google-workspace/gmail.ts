@@ -1,3 +1,4 @@
+import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { z } from "zod";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
@@ -5,6 +6,7 @@ import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 import { gmailMessageResult } from "./gmail-message.js";
+import { decodeGmailReplyParent, type GmailReplyParent, gmailHeaderValue, gmailResourceId } from "./gmail-reply.js";
 import { listGooglePages, listingStatus, MAX_LIST_PAGES } from "./listing.js";
 
 const messagePageSchema = z.object({
@@ -137,17 +139,27 @@ export function makeGmailGetMessage(
       },
     },
     async runner(input): Promise<ToolResult> {
+      const id = gmailResourceId.safeParse(input.id);
+      if (!id.success) return { content: "Invalid Gmail message ID.", is_error: true };
       const token = await getToken();
       const res = await googleFetch(
         token,
         "GET",
-        `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/${input.id as string}?format=full`,
+        `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(userId)}/messages/${encodeURIComponent(id.data)}?format=full`,
         undefined,
         http,
       );
       if (!res.ok) return apiError("get message", res.status, res.data);
 
-      return gmailMessageResult(res.data);
+      const identity = z.object({ id: gmailResourceId }).safeParse(res.data);
+      if (identity.success && identity.data.id !== id.data) {
+        return { content: "Google returned a different message than requested.", is_error: true };
+      }
+      const result = gmailMessageResult(res.data);
+      const parent = decodeGmailReplyParent(res.data);
+      return { ...result, content: `${result.content}\n\n${parent
+        ? `Reply selection: ${JSON.stringify({ replyToMessageId: parent.id, replyThreadId: parent.threadId, subject: parent.subject })}\nChoose recipients explicitly from the message; no automatic reply-all.`
+        : "Reply unavailable: missing or unusable parent identity, subject, or RFC headers."}` };
     },
   };
 }
@@ -162,7 +174,7 @@ export function makeGmailSend(
     group: "productivity",
     tool: {
       name: "gmail_send",
-      description: "Send a Gmail message. Requires operator approval in autonomous mode.",
+      description: "Send a new Gmail message or reply to a selected message. For replies, first use gmail_get_message, then copy replyToMessageId, replyThreadId and the exact subject from its Reply selection. Supply only intended to/cc recipients; recipients are never inferred or expanded. Requires operator approval in autonomous mode. An uncertain send must be checked in Gmail before retrying.",
       input_schema: {
         type: "object" as const,
         properties: {
@@ -170,35 +182,62 @@ export function makeGmailSend(
           subject: { type: "string", description: "Email subject" },
           body: { type: "string", description: "Email body (plain text)" },
           cc: { type: "string", description: "CC email address (optional)" },
+          replyToMessageId: { type: "string", description: "Selected parent Gmail message ID from gmail_get_message; requires replyThreadId" },
+          replyThreadId: { type: "string", description: "Selected conversation ID from gmail_get_message; requires replyToMessageId" },
         },
         required: ["to", "subject", "body"],
       },
     },
     async runner(input): Promise<ToolResult> {
-      const token = await getToken();
-
-      const lines = [
-        `To: ${input.to as string}`,
-        `Subject: ${input.subject as string}`,
-        "Content-Type: text/plain; charset=utf-8",
-        "MIME-Version: 1.0",
-      ];
-      if (input.cc) lines.push(`Cc: ${input.cc as string}`);
-      lines.push("", input.body as string);
-
-      const raw = Buffer.from(lines.join("\r\n")).toString("base64url");
-
-      const res = await googleFetch(
-        token,
-        "POST",
-        `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/send`,
-        { raw },
-        http,
-      );
-      if (!res.ok) return apiError("send message", res.status, res.data);
-
-      const sent = res.data as { id: string; threadId: string };
-      return { content: `Message sent. ID: ${sent.id}, Thread: ${sent.threadId}` };
+      const parsed = sendInputSchema.safeParse(input);
+      if (!parsed.success) return { content: "Invalid send input: supply to, subject and body, single-line headers, and both reply IDs together when replying.", is_error: true };
+      const message = parsed.data;
+      const baseUrl = `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(userId)}/messages`;
+      let token: string;
+      let parent: GmailReplyParent | null = null;
+      try {
+        token = await getToken();
+        if (message.replyToMessageId !== undefined) {
+          const res = await googleFetch(token, "GET",
+            `${baseUrl}/${encodeURIComponent(message.replyToMessageId)}?format=metadata&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=In-Reply-To`, undefined, http);
+          if (!res.ok) return { content: `Reply not sent: parent metadata unavailable (Google API ${res.status}).`, is_error: true };
+          parent = decodeGmailReplyParent(res.data);
+          if (!parent || parent.id !== message.replyToMessageId || parent.threadId !== message.replyThreadId || parent.subject !== message.subject) {
+            return { content: "Reply not sent: parent metadata is missing, unusable, or does not match the approved message, thread and subject. Read the selected message again.", is_error: true };
+          }
+        }
+      } catch {
+        return { content: "Message not sent: credentials or parent metadata could not be retrieved.", is_error: true };
+      }
+      const bytes = await new MailComposer({
+        to: message.to, cc: message.cc, subject: message.subject, text: message.body,
+        ...(parent ? { inReplyTo: parent.messageId, references: parent.references } : {}),
+      }).compile().build();
+      try {
+        const res = await googleFetch(token, "POST", `${baseUrl}/send`, {
+          raw: bytes.toString("base64url"), ...(parent ? { threadId: parent.threadId } : {}),
+        }, http);
+        if (!res.ok) return { content: `Send not confirmed (Google API ${res.status}). Check Gmail before retrying.`, is_error: true };
+        const sent = sentMessageSchema.safeParse(res.data);
+        if (!sent.success || (parent && (sent.data.threadId !== parent.threadId || sent.data.id === parent.id))) {
+          return { content: "Send outcome uncertain: Google returned missing or inconsistent message/thread identity. A message may have been sent; check Gmail before retrying. Reply in the selected conversation is not confirmed.", is_error: true };
+        }
+        return { content: parent
+          ? `Google accepted reply to message ${parent.id} in thread ${parent.threadId}. Sent message ID: ${sent.data.id}. Recipient delivery is not verified.`
+          : `Message sent. ID: ${sent.data.id}, Thread: ${sent.data.threadId}` };
+      } catch {
+        return { content: "Send outcome uncertain: Google request failed. A message may have been sent; check Gmail before retrying.", is_error: true };
+      }
     },
   };
 }
+
+const sendInputSchema = z.object({
+  to: gmailHeaderValue.refine((value) => value.trim().length > 0),
+  cc: gmailHeaderValue.optional(),
+  subject: gmailHeaderValue,
+  body: z.string(),
+  replyToMessageId: gmailResourceId.optional(),
+  replyThreadId: gmailResourceId.optional(),
+}).strict().refine((input) => (input.replyToMessageId === undefined) === (input.replyThreadId === undefined));
+const sentMessageSchema = z.object({ id: gmailResourceId, threadId: gmailResourceId });

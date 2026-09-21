@@ -294,3 +294,103 @@ describe("gmail_send: runner", () => {
     expect(result.content).toContain("500");
   });
 });
+
+const reply = { to: "chosen@example.test", subject: "Planning", body: "Confirmed", replyToMessageId: "parent", replyThreadId: "conversation" };
+function parentMessage(id = "parent", threadId = "conversation") {
+  return { id, threadId, payload: { headers: [
+    { name: "Subject", value: "Planning" },
+    { name: "Message-ID", value: `<${id}@example.test>` },
+    { name: "References", value: "<ancestor@example.test>\r\n <previous@example.test>" },
+    { name: "To", value: "unapproved@example.test" },
+    { name: "Cc", value: "also-unapproved@example.test" },
+  ] } };
+}
+
+describe("Gmail reply provider boundary", () => {
+  it.each(["parent", "unrelated"])("binds %s by retrieved identity even with identical subjects", async (id) => {
+    const threadId = `thread-${id}`;
+    stubFetchSequence([
+      { ok: true, status: 200, data: parentMessage(id, threadId) },
+      { ok: true, status: 200, data: { id: "sent", threadId } },
+    ]);
+    const result = await makeGmailSend(mockGetToken(), "selected@example.test", http).runner({ ...reply, replyToMessageId: id, replyThreadId: threadId });
+    expect(result.is_error).not.toBe(true);
+    expect(result.content).toContain(`reply to message ${id} in thread ${threadId}`);
+    const [url, opts] = requestMock.mock.calls[1];
+    expect(url).toContain("users/selected%40example.test/messages/send");
+    const request = JSON.parse(opts.body);
+    expect(request.threadId).toBe(threadId);
+    const raw = Buffer.from(request.raw, "base64url").toString();
+    expect(raw).toContain(`In-Reply-To: <${id}@example.test>`);
+    expect(raw.replace(/\r\n\s+/g, " ")).toContain(`References: <ancestor@example.test> <previous@example.test> <${id}@example.test>`);
+    expect(raw).toContain("To: chosen@example.test");
+    expect(raw).toContain("Subject: Planning");
+    expect(raw).not.toContain("unapproved");
+    expect(raw).not.toContain("Cc:");
+  });
+
+  it.each([
+    null,
+    parentMessage("other"),
+    parentMessage("parent", "other-thread"),
+    { ...parentMessage(), threadId: undefined },
+    { ...parentMessage(), payload: { headers: [] } },
+    ...["Subject", "Message-ID", "References"].flatMap((name) => [
+      { ...parentMessage(), payload: { headers: parentMessage().payload.headers.filter((h) => h.name !== name).concat({ name, value: "bad\r\nBcc: injected@example.test" }) } },
+      { ...parentMessage(), payload: { headers: [...parentMessage().payload.headers, { name, value: "duplicate" }] } },
+    ]),
+    { ...parentMessage(), payload: { headers: parentMessage().payload.headers.map((h) => h.name === "Message-ID" ? { ...h, value: "not-an-rfc-id" } : h) } },
+  ])("does not POST with unavailable, changed or unsafe metadata: %j", async (data) => {
+    stubFetch({ data });
+    const result = await makeGmailSend(mockGetToken(), "me", http).runner(reply);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Reply not sent");
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the parent's In-Reply-To when References is absent", async () => {
+    const parent = parentMessage();
+    parent.payload.headers = parent.payload.headers.filter((h) => h.name !== "References");
+    parent.payload.headers.push({ name: "In-Reply-To", value: "<previous@example.test>" });
+    stubFetchSequence([{ ok: true, status: 200, data: parent }, { ok: true, status: 200, data: { id: "sent", threadId: "conversation" } }]);
+    await makeGmailSend(mockGetToken(), "me", http).runner(reply);
+    expect(Buffer.from(JSON.parse(requestMock.mock.calls[1][1].body).raw, "base64url").toString()).toContain("References: <previous@example.test> <parent@example.test>");
+  });
+
+  it.each([
+    { ...reply, replyThreadId: undefined },
+    { ...reply, replyToMessageId: undefined },
+    { ...reply, subject: "Planning\nBcc: hidden@example.test" },
+    { ...reply, to: "chosen@example.test\r\nBcc: hidden@example.test" },
+    { ...reply, cc: "x\u0000y" },
+    { ...reply, replyToMessageId: "../other?format=raw" },
+  ])("rejects unsafe or incomplete input before any request: %j", async (input) => {
+    const result = await makeGmailSend(mockGetToken(), "me", http).runner(input);
+    expect(result.is_error).toBe(true);
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on an unreadable parent and subject mismatch", async () => {
+    for (const response of [{ ok: false, status: 404, data: {} }, { ok: true, status: 200, data: parentMessage() }]) {
+      stubFetch(response);
+      const result = await makeGmailSend(mockGetToken(), "me", http).runner({ ...reply, subject: "Changed subject" });
+      expect(result.is_error).toBe(true);
+      expect(requestMock).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each([null, {}, { id: "sent", threadId: "other" }, { id: "parent", threadId: "conversation" }])("does not confirm inconsistent send response: %j", async (data) => {
+    stubFetchSequence([{ ok: true, status: 200, data: parentMessage() }, { ok: true, status: 200, data }]);
+    const result = await makeGmailSend(mockGetToken(), "me", http).runner(reply);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("outcome uncertain");
+  });
+
+  it("does not leak a transport failure or encourage blind resend", async () => {
+    requestMock.mockResolvedValueOnce(Response.json(parentMessage())).mockRejectedValueOnce(new Error("secret-token"));
+    const result = await makeGmailSend(mockGetToken(), "me", http).runner(reply);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("check Gmail before retrying");
+    expect(result.content).not.toContain("secret-token");
+  });
+});

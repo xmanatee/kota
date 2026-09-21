@@ -44,6 +44,11 @@ Values starting with `$` are resolved through the shared secret provider, so set
 
 - All tools are in the `productivity` tool group.
 - Write tools (`gmail_send`, `calendar_create_event`) are classified as dangerous and queue for approval in autonomous mode.
+- Gmail replies select a parent and thread through `gmail_get_message`, then
+  pass that selection, exact subject and explicit recipients to `gmail_send`.
+  Re-fetch parent metadata after approval; derive RFC identity only from the
+  provider, and never infer reply-all. Uncertain send results require mailbox
+  inspection before retrying; sending is not idempotent.
 - Calendar creates require a caller-chosen random operation UUID before approval.
   Preserve it and the original parameters for recovery; a new meeting uses a new
   UUID even when its details match. `calendar_check_event` checks provider truth

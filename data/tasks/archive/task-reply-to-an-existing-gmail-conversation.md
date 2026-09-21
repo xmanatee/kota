@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Reply to an existing Gmail conversation with its identity intact
@@ -66,3 +65,26 @@ read selection; no overlapping reply outcome was found in tasks or inbox.
 Keep the capability with the existing Google Workspace module, authentication,
 HTTP and approval owners. Builders choose the tool shape and verification;
 this outcome does not require a new mail client, draft subsystem or MCP migration.
+
+## Completion
+
+Implemented in the Google Workspace owner. `gmail_get_message` renders an
+explicit parent/thread/subject selection and Reply-To/Cc metadata. `gmail_send`
+accepts that selection alongside the exact subject and explicit recipients;
+after approval it re-fetches the selected parent in the configured account,
+validates the binding, and derives References/In-Reply-To from provider data.
+MIME construction uses the existing Nodemailer dependency. Header-breaking
+inputs and missing, ambiguous or inconsistent parent metadata fail before POST.
+Inconsistent send responses and transport failures report uncertainty and advise
+checking Gmail before retrying. No recipients are added from the parent.
+
+Proof: 210 Google Workspace owner tests passed, covering distinct same-subject
+parents, missing/invalid metadata, header injection, reference ancestry, uncertain
+results and ordinary new messages. Two integration journeys passed through the
+real tool runner and inline/queued approval owners, including denied sends and
+inspection of the actual approval review. The controlled HTTP transcript is
+`artifacts/gmail-reply-journey.txt` in builder run
+`2026-09-21T13-23-48-811Z-builder-wbemgc`; validation logs are retained alongside it.
+`pnpm check:fast` passed. No live mailbox send or recipient-delivery observation
+was performed; provider-contract evidence uses synthetic messages and HTTP only.
+Unsupported legacy RFC message-id syntax fails closed rather than being guessed.

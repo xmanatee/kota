@@ -150,7 +150,7 @@ export function gmailMessageResult(raw: unknown): ToolResult {
   const body = decodeGmailBody(message.data.payload);
   const reasons = new Set(body.reasons);
   const root = partSchema.safeParse(message.data.payload);
-  const metadata = ["subject", "from", "to", "date"].map((name) => {
+  const metadata = ["subject", "from", "reply-to", "to", "cc", "date"].map((name) => {
     const value = root.success ? header(root.data, name) ?? "" : "";
     if (value.length > 2_000) reasons.add("Message headers truncated by output limit.");
     return `${name[0].toUpperCase()}${name.slice(1)}: ${value.slice(0, 2_000)}`;
