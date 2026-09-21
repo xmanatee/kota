@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Can KOTA verify a browser save after its notification disappears?
@@ -91,6 +91,110 @@ security task concerns saving authenticated browser state, not saving form data;
 it is not a hard predecessor for this disposable, unauthenticated comparison.
 Document/workbook investigations likewise retain their separate journeys.
 
-Coverage investigation can advance, so the task remains open. Other research
-tasks' observation blockers are not inherited without assessing this task's
-needs. No KOTA browser/model observation or behavioral test ran during triage.
+At triage, coverage investigation could advance, so the task remained open.
+Other research tasks' observation blockers were not inherited. No KOTA
+browser/model observation or behavioral test ran during triage.
+
+## Investigation — September 21, 2026
+
+Builder run `2026-09-21T09-26-00-554Z-builder-7l8pq9`, source
+`973a0fcc893a87511fd6b8943bcb85e29735284d`, inspected the maintained browser
+tools, session/lifecycle owner, native invocation transport, eval and parity
+coverage, and available task-linked evidence. The exported issue evidence
+contained an unrelated MiMo research run with unavailable run metadata, not a
+browser-save observation. Archived automation and network-policy tasks supply
+implementation history, not the required application/model comparison.
+
+Findings:
+
+- `browser_click` acknowledges completion of `page.click`; it does not inspect
+  application persistence. `browser_get_text` and `browser_screenshot` expose
+  current state. `browser_evaluate` can return page-side evaluation results,
+  including a promise's result through Playwright. These afford a possible
+  reload/readback or pre-action observer strategy; whether assistance chooses
+  and interprets one correctly remains unmeasured.
+- Browser tools are registered in the browser module and require an active
+  session, scope identity and scope root. `kota run` is the existing assistant
+  entrypoint. Browser tools do not opt into `nativeInvocation`; the native
+  workflow request/reply service cannot call them directly. The existing
+  `kota eval contained` service is the supported route to host-authorized
+  contained execution. A source-access report exercises article/X readers,
+  not an assistant save interaction.
+- The interaction and observation suites mock `getPage`. The research-collection
+  integration journey controls the browser process/DOM and tests collection,
+  policy and publication. The inspected eval fixtures and harness-parity
+  scenarios contain no transient-save comparison. None establishes a save
+  completion claim after feedback disappears.
+- `pnpm test:owner src/modules/browser/browser-interaction-tools.test.ts
+  src/modules/browser/browser-observation-tools.test.ts` passed: 21 tests in
+  two files. This confirms existing acknowledgement, observation serialization,
+  error and session-routing behavior at mocked page boundaries; it is not
+  browser/model acceptance evidence.
+
+Execution readiness was assessed for this task, independently of the workbook
+and profile-persistence tasks. A disposable Node invocation imported Playwright
+successfully and attempted the production `launchBrowserProcess` with the
+default public-untrusted profile, headless mode and persistence disabled.
+Its required proxy failed before Chromium launch with
+`Error: listen EPERM: operation not permitted 127.0.0.1`.
+No navigation, form submission, persistent profile, or model call occurred.
+This establishes a sandbox restriction, not host browser or credential absence.
+
+The authorized alternative, `pnpm kota eval contained
+'{"operation":"inspect"}'`, reached the host request/reply service and returned
+`is_error: true`: `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment`.
+No host execution profiles were available through that service. The worker
+cannot provision that trusted grant. No authority, proxy, persistence or daemon
+controls were changed.
+
+Disposition: **the question remains useful and unanswered; blocked on execution
+access or equivalent attributable evidence below**. There is no demonstrated
+observation or reasoning defect and no basis for adding continuous capture,
+changing prompts, or creating an implementation follow-up. Existing source
+affordances and passing mocked tests do not justify claiming assistance suffices.
+Application ground truth, model-visible results and completion claims are all
+unobserved in this run. The original research citations remain provenance;
+they were not re-read or used as new behavioral proof.
+
+Selected commands, results and the launch reproducer are retained in this run's
+`artifacts/browser-save-investigation.md`. The only repository change is this
+task's investigation and blocked disposition; production behavior is unchanged.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An authorized disposable KOTA browser/model comparison of successful and rejected saves with transient and persistent feedback, or equivalent attributable session evidence.
+
+The path is a discovery hint, not a required capture directory. Resume when an
+authorized environment can run an actual KOTA browser-enabled session with
+Chromium and its required proxy, or an equivalent session export is available.
+For the contained route, an operator-owned profile must authorize this scope
+and comparison, provide browser/model dependencies and permitted provider
+egress, and allow the disposable application's origin through the browser's
+existing network policy. See `src/modules/eval-harness/contained-evaluation.md`.
+An arbitrary offline test profile or configuration alone is not live proof.
+No external account or persistent login profile is needed. Do not bypass the
+proxy, expose host authority to candidate code, or restart the parent daemon.
+
+On resumption, use the same invented form, request, actual model/harness and
+tool policy across a two-by-two comparison: accepted/rejected save, each with
+brief/persistent feedback. For example, change an initial saved value `draft`
+to `revised`; acceptance persists `revised`, rejection retains `draft`.
+Keep the outcome selection and independently inspected backing state outside
+the assistant's input. A normal user-facing reload/readback may expose saved
+state through existing tools. Record the actual toast duration and elapsed
+time to each observation, ensuring post-action observation in transient rows
+occurs after dismissal. Retain every tool input/result and final assistant
+response, plus separate observer ground truth; attribute any prompt, tool,
+timing or application changes instead of pooling unlike trials.
+
+Judge confirmed persistence, correctly detected rejection and explicit
+uncertainty separately. A filled field or `Clicked:` acknowledgement is not
+saved-state evidence. If the assistant receives decisive rejection/readback
+evidence but claims success, classify interpretation failure; if the evidence
+has disappeared and no durable result is inspected, classify missing
+observation and assess whether the assistant honestly reports uncertainty.
+Try existing evaluation/readback or pre-action observation before proposing a
+new mechanism. One successful small comparison would establish feasibility
+under its recorded conditions, not reliability across arbitrary applications.
