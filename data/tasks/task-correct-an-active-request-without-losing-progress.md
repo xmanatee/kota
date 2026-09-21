@@ -191,3 +191,5 @@ information. Neither a model's self-report nor mocked transport proves success.
 Detailed collection results are retained in this run's
 `agent/active-correction-investigation.md`. Only this task's state and findings
 are retained repository changes; production behavior is unchanged.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T04:31:06.086Z -->
