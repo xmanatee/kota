@@ -108,6 +108,36 @@ limits inspection, not the existence of historical evidence. No matched live
 result was available in the inspected material. Source review establishes the
 coverage boundaries above; these tests were not re-executed for this research.
 
+## Source Reassessment — September 21
+
+Collected by `2026-09-21T02-39-53-082Z-research-source-collection-2onqmm`
+and assessed in `research-retry-child-99d0da13ced18a9f2b24666b`:
+
+- [StreamMemBench v2](https://arxiv.org/html/2606.14571v2): `web_fetch`
+  returned readable text at `2026-09-21T02:46:23.481Z`. The supplied reading
+  ends after 12,000 of 67,342 characters, in the related-work section. Its
+  abstract and introduction distinguish retained evidence, initial evidence
+  use, immediate feedback incorporation and later reuse. This supports measuring
+  actual later responses separately from successful storage. The experiment
+  details and interaction-commit ablation described in the September 15 notes
+  are outside this excerpt and were not freshly verified.
+- [Project README](https://github.com/landian60/StreamMemBench): `web_fetch`
+  returned readable text at `2026-09-21T02:46:24.230Z`. The assessed README
+  describes evidence-anchored initial/follow-up tasks and result records that
+  retain initial answers, feedback, revisions and follow-up answers. That
+  structure informs the requested observation evidence; it supplies no KOTA
+  measurement. Linked evaluation documentation, implementation and datasets
+  were not collected or inspected in this retry; no benchmark ran.
+
+Neither collected reading showed an access gate. Source access was already
+reported successful at triage, so this does not resolve the operator-capture
+prerequisite below. This retry contains no fresh host-capability inspection,
+KOTA transcript or matched comparison. Preserve the September 20 coverage
+findings and host-probe result as historical evidence; current profile
+availability remains unverified. Status remains `blocked` pending the same
+authorized observation or equivalent attributable evidence. No product defect
+or implementation follow-up is established by these readings.
+
 ## Blocked on
 
 kind: operator-capture
@@ -148,3 +178,5 @@ provenance is retained in this run's `agent/correction-reuse-research.md` and
 this blocked disposition supersedes its proposed open-task handoff.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T02:46:12.959Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"34aae21e0234aa13","attemptedAt":"2026-09-21T02:46:24.230Z","attempts":[{"url":"https://arxiv.org/html/2606.14571v2","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T02:46:23.481Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/landian60/StreamMemBench","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T02:46:24.230Z","tools":["web_fetch"],"outcome":"readable"}]} -->
