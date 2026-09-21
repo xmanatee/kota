@@ -72,16 +72,17 @@ describe("OutboundHttpTransport errors and telemetry", () => {
       profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://provider.example"]),
       operation: "telemetry-fixture",
       url: "https://provider.example/v1?api_key=secret&visible=yes",
-      headers: { Authorization: "Bearer secret", "X-Trace": "visible" },
+      headers: { Authorization: "Bearer secret", "X-Resource-Keys": "file/private-key", "X-Trace": "visible" },
     });
 
     expect(result.url).toContain("api_key=secret");
     expect(events[0]).toMatchObject({
       type: "request-started",
       url: "https://provider.example/[redacted]",
-      headers: { authorization: "[redacted]", "x-trace": "visible" },
+      headers: { authorization: "[redacted]", "x-resource-keys": "[redacted]", "x-trace": "visible" },
     });
     expect(JSON.stringify(events)).not.toContain("Bearer secret");
+    expect(JSON.stringify(events)).not.toContain("private-key");
   });
 
   it("removes URL fragments from telemetry, typed failures, and error messages", async () => {
@@ -199,6 +200,8 @@ describe("OutboundHttpTransport errors and telemetry", () => {
       reason: "method-not-idempotent",
     });
     expect(redactOutboundHttpText("token=secret")).toBe("token=[redacted]");
+    expect(redactOutboundHttpText('resourceKey=secret {"targetResourceKey":"secret"}'))
+      .toBe('resourceKey=[redacted] {"targetResourceKey":"[redacted]"}');
     expect(
       redactOutboundHttpText(
         "request failed at https://api.telegram.org/bot123456:secret/sendMessage?chat_id=42",

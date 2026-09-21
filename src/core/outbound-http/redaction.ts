@@ -1,11 +1,11 @@
-const SENSITIVE_HEADER = /(?:authorization|cookie|token|api[-_]?key|secret|signature|credential)/i;
+const SENSITIVE_HEADER = /(?:authorization|cookie|token|api[-_]?key|resource[-_]?keys?|secret|signature|credential)/i;
 const JSON_STRING_VALUE = /("((?:\\.|[^"\\])*)"\s*:\s*)"(?:\\.|[^"\\])*"/g;
 const SENSITIVE_FIELD_SEGMENT =
-  /(?:^|[-_])(?:authorization|cookie|token|api[-_]?key|secret|signature|credential|password|code)(?:$|[-_])/i;
+  /(?:^|[-_])(?:authorization|cookie|token|api[-_]?key|resource[-_]?keys?|secret|signature|credential|password|code)(?:$|[-_])/i;
 const MULTI_PART_SECRET_TEXT_VALUE =
   /(\b(?:authorization|proxy-authorization|cookie|set-cookie)\b\s*[=:]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^"'\r\n}\]]+)/gi;
 const SENSITIVE_TEXT_VALUE =
-  /(token|api[-_]?key|secret|password|credential)(\s*[=:]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,&;}\]"']+)/gi;
+  /(token|api[-_]?key|resource[-_]?keys?|secret|password|credential)(\s*[=:]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,&;}\]"']+)/gi;
 const URL_IN_TEXT = /https?:\/\/[^\s"'<>]+/gi;
 
 function isSensitiveFieldName(name: string): boolean {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type OutboundHttpTelemetryEvent, OutboundHttpTransport } from "#core/outbound-http/index.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { makeDriveListFiles, makeDriveReadFile } from "./drive.js";
 
@@ -237,6 +238,166 @@ describe("drive_read_file: runner", () => {
 
     const result = await def.runner({ id: "f1" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toBe("Google Drive error (500): Internal Server Error");
+    expect(result.content).toBe("Unavailable: Google Drive content request failed (500). No content read.");
+  });
+});
+
+// Exercises list -> read through the authenticated adapter and real transport policy.
+// Only the Google dispatcher is controlled; no live account is required.
+describe("Drive shortcut reads", () => {
+  const shortcut = {
+    id: "shortcut-1", name: "Old budget title", mimeType: "application/vnd.google-apps.shortcut",
+    shortcutDetails: { targetId: "target-1", targetMimeType: "image/png", targetResourceKey: "fixture-key" },
+  };
+  function provider(responses: Response[]) {
+    const requests: Array<{ url: URL; method?: string; headers: Headers }> = [];
+    const events: OutboundHttpTelemetryEvent[] = [];
+    const transport = new OutboundHttpTransport({
+      telemetry: (event) => events.push(event),
+      dispatcher: async (url, init) => {
+        requests.push({ url, method: init.method, headers: new Headers(init.headers) });
+        const response = responses.shift();
+        if (!response) throw new Error("Unexpected provider request");
+        return response;
+      },
+    });
+    return { requests, events, transport };
+  }
+
+  it.each([
+    { mimeType: "text/plain", path: "/drive/v3/files/target-1", query: ["alt", "media"] },
+    { mimeType: "application/vnd.google-apps.document", path: "/drive/v3/files/target-1/export", query: ["mimeType", "text/plain"] },
+    { mimeType: "application/vnd.google-apps.spreadsheet", path: "/drive/v3/files/target-1/export", query: ["mimeType", "text/csv"] },
+  ])("reads a listed shortcut using current metadata: $mimeType", async ({ mimeType, path, query }) => {
+    const { transport, requests, events } = provider([
+      Response.json({ files: [shortcut] }), Response.json(shortcut),
+      Response.json({ name: "Current budget title", mimeType }), new Response("a,b,c"),
+    ]);
+    const getToken = mockGetToken();
+    const listing = await makeDriveListFiles(getToken, transport).runner({});
+    const listedId = listing.content.match(/\[([^\]]+)\]/)?.[1];
+    const result = await makeDriveReadFile(getToken, transport).runner({ id: listedId, maxChars: 3 });
+    expect(result.is_error).not.toBe(true);
+    expect(result.content).toContain("Shortcut: Old budget title [shortcut-1]\nResolved file ID: target-1");
+    expect(result.content).toContain(`File: Current budget title\nType: ${mimeType}`);
+    expect(result.content).toContain("a,b\n... (truncated)");
+    expect(result.content.includes("first sheet only")).toBe(mimeType.endsWith("spreadsheet"));
+    expect(requests).toHaveLength(4);
+    expect(requests[3].url.pathname).toBe(path);
+    expect(requests[3].url.searchParams.get(query[0])).toBe(query[1]);
+    for (const [index, request] of requests.entries()) {
+      expect(request.method).toBe("GET");
+      expect(request.url.origin).toBe("https://www.googleapis.com");
+      expect(request.headers.get("authorization")).toBe("Bearer test-token");
+      expect(request.headers.get("x-goog-drive-resource-keys")).toBe(index < 2 ? null : "target-1/fixture-key");
+      expect(request.url.toString()).not.toContain("fixture-key");
+    }
+    expect(JSON.stringify({ listing, result, events })).not.toContain("fixture-key");
+  });
+
+  it.each([403, 404])("reports an inaccessible target without exposing provider diagnostics: %s", async (status) => {
+    const { transport, requests, events } = provider([
+      Response.json(shortcut), Response.json({ error: { message: "fixture-key" } }, { status }),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain(`metadata request failed (${status})`);
+    expect(result.content).toContain("Resolved file ID: target-1");
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify({ result, events })).not.toContain("fixture-key");
+  });
+
+  it("does not expose keys when target content retrieval fails", async () => {
+    const { transport } = provider([
+      Response.json(shortcut), Response.json({ name: "Target", mimeType: "text/plain" }),
+      new Response("fixture-key", { status: 403 }),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("content request failed (403)");
+    expect(result.content).not.toContain("fixture-key");
+  });
+
+  it.each([
+    undefined, {}, { targetId: "" }, { targetId: "../permissions" },
+    { targetId: "https://untrusted.example/file" }, { targetId: "t?alt=media" },
+    { targetId: "target-1", targetResourceKey: "key,other/injected" },
+    { targetId: "target-1", targetResourceKey: "key\r\nInjected: yes" },
+  ])("rejects malformed target references before requesting them: %j", async (shortcutDetails) => {
+    const { transport, requests } = provider([Response.json({ ...shortcut, shortcutDetails })]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Unavailable:");
+    expect(requests).toHaveLength(1);
+  });
+
+  it.each([null, {}, { name: "Target" }, { name: "Target", mimeType: 7 }])("rejects malformed target metadata: %j", async (meta) => {
+    const { transport, requests } = provider([Response.json(shortcut), Response.json(meta)]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("malformed Drive file metadata");
+    expect(requests).toHaveLength(2);
+  });
+
+  it.each(["application/vnd.google-apps.folder", "application/pdf", "image/png", "application/vnd.google-apps.presentation"])("does not download unsupported targets: %s", async (mimeType) => {
+    const { transport, requests } = provider([
+      Response.json(shortcut), Response.json({ name: "Target", mimeType }),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain(`Unsupported Drive file: Target (${mimeType})`);
+    expect(requests).toHaveLength(2);
+  });
+
+  it("does not read trashed targets", async () => {
+    const { transport, requests } = provider([
+      Response.json(shortcut), Response.json({ name: "Target", mimeType: "text/plain", trashed: true }),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("in the trash");
+    expect(requests).toHaveLength(2);
+  });
+
+  it.each([true, false])("terminates cyclic references (self: %s)", async (self) => {
+    const { transport, requests } = provider(self
+      ? [Response.json({ ...shortcut, shortcutDetails: { targetId: shortcut.id } })]
+      : [Response.json(shortcut), Response.json({ ...shortcut, shortcutDetails: { targetId: shortcut.id } })]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("cyclic Drive shortcut reference");
+    expect(requests).toHaveLength(self ? 1 : 2);
+  });
+
+  it("bounds non-cyclic shortcut chains", async () => {
+    const { transport, requests } = provider(Array.from({ length: 20 }, (_, i) => Response.json({
+      ...shortcut, shortcutDetails: { targetId: `chain-${i + 1}` },
+    })));
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: "chain-0" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("resolution limit");
+    expect(requests.length).toBeLessThan(20);
+  });
+
+  it("does not carry a resource key to a different target in a chain", async () => {
+    const { transport, requests } = provider([
+      Response.json(shortcut), Response.json({ ...shortcut, shortcutDetails: { targetId: "final" } }),
+      Response.json({ name: "Final", mimeType: "text/plain" }), new Response("text"),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).not.toBe(true);
+    expect(requests[1].headers.get("x-goog-drive-resource-keys")).toBe("target-1/fixture-key");
+    expect(requests[2].headers.get("x-goog-drive-resource-keys")).toBeNull();
+    expect(requests[3].headers.get("x-goog-drive-resource-keys")).toBeNull();
+  });
+
+  it("rejects redirects outside the Google API boundary", async () => {
+    const { transport, requests } = provider([
+      Response.json(shortcut), new Response(null, { status: 302, headers: { location: "https://untrusted.example/" } }),
+    ]);
+    const result = await makeDriveReadFile(mockGetToken(), transport).runner({ id: shortcut.id });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("could not be completed");
+    expect(requests).toHaveLength(2);
   });
 });

@@ -3,7 +3,7 @@ import type { ToolDef } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { apiError, googleFetch, googleRawFetch } from "./auth.js";
+import { googleFetch, googleRawFetch } from "./auth.js";
 import { listGooglePages, listingStatus, MAX_LIST_PAGES } from "./listing.js";
 
 const filePageSchema = z.object({
@@ -97,6 +97,19 @@ export function makeDriveListFiles(
   };
 }
 
+const driveIdSchema = z.string().regex(/^[A-Za-z0-9_-]+$/);
+const fileMetadataSchema = z.object({
+  name: z.string(),
+  mimeType: z.string().min(1),
+  trashed: z.boolean().optional(),
+  shortcutDetails: z.object({
+    targetId: driveIdSchema,
+    targetResourceKey: z.string().regex(/^[A-Za-z0-9_-]+$/).optional(),
+  }).optional(),
+});
+const SHORTCUT_MIME_TYPE = "application/vnd.google-apps.shortcut";
+const MAX_SHORTCUT_HOPS = 8;
+
 export function makeDriveReadFile(
   getToken: () => Promise<string>,
   http: OutboundHttpRequestPort = outboundHttp,
@@ -107,15 +120,18 @@ export function makeDriveReadFile(
     tool: {
       name: "drive_read_file",
       description:
-        "Read the plain text content of a Google Drive file by its ID. " +
+        "Read the plain text content of a Google Drive file or shortcut by its ID. " +
+        "Resolves shortcuts using current target metadata and reports both identities. " +
         "Google Docs are exported as plain text; Google spreadsheets are exported as CSV (first sheet only); " +
-        "other text files are downloaded directly. maxChars limits the returned text separately from sheet coverage.",
+        "text, JSON and XML files are downloaded directly. Other types are unsupported. " +
+        "maxChars limits the returned text separately from sheet coverage.",
       input_schema: {
         type: "object" as const,
         properties: {
-          id: { type: "string", description: "Drive file ID" },
+          id: { type: "string", description: "Drive file or shortcut ID" },
           maxChars: {
-            type: "number",
+            type: "integer",
+            minimum: 0,
             description: "Maximum characters to return (default: 8000)",
           },
         },
@@ -123,47 +139,77 @@ export function makeDriveReadFile(
       },
     },
     async runner(input): Promise<ToolResult> {
-      const token = await getToken();
-      const fileId = input.id as string;
-      const maxChars = (input.maxChars as number | undefined) ?? 8000;
-
-      const metaRes = await googleFetch(
-        token,
-        "GET",
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`,
-        undefined,
-        http,
-      );
-      if (!metaRes.ok) return apiError("get file metadata", metaRes.status, metaRes.data);
-
-      const meta = metaRes.data as { name: string; mimeType: string };
-      const isSpreadsheet = meta.mimeType === "application/vnd.google-apps.spreadsheet";
-
-      let url: string;
-      if (meta.mimeType === "application/vnd.google-apps.document") {
-        url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
-      } else if (isSpreadsheet) {
-        url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
-      } else {
-        url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      const parsedId = driveIdSchema.safeParse(input.id);
+      if (!parsedId.success) return { content: "Unavailable: invalid Drive file ID.", is_error: true };
+      const maxChars = input.maxChars ?? 8000;
+      if (typeof maxChars !== "number" || !Number.isSafeInteger(maxChars) || maxChars < 0) {
+        return { content: "maxChars must be a non-negative integer.", is_error: true };
       }
+      let fileId = parsedId.data;
+      let driveResource: { fileId: string; resourceKey: string } | undefined;
+      const shortcuts: string[] = [];
+      const visited = new Set<string>();
+      const identity = () => shortcuts.length > 0
+        ? `${shortcuts.join("\n")}\nResolved file ID: ${fileId}\n` : "";
+      const unavailable = (reason: string): ToolResult => ({
+        content: `${identity()}Unavailable: ${reason}`,
+        is_error: true,
+      });
 
-      const res = await googleRawFetch(token, "GET", url, undefined, http);
-      if (!res.ok) {
-        const body = await res.text();
-        return { content: `Google Drive error (${res.status}): ${body}`, is_error: true };
+      try {
+        const token = await getToken();
+        for (;;) {
+          if (visited.has(fileId)) return unavailable("cyclic Drive shortcut reference.");
+          visited.add(fileId);
+          const baseUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`;
+          const metaRes = await googleFetch(
+            token, "GET",
+            `${baseUrl}?fields=name,mimeType,trashed,shortcutDetails(targetId,targetResourceKey)`,
+            undefined, http, driveResource,
+          );
+          // Provider diagnostics can echo resource keys. Only status and operation are public.
+          if (!metaRes.ok) return unavailable(`Google Drive metadata request failed (${metaRes.status}); the file may be missing or inaccessible.`);
+          const parsedMeta = fileMetadataSchema.safeParse(metaRes.data);
+          if (!parsedMeta.success) return unavailable("malformed Drive file metadata or shortcut reference.");
+          const meta = parsedMeta.data;
+          if (meta.trashed) return unavailable("the Drive file is in the trash.");
+          if (meta.mimeType === SHORTCUT_MIME_TYPE) {
+            shortcuts.push(`Shortcut: ${meta.name} [${fileId}]`);
+            if (!meta.shortcutDetails) return unavailable("missing Drive shortcut target.");
+            if (shortcuts.length > MAX_SHORTCUT_HOPS) return unavailable("Drive shortcut resolution limit reached.");
+            fileId = meta.shortcutDetails.targetId;
+            driveResource = meta.shortcutDetails.targetResourceKey === undefined ? undefined : {
+              fileId,
+              resourceKey: meta.shortcutDetails.targetResourceKey,
+            };
+            continue;
+          }
+
+          const isSpreadsheet = meta.mimeType === "application/vnd.google-apps.spreadsheet";
+          let url: string;
+          if (meta.mimeType === "application/vnd.google-apps.document") {
+            url = `${baseUrl}/export?mimeType=text/plain`;
+          } else if (isSpreadsheet) {
+            url = `${baseUrl}/export?mimeType=text/csv`;
+          } else if (meta.mimeType.startsWith("text/") || ["application/json", "application/xml"].includes(meta.mimeType)) {
+            url = `${baseUrl}?alt=media`;
+          } else {
+            return { content: `${identity()}Unsupported Drive file: ${meta.name} (${meta.mimeType}). No content read.`, is_error: true };
+          }
+          const res = await googleRawFetch(token, "GET", url, undefined, http, driveResource);
+          if (!res.ok) return unavailable(`Google Drive content request failed (${res.status}). No content read.`);
+          const text = await res.text();
+          const content = text.length > maxChars ? `${text.slice(0, maxChars)}\n... (truncated)` : text;
+          const exportNotice = isSpreadsheet
+            ? "\nExport: CSV (text/csv), first sheet only. Other sheets, if any, are not read."
+            : "";
+          return {
+            content: `${identity()}File: ${meta.name}\nType: ${meta.mimeType}${exportNotice}\n\n${content}`,
+          };
+        }
+      } catch {
+        return unavailable("Google Drive request could not be completed. No content read.");
       }
-
-      const text = await res.text();
-      const truncated = text.length > maxChars;
-      const content = truncated ? `${text.slice(0, maxChars)}\n... (truncated)` : text;
-      const exportNotice = isSpreadsheet
-        ? "\nExport: CSV (text/csv), first sheet only. Other sheets, if any, are not read."
-        : "";
-
-      return {
-        content: `File: ${meta.name}\nType: ${meta.mimeType}${exportNotice}\n\n${content}`,
-      };
     },
   };
 }

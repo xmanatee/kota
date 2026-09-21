@@ -91,8 +91,9 @@ export async function googleFetch(
   url: string,
   body?: unknown,
   http: OutboundHttpRequestPort = outboundHttp,
+  driveResource?: { fileId: string; resourceKey: string },
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const res = await googleRawFetch(token, method, url, body, http);
+  const res = await googleRawFetch(token, method, url, body, http, driveResource);
   const data = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, data };
 }
@@ -103,6 +104,7 @@ export async function googleRawFetch(
   url: string,
   body?: unknown,
   http: OutboundHttpRequestPort = outboundHttp,
+  driveResource?: { fileId: string; resourceKey: string },
 ): Promise<Response> {
   const { response } = await http.request({
     profile: OUTBOUND_HTTP_PROFILES.configuredProvider([url]),
@@ -112,6 +114,9 @@ export async function googleRawFetch(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(driveResource
+        ? { "X-Goog-Drive-Resource-Keys": `${driveResource.fileId}/${driveResource.resourceKey}` }
+        : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });

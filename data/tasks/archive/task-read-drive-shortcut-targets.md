@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Read supported Drive files reached through shortcuts
 
@@ -57,3 +56,20 @@ resolves shortcut targets. Active tasks and inbox were checked for overlap.
 This work does not add a Drive index, browser fallback, permission-management
 surface or a new connector. Builders own the implementation and proportionate
 verification.
+
+## Completion
+
+Drive reads now resolve shortcut targets from current metadata, retain shortcut
+and target identities, and carry resource keys through authenticated Google
+requests. Invalid, cyclic, missing, inaccessible, trashed and unsupported targets
+return explicit errors. Direct text/Docs/Sheets reads, character truncation and
+the first-sheet CSV notice remain covered. Shared outbound HTTP redaction now
+recognizes resource keys so transport diagnostics cannot disclose the new header.
+
+Builder run `2026-09-21T13-58-21-929Z-builder-qw09th` retains
+`agent/drive-shortcut-probe.mjs` and `artifacts/drive-shortcut-transcript.json`.
+The executed probe records seven production list-to-read journeys with controlled
+Google responses, current metadata overriding stale MIME hints, keyed requests,
+rendered results and redacted telemetry. It includes text, Docs, Sheets,
+403/404 targets, folders and binary targets; all provider data is synthetic.
+No live account, model or daemon was exercised.

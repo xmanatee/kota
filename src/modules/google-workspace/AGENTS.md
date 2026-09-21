@@ -80,6 +80,11 @@ Values starting with `$` are resolved through the shared secret provider, so set
   Service adapters own page decoding and domain meaning; incomplete retrieval
   must retain prior items. Gmail detail failures retain listed IDs, and Drive
   incomplete-search evidence survives subsequent pages.
+- Drive reads resolve shortcuts with current target metadata; shortcut MIME hints
+  are not read authority. Keep both identities visible, bound resolution, and
+  pass target resource keys only through authenticated request headers. Keys and
+  provider error bodies must not appear in read diagnostics. Unsupported targets
+  do not fall back to binary downloads or permission changes.
 - Calendar listings keep time-blocking settings, event status, and attendee
   responses separate. Only provider `self` identifies the selected calendar's
   attendee; never infer it from an email or another guest's response. Apply
