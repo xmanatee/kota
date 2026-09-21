@@ -53,7 +53,7 @@ describe("drive_list_files: runner", () => {
     stubFetch({ data: { files: [] } });
 
     const result = await def.runner({});
-    expect(result.content).toBe("No files found.");
+    expect(result.content).toContain("No files found.");
   });
 
   it("formats file listing with name, type, and size", async () => {
@@ -104,6 +104,51 @@ describe("drive_list_files: runner", () => {
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("403");
   });
+});
+
+describe("Drive listing completeness", () => {
+  it("retains incomplete search evidence across pages and requests completeness fields", async () => {
+    stubFetchSequence([
+      { data: { incompleteSearch: true, nextPageToken: "a /+" } },
+      { data: { files: [{ id: "kept", name: "Budget", mimeType: "text/plain" }], nextPageToken: "b" } },
+      { data: { files: [], incompleteSearch: false } },
+    ]);
+    const result = await makeDriveListFiles(mockGetToken(), http).runner({ query: "name contains 'budget'", maxResults: 2 });
+    expect(result.content).toContain("Incomplete results");
+    expect(result.content).toContain("incomplete search");
+    expect(result.content).toContain("[kept] Budget");
+    expect(result.is_error).not.toBe(true);
+    const urls = requestMock.mock.calls.map(([url]) => new URL(url));
+    expect(urls.map((url) => url.searchParams.get("pageSize"))).toEqual(["2", "2", "1"]);
+    expect(urls.map((url) => url.searchParams.get("pageToken"))).toEqual([null, "a /+", "b"]);
+    for (const url of urls) {
+      expect(url.searchParams.get("q")).toBe("name contains 'budget'");
+      expect(url.searchParams.get("orderBy")).toBe("modifiedTime desc");
+      expect(url.searchParams.get("fields")).toContain("nextPageToken");
+      expect(url.searchParams.get("fields")).toContain("incompleteSearch");
+    }
+  });
+
+  it("does not claim no files when search is incomplete", async () => {
+    stubFetch({ data: { incompleteSearch: true } });
+    const result = await makeDriveListFiles(mockGetToken(), http).runner({});
+    expect(result.content).toContain("incomplete search");
+    expect(result.content).not.toContain("No files found");
+  });
+
+  it("accepts empty provider collections with omitted files", async () => {
+    stubFetch({ data: { incompleteSearch: false } });
+    expect((await makeDriveListFiles(mockGetToken(), http).runner({})).content).toContain("No files found");
+  });
+
+  it.each([null, {}, { files: [null] }, { nextPageToken: 2 }, { incompleteSearch: "false" }])(
+    "rejects invalid pages: %j", async (data) => {
+      stubFetch({ data });
+      const result = await makeDriveListFiles(mockGetToken(), http).runner({});
+      expect(result.is_error).toBe(true);
+      expect(result.content).not.toContain("No files found");
+    },
+  );
 });
 
 describe("drive_read_file: runner", () => {

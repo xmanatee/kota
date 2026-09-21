@@ -1,9 +1,27 @@
+import { z } from "zod";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 import { gmailMessageResult } from "./gmail-message.js";
+import { listGooglePages, listingStatus, MAX_LIST_PAGES } from "./listing.js";
+
+const messagePageSchema = z.object({
+  messages: z.array(z.object({ id: z.string().min(1) })).optional(),
+  resultSizeEstimate: z.number().int().nonnegative().optional(),
+  nextPageToken: z.string().min(1).optional(),
+}).refine((page) => Object.values(page).some((value) => value !== undefined))
+  .transform((page) => ({ items: page.messages ?? [], nextPageToken: page.nextPageToken }));
+
+const messageMetadataSchema = z.object({
+  id: z.string().min(1),
+  snippet: z.string().optional(),
+  labelIds: z.array(z.string()).optional(),
+  payload: z.object({
+    headers: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+  }).optional(),
+});
 
 export function makeGmailListMessages(
   getToken: () => Promise<string>,
@@ -17,13 +35,14 @@ export function makeGmailListMessages(
       name: "gmail_list_messages",
       description:
         "List recent Gmail messages. Returns message IDs, subjects, senders, and snippets. " +
-        "Optionally filter with a Gmail search query (e.g. 'is:unread', 'from:alice@example.com').",
+        `Optionally filter with a Gmail search query (e.g. 'is:unread', 'from:alice@example.com'). Follows up to ${MAX_LIST_PAGES} pages within maxResults and discloses incomplete lists and unavailable message details.`,
       input_schema: {
         type: "object" as const,
         properties: {
           query: { type: "string", description: "Gmail search query (optional)" },
           maxResults: {
-            type: "number",
+            type: "integer",
+            minimum: 1,
             description: "Maximum number of messages to return (default: 10, max: 50)",
           },
         },
@@ -31,57 +50,69 @@ export function makeGmailListMessages(
       },
     },
     async runner(input): Promise<ToolResult> {
-      const token = await getToken();
-      const max = Math.min((input.maxResults as number | undefined) ?? 10, 50);
+      const requestedMax = input.maxResults ?? 10;
+      if (typeof requestedMax !== "number" || !Number.isInteger(requestedMax) || requestedMax < 1) {
+        return { content: "maxResults must be a positive integer.", is_error: true };
+      }
+      const max = Math.min(requestedMax, 50);
       const params = new URLSearchParams({ maxResults: String(max) });
       if (input.query) params.set("q", input.query as string);
-
-      const listRes = await googleFetch(
-        token,
-        "GET",
-        `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages?${params}`,
-        undefined,
+      const baseUrl = `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(userId)}/messages`;
+      let tokenPromise: Promise<string> | undefined;
+      const listingToken = () => tokenPromise ??= getToken();
+      const { items: messages, state } = await listGooglePages({
+        getToken: listingToken,
         http,
-      );
-      if (!listRes.ok) return apiError("list messages", listRes.status, listRes.data);
+        maxResults: max,
+        pageSchema: messagePageSchema,
+        url: (remaining, pageToken) => {
+          params.set("maxResults", String(remaining));
+          if (pageToken) params.set("pageToken", pageToken);
+          return `${baseUrl}?${params}`;
+        },
+      });
 
-      const list = listRes.data as { messages?: Array<{ id: string }>; resultSizeEstimate?: number };
-      const messages = list.messages ?? [];
-      if (messages.length === 0) return { content: "No messages found." };
-
-      const metaResults = await Promise.all(
-        messages.slice(0, max).map(async (m) => {
-          const r = await googleFetch(
-            token,
-            "GET",
-            `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
-            undefined,
-            http,
+      const details = await Promise.all(messages.map(async (message) => {
+        const unavailable = (reason: string) => ({
+          available: false,
+          line: `[${message.id}] Details unavailable: ${reason}`,
+        });
+        try {
+          const response = await googleFetch(
+            await listingToken(), "GET",
+            `${baseUrl}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+            undefined, http,
           );
-          if (!r.ok) return null;
-          return r.data as {
-            id: string;
-            snippet: string;
-            labelIds?: string[];
-            payload?: { headers?: Array<{ name: string; value: string }> };
-          };
-        }),
-      );
-
-      const lines = metaResults
-        .filter(Boolean)
-        .map((msg) => {
-          if (!msg) return "";
+          if (!response.ok) return unavailable(`Google API error (${response.status}).`);
+          const parsed = messageMetadataSchema.safeParse(response.data);
+          if (!parsed.success || parsed.data.id !== message.id) {
+            return unavailable("Google returned invalid message metadata.");
+          }
+          const msg = parsed.data;
           const headers = msg.payload?.headers ?? [];
-          const subject = headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
-          const from = headers.find((h) => h.name === "From")?.value ?? "";
-          const date = headers.find((h) => h.name === "Date")?.value ?? "";
+          const subject = headers.find((h) => h.name.toLowerCase() === "subject")?.value ?? "(no subject)";
+          const from = headers.find((h) => h.name.toLowerCase() === "from")?.value ?? "";
+          const date = headers.find((h) => h.name.toLowerCase() === "date")?.value ?? "";
           const unread = msg.labelIds?.includes("UNREAD") ? " [unread]" : "";
-          return `[${msg.id}]${unread} ${subject}\n  From: ${from} | ${date}\n  ${msg.snippet}`;
-        })
-        .filter(Boolean);
-
-      return { content: `${lines.length} message(s):\n\n${lines.join("\n\n")}` };
+          return {
+            available: true,
+            line: `[${msg.id}]${unread} ${subject}\n  From: ${from} | ${date}\n  ${msg.snippet ?? "(snippet unavailable)"}`,
+          };
+        } catch {
+          return unavailable("Google request failed.");
+        }
+      }));
+      const failed = details.filter((detail) => !detail.available).length;
+      return {
+        content: [
+          listingStatus(state, "Complete message list for the requested query."),
+          ...(failed ? [`Message details incomplete: ${failed} of ${messages.length} unavailable. Listed IDs are retained below.`] : []),
+          state.kind === "complete" && messages.length === 0
+            ? "No messages found."
+            : `${messages.length} message(s) listed; ${messages.length - failed} details retrieved:\n\n${details.map((detail) => detail.line).join("\n\n")}`,
+        ].join("\n"),
+        ...(state.kind === "unavailable" || failed > 0 ? { is_error: true } : {}),
+      };
     },
   };
 }

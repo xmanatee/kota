@@ -3,9 +3,8 @@ import type { ToolDef } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { googleFetch } from "./auth.js";
+import { type ListingState, listGooglePages, listingStatus, MAX_LIST_PAGES } from "./listing.js";
 
-const MAX_LIST_PAGES = 10;
 const eventTimeSchema = z.object({
   dateTime: z.string().optional(),
   date: z.string().optional(),
@@ -30,12 +29,13 @@ const eventPageSchema = z.object({
     })).optional(),
   })).optional(),
   nextPageToken: z.string().min(1).optional(),
-}).refine((page) => page.items !== undefined || page.nextPageToken !== undefined || page.kind !== undefined);
+}).refine((page) => page.items !== undefined || page.nextPageToken !== undefined || page.kind !== undefined)
+  .transform((page) => ({ items: page.items ?? [], nextPageToken: page.nextPageToken }));
 
 function calendarListResult(
   calendarId: string,
   events: NonNullable<z.infer<typeof eventPageSchema>["items"]>,
-  state: { kind: "complete" } | { kind: "partial" | "unavailable"; reason: string },
+  state: ListingState,
 ): ToolResult {
   const lines = events.map((e) => {
     const start = e.start?.dateTime ?? e.start?.date ?? "?";
@@ -63,9 +63,7 @@ function calendarListResult(
     }
     return parts.join("\n");
   });
-  const status = state.kind === "complete"
-    ? "Complete results for the requested window."
-    : `Incomplete results: ${state.reason} Additional matching events may exist.`;
+  const status = listingStatus(state, "Complete results for the requested window.");
   return {
     content: [
       `Calendar: ${calendarId}`,
@@ -133,62 +131,18 @@ export function makeCalendarListEvents(
       });
       if (input.timeMax) params.set("timeMax", input.timeMax as string);
 
-      const events: NonNullable<z.infer<typeof eventPageSchema>["items"]> = [];
-      const seenTokens = new Set<string>();
-      try {
-        const token = await getToken();
-        for (let page = 0; page < MAX_LIST_PAGES; page++) {
-          const remaining = max - events.length;
+      const result = await listGooglePages({
+        getToken,
+        http,
+        maxResults: max,
+        pageSchema: eventPageSchema,
+        url: (remaining, pageToken) => {
           params.set("maxResults", String(remaining));
-          const res = await googleFetch(
-            token,
-            "GET",
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events?${params}`,
-            undefined,
-            http,
-          );
-          if (!res.ok) {
-            return calendarListResult(cal, events, {
-              kind: "unavailable",
-              reason: `Google API error (${res.status}) while listing events.`,
-            });
-          }
-          const parsed = eventPageSchema.safeParse(res.data);
-          if (!parsed.success) {
-            return calendarListResult(cal, events, {
-              kind: "unavailable",
-              reason: "Google returned an invalid event page.",
-            });
-          }
-          const items = parsed.data.items ?? [];
-          events.push(...items.slice(0, remaining));
-          const next = parsed.data.nextPageToken;
-          if (items.length > remaining || (events.length === max && next)) {
-            return calendarListResult(cal, events, {
-              kind: "partial",
-              reason: `The ${max}-event limit was reached. Increase maxResults (up to 50) or narrow the time window.`,
-            });
-          }
-          if (!next) return calendarListResult(cal, events, { kind: "complete" });
-          if (seenTokens.has(next)) {
-            return calendarListResult(cal, events, {
-              kind: "unavailable",
-              reason: "Google repeated a continuation token; retrieval stopped.",
-            });
-          }
-          seenTokens.add(next);
-          params.set("pageToken", next);
-        }
-      } catch {
-        return calendarListResult(cal, events, {
-          kind: "unavailable",
-          reason: "The calendar request failed; retrieval stopped. Try again later.",
-        });
-      }
-      return calendarListResult(cal, events, {
-        kind: "partial",
-        reason: `The ${MAX_LIST_PAGES}-page limit was reached. Narrow the time window.`,
+          if (pageToken) params.set("pageToken", pageToken);
+          return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events?${params}`;
+        },
       });
+      return calendarListResult(cal, result.items, result.state);
     },
   };
 }

@@ -150,81 +150,13 @@ describe("calendar_list_events: runner", () => {
     }
   });
 
-  it("reports incomplete results when the event limit stops retrieval", async () => {
-    stubFetch({ data: { items: [{ id: "kept" }], nextPageToken: "more" } });
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({
-      maxResults: 1,
-    });
-    expect(result.content).toContain("Incomplete results");
-    expect(result.content).toContain("1-event limit");
-    expect(result.content).toContain("[kept]");
-    expect(result.is_error).not.toBe(true);
-    expect(requestMock).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    ["HTTP failure", () => Response.json({}, { status: 503 }), "503"],
-    ["transport failure", () => { throw new Error("secret transport detail"); }, "request failed"],
-    ["malformed JSON", () => new Response("not json"), "invalid event page"],
-    ["invalid items", () => Response.json({ items: [null] }), "invalid event page"],
-    ["invalid token", () => Response.json({ nextPageToken: 123 }), "invalid event page"],
-  ])("retains partial events on continuation %s", async (_name, response, reason) => {
-    requestMock.mockResolvedValueOnce(Response.json({
-      items: [{ id: "kept", summary: "Planning" }], nextPageToken: "next",
-    })).mockImplementationOnce(response);
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Incomplete results");
-    expect(result.content).toContain("Planning");
-    expect(result.content).toContain(reason);
-    expect(result.content).not.toContain("secret transport detail");
-    expect(requestMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("never claims no events after an empty page and continuation failure", async () => {
-    requestMock.mockResolvedValueOnce(Response.json({ items: [], nextPageToken: "next" }))
-      .mockResolvedValueOnce(Response.json({}, { status: 500 }));
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Incomplete results");
-    expect(result.content).not.toContain("No upcoming events found");
-  });
-
-  it("stops cyclic continuation tokens", async () => {
-    const tokens = ["a", "b", "a"];
-    requestMock.mockImplementation(async () => Response.json({ nextPageToken: tokens.shift() }));
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("repeated a continuation token");
-    expect(result.content).not.toContain("No upcoming events found");
-    expect(requestMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("bounds retrieval even when empty pages keep returning distinct tokens", async () => {
-    let page = 0;
-    requestMock.mockImplementation(async () => Response.json({ nextPageToken: `page-${++page}` }));
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-    expect(result.content).toContain("Incomplete results");
-    expect(result.content).toContain("10-page limit");
-    expect(result.content).not.toContain("No upcoming events found");
-    expect(requestMock).toHaveBeenCalledTimes(10);
-  });
-
-  it("bounds output if Google sends more events than requested", async () => {
-    stubFetch({ data: { items: [{ id: "kept" }, { id: "omitted" }] } });
-    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({ maxResults: 1 });
-    expect(result.content).toContain("Incomplete results");
-    expect(result.content).toContain("[kept]");
-    expect(result.content).not.toContain("[omitted]");
-  });
-
   it.each([null, [], {}, { items: null }, { nextPageToken: "" }])(
     "rejects invalid first pages without claiming an empty calendar: %j",
     async (data) => {
       stubFetch({ data });
       const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("invalid event page");
+      expect(result.content).toContain("invalid list page");
       expect(result.content).not.toContain("No upcoming events found");
       expect(requestMock).toHaveBeenCalledTimes(1);
     },
@@ -331,7 +263,7 @@ describe("calendar_list_events: scheduling meaning", () => {
     const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Incomplete results");
-    expect(result.content).toContain("invalid event page");
+    expect(result.content).toContain("invalid list page");
     expect(result.content).toContain("[planning]");
     expect(result.content).toContain("selected calendar copy (self); response: accepted");
     expect(result.content).not.toContain("[invalid]");

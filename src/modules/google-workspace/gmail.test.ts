@@ -44,7 +44,7 @@ describe("gmail_list_messages: runner", () => {
     stubFetch({ data: { messages: [], resultSizeEstimate: 0 } });
 
     const result = await def.runner({});
-    expect(result.content).toBe("No messages found.");
+    expect(result.content).toContain("No messages found.");
   });
 
   it("fetches metadata for each message", async () => {
@@ -93,6 +93,76 @@ describe("gmail_list_messages: runner", () => {
     const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("maxResults=50");
   });
+});
+
+describe("Gmail listing completeness", () => {
+  it("follows pages with the selected account and query and retains failed detail IDs", async () => {
+    const token = mockGetToken();
+    requestMock.mockImplementation(async (rawUrl: string) => {
+      const url = new URL(rawUrl);
+      if (url.searchParams.has("format")) {
+        if (url.pathname.endsWith("/missing")) return Response.json({}, { status: 404 });
+        return Response.json({ id: "kept", snippet: "Readable excerpt", payload: { headers: [{ name: "subject", value: "Planning" }] } });
+      }
+      if (!url.searchParams.has("pageToken")) return Response.json({ nextPageToken: "a /+" });
+      if (url.searchParams.get("pageToken") === "a /+") return Response.json({ messages: [{ id: "kept" }], nextPageToken: "b" });
+      return Response.json({ messages: [{ id: "missing" }] });
+    });
+    const result = await makeGmailListMessages(token, "selected@example.test", http).runner({ query: "is:unread", maxResults: 2 });
+    expect(result.content).toContain("Complete message list");
+    expect(result.content).toContain("Message details incomplete: 1 of 2 unavailable");
+    expect(result.content).toContain("[kept] Planning");
+    expect(result.content).toContain("[missing] Details unavailable: Google API error (404)");
+    expect(result.is_error).toBe(true);
+    expect(token).toHaveBeenCalledTimes(1);
+    const urls = requestMock.mock.calls.map(([url]) => new URL(url));
+    expect(urls.every((url) => decodeURIComponent(url.pathname).startsWith("/gmail/v1/users/selected@example.test/messages"))).toBe(true);
+    const listUrls = urls.filter((url) => !url.searchParams.has("format"));
+    expect(listUrls.map((url) => url.searchParams.get("maxResults"))).toEqual(["2", "2", "1"]);
+    expect(listUrls.every((url) => url.searchParams.get("q") === "is:unread")).toBe(true);
+  });
+
+  it.each([
+    () => { throw new Error("secret failure"); },
+    () => new Response("invalid json"),
+    () => Response.json({ id: "other-message" }),
+    () => Response.json({ id: "missing", payload: { headers: [null] } }),
+  ])("keeps successful details when another detail is unavailable", async (failure) => {
+    requestMock.mockResolvedValueOnce(Response.json({ messages: [{ id: "kept" }, { id: "missing" }] }))
+      .mockResolvedValueOnce(Response.json({ id: "kept", snippet: "Readable" }))
+      .mockImplementationOnce(failure);
+    const result = await makeGmailListMessages(mockGetToken(), "me", http).runner({});
+    expect(result.content).toContain("Readable");
+    expect(result.content).toContain("[missing] Details unavailable");
+    expect(result.content).toContain("2 message(s) listed; 1 details retrieved");
+    expect(result.content).not.toContain("secret failure");
+    expect(result.is_error).toBe(true);
+  });
+
+  it("reports all detail failures without claiming an empty list", async () => {
+    stubFetchSequence([
+      { ok: true, status: 200, data: { messages: [{ id: "missing" }] } },
+      { ok: false, status: 500, data: {} },
+    ]);
+    const result = await makeGmailListMessages(mockGetToken(), "me", http).runner({});
+    expect(result.content).toContain("1 message(s) listed; 0 details retrieved");
+    expect(result.content).toContain("1 of 1 unavailable");
+    expect(result.content).not.toContain("No messages found");
+  });
+
+  it("accepts the provider's empty list with omitted messages", async () => {
+    stubFetch({ data: { resultSizeEstimate: 0 } });
+    expect((await makeGmailListMessages(mockGetToken(), "me", http).runner({})).content).toContain("No messages found");
+  });
+
+  it.each([null, {}, { messages: [null] }, { nextPageToken: "" }, { resultSizeEstimate: "0" }])(
+    "rejects invalid pages: %j", async (data) => {
+      stubFetch({ data });
+      const result = await makeGmailListMessages(mockGetToken(), "me", http).runner({});
+      expect(result.is_error).toBe(true);
+      expect(result.content).not.toContain("No messages found");
+    },
+  );
 });
 
 describe("gmail_get_message: runner", () => {

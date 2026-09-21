@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Share bounded Google Workspace listing with honest completeness reporting
 
@@ -72,3 +71,44 @@ Exercise real tool runners with controlled responses for terminal empty results,
 Show all three maintained lists consuming one bounded traversal/result owner, with the old Calendar traversal retired and service adapters limited to actual domain differences. Consolidate redundant traversal proofs while retaining provider decoding and rendering checks. Demonstrate that continuation and termination policy changes require one implementation change. Report the actual resulting structure without claiming measured maintenance savings.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Migrated `makeGmailListMessages`, `makeDriveListFiles`, and
+`makeCalendarListEvents` to `src/modules/google-workspace/listing.ts`.
+This module-local owner now handles page accumulation, continuation, result and
+page bounds, cyclic tokens, failure retention, and complete/partial/unavailable
+results. Service schemas normalize provider payloads into its typed page contract;
+service adapters retain endpoints, queries, caps and rendering. The prior Calendar
+loop and Gmail/Drive single-page success paths are removed. Generic traversal
+proofs moved from Calendar to `listing.test.ts`; Calendar keeps scheduling,
+selection, fixed-window and provider-decoding checks. Changing continuation or
+termination policy now requires changing the shared owner only.
+
+Drive requests and decodes continuation and incomplete-search fields, retaining
+search limitations through later pages. Gmail preserves successful details and
+listed IDs whose detail requests fail, with explicit counts and reasons. All
+three retain prior results on continuation failure. Existing token ownership,
+read effects, result caps and Calendar attendance/blocking meaning are preserved.
+This follows [Calendar completeness](task-preserve-calendar-list-completeness.md)
+without reopening that delivered task.
+
+Validation:
+- `pnpm test:owner src/modules/google-workspace`: 10 files, 179 tests passed.
+  Covers traversal failures/bounds, provider schemas, service rendering, Calendar
+  scheduling semantics and the existing credential ownership checks.
+- `pnpm check:fast`: passed production/test types, lint, task validation,
+  generated bindings and admission of 90 modules. An initial test-mock type
+  error was corrected before the successful run.
+- Controlled production-tool probe: 32 scenarios passed across all three actual
+  runners, plus invalid-limit rejection for each. Requests and rendered outputs
+  verify terminal empty results, short/empty continuation pages, result/page
+  limits, cycles, failures and malformed pages with retained items, query/account
+  propagation, read effects, Drive search limitations and Gmail detail failures.
+  Sources, requests and rendered transcripts are retained in this run's
+  `artifacts/listing-probe.mjs` and `artifacts/listing-transcripts.json`; static
+  and owner-suite logs are alongside them. Run: `2026-09-21T09-08-47-356Z-builder-8npzon`.
+
+These are controlled provider-boundary observations, not live-account or
+model-answer evaluations. The resulting structure and output correctness were
+verified; maintenance savings and improved assistant decisions were not measured.

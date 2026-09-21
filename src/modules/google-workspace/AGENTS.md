@@ -71,6 +71,10 @@ Values starting with `$` are resolved through the shared secret provider, so set
   `POST /api/webhooks/google-workspace/calendar` routes. Those routes accept
   Google API-shaped message/event JSON or the module's normalized adapter
   shape, then emit `inbound.signal.received`.
+- Gmail, Drive and Calendar listings share bounded traversal in `listing.ts`.
+  Service adapters own page decoding and domain meaning; incomplete retrieval
+  must retain prior items. Gmail detail failures retain listed IDs, and Drive
+  incomplete-search evidence survives subsequent pages.
 - Calendar listings keep time-blocking settings, event status, and attendee
   responses separate. Only provider `self` identifies the selected calendar's
   attendee; never infer it from an email or another guest's response. Apply
