@@ -8,6 +8,10 @@ resources:
     added: "2026-09-21"
     refresh: weekly
     notes: "Monitor first-party Workspace API and MCP release changes affecting KOTA's Gmail, Calendar and Drive capabilities, especially reply identity, document coverage, authorization and preview-to-GA availability. The September 21 reply investigation cites the Gmail threading guide and preview create_draft tool; future service changes may alter the available integration choices."
+    snapshot:
+      fingerprint: sha256:46d50cb9b152a42552639e7efbfe5c3e
+      summary: "The release notes report generally available Chat message-pin endpoints on September 18, Marketplace draft synchronization on September 15, Apps Script data-region support on September 14, Meet space-member management on September 11, and Drive file-copy support for copying open comments and suggestions on September 2."
+      last_seen_at: "2026-09-21T13:53:29.411Z"
   - url: https://github.com/docling-project/docling
     added: "2026-09-21"
     refresh: weekly
