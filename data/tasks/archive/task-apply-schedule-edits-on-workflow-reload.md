@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Apply changed workflow schedules and payloads after reload
 
@@ -68,3 +67,23 @@ same position. No active task or inbox entry owns this outcome.
 Primary owner: `src/core/workflow/schedule-triggers.ts`, with runtime definition
 reload and queue admission as maintained consumers. Builders choose the repair;
 no second scheduling engine or new operator configuration is requested.
+
+## Completion
+
+The schedule owner now replaces callbacks with current definitions on reload,
+retains deadlines for unchanged timing, and recalculates changed cron, timezone,
+and interval timing through the existing occurrence rules. Timer identity guards
+reject retired callbacks; advancing before admission prevents a synchronous
+reload from repeating the occurrence or resurrecting old timing.
+
+Controlled-clock owner checks cover timing and trigger-kind edits, interval
+progress, payload/event refresh and removal, cancellation, unrelated delivery,
+and synchronous reload. Existing DST/restart, validation, queue restoration,
+and runtime lifecycle checks supply adjacent regression coverage. The isolated
+public-runtime probe retained in builder run
+`2026-09-21T11-08-19-037Z-builder-aur0m0` records current definitions, next-run
+projections, and real SQLite queue admissions: 09:00 is retired, 10:00 fires,
+the next occurrence uses new payload/resources, and prior admitted work is
+unchanged. It uses an inactive coordinator and inert code actions; no production
+daemon or model execution is claimed. Full verification results and limitations
+are retained in that run's validation summary.

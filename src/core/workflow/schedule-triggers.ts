@@ -7,7 +7,13 @@ import type { WorkflowDefinition } from "./types.js";
 export class ScheduleTriggerManager {
   private readonly timers: Map<
     string,
-    { timer: ReturnType<typeof setTimeout>; nextFireMs: number }
+    {
+      timer: ReturnType<typeof setTimeout>;
+      nextFireMs: number;
+      schedule?: string;
+      timezone?: string;
+      intervalMs?: number;
+    }
   > = new Map();
 
   constructor(
@@ -42,34 +48,8 @@ export class ScheduleTriggerManager {
   }
 
   setup(definitions: WorkflowDefinition[]): void {
-    const state = this.readSummary();
-    for (const definition of definitions) {
-      if (!definition.enabled) continue;
-      for (let i = 0; i < definition.triggers.length; i++) {
-        const trigger = definition.triggers[i];
-        if (!trigger.schedule && trigger.intervalMs == null) continue;
-        if (!this.shouldRunInThisRuntime(trigger)) continue;
-
-        const key = `${definition.name}:${i}`;
-        let nextFireMs: number;
-
-        if (trigger.intervalMs != null) {
-          const lastCompleted = state.workflows[definition.name]?.lastCompletion?.completedAt;
-          if (lastCompleted) {
-            const due = new Date(lastCompleted).getTime() + trigger.intervalMs;
-            nextFireMs = due > Date.now() ? due : Date.now();
-          } else {
-            nextFireMs = Date.now();
-          }
-        } else {
-          const next = getNextCronTime(trigger.schedule!, new Date(), trigger.timezone);
-          if (!next) continue;
-          nextFireMs = next.getTime();
-        }
-
-        this.scheduleNextFire(key, definition, trigger, nextFireMs);
-      }
-    }
+    this.clearAll();
+    this.reconcile(definitions);
   }
 
   scheduleNextFire(
@@ -78,9 +58,11 @@ export class ScheduleTriggerManager {
     trigger: WorkflowTrigger,
     nextFireMs: number,
   ): void {
+    const previous = this.timers.get(key);
+    if (previous) clearTimeout(previous.timer);
     const delay = Math.max(0, nextFireMs - Date.now());
     const timer = setTimeout(() => {
-      if (this.isStopping()) return;
+      if (this.isStopping() || this.timers.get(key)?.timer !== timer) return;
       const now = Date.now();
       if (now < nextFireMs) {
         this.scheduleNextFire(key, definition, trigger, nextFireMs);
@@ -97,6 +79,18 @@ export class ScheduleTriggerManager {
         }
       }
 
+      // Advance before admission: synchronous reloads must see the following
+      // occurrence, and a retired callback must never re-arm after admission.
+      const nextMs = trigger.intervalMs != null
+        ? now + trigger.intervalMs
+        : getNextCronTime(
+          trigger.schedule!,
+          new Date(Math.max(now, nextFireMs)),
+          trigger.timezone,
+        )?.getTime();
+      if (nextMs === undefined) this.timers.delete(key);
+      else this.scheduleNextFire(key, definition, trigger, nextMs);
+
       this.enqueueRun(definition, trigger, {
         event: trigger.event,
         schemaRef: null,
@@ -106,24 +100,15 @@ export class ScheduleTriggerManager {
         },
       });
       this.maybeStartNext();
-
-      let nextMs: number;
-      if (trigger.intervalMs != null) {
-        nextMs = now + trigger.intervalMs;
-      } else {
-        const next = getNextCronTime(
-          trigger.schedule!,
-          new Date(Math.max(now, nextFireMs)),
-          trigger.timezone,
-        );
-        if (!next) return;
-        nextMs = next.getTime();
-      }
-      this.scheduleNextFire(key, definition, trigger, nextMs);
     }, delay);
     timer.unref();
 
-    this.timers.set(key, { timer, nextFireMs });
+    this.timers.set(key, {
+      timer, nextFireMs,
+      schedule: trigger.schedule,
+      timezone: trigger.timezone,
+      intervalMs: trigger.intervalMs,
+    });
   }
 
   reconcile(newDefinitions: WorkflowDefinition[]): void {
@@ -152,7 +137,19 @@ export class ScheduleTriggerManager {
         if (!trigger.schedule && trigger.intervalMs == null) continue;
         if (!this.shouldRunInThisRuntime(trigger)) continue;
         const key = `${definition.name}:${i}`;
-        if (this.timers.has(key)) continue;
+        const previous = this.timers.get(key);
+        // Retain timing progress while refreshing the definition and payload
+        // captured by the callback, including edits outside the trigger itself.
+        if (previous && previous.schedule === trigger.schedule
+          && (previous.timezone ?? "UTC") === (trigger.timezone ?? "UTC")
+          && previous.intervalMs === trigger.intervalMs) {
+          this.scheduleNextFire(key, definition, trigger, previous.nextFireMs);
+          continue;
+        }
+        if (previous) {
+          clearTimeout(previous.timer);
+          this.timers.delete(key);
+        }
 
         let nextFireMs: number;
         if (trigger.intervalMs != null) {
