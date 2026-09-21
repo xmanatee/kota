@@ -1,4 +1,8 @@
-# Correct an active request without losing useful progress
+---
+status: open
+priority: p3
+---
+# Investigate correcting an active request without losing useful progress
 
 Explorer research lead, September 21, 2026. No KOTA defect or adoption decision
 is established.
@@ -41,3 +45,40 @@ archived continuity-surface task already owns aggregated work visibility.
 Existing session, client and evaluation owners should determine whether any
 follow-up is justified; this lead does not request a new queue, runner, fixture,
 automatic steering manager or imported benchmark.
+
+## Research Outcome And Acceptance
+
+Determine whether the supported cancel-then-correct journey adequately handles
+a user's change to active work, starting with existing client behavior and
+retained evidence. Preserve the capture's question, "Correct an active request
+without losing useful progress", as an investigation rather than a confirmed
+implementation need. No urgency was stated; this is p3 exploratory work.
+
+- Identify the maintained client/session owners and inspect an actual supported
+  journey through a rendered transcript, screenshot or equivalent evidence.
+  Separate when the correction is accepted, when the prior turn settles, and
+  when the assistant acts on the updated request.
+- If existing evidence is insufficient, use a contained local report example
+  to observe the corrected date range in the final result and preservation of
+  unrelated useful work. Attribute client, model and execution conditions;
+  distinguish observed behavior from source review and mocked coverage. Any
+  comparison must state its control and which question that control answers.
+- Record an evidence-grounded disposition: existing behavior suffices, no
+  demonstrated gap, or a concrete deduplicated follow-up for the failing owner.
+  If necessary observation is unavailable, name the specific external
+  prerequisite and retain completed investigation under the task contract.
+
+The related active tasks `task-investigate-correction-reuse-in-later-assistance`
+and `task-investigate-optional-assistance-interruption-value` answer different
+questions and are not hard predecessors. Archived
+`task-improve-long-running-work-continuity-surfaces` covers aggregated visibility.
+
+## Triage Provenance
+
+Normalized from `data/inbox/task-correct-an-active-request-without-losing-progress.md`
+on September 21, 2026. All three source URLs above were readable during triage;
+InterruptBench sections 2–3, the multi-interrupt guide's staged replay design,
+and AgentGUI section 3.3 support the distinctions recorded here. The local busy
+rejection, cancellation route and mocked follow-up test were also inspected.
+No KOTA journey, model comparison, external benchmark or behavioral test ran
+during triage. Source accessibility does not establish product adequacy.
