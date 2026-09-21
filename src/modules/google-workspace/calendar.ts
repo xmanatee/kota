@@ -18,35 +18,64 @@ const eventPageSchema = z.object({
     start: eventTimeSchema.optional(),
     end: eventTimeSchema.optional(),
     location: z.string().optional(),
-    attendees: z.array(z.object({ email: z.string().optional() })).optional(),
+    status: z.enum(["confirmed", "tentative", "cancelled"]).optional(),
+    transparency: z.enum(["opaque", "transparent"]).optional(),
+    attendeesOmitted: z.boolean().optional(),
+    attendees: z.array(z.object({
+      email: z.string().optional(),
+      displayName: z.string().optional(),
+      id: z.string().optional(),
+      self: z.boolean().default(false),
+      responseStatus: z.enum(["needsAction", "declined", "tentative", "accepted"]).optional(),
+    })).optional(),
   })).optional(),
   nextPageToken: z.string().min(1).optional(),
 }).refine((page) => page.items !== undefined || page.nextPageToken !== undefined || page.kind !== undefined);
 
 function calendarListResult(
+  calendarId: string,
   events: NonNullable<z.infer<typeof eventPageSchema>["items"]>,
   state: { kind: "complete" } | { kind: "partial" | "unavailable"; reason: string },
 ): ToolResult {
-  if (state.kind === "complete" && events.length === 0) {
-    return { content: "No upcoming events found." };
-  }
   const lines = events.map((e) => {
     const start = e.start?.dateTime ?? e.start?.date ?? "?";
     const end = e.end?.dateTime ?? e.end?.date ?? "?";
-    const attendees = (e.attendees ?? []).map((a) => a.email).filter(Boolean).join(", ");
+    const attendees = e.attendees ?? [];
+    const transparency = e.transparency ?? "opaque";
+    const blocking = transparency === "opaque" ? "blocks time" : "does not block time";
     const parts = [
       `[${e.id}] ${e.summary ?? "(no title)"}`,
       `  Start: ${start} → ${end}`,
+      `  Event status: ${e.status ?? "confirmed"}${e.status === undefined ? " (provider default)" : ""}`,
+      `  Time-blocking setting: ${transparency} (${blocking}${e.transparency === undefined ? "; provider default" : ""})`,
     ];
     if (e.location) parts.push(`  Location: ${e.location}`);
-    if (attendees) parts.push(`  Attendees: ${attendees}`);
+    if (!attendees.some((a) => a.self)) {
+      parts.push("  Selected calendar response: unknown (no self attendee supplied)");
+    }
+    if (e.attendeesOmitted) parts.push("  Attendee details incomplete: provider omitted attendees.");
+    for (const [index, attendee] of attendees.entries()) {
+      const identity = attendee.email ?? attendee.displayName ?? attendee.id ?? `Attendee ${index + 1} (identity not supplied)`;
+      const response = attendee.responseStatus === "needsAction"
+        ? "needsAction (unanswered)"
+        : attendee.responseStatus ?? "unknown (not supplied)";
+      parts.push(`  Attendee: ${identity} — ${attendee.self ? "selected calendar copy (self)" : "other attendee"}; response: ${response}`);
+    }
     return parts.join("\n");
   });
   const status = state.kind === "complete"
     ? "Complete results for the requested window."
     : `Incomplete results: ${state.reason} Additional matching events may exist.`;
   return {
-    content: `${status}\n\n${events.length} event(s) retrieved:\n\n${lines.join("\n\n")}`,
+    content: [
+      `Calendar: ${calendarId}`,
+      status,
+      "Event retrieval completeness does not establish everyone's availability. Time-blocking settings and attendee responses are separate.",
+      "",
+      state.kind === "complete" && events.length === 0
+        ? "No upcoming events found."
+        : `${events.length} event(s) retrieved:\n\n${lines.join("\n\n")}`,
+    ].join("\n"),
     ...(state.kind === "unavailable" ? { is_error: true } : {}),
   };
 }
@@ -62,7 +91,7 @@ export function makeCalendarListEvents(
     tool: {
       name: "calendar_list_events",
       description:
-        `List upcoming Google Calendar events. Returns title, time, location, and attendees. Follows up to ${MAX_LIST_PAGES} pages within maxResults and explicitly reports incomplete or unavailable results. Narrow the time window or increase maxResults (up to 50) when a limit is reached.`,
+        `List upcoming Google Calendar events. Returns title, time, location, event status, time-blocking settings, and attendee responses attributed to the selected calendar copy using provider self metadata. Includes nonblocking events; this agenda is not a full availability calculation. Follows up to ${MAX_LIST_PAGES} pages within maxResults and explicitly reports incomplete or unavailable results. Narrow the time window or increase maxResults (up to 50) when a limit is reached.`,
       input_schema: {
         type: "object" as const,
         properties: {
@@ -119,14 +148,14 @@ export function makeCalendarListEvents(
             http,
           );
           if (!res.ok) {
-            return calendarListResult(events, {
+            return calendarListResult(cal, events, {
               kind: "unavailable",
               reason: `Google API error (${res.status}) while listing events.`,
             });
           }
           const parsed = eventPageSchema.safeParse(res.data);
           if (!parsed.success) {
-            return calendarListResult(events, {
+            return calendarListResult(cal, events, {
               kind: "unavailable",
               reason: "Google returned an invalid event page.",
             });
@@ -135,14 +164,14 @@ export function makeCalendarListEvents(
           events.push(...items.slice(0, remaining));
           const next = parsed.data.nextPageToken;
           if (items.length > remaining || (events.length === max && next)) {
-            return calendarListResult(events, {
+            return calendarListResult(cal, events, {
               kind: "partial",
               reason: `The ${max}-event limit was reached. Increase maxResults (up to 50) or narrow the time window.`,
             });
           }
-          if (!next) return calendarListResult(events, { kind: "complete" });
+          if (!next) return calendarListResult(cal, events, { kind: "complete" });
           if (seenTokens.has(next)) {
-            return calendarListResult(events, {
+            return calendarListResult(cal, events, {
               kind: "unavailable",
               reason: "Google repeated a continuation token; retrieval stopped.",
             });
@@ -151,12 +180,12 @@ export function makeCalendarListEvents(
           params.set("pageToken", next);
         }
       } catch {
-        return calendarListResult(events, {
+        return calendarListResult(cal, events, {
           kind: "unavailable",
           reason: "The calendar request failed; retrieval stopped. Try again later.",
         });
       }
-      return calendarListResult(events, {
+      return calendarListResult(cal, events, {
         kind: "partial",
         reason: `The ${MAX_LIST_PAGES}-page limit was reached. Narrow the time window.`,
       });

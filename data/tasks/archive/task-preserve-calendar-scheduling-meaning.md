@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Preserve scheduling meaning in calendar event results
 
@@ -50,8 +49,36 @@ and attendance states without inferring them from an event title or email list.
   Retain the returned tool transcript and proportionate owner verification.
 
 The owner is the existing Google Workspace calendar tool. The completed
-[pagination task](archive/task-preserve-calendar-list-completeness.md) owns
+[pagination task](task-preserve-calendar-list-completeness.md) owns
 retrieval completeness; occurrence identity and uncertain creation also have
 completed owners. None preserves these listing semantics. This outcome does
 not require a new free/busy service, planner, calendar write or live-account
 setup.
+
+## Completion
+
+The Google Workspace listing boundary now decodes and presents event status,
+time-blocking settings, and attendee responses independently. Provider defaults
+are labeled; missing responses remain unknown. Only `self` attributes an
+attendee to the selected calendar copy, including when no email is supplied.
+Omitted attendee details are disclosed. Unsupported or malformed metadata uses
+the existing unavailable-page result and preserves earlier valid pages.
+Nonblocking events remain visible, and retrieval reporting explicitly separates
+list completeness from everyone's availability. Calendar and window selection
+and pagination are unchanged.
+
+Owner verification: `pnpm test:owner src/modules/google-workspace/calendar.test.ts`
+passed all 41 cases, covering meaningful output differences, defaults and
+attribution, boundary rejection, and existing pagination/failure behavior.
+The real tool plus production HTTP transport was also exercised with a controlled
+dispatcher in 16 scenarios. The six originally indistinguishable variants now
+return distinct text. Inputs, requested URLs, source hash, and returned transcripts
+are retained in builder run `2026-09-21T08-50-03-000Z-builder-9fi56x` under
+`artifacts/calendar-meaning-probe.json`, with
+its reproducible `calendar-meaning-probe.mjs` alongside it. Inspection confirmed
+transparent events remain in the agenda and a guest decline does not become the
+selected calendar's response. This is controlled-provider evidence, not a live
+account or measured assistant-answer evaluation.
+
+`pnpm check:fast` passed production/test typechecking, lint, task validation,
+generated client binding checks, and bundled module admission.

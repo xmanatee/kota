@@ -36,13 +36,13 @@ describe("calendar_list_events: runner", () => {
     stubFetch({ data: { items: [] } });
 
     const result = await def.runner({});
-    expect(result.content).toBe("No upcoming events found.");
+    expect(result.content).toContain("No upcoming events found.");
   });
 
   it("accepts an empty Google event collection with omitted items", async () => {
     stubFetch({ data: { kind: "calendar#events" } });
     const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-    expect(result.content).toBe("No upcoming events found.");
+    expect(result.content).toContain("No upcoming events found.");
   });
 
   it("formats events with summary, time, location, and attendees", async () => {
@@ -140,7 +140,7 @@ describe("calendar_list_events: runner", () => {
         return Response.json({ nextPageToken: "next" });
       }).mockResolvedValueOnce(Response.json({ items: [] }));
       const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
-      expect(result.content).toBe("No upcoming events found.");
+      expect(result.content).toContain("No upcoming events found.");
       expect(requestMock).toHaveBeenCalledTimes(2);
       for (const [url] of requestMock.mock.calls) {
         expect(new URL(url).searchParams.get("timeMin")).toBe("2026-09-21T00:00:00.000Z");
@@ -238,4 +238,103 @@ describe("calendar_list_events: runner", () => {
       expect(requestMock).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("calendar_list_events: scheduling meaning", () => {
+  const event = {
+    id: "planning",
+    summary: "Planning",
+    start: { dateTime: "2026-09-21T10:00:00Z" },
+    end: { dateTime: "2026-09-21T11:00:00Z" },
+    status: "confirmed",
+    transparency: "opaque",
+    attendees: [{ email: "team@example.test", self: true, responseStatus: "accepted" }],
+  };
+
+  it("distinguishes attendance and blocking changes without hiding agenda entries", async () => {
+    const variants = [
+      { event, meaning: "response: accepted" },
+      { event: { ...event, transparency: "transparent" }, meaning: "transparent (does not block time)" },
+      ...["declined", "tentative", "needsAction"].map((responseStatus) => ({
+        event: { ...event, attendees: [{ ...event.attendees[0], responseStatus }] },
+        meaning: `response: ${responseStatus}${responseStatus === "needsAction" ? " (unanswered)" : ""}`,
+      })),
+      { event: { ...event, attendees: [{ ...event.attendees[0], self: false }] }, meaning: "Selected calendar response: unknown" },
+      { event: { ...event, status: "tentative" }, meaning: "Event status: tentative" },
+      { event: { ...event, status: "cancelled" }, meaning: "Event status: cancelled" },
+    ];
+    const transcripts = [];
+    for (const variant of variants) {
+      stubFetch({ data: { items: [variant.event] } });
+      const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({
+        calendarId: "team@example.test",
+      });
+      expect(result.is_error).not.toBe(true);
+      expect(result.content).toContain("Calendar: team@example.test");
+      expect(result.content).toContain("Complete results");
+      expect(result.content).toContain("does not establish everyone's availability");
+      expect(result.content).toContain("[planning] Planning");
+      expect(result.content).toContain(variant.meaning);
+      transcripts.push(result.content);
+    }
+    expect(new Set(transcripts).size).toBe(variants.length);
+  });
+
+  it("attributes another guest's decline without changing the selected calendar's response", async () => {
+    stubFetch({ data: { items: [{
+      ...event,
+      attendees: [...event.attendees, { email: "guest@example.test", responseStatus: "declined" }],
+    }] } });
+    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
+    expect(result.content).toContain("team@example.test — selected calendar copy (self); response: accepted");
+    expect(result.content).toContain("guest@example.test — other attendee; response: declined");
+    expect(result.content).toContain("opaque (blocks time)");
+  });
+
+  it("uses documented event defaults without inventing attendee response or self identity", async () => {
+    stubFetch({ data: { items: [{
+      id: "sparse",
+      attendees: [{ email: "team@example.test" }, { self: true }, { displayName: "Guest", responseStatus: "tentative" }],
+      attendeesOmitted: true,
+    }] } });
+    const result = await makeCalendarListEvents(mockGetToken(), "team@example.test", http).runner({});
+    expect(result.content).toContain("Event status: confirmed (provider default)");
+    expect(result.content).toContain("opaque (blocks time; provider default)");
+    expect(result.content).toContain("team@example.test — other attendee; response: unknown (not supplied)");
+    expect(result.content).toContain("Attendee 2 (identity not supplied) — selected calendar copy (self); response: unknown (not supplied)");
+    expect(result.content).toContain("Guest — other attendee; response: tentative");
+    expect(result.content).toContain("Attendee details incomplete");
+    expect(result.content).not.toContain("response: accepted");
+  });
+
+  it("does not infer the calendar response from a lone declining guest or absent attendees", async () => {
+    for (const attendees of [undefined, [{ email: "team@example.test", responseStatus: "declined" }]]) {
+      stubFetch({ data: { items: [{ id: "sparse", attendees }] } });
+      const result = await makeCalendarListEvents(mockGetToken(), "team@example.test", http).runner({});
+      expect(result.content).toContain("Selected calendar response: unknown (no self attendee supplied)");
+      expect(result.content).not.toContain("selected calendar copy (self)");
+    }
+  });
+
+  it.each([
+    { transparency: "unsupported" },
+    { transparency: null },
+    { status: "unsupported" },
+    { status: 0 },
+    { attendees: [{ responseStatus: "unsupported" }] },
+    { attendees: [{ responseStatus: null }] },
+    { attendees: [{ self: "true" }] },
+    { attendeesOmitted: "false" },
+  ])("rejects unsupported or malformed meanings, retaining earlier pages: %j", async (metadata) => {
+    requestMock.mockResolvedValueOnce(Response.json({ items: [event], nextPageToken: "next" }))
+      .mockResolvedValueOnce(Response.json({ items: [{ ...event, id: "invalid", ...metadata }] }));
+    const result = await makeCalendarListEvents(mockGetToken(), "primary", http).runner({});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("Incomplete results");
+    expect(result.content).toContain("invalid event page");
+    expect(result.content).toContain("[planning]");
+    expect(result.content).toContain("selected calendar copy (self); response: accepted");
+    expect(result.content).not.toContain("[invalid]");
+    expect(result.content).not.toContain("Complete results");
+  });
 });

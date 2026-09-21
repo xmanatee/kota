@@ -71,6 +71,11 @@ Values starting with `$` are resolved through the shared secret provider, so set
   `POST /api/webhooks/google-workspace/calendar` routes. Those routes accept
   Google API-shaped message/event JSON or the module's normalized adapter
   shape, then emit `inbound.signal.received`.
+- Calendar listings keep time-blocking settings, event status, and attendee
+  responses separate. Only provider `self` identifies the selected calendar's
+  attendee; never infer it from an email or another guest's response. Apply
+  documented defaults without inventing attendance. Retrieval completeness
+  describes the event list, not everyone's availability.
 - Calendar occurrence identity preserves the supplied original date/time and
   timezone separately from current start/end. Sparse cancellations do not imply
   a known organizer or authorize inferred occurrence times.
