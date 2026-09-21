@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Can KOTA return a correctly updated workbook without damaging unrelated content?
@@ -78,3 +78,96 @@ The active queue contains no matching workbook investigation; the archived
 read-document capability-pack task concerns extraction and does not own this
 outcome. Adjacent live model and coding-parity tasks do not make this initial
 investigation dependent on their completion.
+
+## Investigation — September 21, 2026
+
+Disposition: **insufficient evidence; live observation blocked on a host grant or
+an equivalent attributable export**. No workbook defect, successful edit, or
+preservation guarantee has been established. No production change or new
+capability task is justified by the evidence collected so far.
+
+Source inspected at `a0f11e3743b39c226ea27c74e39522f03fac6ddf`:
+
+- `src/modules/filesystem/file-read-formats.ts` recognizes `.xlsx` and returns
+  a pandas/openpyxl inspection hint. This is format routing, not workbook
+  extraction, an editor, or a correctness check.
+- `src/modules/read-document/index.ts` and its scoped guidance own text
+  extraction from PDF, DOCX, RTF, ODT, EPUB and HTML; they do not claim XLSX
+  editing or recalculation.
+- `src/modules/execution/index.ts` registers shell, process, Python/Node REPL
+  and computer-use tools. `code-exec.ts` returns execution text and captured
+  plot images. General code can manipulate a workbook when the necessary
+  libraries are available, but this surface supplies no workbook-specific
+  preservation or recalculation contract.
+- `src/modules/google-workspace/drive.ts` exports Google spreadsheets as CSV
+  and returns text. That read path does not establish local XLSX round-trip
+  fidelity. `src/modules/telegram/client.ts` flushes agent output through
+  text messages; it is not evidence of outbound workbook delivery. A local
+  file path, an MCP resource, and a successfully delivered file are distinct
+  observations. No channel delivery was attempted.
+
+Searches for workbook/spreadsheet/XLSX evidence in source, active and archived
+tasks, inbox, eval fixtures and harness-parity found no attributable inventory
+edit journey. Matches concerned format routing, Drive metadata/read behavior,
+and unrelated uses of the word spreadsheet. The supplied `issue-evidence.json`
+contains a MiMo research task mutation, not a workbook request or output.
+This is a bounded evidence search, not a claim that no historical user session
+has ever edited a workbook; private conversation stores were not inspected.
+
+The openpyxl formula and loading documentation linked above was re-read online:
+formula text is not calculation, `data_only` reads saved results, and the loader
+warns about lost shapes. The benchmark README was also re-read and requires
+refreshing output caches with LibreOffice. These establish verification risks,
+not a KOTA failure. No benchmark was imported or executed.
+
+The current sandbox Python could not discover openpyxl, pandas, xlsxwriter,
+formulas or pycel. Neither `libreoffice` nor `soffice` resolved on PATH; standard
+LibreOffice and Excel application paths were not observed. These facts apply
+only to this builder environment and do not establish host-wide absence.
+
+The supported native command
+`pnpm kota eval contained '{"operation":"inspect"}'` reached the host tool and
+returned exit 1, `is_error: true`, with the explicit instruction to configure
+`KOTA_EVAL_CONTAINED_PROFILES` in the trusted host environment. It did not
+return an applicable profile. This was an actual authority-owner response,
+not a deduction from sandbox access denial. The request, exact tool response,
+source identity and local capability observations are retained in
+`workbook-capability-inspection.json` under the artifacts of builder run
+`2026-09-21T04-53-16-898Z-builder-kys0mz` (tool use
+`tool-4c72b5ca7672f7323bff07d7db33743a`). No agent workbook request was executed;
+there are no original/delivered files, actual workbook response or fresh
+spreadsheet-engine results to report.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An applicable host-authorized KOTA workbook observation with recalculation, or equivalent attributable request, response, workbook and verification evidence.
+
+The path is an evidence-discovery hint, not a required capture location.
+
+An operator-controlled execution grant that permits this local inventory
+observation through KOTA's existing contained evaluation owner, with an
+available workbook editor and a named recalculation engine, or equivalent
+attributable evidence from an already authorized KOTA session. Setup belongs
+to `src/modules/eval-harness/contained-evaluation.md`; the worker cannot supply
+host profiles, credentials or host access. An equivalent export can come from
+any authorized location and must identify the task/session/run and actual
+request, response, input and delivered file. No particular office suite,
+model, capture directory, or new module is required. Do not restart the parent
+daemon or grant candidate code host authority to collect this observation.
+
+On resumption, use a small inventory with two edited quantities, an unchanged
+item, cross-sheet totals, and an unrelated sheet with constants and a formula.
+For example, quantities 2/3/4 at unit prices 5/7/11 total 75; changing only the
+first two quantities to 6/1 must produce 81 after fresh recalculation. Preserve
+the original and the actual delivered workbook before recalculating copies.
+Record the engine/version and distinguish pre-existing caches, delivered
+caches, formula text, and freshly calculated results. Check requested values
+and dependent totals separately from unrelated cell values/formulas, sheet
+structure, formatting and any features actually present. Allow equivalent
+formulas and intended dependent-value changes; use independently computed
+expected totals. Retain the real request/response and file delivery evidence.
+A handcrafted edit by the investigator alone would not establish the assistant
+journey, and a single successful example would not prove arbitrary-workbook
+fidelity.
