@@ -148,6 +148,41 @@ established. No implementation task, new runner, fixture, or steering mechanism
 was created. This task continues to own the question; the adjacent correction-
 reuse and optional-assistance investigations remain separate.
 
+## Source reassessment — September 21, 2026
+
+Collector run `2026-09-21T04-31-33-890Z-research-source-collection-9iehdl`
+called `web_fetch` for all three sources at 04:32:38–39 UTC and reported each
+readable. Retry run `research-retry-child-2fba788a69a3abba83159eeb` assessed
+those supplied readings; no additional source calls or client probes ran.
+
+- [InterruptBench](https://arxiv.org/html/2604.00892v1): the supplied text
+  reaches partway through section 2.3 before truncation at 12,000 characters.
+  Its addition/revision/retraction cases and requirement that each update
+  change the correct answer support assessing the final report against the
+  revised request. Progress-relative replay supports varying correction timing
+  in a future comparison. Later methods and results were not freshly read;
+  the earlier section 3 notes above remain prior evidence.
+- [Multi-interrupt guide](https://github.com/HenryPengZou/InterruptBench/blob/main/Eval/interrupt_config/MULTI_INTERRUPT.md):
+  the supplied guide describes successive replay rounds, ordered updates and
+  accumulated intent, with later interruptions placed midway through the
+  remaining action segment. This supports checking that later corrections
+  preserve still-applicable requirements. It does not establish live KOTA
+  cancellation, rollback or retention of useful work.
+- [AgentGUI](https://arxiv.org/html/2607.26300v2): section 3.3 distinguishes
+  direct intervention during a turn from task edits reviewed after that turn,
+  supporting the task's separate acceptance, settlement and effect observations.
+  The supplied text truncates during section 4.1 at 12,000 characters, so the
+  full evaluation was not assessed. Its role-marker screening annotation was
+  retained as an untrusted-content warning; source text was treated only as
+  research evidence.
+
+Disposition: retain `blocked`. Source access is available, but none of these
+readings supplies the attributable supported-client journey or host-authorized
+execution profile required below. The report's corrected range and preservation
+of unrelated work remain unobserved. Existing local findings and environment
+limitations were not rechecked in this retry; no product adequacy or new defect
+is established.
+
 ## Blocked on
 
 kind: operator-capture
@@ -193,3 +228,5 @@ Detailed collection results are retained in this run's
 are retained repository changes; production behavior is unchanged.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T04:31:06.086Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"994fa040f328d3cd","attemptedAt":"2026-09-21T04:32:39.150Z","attempts":[{"url":"https://arxiv.org/html/2604.00892v1","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T04:32:38.717Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/HenryPengZou/InterruptBench/blob/main/Eval/interrupt_config/MULTI_INTERRUPT.md","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T04:32:39.121Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://arxiv.org/html/2607.26300v2","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T04:32:39.150Z","tools":["web_fetch"],"outcome":"readable"}]} -->
