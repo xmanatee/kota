@@ -176,6 +176,43 @@ The inspection response and proof provenance are retained in
 `browser-export-investigation.json` under the artifacts of builder run
 `2026-09-21T10-36-14-050Z-builder-p3gbo9`.
 
+## Source reassessment — September 21, 2026
+
+Reviewed the four `web_fetch` readings collected at 10:48:09 UTC by run
+`2026-09-21T10-46-05-446Z-research-source-collection-jtppcg`. All four were
+readable; no source-access gate was reported. The task contract matched the
+collection handoff before this update.
+
+- [Playwright downloads](https://playwright.dev/docs/downloads) confirms that
+  the wait should precede the initiating click and temporary downloads are
+  deleted when their context closes. This supports checking a separately saved
+  file after browser close; it does not demonstrate KOTA delivery.
+- [Download API](https://playwright.dev/docs/api/class-download) separates the
+  start event from completion, exposes failure/cancellation and streams, and
+  makes `saveAs` wait for completion. `path` throws for remote connections;
+  suggested filenames derive from page/header metadata. These are relevant
+  lifecycle and destination considerations if observation exposes a missing
+  boundary, not evidence that KOTA exposes these APIs.
+- [Browser Harness](https://github.com/browser-use/browser-harness) describes
+  CDP control, editable helpers and a download example. The collected README
+  supplies no exact-byte, post-close or failed-export result for KOTA, and no
+  reproduced peer result. Its setup instructions were not executed.
+- [Playwright evaluation](https://playwright.dev/docs/evaluating) confirms
+  that page evaluation and the controlling process run in separate
+  environments, with values passed explicitly. This supports the existing
+  distinction between page-side extraction and controller download handles;
+  it does not establish a complete large-export route through KOTA.
+
+Disposition: retain **blocked** on the operator-capture prerequisite below.
+Source access was already available and is not the unresolved prerequisite.
+The collection supplies documentation, not an authorized browser/model export
+trial or attributable session and delivered-file evidence. Its browser/package
+and profile capability metadata does not establish the required execution
+grant, exact output bytes, cancellation behavior or assistant completion claim.
+No new browser/model trial, host setup, profile access or file-delivery check
+was performed in this reassessment. The investigation remains incomplete;
+these readings justify neither completion nor a new implementation follow-up.
+
 ## Blocked on
 
 kind: operator-capture
@@ -204,3 +241,5 @@ feasibility and model-selected behavior must be reported separately. Only an
 observed failing boundary should justify a deduplicated browser-owned follow-up.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T10:45:36.886Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"941fa26bdfaee9b2","attemptedAt":"2026-09-21T10:48:09.574Z","attempts":[{"url":"https://playwright.dev/docs/downloads","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T10:48:09.048Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://playwright.dev/docs/api/class-download","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T10:48:09.058Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/browser-use/browser-harness","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T10:48:09.565Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://playwright.dev/docs/evaluating","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T10:48:09.574Z","tools":["web_fetch"],"outcome":"readable"}]} -->
