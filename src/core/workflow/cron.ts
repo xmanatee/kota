@@ -8,76 +8,80 @@
  *   N-M      range
  *   *\/N     every N starting from field min
  *   N-M/N    every N within range
+ *   N/S      exact N (step on a singleton range)
  *
  * DOM/DOW interaction: AND semantics — both must match when neither is *.
  * 0 and 7 are both treated as Sunday in the DOW field.
  */
 
-function parseCronField(field: string, min: number, max: number): Set<number> {
-  const result = new Set<number>();
+type DecodedCron = {
+  minutes: ReadonlySet<number>;
+  hours: ReadonlySet<number>;
+  doms: ReadonlySet<number>;
+  months: ReadonlySet<number>;
+  dows: ReadonlySet<number>;
+};
+
+type CronDecodeResult = { ok: true; cron: DecodedCron } | { ok: false; error: string };
+
+function decodeCronField(field: string, min: number, max: number): Set<number> | string {
+  const ranges: { lo: number; hi: number; step: number }[] = [];
   for (const part of field.split(",")) {
-    if (part === "*") {
-      for (let i = min; i <= max; i++) result.add(i);
-      continue;
+    const match = /^(\*|[0-9]+(?:-[0-9]+)?)(?:\/([0-9]+))?$/.exec(part);
+    if (!match) return `invalid syntax in part "${part}"; expected *, N, N-M, or a positive /step`;
+    const step = match[2] === undefined ? 1 : Number(match[2]);
+    if (!Number.isSafeInteger(step) || step < 1) return "step must be a positive safe integer";
+    const [start, end = start] = match[1].split("-");
+    const lo = start === "*" ? min : Number(start);
+    const hi = start === "*" ? max : Number(end);
+    if (!Number.isSafeInteger(lo) || !Number.isSafeInteger(hi) || lo < min || hi > max) {
+      return `endpoints must be safe integers in ${min}-${max}`;
     }
-    let rangeStr = part;
-    let step = 1;
-    const slashIdx = part.indexOf("/");
-    if (slashIdx >= 0) {
-      step = Number.parseInt(part.slice(slashIdx + 1), 10);
-      rangeStr = part.slice(0, slashIdx);
-    }
-    let lo = min;
-    let hi = max;
-    if (rangeStr !== "*") {
-      const dashIdx = rangeStr.indexOf("-");
-      if (dashIdx >= 0) {
-        lo = Number.parseInt(rangeStr.slice(0, dashIdx), 10);
-        hi = Number.parseInt(rangeStr.slice(dashIdx + 1), 10);
-      } else {
-        lo = hi = Number.parseInt(rangeStr, 10);
-      }
-    }
-    for (let i = lo; i <= hi; i += step) result.add(i);
+    if (lo > hi) return "range start must not exceed range end";
+    ranges.push({ lo, hi, step });
   }
-  return result;
+
+  // Enumerate only the field's finite domain after every part is validated.
+  // Work never scales with an untrusted endpoint or step magnitude.
+  const values = new Set<number>();
+  for (let value = min; value <= max; value++) {
+    if (ranges.some(({ lo, hi, step }) => value >= lo && value <= hi && (value - lo) % step === 0)) {
+      values.add(value);
+    }
+  }
+  return values;
+}
+
+function decodeCronExpr(expr: string): CronDecodeResult {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    return { ok: false, error: `cron expression must have 5 fields, got ${parts.length}: "${expr}"` };
+  }
+  const fields = [
+    ["minute", 0, 59],
+    ["hour", 0, 23],
+    ["day-of-month", 1, 31],
+    ["month", 1, 12],
+    ["day-of-week", 0, 7],
+  ] as const;
+  const values: Set<number>[] = [];
+  for (const [index, [name, min, max]] of fields.entries()) {
+    const decoded = decodeCronField(parts[index], min, max);
+    if (typeof decoded === "string") {
+      return { ok: false, error: `${name} field "${parts[index]}": ${decoded}` };
+    }
+    values.push(decoded);
+  }
+  const [minutes, hours, doms, months, dows] = values;
+  // Normalize the Sunday alias once for every consumer.
+  if (dows.delete(7)) dows.add(0);
+  return { ok: true, cron: { minutes, hours, doms, months, dows } };
 }
 
 /** Validate a cron expression. Returns null if valid, error message if not. */
 export function validateCronExpr(expr: string): string | null {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    return `cron expression must have 5 fields, got ${parts.length}: "${expr}"`;
-  }
-  const ranges: [number, number][] = [
-    [0, 59],
-    [0, 23],
-    [1, 31],
-    [1, 12],
-    [0, 7],
-  ];
-  const names = [
-    "minute",
-    "hour",
-    "day-of-month",
-    "month",
-    "day-of-week",
-  ];
-  for (let i = 0; i < 5; i++) {
-    const field = parts[i];
-    if (!/^[\d*,\-/]+$/.test(field)) {
-      return `invalid characters in ${names[i]} field: "${field}"`;
-    }
-    try {
-      const values = parseCronField(field, ranges[i][0], ranges[i][1]);
-      if (values.size === 0) {
-        return `${names[i]} field "${field}" produces no valid values`;
-      }
-    } catch {
-      return `failed to parse ${names[i]} field: "${field}"`;
-    }
-  }
-  return null;
+  const decoded = decodeCronExpr(expr);
+  return decoded.ok ? null : decoded.error;
 }
 
 /** Validate an IANA timezone name. Returns null if valid, error message if not. */
@@ -141,20 +145,9 @@ function localTimestamp(parts: LocalParts): number {
  * Returns null if no match is found within 4 years.
  */
 export function getNextCronTime(expr: string, from: Date, timezone?: string): Date | null {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return null;
-
-  const [minuteField, hourField, domField, monthField, dowField] = parts;
-  const minutes = parseCronField(minuteField, 0, 59);
-  const hours = parseCronField(hourField, 0, 23);
-  const doms = parseCronField(domField, 1, 31);
-  const months = parseCronField(monthField, 1, 12);
-  const dows = parseCronField(dowField, 0, 7);
-  // Normalize: 7 → 0 (both mean Sunday)
-  if (dows.has(7)) {
-    dows.add(0);
-    dows.delete(7);
-  }
+  const decoded = decodeCronExpr(expr);
+  if (!decoded.ok) return null;
+  const { minutes, hours, doms, months, dows } = decoded.cron;
 
   // Start one minute after `from`, zero out sub-minute precision
   const start = new Date(from.getTime() + 60_000);

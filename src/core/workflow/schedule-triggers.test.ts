@@ -6,21 +6,18 @@ import type { WorkflowRuntimeSummary } from "./runtime-state-types.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
 function makeDefinition(
   name: string,
   trigger: WorkflowTrigger,
 ): WorkflowDefinition {
-  return {
+  return validateWorkflowDefinitions([registerWorkflowDefinition(`test/${name}.ts`, {
     name,
-    enabled: true,
     repository: "none",
-    definitionPath: `test/${name}.ts`,
-    moduleRoot: process.cwd(),
-    tags: [],
     triggers: [trigger],
-    steps: [],
-  };
+    steps: [{ id: "work", type: "code", run: () => "ok" }],
+  })])[0];
 }
 
 describe("ScheduleTriggerManager", () => {
@@ -92,7 +89,9 @@ describe("ScheduleTriggerManager", () => {
       expect(enqueuedRuns.filter((run) => run.event === "local.tick").at(-1)?.payload.scheduledAt)
         .toBe(fire);
       expect(Date.parse(manager.nextScheduledAt().get("local")!)).toBeGreaterThan(Date.now());
-      // Recreate schedule state as on reload, including between repeated hours.
+      // Reload preserves live timers; rebuilding after restart also advances.
+      manager.reconcile(definitions);
+      expect(Date.parse(manager.nextScheduledAt().get("local")!)).toBeGreaterThan(Date.now());
       manager.clearAll();
       manager.setup(definitions);
       expect(Date.parse(manager.nextScheduledAt().get("local")!)).toBeGreaterThan(Date.now());

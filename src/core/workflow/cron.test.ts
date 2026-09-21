@@ -11,20 +11,23 @@ describe("validateCronExpr", () => {
     expect(validateCronExpr("0 0 * * 0")).toBeNull();
     expect(validateCronExpr("0 0 * * 7")).toBeNull(); // 7 = Sunday alias
   });
-
-  it("rejects wrong field count", () => {
-    expect(validateCronExpr("* * * *")).toMatch(/5 fields/);
-    expect(validateCronExpr("* * * * * *")).toMatch(/5 fields/);
-  });
-
-  it("rejects invalid characters", () => {
-    expect(validateCronExpr("abc * * * *")).toMatch(/invalid characters/);
-  });
 });
 
 describe("getNextCronTime", () => {
   it("returns null for invalid expression", () => {
     expect(getNextCronTime("bad expr", new Date())).toBeNull();
+  });
+
+  it.each([
+    [" * * * * * ", "2026-01-01T00:01:00.000Z"],
+    ["1,1,3-7/2,*/30 * * * *", "2026-01-01T00:01:00.000Z"],
+    ["1-59/2 * * * *", "2026-01-01T00:01:00.000Z"],
+    ["5/2 * * * *", "2026-01-01T00:05:00.000Z"],
+    ["*/9007199254740991 * * * *", "2026-01-01T01:00:00.000Z"],
+    ["59 23 31 12 0-7", "2026-12-31T23:59:00.000Z"],
+  ])("validates and evaluates supported grammar: %s", (expr, expected) => {
+    expect(validateCronExpr(expr)).toBeNull();
+    expect(getNextCronTime(expr, new Date("2026-01-01T00:00:00Z"))?.toISOString()).toBe(expected);
   });
 
   it("fires at the next matching minute — daily at 2am", () => {

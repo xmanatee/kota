@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Reject malformed workflow cron expressions through one bounded decoder
 
@@ -65,3 +64,50 @@ Exercise malformed inputs through public workflow validation with an external pr
 Show that validation and recurrence consume one field-validity authority, unchecked expansion and duplicated field assembly are retired, and callers remain straightforward. Keep distinct decoder rejection and scheduler lifecycle proofs without adding a parallel parser, scheduler or redundant test catalog.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+
+## Completion Evidence
+
+Implemented in builder run `2026-09-21T10-18-03-020Z-builder-njtea3` as a
+separate malformed-input follow-up to
+[task-preserve-cron-progress-across-dst-transitions](task-preserve-cron-progress-across-dst-transitions.md).
+
+`cron.ts` now owns one complete expression decoder shared by `validateCronExpr`
+and `getNextCronTime`. Complete part syntax, positive safe steps, safe bounded
+endpoints and ordered ranges are checked before field enumeration. Enumeration
+visits only the finite field domain, independent of endpoint or step magnitude.
+The unchecked `parseCronField` expansion and duplicated five-field assembly were
+removed; Sunday normalization also has one owner. Existing exact-value/step
+semantics are preserved and documented. The timezone transition search is unchanged.
+
+Maintained callers remain straightforward: `validateTrigger` retains source and
+trigger-index diagnostics through `validateCronExpr`; runtime compilation,
+readiness and reload still consume public definition validation;
+`ScheduleTriggerManager` setup, reconciliation and re-arming still call
+`getNextCronTime`, now through the same decoder. Reminder parsing and production
+timer ownership are unchanged. No dependency or parallel scheduling surface was
+introduced.
+
+- The focused cron, public validation and scheduler suites passed: 94 tests in
+  three files. The public process test replaces the former separate field-count
+  and invalid-character rejection cases. It uses a ten-second external deadline
+  so a synchronous parser hang fails rather than blocking the test runner.
+- The same public admission probe was executed independently and retained under
+  this run's artifact directory as `cron-admission-probe.mjs`,
+  `cron-admission-transcript.jsonl` and `cron-admission-provenance.json`.
+  All 29 malformed expressions produced source/trigger/field diagnostics,
+  registered zero timers and returned no recurrence. Inputs cover zero/negative
+  steps, malformed lists/ranges/steps, bounds in every field, unsafe integers,
+  numeric overflow and wrong field counts. Maximum measured per-case time was
+  0.849 ms in this sample; this is observed rejection timing, not a throughput
+  or production-impact claim.
+- `cron-consumer-tests.log` retains the verbose successful run. Valid syntax,
+  Sunday aliases, AND day filters, UTC defaults, bounded no-match and DST cases
+  pass. The real scheduler now receives publicly validated definitions and
+  exercises setup, re-arming, reload reconciliation and reconstruction across
+  transitions alongside unrelated scheduled work.
+- `pnpm check:fast` passed on the completed changeset, including the archived
+  task; `check-fast.log` retains the successful output. This covers strict
+  production/test types, lint, task metadata, generated bindings and module
+  admission. No live daemon, live model evaluation or full deterministic
+  portfolio was needed or claimed for this bounded cron-owner change.

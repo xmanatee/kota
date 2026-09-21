@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -71,6 +72,80 @@ describe("definition admission", () => {
       repository: "read",
       triggers: [{ event: "manual", cooldownMs: 0 }],
     });
+  });
+
+  it("rejects malformed cron before schedule registration within a process deadline", () => {
+    // A same-thread test timeout cannot interrupt synchronous parser expansion.
+    // Exercise the author-facing boundary in a killable process instead.
+    const transcript = execFileSync(process.execPath, [
+      "--conditions=source", "--import", "tsx", "--input-type=module", "-e", `
+      import assert from "node:assert/strict";
+      import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./src/core/workflow/validation.ts";
+      import { getNextCronTime } from "./src/core/workflow/cron.ts";
+      import { ScheduleTriggerManager } from "./src/core/workflow/schedule-triggers.ts";
+      const manager = new ScheduleTriggerManager(
+        () => ({ completedRuns: 0, workflows: {} }), () => false,
+        () => assert.fail("invalid schedule fired"), () => {},
+      );
+      const invalid = [
+        ["*/0 * * * *", "minute", "positive safe integer"],
+        ["*/-1 * * * *", "minute", "invalid syntax"],
+        ["1-5/0 * * * *", "minute", "positive safe integer"],
+        ["60 * * * *", "minute", "0-59"],
+        ["0-60 * * * *", "minute", "0-59"],
+        ["-1 * * * *", "minute", "invalid syntax"],
+        ["0 24 * * *", "hour", "0-23"],
+        ["0 0 0 * *", "day-of-month", "1-31"],
+        ["0 0 32 * *", "day-of-month", "1-31"],
+        ["0 0 * 0 *", "month", "1-12"],
+        ["0 0 * 13 *", "month", "1-12"],
+        ["0 0 * * 8", "day-of-week", "0-7"],
+        ["5-1 * * * *", "minute", "range start"],
+        ["1/2/3 * * * *", "minute", "invalid syntax"],
+        ["1,,2 * * * *", "minute", "invalid syntax"],
+        [",1 * * * *", "minute", "invalid syntax"],
+        ["1, * * * *", "minute", "invalid syntax"],
+        ["1- * * * *", "minute", "invalid syntax"],
+        ["1-2-3 * * * *", "minute", "invalid syntax"],
+        ["*/ * * * *", "minute", "invalid syntax"],
+        ["1.5 * * * *", "minute", "invalid syntax"],
+        ["1e1 * * * *", "minute", "invalid syntax"],
+        ["abc * * * *", "minute", "invalid syntax"],
+        ["9007199254740992 * * * *", "minute", "safe integers"],
+        ["0-9007199254740992 * * * *", "minute", "safe integers"],
+        ["*/9007199254740992 * * * *", "minute", "positive safe integer"],
+        ["*/" + "9".repeat(400) + " * * * *", "minute", "positive safe integer"],
+        ["* * * *", "5 fields", "got 4"],
+        ["* * * * * *", "5 fields", "got 6"],
+      ];
+      try {
+        for (const [schedule, field, reason] of invalid) {
+          const started = performance.now();
+          let diagnostic;
+          try {
+            const definitions = validateWorkflowDefinitions([registerWorkflowDefinition("author/cron.ts", {
+              name: "cron-probe", repository: "none", triggers: [{ schedule }],
+              steps: [{ id: "work", type: "code", run: () => "ok" }],
+            })]);
+            manager.setup(definitions);
+          } catch (error) {
+            assert.equal(error.name, "WorkflowDefinitionError");
+            diagnostic = error.message;
+          }
+          assert.ok(diagnostic, "accepted " + schedule);
+          for (const expected of ["author/cron.ts", "triggers[0].schedule", field, reason]) {
+            assert.ok(diagnostic.includes(expected), diagnostic);
+          }
+          assert.equal(manager.nextScheduledAt().size, 0);
+          assert.equal(getNextCronTime(schedule, new Date("2026-01-01T00:00:00Z")), null);
+          console.log(JSON.stringify({ schedule, diagnostic, timers: 0, elapsedMs: performance.now() - started }));
+        }
+      } finally {
+        manager.clearAll();
+      }
+      `,
+    ], { cwd: process.cwd(), encoding: "utf8", timeout: 10_000 });
+    expect(transcript.trim().split("\n")).toHaveLength(29);
   });
 
   it("rejects duplicate workflow identities and reports both contributors", () => {
