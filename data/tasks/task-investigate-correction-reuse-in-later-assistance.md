@@ -138,6 +138,23 @@ availability remains unverified. Status remains `blocked` pending the same
 authorized observation or equivalent attributable evidence. No product defect
 or implementation follow-up is established by these readings.
 
+## Related Owner Capture — September 21
+
+The owner supplied https://x.ai/news/grok-build-memory in `data/inbox/links.md`
+with the wording "Links to consider and learn from..." and no stated urgency.
+The September 16 article was read September 21. It describes background
+capture after completed turns, project/global Markdown topics, consolidation,
+and recall before related work. Its example reuses a corrected test command
+in a later coding session; current conversation instructions override notes.
+These are vendor descriptions, not independently observed KOTA behavior.
+
+Keep this reference with the existing correction-reuse investigation rather
+than creating another memory task. It offers a coding analogue for the same
+later-use question; it does not require expanding the matched observation or
+adding a new store. The existing Letta/Hermes and Reflexion decisions remain
+unchanged. Source access succeeds, but supplies no matched KOTA measurement
+and does not resolve the observation prerequisite below.
+
 ## Blocked on
 
 kind: operator-capture

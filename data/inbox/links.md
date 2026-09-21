@@ -8,6 +8,18 @@ https://institute.deepmind.com/
 
 https://x.ai/news/grok-build-memory
 
+## Sorting disposition — September 21, 2026
+
+These captures have been routed: Dream-RSI and DeepMind Institute are in
+[the watchlist](../watchlist.yaml), Grok Build memory is cited in
+[the correction-reuse investigation](../tasks/task-investigate-correction-reuse-in-later-assistance.md),
+and the unread X post is pending in
+[the existing source-review task](../tasks/task-review-unread-sierra-and-x-inbox-links.md).
+No further inbox sorting is needed. The concurrent explorer assessment below
+is retained for its additional findings; its research questions do not create
+duplicate tasks. The explorer's retrieval error and the sorter's HTTP 403
+are separate attempts, neither of which yielded readable X content.
+
 ## Explorer reading — September 21, 2026
 
 Original links and owner wording above are preserved. No implementation task

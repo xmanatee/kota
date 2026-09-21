@@ -2,7 +2,7 @@
 status: blocked
 priority: p3
 ---
-# Review the unread Sierra and X inbox links
+# Review the remaining unread X inbox links
 
 ## Intent And Completed Assessment
 
@@ -26,24 +26,35 @@ equivalence. Do not repeat that assessment or add a fixture merely to close this
 
 kind: operator-capture
 path: .kota/runs/
-description: Readable attributable content of X post 2097689256961466486 through authorized access or an equivalent export.
+description: Readable attributable content of the pending X posts through authorized access or equivalent exports; assess each independently as it becomes available.
 
-Pending source:
-https://x.com/zafstojano/status/2097689256961466486
+Pending sources:
 
-The September 13 web-reader retry of the exact URL returned HTTP 403 Forbidden,
+- https://x.com/zafstojano/status/2097689256961466486
+- https://x.com/ProfBuehlerMIT/status/2099834306046664792
+
+The September 13 web-reader retry of the first URL returned HTTP 403 Forbidden,
 consistent with the retained host-reader failure. Its contents remain unknown.
 Earlier worker proxy connection failures were not X origin responses. No missing
 account credential or universal host access failure is inferred. No fixed
 artifact path, manual capture, profile-persistence activation or new access
 mechanism is required.
 
+The second post was captured in `data/inbox/links.md` with the owner wording
+"Links to consider and learn from..." and no stated urgency. The September 21
+inbox-sorter web-reader attempt at that exact URL returned HTTP 403 Forbidden.
+Its contents and relevance remain unknown; it has not been researched or
+dismissed. Preserve it here under the existing unread-source follow-up instead
+of adding a duplicate access task. The older post was not retried in this run.
+
 ## Remaining Acceptance
 
-When readable content is available, give this one post a cited, content-grounded
+When readable content is available, give each pending post a cited, content-grounded
 disposition: useful existing-owner decision, deduplicated follow-up, monitoring
 source, or no action with a reason. Read linked context only when necessary.
 Compare the active queue, decision store and watchlist before adding work.
+One post's access failure must not prevent assessment of the other; retain only
+unread sources as pending after partial progress.
 
 Inaccessible is the current access disposition, not a research verdict. Resume
 on a changed access capability or attributable export, not repeated unchanged

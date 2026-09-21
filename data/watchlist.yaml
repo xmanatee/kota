@@ -7,7 +7,11 @@ resources:
   - url: https://github.com/zhengkid/Dream-RSI
     added: "2026-09-21"
     refresh: weekly
-    notes: "From data/inbox/links.md and the linked Dream-RSI paper. Monitor release of executable exploration-policy replay, recorded discovery trees and fresh-rollout comparisons that could support an evidence-grounded KOTA policy study. The September 21 README still marks the full codebase and discovered programs as being prepared; paper results are not KOTA validation."
+    notes: "Owner capture: 'Links to consider and learn from...' in data/inbox/links.md, via https://paperswithcode.co/paper/2609.14858. Read https://arxiv.org/abs/2609.14858 and project README September 21: exploration policies replay recorded discovery trees without changing the coding agent. Monitor release of executable exploration-policy replay, recorded discovery trees, discovered programs and reproduction scripts, with fresh-rollout comparisons that could support an evidence-grounded KOTA policy study. The README still marks the full codebase and discovered programs as being prepared. Reported benchmark gains are not KOTA validation and do not authorize a new orchestration layer."
+  - url: https://institute.deepmind.com/
+    added: "2026-09-21"
+    refresh: weekly
+    notes: "Owner capture: 'Links to consider and learn from...' in data/inbox/links.md. Homepage read September 21. Monitor this essay series for concrete reasoning-transparency and agent-control methods relevant to KOTA evaluation; broader economic and philosophical essays alone do not create implementation work. This supplements the existing DeepMind research blog with an author-view discussion series, not official Google policy."
   - url: https://github.com/google/artemis
     added: "2026-09-15"
     refresh: weekly
