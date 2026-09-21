@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Report calendar results honestly when Google returns multiple pages
 
@@ -47,3 +46,22 @@ Keep ownership in `src/modules/google-workspace/calendar.ts` and its existing
 verification. Archived Google Workspace creation/testing and inbound-signal
 tasks do not address this pagination defect. This task does not require a new
 calendar planner, free/busy service or live-account setup.
+
+## Completion
+
+Calendar listing now follows empty and short intermediate pages while preserving
+calendar identity, the time bounds, ordering and recurrence expansion. The
+requested total event limit (default 10, capped at 50) and a declared ten-page
+bound stop retrieval with an explicit incomplete-results message. Only an
+exhausted empty query reports no upcoming events. HTTP/transport failures,
+malformed pages and cyclic tokens return an error with previously fetched events.
+
+Verification: the existing calendar owner suite passes 32 tests covering query
+continuity, complete and partial results, decoding, failures and termination.
+The production-tool probe in builder run
+`2026-09-21T05-58-13-101Z-builder-b0kpys` retains
+`artifacts/calendar-pagination-probe.mjs` and
+`artifacts/calendar-pagination-transcript.json`: six controlled HTTP journeys,
+including all four required acceptance cases, with requests, tool output and
+source hash. It uses a dummy token and no live Google account, model or daemon.
+`pnpm check:fast` passes the static, task, binding and module admission gates.
