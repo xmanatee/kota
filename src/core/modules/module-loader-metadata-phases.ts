@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
 import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
-import { resolveKotaPromptPath } from "#core/util/kota-install-paths.js";
+import { readKotaPrompt } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { LoadPhasePolicy } from "./module-loader-load-phases.js";
 import type { LoaderState } from "./module-loader-state.js";
@@ -55,10 +54,7 @@ async function attachModuleSkills(
   for (const skill of skills) {
     let raw: string;
     try {
-      raw = readFileSync(
-        resolveKotaPromptPath(policy.cwd, skill.promptPath),
-        "utf8",
-      );
+      raw = readKotaPrompt(policy.cwd, skill.promptPath, policy.promptReadPolicy);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       printTerminalDiagnostic(

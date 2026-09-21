@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
 import type { AgentDef, AgentWriteScope } from "#core/agents/agent-types.js";
 import type { AgentHandoffRequest } from "#core/agents/handoff.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { resolveKotaPromptPath } from "#core/util/kota-install-paths.js";
+import { type PromptReadPolicy, readKotaPrompt } from "#core/util/kota-install-paths.js";
 import {
   tryCaptureWorkflowMutationSnapshot,
   type WorkflowMutationSnapshot,
@@ -67,10 +66,10 @@ export function buildSystemPrompt(
   agent: AgentDef,
   cwd: string,
   skillsPrompt: string | undefined,
+  policy?: PromptReadPolicy,
 ): string | ToolResult {
   try {
-    const path = resolveKotaPromptPath(cwd, agent.promptPath);
-    const mainPrompt = readFileSync(path, "utf-8");
+    const mainPrompt = readKotaPrompt(cwd, agent.promptPath, policy);
     return [mainPrompt, skillsPrompt].filter(Boolean).join("\n\n");
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);

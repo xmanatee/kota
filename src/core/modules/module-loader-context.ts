@@ -3,6 +3,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { executeNestedTool } from "#core/tools/tool-runner-execution.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { createModuleContext, type ModuleContextParams } from "./module-context.js";
 import type { ModuleStorage } from "./module-storage.js";
@@ -19,6 +20,7 @@ import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
 import type { ProviderRegistry } from "./provider-registry.js";
 
 export interface LoaderContextDeps {
+  promptReadPolicy?: PromptReadPolicy;
   cwd: string;
   scopeRoot?: string;
   verbose: boolean;
@@ -48,6 +50,7 @@ export function createLoaderModuleContext(
 ): ModuleRuntimeContext {
   const params: ModuleContextParams = {
     cwd: deps.cwd,
+    promptReadPolicy: deps.promptReadPolicy,
     scopeRoot: deps.scopeRoot,
     verbose: deps.verbose,
     config: deps.config,

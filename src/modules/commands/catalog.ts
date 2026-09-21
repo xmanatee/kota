@@ -5,7 +5,6 @@
  * per-command registration surface.
  */
 
-import { readFileSync } from "node:fs";
 import type { SkillDef } from "#core/agents/agent-types.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import type {
@@ -13,7 +12,7 @@ import type {
   SlashCommandAction,
   SlashCommandCatalog,
 } from "#core/modules/slash-command-provider.js";
-import { resolveKotaPromptPath } from "#core/util/kota-install-paths.js";
+import { type PromptReadPolicy, readKotaPrompt } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export type {
@@ -55,15 +54,11 @@ function findSkill(
   return null;
 }
 
-function readSkillPrompt(skill: SkillDef, scopeRoot: string): string {
-  const path = resolveKotaPromptPath(scopeRoot, skill.promptPath);
-  return readFileSync(path, "utf8").trim();
-}
-
 export type CatalogDeps = {
   getContributedWorkflows: () => readonly RegisteredWorkflowDefinitionInput[];
   getModuleSummaries: () => readonly ModuleSummary[];
   scopeRoot: string;
+  promptReadPolicy?: PromptReadPolicy;
 };
 
 export function buildSlashCommandCatalog(deps: CatalogDeps): SlashCommandCatalog {
@@ -104,7 +99,7 @@ export function buildSlashCommandCatalog(deps: CatalogDeps): SlashCommandCatalog
         const skillName = name.slice(SKILL_COMMAND_PREFIX.length);
         const found = findSkill(deps.getModuleSummaries(), skillName);
         if (!found) return null;
-        const prompt = readSkillPrompt(found.skill, deps.scopeRoot);
+        const prompt = readKotaPrompt(deps.scopeRoot, found.skill.promptPath, deps.promptReadPolicy).trim();
         if (!prompt) return null;
         return { kind: "skill", prompt };
       }
@@ -124,5 +119,6 @@ export function catalogFromModuleContext(ctx: ModuleContext): SlashCommandCatalo
     getContributedWorkflows: () => ctx.getContributedWorkflows(),
     getModuleSummaries: () => ctx.getModuleSummaries(),
     scopeRoot: ctx.cwd,
+    promptReadPolicy: ctx.promptReadPolicy,
   });
 }

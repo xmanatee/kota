@@ -11,12 +11,15 @@ import type {
   ScopePolicyAuthority,
   ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import { createDelegateBudget } from "./delegate-budget.js";
 import type { ResolvedDelegateConfig } from "./delegate-config.js";
 import type { GuardrailsConfig } from "./guardrails.js";
 
 export type DelegationRuntime = ResolvedDelegateConfig & {
+  /** Host authorization for external registered-agent prompt assets. */
+  promptReadPolicy?: PromptReadPolicy;
   scopeRoot?: string;
   env?: Record<string, string>;
   /** Effective posture already imposed on the parent harness run. */

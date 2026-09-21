@@ -6,6 +6,7 @@ import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
@@ -35,6 +36,8 @@ export type ModuleWorkflowContribution =
   | RegisteredWorkflowDefinitionInput;
 
 export type ModuleBaseContext = {
+  /** Host-supplied authority for file-backed prompts, independent of module declarations. */
+  readonly promptReadPolicy?: PromptReadPolicy;
   cwd: string;
   verbose: boolean;
   config: KotaConfig;

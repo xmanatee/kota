@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: The shared prompt resolver accepts any existing project override without checking its resolved target. Its host-side consumers then follow symlinks and read external file contents outside agent tool permissions. A synthetic bundled memory-skill override returned an external sentinel as the command's prompt, and the delegated system-prompt builder returned the same content. Module skill loading also stores this unchecked content for prompt use.
 
@@ -141,3 +140,43 @@ excerpt:
 > const path = resolveKotaPromptPath(cwd, agent.promptPath);
 >     const mainPrompt = readFileSync(path, "utf-8");
 >     return [mainPrompt, skillsPrompt].filter(Boolean).join("\n\n");
+
+## Resolution
+
+Replaced the shared unchecked pathname resolver with `readKotaPrompt`, which
+owns authorization and the content read. Catalog resolution, module skill
+caching, and delegated system-prompt construction now use that boundary.
+Project paths and host-authorized external roots use the existing descriptor-
+anchored reader: leaf and ancestor links, dangling links, hard links, and
+non-regular files fail closed. Shared protected-scope checks run before reads.
+Missing source-relative overrides still load independently trusted packaged
+assets; contained absolute/relative overrides and empty content retain their
+existing meaning. External prompt roots are explicit host options, never
+inferred from a module's prompt pathname. Loader context and delegation runtime
+carry that authority. Module context guidance documents this contract.
+
+Verification:
+
+- `pnpm check:fast` passed production/test types, lint, task validation, generated
+  client checks, and admission of all 90 bundled modules.
+- `pnpm build` passed, including packaged asset copying. After the final
+  delegation-policy fallback adjustment, an in-place rebuild could not remove
+  generated `dist` directories (`Operation not permitted`). Compiling the final
+  source with `pnpm exec tsc -p tsconfig.build.json --outDir <fresh-run-scratch>/dist`
+  passed; the nine handoff tests and the full static gate also passed again.
+- The selected reader, anchored filesystem race/batch, named-handoff, module
+  loader, catalog, command, and composed consumer tests passed 192 cases.
+  Thirteen daemon-control HTTP cases could not bind `127.0.0.1` under this
+  sandbox (`listen EPERM`); these are not claimed as passing. The actual catalog
+  and module-context composition were exercised without a listening server.
+- The compiled production probe in this builder run's artifacts demonstrates
+  packaged assets, catalog and delegated-prompt link rejection, exclusion from
+  the module skill cache, and an ordinary local-prompt control. Its script and
+  JSON results are retained as `prompt-containment-probe.mjs` and
+  `prompt-containment-probe.json`. No live provider was invoked.
+
+The tests distinguish the original disclosure from rejection at the common
+read owner and prevent individual consumers from regressing to unchecked reads.
+The shared anchored reader's documented directory-relocation limitations remain;
+this change does not claim an atomic beneath-root guarantee. Scope-improver's
+independent guidance reader is outside this repair.

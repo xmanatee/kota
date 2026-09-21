@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,6 +98,35 @@ describe("handoff_agent", () => {
     rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
 
+  });
+
+  it("rejects unsafe prompts before harness dispatch and accepts explicitly authorized external assets", async () => {
+    const external = mkdtempSync(join(tmpdir(), "kota-handoff-external-"));
+    const externalPrompt = join(external, "prompt.md");
+    const localPrompt = join(scopeRoot, reviewer.promptPath);
+    writeFileSync(externalPrompt, "External module guidance.");
+    const input = {
+      agent: "reviewer", mode: "call", input: {}, reason: "Review", scope: scopeInput(scopeRoot),
+      autonomy_mode: "autonomous", budget: { max_turns: 3 },
+    };
+    try {
+      rmSync(localPrompt);
+      symlinkSync(externalPrompt, localPrompt);
+      const rejected = await runHandoffAgent(input, { cwd: scopeRoot }, delegationConfig);
+      expect(rejected.is_error).toBe(true);
+      expect(rejected.content).toContain("Unsafe filesystem path");
+      expect(rejected.content).not.toContain("External module guidance.");
+      expect(receivedOptions).toHaveLength(0);
+      reviewer.promptPath = externalPrompt;
+      expect((await runHandoffAgent(input, { cwd: scopeRoot }, delegationConfig)).is_error).toBe(true);
+      expect(receivedOptions).toHaveLength(0);
+      delegationConfig.promptReadPolicy = { trustedExternalRoots: [external] };
+      const accepted = await runHandoffAgent(input, { cwd: scopeRoot }, delegationConfig);
+      expect(accepted, accepted.content).not.toMatchObject({ is_error: true });
+      expect(receivedOptions[0]?.systemPrompt).toContain("External module guidance.");
+    } finally {
+      rmSync(external, { recursive: true, force: true });
+    }
   });
 
   it("dispatches a registered agent with trace links, workflow metadata, and validated structured output", async () => {

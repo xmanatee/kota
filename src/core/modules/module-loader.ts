@@ -5,6 +5,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { UiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import { assertModuleDefinition } from "./module-definition.js";
@@ -61,6 +62,8 @@ export type { ModuleSource, ModuleSummary } from "./module-types.js";
 export type ModuleLoaderMode = "commands" | "runtime";
 
 export type ModuleLoaderOptions = {
+  /** Explicit host authorization for external module prompt assets. */
+  trustedPromptRoots?: readonly string[];
   /** Canonical scope for activation diagnostics; omit for scope-less hosts. */
   scopeRoot?: string;
   /** Lifecycle mode this loader operates in. Defaults to `"runtime"`. */
@@ -86,11 +89,17 @@ export class ModuleLoader {
   private readonly providerRegistry: ProviderRegistry;
   private cwd: string;
   private readonly scopeRoot?: string;
+  private readonly promptReadPolicy: PromptReadPolicy;
   private bus: EventBus | null = null;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
+    this.promptReadPolicy = Object.freeze({
+      trustedExternalRoots: Object.freeze([...(options?.trustedPromptRoots ?? [])]),
+      authorityConfigPath: options?.globalConfigPath,
+      scopeRoot: options?.scopeRoot,
+    });
     this.scopeRoot = options?.scopeRoot;
     this.verbose = verbose;
     this.cwd = process.cwd();
@@ -143,6 +152,7 @@ export class ModuleLoader {
       {
         cwd: this.installedModuleSourceDir ?? this.cwd,
         scopeRoot: this.scopeRoot,
+        promptReadPolicy: this.promptReadPolicy,
         verbose: this.verbose,
         config: this.config,
         moduleStorages: this.state.moduleStorages,
@@ -183,6 +193,7 @@ export class ModuleLoader {
     this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const state = this.state;
     const policy: LoadPhasePolicy = {
+      promptReadPolicy: this.promptReadPolicy,
       cwd: this.cwd,
       isCommandsMode: this.isCommandsMode,
       moduleSource: source,

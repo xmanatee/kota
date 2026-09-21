@@ -184,7 +184,11 @@ export async function runHandoffAgent(
       const skillsPrompt = agent.skills && runtime.resolveSkillsPrompt
         ? runtime.resolveSkillsPrompt(agent.skills, agent.name)
         : undefined;
-      const systemPrompt = buildSystemPrompt(agent, cwd, skillsPrompt);
+      const systemPrompt = buildSystemPrompt(agent, cwd, skillsPrompt, {
+        ...runtime.promptReadPolicy,
+        scopeRoot: runtime.scopeRoot ?? runtime.promptReadPolicy?.scopeRoot,
+        authorityConfigPath: runtime.authorityConfigPath ?? runtime.promptReadPolicy?.authorityConfigPath,
+      });
       if (typeof systemPrompt !== "string") return systemPrompt;
       if (
         harness.toolControl !== "kota" &&

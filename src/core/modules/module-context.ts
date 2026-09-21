@@ -25,6 +25,7 @@ import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { getCurrentToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import { resolveLogFormatter } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
@@ -39,6 +40,7 @@ import type { ProviderToken } from "./provider-token.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface ModuleContextParams {
+  promptReadPolicy?: PromptReadPolicy;
   cwd: string;
   scopeRoot?: string;
   verbose: boolean;
@@ -264,6 +266,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
   };
   return {
+    promptReadPolicy: params.promptReadPolicy,
     cwd,
     verbose,
     config,

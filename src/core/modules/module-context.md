@@ -64,6 +64,14 @@ process singletons or let nested hosts clean up CLI state.
   `getDir()` is informational and grants no filesystem safety to executable imports
   or binary database adapters. The anchored owner's documented directory-relocation
   and optimistic snapshot limits apply here too.
+- File-backed skills, command prompts, and named handoffs read through
+  `readKotaPrompt`. Project overrides must be unprotected regular files beneath
+  the scope; links fail closed rather than selecting a fallback. Packaged assets
+  have independent installation authority. External assets require host-supplied
+  `trustedPromptRoots` on the loader or `promptReadPolicy` on the delegation
+  runtime; module prompt declarations cannot grant that authority. The loader
+  carries its policy into module contexts for command resolution. Shared anchored
+  filesystem constraints apply to every prompt root.
 - Module capability/effect inspection goes through the module manifest
   projection in `module-manifest.ts`; derive contribution lists from loader
   state and add module-owned capability/data/effect declarations there instead

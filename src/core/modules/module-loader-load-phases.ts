@@ -6,6 +6,7 @@ import {
 } from "#core/events/module-event.js";
 import { registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
+import type { PromptReadPolicy } from "#core/util/kota-install-paths.js";
 import {
   collectDaemonClientFactory,
   collectLocalClientHandlers,
@@ -38,6 +39,7 @@ import { printTerminalDiagnostic } from "./terminal-renderer.js";
  * and passes it through the phase functions.
  */
 export interface LoadPhasePolicy {
+  promptReadPolicy?: PromptReadPolicy;
   cwd: string;
   isCommandsMode: boolean;
   moduleSource: ModuleSource;
