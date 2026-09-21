@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Read Gmail message bodies without substituting attachments or unlabeled snippets
 
@@ -59,3 +58,24 @@ inbound-signal adapters and calendar pagination task cover adjacent behavior,
 not this message-body selection failure. No active task or inbox capture owns
 this outcome. Builders choose the implementation and proportionate additional
 cases; no new mail client, orchestration layer or evaluation runner is prescribed.
+
+## Completion
+
+Implemented in the Google Workspace reader on September 21, 2026. Inline
+plain text is selected through bounded mixed/alternative MIME traversal;
+alternative bodies are not duplicated and file attachments are excluded.
+Unavailable, malformed, separately stored, unsupported and limited content is
+explicitly labeled, including any excerpt fallback. Separately stored bytes
+are intentionally not fetched; HTML and other MIME containers are reported as
+unsupported rather than rendered or mistaken for complete body text.
+
+Validation: all 103 Google Workspace owner tests and `pnpm check:fast` passed.
+The owner tests exercise body selection, attachment exclusion, malformed input,
+empty/Unicode bodies, unavailable bytes, and traversal/decoding/output limits.
+Run `2026-09-21T06-35-20-703Z-builder-kfy5g8` retains
+`artifacts/gmail-body-probe.mjs` and `artifacts/gmail-body-transcript.json`:
+six controlled-response calls through the production reader and Google HTTP
+adapter, with exact inputs, requests, rendered outputs and source hashes.
+The transcript confirms direct/nested body retrieval, misleading attachment
+exclusion, and labeled separately stored, HTML-only and malformed limitations.
+No live mailbox or model was used; this is deterministic adapter evidence.

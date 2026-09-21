@@ -48,6 +48,11 @@ Values starting with `$` are resolved through the shared secret provider, so set
   Calendar and Drive. Reload creates a fresh cache; readiness always verifies
   credentials with a fresh refresh request. Tokens refresh before expiry.
 - Credentials are never logged or included in error messages.
+- Gmail message reading selects inline plain text through mixed and alternative
+  MIME containers. Named or explicitly attached parts are excluded before
+  traversal. Separately stored bytes and unsupported representations remain
+  explicitly unavailable; snippets are labeled excerpts. Bound parsing and
+  output, and disclose partial content instead of implying a complete read.
 - When `inbound` is configured, the module contributes bearer-token-protected
   `POST /api/webhooks/google-workspace/gmail` and
   `POST /api/webhooks/google-workspace/calendar` routes. Those routes accept

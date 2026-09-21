@@ -3,6 +3,7 @@ import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
+import { gmailMessageResult } from "./gmail-message.js";
 
 export function makeGmailListMessages(
   getToken: () => Promise<string>,
@@ -95,7 +96,7 @@ export function makeGmailGetMessage(
     group: "productivity",
     tool: {
       name: "gmail_get_message",
-      description: "Get the full content of a Gmail message by its ID.",
+      description: "Read available inline plain-text content of a Gmail message, including nested mixed and alternative parts. Excludes attachments and labels unavailable, partial, or snippet-only content; separately stored bodies and other MIME formats are not fetched or rendered.",
       input_schema: {
         type: "object" as const,
         properties: {
@@ -115,38 +116,7 @@ export function makeGmailGetMessage(
       );
       if (!res.ok) return apiError("get message", res.status, res.data);
 
-      const msg = res.data as {
-        id: string;
-        snippet: string;
-        labelIds?: string[];
-        payload?: {
-          headers?: Array<{ name: string; value: string }>;
-          body?: { data?: string };
-          parts?: Array<{ mimeType: string; body?: { data?: string } }>;
-        };
-      };
-
-      const headers = msg.payload?.headers ?? [];
-      const subject = headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
-      const from = headers.find((h) => h.name === "From")?.value ?? "";
-      const to = headers.find((h) => h.name === "To")?.value ?? "";
-      const date = headers.find((h) => h.name === "Date")?.value ?? "";
-
-      let body = "";
-      const parts = msg.payload?.parts ?? [];
-      const plainPart = parts.find((p) => p.mimeType === "text/plain");
-      const rawData = plainPart?.body?.data ?? msg.payload?.body?.data;
-      if (rawData) {
-        body = Buffer.from(rawData, "base64url").toString("utf-8");
-      } else {
-        body = msg.snippet;
-      }
-
-      return {
-        content: [`Subject: ${subject}`, `From: ${from}`, `To: ${to}`, `Date: ${date}`, "", body].join(
-          "\n",
-        ),
-      };
+      return gmailMessageResult(res.data);
     },
   };
 }
