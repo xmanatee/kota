@@ -198,3 +198,5 @@ observation and assess whether the assistant honestly reports uncertainty.
 Try existing evaluation/readback or pre-action observation before proposing a
 new mechanism. One successful small comparison would establish feasibility
 under its recorded conditions, not reliability across arbitrary applications.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T09:34:57.007Z -->
