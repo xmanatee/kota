@@ -174,6 +174,43 @@ It returned `is_error: true`, exit 1, and
 No configured profile was exposed through that surface. This is a host grant
 prerequisite, not inferred credential/model absence or an inherited blocker.
 
+## Source Retry Assessment — September 21
+
+Collector `2026-09-21T05-36-32-069Z-research-source-collection-02ta2u`
+called `web_fetch` for the three cited sources at
+`2026-09-21T05:38:04.358Z`, `05:38:04.907Z` and `05:38:04.951Z`,
+respectively. All three returned readable text; no source-access gate was
+reported. This assessment uses only that supplied evidence, with no additional
+source calls or KOTA observation.
+
+- [SP-Mem paper](https://arxiv.org/html/2608.16551v1): the supplied abstract,
+  introduction and storage-design sections distinguish sanitized searchable
+  memories from exact private values restored according to task need and
+  consent. This supports comparing useful style reuse with unnecessary contact
+  disclosure. The reading stops at the start of section 2.3; later methods,
+  results and Appendix A were not re-read in this retry. Earlier Appendix A
+  notes above remain prior provenance, not a fresh verification.
+- [SP-Mem README](https://github.com/Jensassss/SP-Mem): the supplied text
+  describes synthetic inputs, consent continuation, and exact-match scoring
+  for unnecessary private-value use. These distinctions inform the paired
+  drafting observation but cannot establish KOTA behavior. The README states
+  that the artifact is for confidential review and reproduction during review,
+  with final licensing deferred; this reading supplies no basis for importing
+  its implementation or benchmark. Neither was inspected or executed here.
+- [MemGate paper](https://arxiv.org/html/2606.06054v1): the supplied abstract
+  and introduction distinguish similarity from appropriate memory admission,
+  including cross-domain leakage and tool-call drift. That motivates checking
+  both model-visible context and actual drafts. The reading is truncated in
+  section II-A; full methods and evaluation were not assessed in this retry.
+  Reported results on other agents are not measurements of KOTA.
+
+Both paper readings carried injection-defense annotations and were treated as
+untrusted source material. The excerpts do not supply the missing attributable
+session/store/recall evidence or establish availability of a host-authorized
+execution profile. Keep this same task `blocked` on the observation prerequisite
+below. Source access itself is currently resolved; no completion, defect,
+adoption decision or implementation follow-up follows from these readings.
+
 ## Blocked on
 
 kind: operator-capture
@@ -205,3 +242,5 @@ decisions remain unchanged. Run-local source/probe provenance is retained in
 `agent/personal-memory-investigation.md` and `agent/contained-inspect-result.json`.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T05:36:04.324Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"0f796f5a436521ad","attemptedAt":"2026-09-21T05:38:04.951Z","attempts":[{"url":"https://arxiv.org/html/2608.16551v1","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:38:04.358Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/Jensassss/SP-Mem","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:38:04.907Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://arxiv.org/html/2606.06054v1","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:38:04.951Z","tools":["web_fetch"],"outcome":"readable"}]} -->
