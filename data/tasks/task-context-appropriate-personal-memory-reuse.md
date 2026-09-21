@@ -203,3 +203,5 @@ No matched model observation ran. No failing owner or implementation follow-up
 is justified yet. The correction-reuse task and existing external-pattern
 decisions remain unchanged. Run-local source/probe provenance is retained in
 `agent/personal-memory-investigation.md` and `agent/contained-inspect-result.json`.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T05:36:04.324Z -->
