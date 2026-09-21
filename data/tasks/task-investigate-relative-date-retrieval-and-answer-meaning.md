@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 
@@ -96,3 +96,69 @@ author account were readable and rechecked during triage on September 21, 2026.
 Local inspection confirmed that `gmail.ts` forwards query text as `q` and
 `calendar.ts` exposes the event-end lower bound. No KOTA consumer journey was
 run during triage and no benchmark performance claim was independently verified.
+
+## Investigation Evidence — September 21, 2026
+
+Builder run `2026-09-21T11-46-51-381Z-builder-47efw9` inspected the production
+Google Workspace tools and existing coverage. Its retained artifacts under
+`relative-date/` contain `findings.md`, `oracle.json`, `probe.mjs`, and
+`adapter-observations.json`. The source cohort is HEAD
+`cafa1f1eaa0027a92a7f48b98e8abebbb1274694`, with measured adapter hashes in the
+observations. No production code, prompt, dependency or evaluation runner changed.
+
+With reference instant 2026-09-23T03:00:00Z, Asia/Tokyo, en-GB and an explicit
+Monday week, the independent oracle gives September 14–20 local, bounded by
+September 13 15:00Z and September 20 15:00Z. Nine deterministic calls through the
+existing tools and a bounds-sensitive external HTTP double passed. Gmail epoch
+bounds select the intended boundary records; PST date strings and UTC-midnight
+bounds select different records. Calendar overlap includes events crossing either
+edge and excludes events ending exactly at the lower or starting at the upper
+bound. Sunday-week and rolling-seven-day interpretations also select different
+records, so the ambiguity case is consequential. These are authored inputs and
+controlled-provider observations, not observed model choices or live Google data.
+The unchanged Gmail and Calendar owner suites passed all 55 tests in two files.
+
+The artifacts preserve requests/context, authored arguments, outbound URLs,
+selected identities and tool-rendered UTC timestamps. Final model answers are
+explicitly absent. Selection by the model, local answer rendering and ambiguity
+disclosure remain unverified; DST transitions, Gmail exact-bound equality and
+sender-Date/receipt-time divergence were not tested. This evidence establishes a
+useful discriminating cohort, not completion or an observed KOTA answer defect.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An authorized model-backed KOTA relative-date retrieval observation, or equivalent attributable session, tool and answer evidence.
+
+The path is an evidence-discovery hint, not a required capture location.
+
+An authorized model-backed KOTA consumer observation with these existing tools,
+using the controlled Google HTTP port (or equivalent attributable scoped evidence).
+The authorized `pnpm kota eval contained '{"operation":"inspect"}'` call reached
+the host service and returned `is_error`, exit 1, explicitly requiring
+`KOTA_EVAL_CONTAINED_PROFILES` in the trusted host environment. Tool-use identity:
+`tool-adb7ddaabbce55bd894168bd2349f387`. This is a missing host grant/setup
+prerequisite, not a claim of absent provider credentials from sandbox denial.
+Worker requests cannot configure that host access.
+
+Post-check repair retained a fresh direct command capture, rather than relying on
+this narrative: `relative-date/host-inspect.stdout.txt` and
+`host-inspect.stderr.txt` preserve the subprocess streams;
+`host-inspect-execution.json` records argv, workspace, UTC execution times, exit
+status and stream hashes. `host-inspect-result.json` extracts the exact host tool
+result from stdout. The fresh call returned the same missing-profile diagnostic,
+with tool-use identity `tool-51eb8766a59743cfc48769cb50687689`.
+These are under this run's retained artifact directory. The critic's separate
+writer-authorization denial does not establish host configuration; this writer's
+successful inspection transport returned the explicit setup error.
+
+Resume when the host supplies a scoped model evaluation profile with a supported
+consumer scenario, container/auth/egress readiness, or an equivalent authorized
+KOTA session transcript retaining model provenance, actual tool arguments, selected
+records and answers. Reuse the prepared explicit and consequentially ambiguous
+requests; judge date selection, provider semantics, local timestamp rendering and
+assumption disclosure independently. Deterministic adapter checks cannot substitute
+for this missing observation. No speculative treatment or failure follow-up is
+justified yet. Safe retained changes are limited to this task disposition and run
+artifacts; the original acceptance remains unmet.
