@@ -76,20 +76,31 @@ async function handleInvoke(
   jsonResponse(res, result.status, result.body);
 }
 
-export function commandRoutes(catalog: SlashCommandCatalog): RouteRegistration[] {
+export function commandRoutes(getCatalog: () => SlashCommandCatalog | null): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/commands",
       handler: (_req, res) => {
+        const catalog = getCatalog();
+        if (!catalog) {
+          jsonResponse(res, 503, { error: "Slash-command catalog unavailable" });
+          return;
+        }
         jsonResponse(res, 200, { commands: catalog.list() });
       },
     },
     {
       method: "POST",
       path: "/api/commands/invoke",
-      handler: (req, res) =>
-        handleInvoke(req, res, catalog, getDaemonTransport()),
+      handler: (req, res) => {
+        const catalog = getCatalog();
+        if (!catalog) {
+          jsonResponse(res, 503, { error: "Slash-command catalog unavailable" });
+          return;
+        }
+        return handleInvoke(req, res, catalog, getDaemonTransport());
+      },
     },
   ];
 }

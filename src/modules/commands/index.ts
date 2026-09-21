@@ -9,12 +9,11 @@
  * they already do.
  */
 
-import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
   catalogFromModuleContext,
   SLASH_COMMAND_PROVIDER_TYPE,
-  type SlashCommandCatalog,
 } from "./catalog.js";
 import { commandsControlRoutes } from "./control-routes.js";
 import { commandRoutes } from "./routes.js";
@@ -35,35 +34,17 @@ export {
 export { commandsControlRoutes } from "./control-routes.js";
 export { commandRoutes } from "./routes.js";
 
-// The catalog instance is built once per module load and shared between the
-// provider registry (consumed by the daemon control server) and the module's
-// own web-server routes. This keeps one source of truth per load: both
-// surfaces return the same data because they query the same callbacks over
-// the same ModuleContext.
-let sharedCatalog: SlashCommandCatalog | null = null;
-
-function ensureCatalog(ctx: ModuleContext): SlashCommandCatalog {
-  if (!sharedCatalog) sharedCatalog = catalogFromModuleContext(ctx);
-  return sharedCatalog;
-}
-
-function registerProvider(ctx: ModuleRuntimeContext, catalog: SlashCommandCatalog): void {
-  ctx.registerProvider(SLASH_COMMAND_PROVIDER_TYPE, catalog);
-}
-
 const commandsModule: KotaModule = {
   name: "commands",
   version: "1.0.0",
   description: "User-facing slash-command catalog backed by skills and workflows",
 
   onLoad(ctx) {
-    sharedCatalog = null;
-    const catalog = ensureCatalog(ctx);
-    registerProvider(ctx, catalog);
+    ctx.registerProvider(SLASH_COMMAND_PROVIDER_TYPE, catalogFromModuleContext(ctx));
   },
 
   routes(ctx) {
-    return commandRoutes(ensureCatalog(ctx));
+    return commandRoutes(() => ctx.getProvider(SLASH_COMMAND_PROVIDER_TYPE));
   },
 
   controlRoutes(ctx) {

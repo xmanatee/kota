@@ -13,25 +13,12 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
-import {
-  SLASH_COMMAND_PROVIDER_TYPE,
-  type SlashCommandCatalog,
-} from "#core/modules/slash-command-provider.js";
+import type { SlashCommandCatalog } from "#core/modules/slash-command-provider.js";
 import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
-import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 
 export type CommandsControlRouteDeps = {
   getCatalog: () => SlashCommandCatalog | null;
   getDispatcher: () => WorkflowDispatcher | null;
-};
-
-const processRegistryDeps: CommandsControlRouteDeps = {
-  getCatalog: () => {
-    const registry = getProviderRegistry();
-    return registry?.get(SLASH_COMMAND_PROVIDER_TYPE) ?? null;
-  },
-  getDispatcher: getWorkflowDispatcher,
 };
 
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
@@ -52,7 +39,7 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 export function handleListCommandsControl(
   _req: IncomingMessage,
   res: ServerResponse,
-  deps: CommandsControlRouteDeps = processRegistryDeps,
+  deps: CommandsControlRouteDeps,
 ): void {
   const catalog = deps.getCatalog();
   if (!catalog) {
@@ -65,7 +52,7 @@ export function handleListCommandsControl(
 export async function handleInvokeCommandControl(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: CommandsControlRouteDeps = processRegistryDeps,
+  deps: CommandsControlRouteDeps,
 ): Promise<void> {
   let buf: Buffer;
   try {
@@ -126,7 +113,7 @@ export async function handleInvokeCommandControl(
 }
 
 export function commandsControlRoutes(
-  deps: CommandsControlRouteDeps = processRegistryDeps,
+  deps: CommandsControlRouteDeps,
 ): ControlRouteRegistration[] {
   return [
     {

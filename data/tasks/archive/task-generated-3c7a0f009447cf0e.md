@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Bind web and control command catalogs to their owning runtime host
 
@@ -67,3 +66,40 @@ Exercise the real commands module with two loaders having distinct skills, promp
 Show that both route surfaces use the existing host provider authority and that process-global catalog/cache/reset state is gone. Demonstrate that registration order and another loader's teardown cannot select a foreign catalog. Add focused composition coverage for this failure without duplicating existing catalog, HTTP, or filesystem-security test matrices.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+The commands module now creates its catalog only during activation. Web listing
+and invocation resolve the owning context's `slash-command-catalog` provider per
+request, matching the control surface. Removed `sharedCatalog`, `ensureCatalog`,
+the reset lifecycle, and the control factory's optional process-registry fallback.
+The control HTTP fixtures now supply an explicit registry. Web daemon transport
+and control workflow-dispatcher behavior remain with their existing owners.
+Module guidance describes the host registry as the single catalog authority.
+
+`commands-host.integration.test.ts` passes both real-loader compositions: distinct
+skills, prompt roots and host permissions across overlapping loads, withdrawal,
+reload and the other host's teardown; and commands-mode bootstrap cleanup with a
+usable runtime palette. Existing prompt-containment tests pass (2), as do catalog
+owner tests (9). The existing built CLI serve journey now asserts skill listing
+and invocation. The production build and `pnpm check:fast` passed.
+
+The compiled-code stream probe in this run's artifacts records both surfaces
+returning only their host's synthetic prompts, foreign-command 404s, withdrawn
+provider 503s, and a surviving host after bootstrap and peer cleanup. This is
+observed behavior, not a claimed performance improvement. The new composition
+checks add the missing lifecycle proof without replacing the distinct catalog,
+prompt-security, authorization or workflow-dispatch checks.
+
+Validation limitation: this sandbox rejects localhost listeners with EPERM, so
+all 13 existing control HTTP cases and the built CLI serve case could not execute
+their journeys. The additional daemon-runtime-load suite passed its mode guard
+but its live restart case failed because its control-address fixture was absent.
+No live CLI, daemon restart, full-suite or native-client pass is claimed. Native
+client source and shared wire contracts did not change. Build, static validation,
+real-loader handler checks and the compiled stream transcript provide scoped
+proof of this catalog ownership repair. Logs and the probe source/results are
+retained under this builder run's artifact directory.
+
+Related provenance: [command route migration](task-migrate-commands-daemon-control-routes-out-of-core.md)
+and [prompt containment repair](task-security-review-f0c3e6364fd6ae5785c968c0.md).

@@ -48,7 +48,10 @@ The module owns two parallel HTTP surfaces backed by the same catalog:
   `/commands/invoke` for the daemon control plane.
 
 Both surfaces resolve through the `slash-command-catalog` provider the
-module registers in `onLoad`. Daemon-control invocation triggers workflow
+module registers in `onLoad`. Route factories are side-effect-free and look up
+the catalog through their owning context on each request; an unavailable or
+withdrawn provider returns 503. No process-global catalog or reset lifecycle
+competes with the host registry. Daemon-control invocation triggers workflow
 runs through the `workflow-dispatcher` provider seam
 (`#core/workflow/workflow-dispatcher-provider`), which the daemon registers
 at startup. The handler looks the dispatcher up per request and returns 503

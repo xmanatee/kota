@@ -154,6 +154,9 @@ describe("built CLI serve smoke (provider-backed routes)", () => {
       join(stateDir, "config.json"),
       JSON.stringify({ defaultAgentHarness: "claude-agent-sdk" }),
     );
+    const promptDir = join(scopeRoot, "src/modules/knowledge");
+    mkdirSync(promptDir, { recursive: true });
+    writeFileSync(join(promptDir, "knowledge.md"), "Serve skill prompt control");
     child = null;
     stderrChunks = [];
     stdoutChunks = [];
@@ -171,7 +174,7 @@ describe("built CLI serve smoke (provider-backed routes)", () => {
     rmSync(scopeRoot, { recursive: true, force: true });
   });
 
-  it("`node dist/cli.js serve` serves /api/knowledge with 200 (provider onLoad ran)", async () => {
+  it("serves provider routes and invokes a skill after CLI bootstrap cleanup", async () => {
     let port = 0;
     let token = "";
     let servingChild: ChildProcess | null = null;
@@ -237,6 +240,21 @@ describe("built CLI serve smoke (provider-backed routes)", () => {
     ).toBe(200);
     const body = JSON.parse(bodyText) as { entries: unknown[] };
     expect(Array.isArray(body.entries)).toBe(true);
+
+    // The CLI bootstrap finally block unloads its commands-mode loader once
+    // serve returns. Subsequent HTTP requests must use the runtime host.
+    const palette = await fetchAuthorized(port, "/api/commands", token);
+    expect(palette.status).toBe(200);
+    expect(await palette.json()).toMatchObject({ commands: expect.arrayContaining([
+      expect.objectContaining({ name: "skill:knowledge" }),
+    ]) });
+    const invoke = await globalThis.fetch(`http://127.0.0.1:${port}/api/commands/invoke`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "skill:knowledge" }),
+    });
+    expect(invoke.status).toBe(200);
+    expect(await invoke.json()).toEqual({ kind: "skill", prompt: "Serve skill prompt control" });
 
     servingChild.kill("SIGTERM");
     const outcome = await waitForExit(servingChild, 10_000);

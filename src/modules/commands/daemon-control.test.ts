@@ -29,11 +29,7 @@ import {
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
-import {
-  getProviderRegistry,
-  initProviderRegistry,
-  resetProviderRegistry,
-} from "#core/modules/provider-registry.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { SLASH_COMMAND_PROVIDER_TYPE } from "#core/modules/slash-command-provider.js";
 import {
   type EnqueuePendingRunResult,
@@ -135,9 +131,7 @@ type CatalogScenario = {
   skills?: Array<{ name: string; description?: string; promptPath: string; module: string }>;
 };
 
-function registerCatalog(scopeRoot: string, scenario: CatalogScenario): void {
-  const registry = getProviderRegistry();
-  if (!registry) throw new Error("provider registry not initialized");
+function registerCatalog(registry: ProviderRegistry, scopeRoot: string, scenario: CatalogScenario): void {
   const summaries = (scenario.skills ?? []).reduce<
     Array<{ name: string; skills: Array<{ name: string; description?: string; promptPath: string }> }>
   >((acc, s) => {
@@ -184,6 +178,7 @@ function registerCatalog(scopeRoot: string, scenario: CatalogScenario): void {
 }
 
 function registerDispatcher(
+  registry: ProviderRegistry,
   result: EnqueuePendingRunResult | (() => EnqueuePendingRunResult),
 ): Mock<(name: string) => Promise<EnqueuePendingRunResult>> {
   const fn = vi.fn(async (_name: string) => (typeof result === "function" ? result() : result));
@@ -192,8 +187,6 @@ function registerDispatcher(
     enqueueWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     execute: vi.fn(async () => ({ ok: false as const, error: "unused" })),
   };
-  const registry = getProviderRegistry();
-  if (!registry) throw new Error("provider registry not initialized");
   registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "test", dispatcher);
   return fn;
 }
@@ -202,26 +195,29 @@ describe("commands module daemon-control routes", () => {
   let server: DaemonControlServer;
   let port: number;
   let scopeRoot: string;
+  let registry: ProviderRegistry;
+  const routes = () => commandsControlRoutes({
+    getCatalog: () => registry.get(SLASH_COMMAND_PROVIDER_TYPE),
+    getDispatcher: () => registry.get(WORKFLOW_DISPATCHER_PROVIDER_TYPE),
+  });
 
   beforeEach(async () => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-commands-control-"));
-    resetProviderRegistry();
-    initProviderRegistry();
+    registry = new ProviderRegistry();
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-      controlRoutes: commandsControlRoutes(),
+      controlRoutes: routes(),
     });
     port = await server.start();
   });
 
   afterEach(async () => {
     await server.stop();
-    resetProviderRegistry();
     rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   describe("registration seam", () => {
     it("requires the daemon bearer token on both routes", async () => {
-      registerCatalog(scopeRoot, {});
+      registerCatalog(registry, scopeRoot, {});
       const list = await globalThis.fetch(`http://127.0.0.1:${port}/commands`);
       expect(list.status).toBe(401);
       const invoke = await globalThis.fetch(
@@ -240,7 +236,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns the catalog list when registered", async () => {
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         workflows: [
           { name: "builder", description: "Run the builder", tags: ["command"], contributingModule: "autonomy" },
           { name: "internal", tags: [], contributingModule: "autonomy" },
@@ -272,7 +268,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 for invalid JSON body", async () => {
-      registerCatalog(scopeRoot, {});
+      registerCatalog(registry, scopeRoot, {});
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -283,7 +279,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 when name is missing or empty", async () => {
-      registerCatalog(scopeRoot, {});
+      registerCatalog(registry, scopeRoot, {});
       for (const body of [{}, { name: "" }, { name: 123 }]) {
         const res = await fetchWith(port, "/commands/invoke", {
           method: "POST",
@@ -298,7 +294,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 404 when the command is unknown", async () => {
-      registerCatalog(scopeRoot, {});
+      registerCatalog(registry, scopeRoot, {});
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -311,7 +307,7 @@ describe("commands module daemon-control routes", () => {
     it("returns 200 with the skill prompt for a skill command", async () => {
       const promptPath = join(scopeRoot, "deep-research.md");
       writeFileSync(promptPath, "Investigate carefully.\n");
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         skills: [
           { name: "deep-research", description: "Research", promptPath, module: "research" },
         ],
@@ -330,12 +326,12 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 200 with queued workflow and runId when the dispatcher accepts", async () => {
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
       });
-      const dispatch = registerDispatcher({
+      const dispatch = registerDispatcher(registry, {
         ok: true,
         queued: "builder",
         runId: "2026-01-01T00-00-00-000Z-builder-abc123",
@@ -357,12 +353,12 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 409 when the dispatcher reports the workflow is already queued", async () => {
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
       });
-      registerDispatcher({ ok: false, alreadyQueued: true });
+      registerDispatcher(registry, { ok: false, alreadyQueued: true });
 
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
@@ -376,12 +372,12 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 when the dispatcher reports a generic enqueue failure", async () => {
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
       });
-      registerDispatcher({ ok: false, error: "Workflow disabled" });
+      registerDispatcher(registry, { ok: false, error: "Workflow disabled" });
 
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
@@ -393,7 +389,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 503 when the workflow-dispatcher seam is not registered", async () => {
-      registerCatalog(scopeRoot, {
+      registerCatalog(registry, scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
@@ -414,7 +410,7 @@ describe("commands module daemon-control routes", () => {
   describe("collision detection", () => {
     it("throws at server construction if two contributions claim the same route key", () => {
       const collision = [
-        ...commandsControlRoutes(),
+        ...routes(),
         {
           method: "GET" as const,
           path: "/commands",
