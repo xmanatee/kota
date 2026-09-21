@@ -138,6 +138,41 @@ source identity and local capability observations are retained in
 there are no original/delivered files, actual workbook response or fresh
 spreadsheet-engine results to report.
 
+## Source retry — September 21, 2026
+
+Reviewed the four `web_fetch` readings collected at 05:04:49 UTC by
+`2026-09-21T05-03-30-514Z-research-source-collection-bun5rc`, handed to
+`research-retry-child-5faafc00e490730493db44b8`. All four calls were classified
+readable; none reported an access gate. Their contents support different
+amounts of assessment:
+
+- The [paper](https://arxiv.org/html/2606.29955v1) excerpt describes workflow-level
+  spreadsheet tasks, cross-sheet dependencies, and inspection/target-selection
+  failures. This supports examining the complete workbook journey. It ends
+  during section 2.2 (12,000 of 76,849 characters), so this retry did not
+  re-read section 2.4 or appendices A/C cited in the earlier research.
+- The [README](https://github.com/RUCKBReasoning/SpreadsheetBench-2) confirms
+  recalculation of input/reference files before testing and output cache
+  refresh with LibreOffice before evaluation. Its chart evaluator requires
+  Windows Excel/WPS COM. These support separating recalculation and visual
+  verification from file editing; they establish no KOTA outcome.
+- The [formula excerpt](https://openpyxl.readthedocs.io/en/stable/simple_formulae.html)
+  demonstrates assigning and saving a formula. It does not include the
+  no-evaluation statement recorded in the earlier reading, so that claim was
+  not independently reverified in this retry.
+- The [tutorial excerpt](https://openpyxl.readthedocs.io/en/stable/tutorial.html#loading-from-a-file)
+  contains installation guidance only. The requested loading section,
+  `data_only` semantics and preservation warnings are absent from this
+  reading; their earlier notes remain historical evidence.
+
+Disposition remains **blocked on the operator capture below**. Source access
+does not supply the missing host grant or attributable workbook journey. This
+retry did not inspect host profiles, execute an assistant workbook request,
+recalculate a file, or observe delivery; it cannot establish that the execution
+prerequisite has changed. The earlier investigation and its source claims are
+preserved with the limits above. No implementation follow-up is justified by
+these readings alone.
+
 ## Blocked on
 
 kind: operator-capture
@@ -173,3 +208,5 @@ journey, and a single successful example would not prove arbitrary-workbook
 fidelity.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T05:03:03.133Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"c1710ff91e40fc96","attemptedAt":"2026-09-21T05:04:49.596Z","attempts":[{"url":"https://arxiv.org/html/2606.29955v1","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:04:49.032Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/RUCKBReasoning/SpreadsheetBench-2","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:04:49.498Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://openpyxl.readthedocs.io/en/stable/simple_formulae.html","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:04:49.545Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://openpyxl.readthedocs.io/en/stable/tutorial.html#loading-from-a-file","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T05:04:49.596Z","tools":["web_fetch"],"outcome":"readable"}]} -->
