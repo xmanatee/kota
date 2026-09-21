@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Share Gmail body interpretation across reading and inbound automation
 
@@ -63,3 +62,55 @@ Exercise the production tool and contributed webhook with equivalent direct, nes
 Show both maintained consumers using one typed Gmail body decoder, with the old inbound traversal and fallback removed. Keep tool and signal presentation separate, and consolidate redundant decoding tests while retaining distinct routing, metadata and trust checks. Demonstrate that changing attachment or availability policy requires one implementation change rather than coordinated reader repairs.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+`decodeGmailBody` in `src/modules/google-workspace/gmail-message.ts` now owns
+bounded MIME selection and returns a discriminated available/partial/unavailable
+result with text, limitations and excluded attachment count. The tool renderer
+`gmailMessageResult` (called by `makeGmailGetMessage`) and the Google-shaped
+request path in `googleWorkspaceGmailMessageFromInboundRequest` both consume it.
+`gmailMessageToInboundSignal` renders that result into `signal.body.text` with
+explicit availability and excerpt labels. Normalized request `text` retains
+precedence, including empty and whitespace-only strings; sender trust, source,
+account, timestamps and dispatcher routing remain with their existing owners.
+
+Removed `decodeBase64UrlText`, `gmailPartText`, `gmailText` and the unlabeled
+snippet-to-body fallback from inbound normalization. MIME policy now changes
+at one implementation used by both readers; tool and signal presentation remain
+separate. Parser cases moved from tool-runner tests to `gmail-message.test.ts`.
+The previous normalized-message dispatch scenario and its synthetic decision
+workflow were replaced by two root integration cases covering the contributed
+webhook, real EventBus and production dispatcher enqueue boundary. Metadata,
+trust, normalized-input and tool error/effect checks remain with their owners.
+
+Verification in builder run `2026-09-21T06-52-00-977Z-builder-hvpeps`:
+
+- `pnpm test:owner src/modules/google-workspace src/modules/inbound-signals`:
+  117 tests passed across nine files. These exercise decoder rejection and
+  bounds, tool rendering/errors, normalized input precedence, metadata/trust,
+  and dispatcher behavior.
+- `pnpm test:integration src/gmail-inbound-body.integration.test.ts`: two tests
+  passed, proving partial and unavailable content survives the webhook, event
+  and workflow enqueue composition without attachment substitution.
+- `pnpm check:fast`: passed production/test typing, lint, task validation,
+  generated client bindings and admission of 90 bundled modules.
+- Controlled production-consumer probe: 17 cases passed for direct, nested,
+  attachment-first, mixed-segment, empty, separately stored, unsupported,
+  malformed, partial, traversal/output/decoding limits and normalized input.
+  The retained `agent/gmail-consumer-probe.mjs` and
+  `artifacts/gmail-consumer-transcript.json` contain the reproducible stimulus,
+  source hashes, rendered tool and signal results, and equality checks against
+  the workflow enqueue payload. Large rendered outputs are explicitly sampled
+  with their full length and hash. `artifacts/check-fast.log` retains the static
+  gate output.
+
+These are controlled local observations, not live-mailbox or model outcomes.
+The probe substitutes external HTTP and enqueue ports; it does not claim actual
+workflow execution or deployment. Future maintenance cost or incident reduction
+has not been measured.
+
+This completes the shared-consumer follow-up to
+[the reader repair](task-read-gmail-message-bodies-without-substituting-attachments.md)
+and [the inbound adapters](task-add-gmail-and-calendar-inbound-signal-adapters.md);
+their completed contracts were not reopened.

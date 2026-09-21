@@ -1,16 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type InboundSignalReceivedPayload,
-  type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalWorkflowTargeted,
   validateInboundSignalPayload,
 } from "#modules/inbound-signals/events.js";
-import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import {
   calendarEventChangeToInboundSignal,
   emitGoogleWorkspaceInboundSignal,
@@ -18,6 +12,7 @@ import {
   type GoogleWorkspaceGmailMessage,
   type GoogleWorkspaceInboundSignalContext,
   gmailMessageToInboundSignal,
+  googleWorkspaceGmailMessageFromInboundRequest,
 } from "./inbound-signal.js";
 
 const context: GoogleWorkspaceInboundSignalContext = {
@@ -53,7 +48,7 @@ function gmailMessage(
       date: "Mon, 25 May 2026 03:24:00 +0000",
       messageId: "<gmail-msg-1@example.com>",
     },
-    text: "Please review the queue before standup.",
+    body: { status: "available", text: "Please review the queue before standup.", reasons: [], attachmentsExcluded: 0 },
     ...overrides,
   };
 }
@@ -89,6 +84,23 @@ function calendarEvent(
 }
 
 describe("Google Workspace inbound signal adapters", () => {
+  it.each(["Explicit body", "", "  "])("preserves explicit normalized text precedence: %j", (text) => {
+    const decoded = googleWorkspaceGmailMessageFromInboundRequest({
+      message: {
+        id: "normalized", threadId: "thread", text,
+        headers: { from: "alice@example.com" },
+        snippet: "Stale excerpt",
+        payload: { mimeType: "text/plain", body: { data: "!!!" } },
+      },
+    });
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) throw new Error(decoded.error);
+    expect(decoded.value.body).toEqual({ status: "available", text, reasons: [], attachmentsExcluded: 0 });
+    const signal = unwrap(gmailMessageToInboundSignal(decoded.value, context));
+    expect(signal.body).toMatchObject({ text: expect.stringContaining(`Message body (plain text):\n${text}`) });
+    expect(signal.body).not.toMatchObject({ text: expect.stringContaining("Stale excerpt") });
+  });
+
   it("normalizes a trusted Gmail sender into a scope-scoped inbound signal", () => {
     const result = gmailMessageToInboundSignal(
       gmailMessage("Alice Example <alice@example.com>"),
@@ -242,136 +254,5 @@ describe("Google Workspace inbound signal adapters", () => {
       inboundSignalReceived,
       result.payload,
     );
-  });
-});
-
-type ProbeDecision = {
-  decision: "accept" | "noop";
-  scopeId: string;
-  provider: string;
-  channel: string;
-  actorTrust: string;
-};
-
-type RoutedProbePayload = {
-  scopeId: string;
-  provider: string;
-  channel: string;
-  actorTrust: string;
-  signal: InboundSignalReceivedPayload;
-};
-
-const googleWorkspaceSignalProbeWorkflow: WorkflowDefinitionInput = {
-  repository: "read",
-  name: "google-workspace-signal-probe",
-  description: "Test-only route target for Google Workspace inbound signals.",
-  triggers: [{ event: "manual" }],
-  steps: [
-    {
-      id: "decide",
-      type: "code",
-      validate: (raw) =>
-        expectStructuredOutput<ProbeDecision>(raw, [
-          "decision",
-          "scopeId",
-          "provider",
-          "channel",
-          "actorTrust",
-        ]),
-      run: ({ trigger }): ProbeDecision => {
-        const payload = trigger.payload as RoutedProbePayload;
-        return {
-          decision: payload.actorTrust === "trusted" ? "accept" : "noop",
-          scopeId: payload.scopeId,
-          provider: payload.provider,
-          channel: payload.channel,
-          actorTrust: payload.actorTrust,
-        };
-      },
-    },
-  ],
-};
-
-describe("Google Workspace inbound signal workflow dispatch", () => {
-  it("routes a Google-origin source through the shared dispatcher to a bounded workflow decision", async () => {
-    const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
-    const routed: InboundSignalRoutedPayload[] = [];
-    const payload = unwrap(
-      gmailMessageToInboundSignal(
-        gmailMessage("Alice Example <alice@example.com>"),
-        context,
-      ),
-    );
-
-    const routeResult = await dispatchInboundSignalRoute({
-      config: {
-        routes: [
-          {
-            id: "gmail-owner-capture",
-            provider: "google-workspace",
-            channel: "gmail.message",
-            sourceId: "google:gmail:owner@example.com",
-            targets: [
-              { kind: "workflow", name: googleWorkspaceSignalProbeWorkflow.name },
-            ],
-          },
-        ],
-      },
-      signal: payload,
-      context: {
-        workflowNames: new Set([googleWorkspaceSignalProbeWorkflow.name]),
-        agentNames: new Set(),
-      },
-      deps: {
-        async triggerWorkflow(_name, options) {
-          queued.push({
-            event: options.event ?? "manual",
-            payload: options.payload ?? {},
-          });
-          return {
-            ok: true,
-            path: "daemon",
-            queued: googleWorkspaceSignalProbeWorkflow.name,
-            runId: "run-gmail-owner",
-          };
-        },
-        emitRouted(routedPayload) {
-          routed.push(routedPayload);
-        },
-      },
-    });
-
-    expect(queued).toHaveLength(1);
-    expect(routed).toEqual([routeResult]);
-    expect(routeResult).toMatchObject({
-      routeId: "gmail-owner-capture",
-      decision: "dispatched",
-      sourceId: "google:gmail:owner@example.com",
-    });
-    expect(queued[0]).toMatchObject({
-      event: inboundSignalWorkflowTargeted,
-      payload: {
-        scopeId: "scope-google",
-        routeId: "gmail-owner-capture",
-        provider: "google-workspace",
-        channel: "gmail.message",
-        sourceId: "google:gmail:owner@example.com",
-        actorTrust: "trusted",
-      },
-    });
-
-    const harness = new WorkflowScenarioDriver(googleWorkspaceSignalProbeWorkflow, {
-      trigger: queued[0],
-    });
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps.decide.output).toEqual({
-      decision: "accept",
-      scopeId: "scope-google",
-      provider: "google-workspace",
-      channel: "gmail.message",
-      actorTrust: "trusted",
-    });
   });
 });

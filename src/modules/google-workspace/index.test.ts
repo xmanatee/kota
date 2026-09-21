@@ -187,6 +187,7 @@ describe("google-workspace module inbound routes", () => {
           internalDate: "1779680040000",
           snippet: "Please capture this",
           payload: {
+            mimeType: "text/plain",
             headers: [
               { name: "From", value: "Alice Example <alice@example.com>" },
               { name: "To", value: "owner@example.com" },

@@ -29,12 +29,14 @@ const unavailable = (reason: string): Body => ({ text: null, reasons: [reason] }
 const header = (part: Part, name: string): string | undefined =>
   part.headers?.find((h) => h.name.toLowerCase() === name)?.value;
 
-/** Render only supported body representations; file attachments never become body candidates. */
-export function gmailMessageResult(raw: unknown): ToolResult {
-  const message = messageSchema.safeParse(raw);
-  if (!message.success) {
-    return { content: "Message body unavailable: malformed Gmail message response.", is_error: true };
-  }
+export type GmailBody = { attachmentsExcluded: number } & (
+  | { status: "available"; text: string; reasons: [] }
+  | { status: "partial"; text: string; reasons: string[] }
+  | { status: "unavailable"; text: null; reasons: string[] }
+);
+
+/** Interpret Gmail MIME once for reading and inbound automation; never read attachments. */
+export function decodeGmailBody(payload: unknown): GmailBody {
   let visited = 0;
   let attachments = 0;
   const structuralIssues = new Set<string>();
@@ -123,26 +125,44 @@ export function gmailMessageResult(raw: unknown): ToolResult {
     }
   }
 
-  const body = read(message.data.payload, 0);
+  const body = read(payload, 0);
   const reasons = new Set([...structuralIssues, ...body.reasons]);
   if (body.text === null && reasons.size === 0) reasons.add("No supported message body found.");
+  if (body.text !== null && body.text.length > MAX_BODY_CHARS) {
+    reasons.add("Body truncated by output limit.");
+  }
+  const attachmentsExcluded = attachments;
+  if (body.text === null) {
+    return { status: "unavailable", text: null, reasons: [...reasons], attachmentsExcluded };
+  }
+  const text = body.text.slice(0, MAX_BODY_CHARS);
+  return reasons.size
+    ? { status: "partial", text, reasons: [...reasons], attachmentsExcluded }
+    : { status: "available", text, reasons: [], attachmentsExcluded };
+}
+
+/** Tool presentation is separate from body interpretation and inbound presentation. */
+export function gmailMessageResult(raw: unknown): ToolResult {
+  const message = messageSchema.safeParse(raw);
+  if (!message.success) {
+    return { content: "Message body unavailable: malformed Gmail message response.", is_error: true };
+  }
+  const body = decodeGmailBody(message.data.payload);
+  const reasons = new Set(body.reasons);
   const root = partSchema.safeParse(message.data.payload);
   const metadata = ["subject", "from", "to", "date"].map((name) => {
     const value = root.success ? header(root.data, name) ?? "" : "";
     if (value.length > 2_000) reasons.add("Message headers truncated by output limit.");
     return `${name[0].toUpperCase()}${name.slice(1)}: ${value.slice(0, 2_000)}`;
   });
-  if (body.text !== null && body.text.length > MAX_BODY_CHARS) {
-    reasons.add("Body truncated by output limit.");
-  }
   const status = body.text === null ? "Message body unavailable" :
     reasons.size ? "Message body partial" : "Message body (plain text)";
   const lines = [...metadata, "", `${status}${reasons.size ? `: ${[...reasons].join(" ")}` : ":"}`];
-  if (body.text !== null) lines.push(body.text.slice(0, MAX_BODY_CHARS));
+  if (body.text !== null) lines.push(body.text);
   else if (message.data.snippet !== undefined) {
     const snippet = message.data.snippet;
     lines.push(`Snippet fallback (excerpt only${snippet.length > 2_000 ? "; truncated" : ""}):`, snippet.slice(0, 2_000));
   }
-  if (attachments) lines.push(`\nAttachments excluded from body: ${attachments} (contents not read).`);
+  if (body.attachmentsExcluded) lines.push(`\nAttachments excluded from body: ${body.attachmentsExcluded} (contents not read).`);
   return { content: lines.join("\n"), ...(body.text === null ? { is_error: true } : {}) };
 }

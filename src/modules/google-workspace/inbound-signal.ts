@@ -9,6 +9,8 @@ import {
   validateInboundSignalPayload,
 } from "#modules/inbound-signals/events.js";
 
+import { decodeGmailBody, type GmailBody } from "./gmail-message.js";
+
 export type GoogleWorkspaceInboundTrustConfig = {
   trustedSenders?: readonly string[];
   blockedSenders?: readonly string[];
@@ -39,7 +41,7 @@ export type GoogleWorkspaceGmailMessage = {
     date?: string;
     messageId?: string;
   };
-  text: string;
+  body: GmailBody;
 };
 
 export type GoogleWorkspaceCalendarActor = {
@@ -252,57 +254,6 @@ function gmailHeaders(raw: InboundSignalJsonObject): GoogleWorkspaceGmailMessage
   return gmailHeaderMap(payload?.headers);
 }
 
-function decodeBase64UrlText(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    return Buffer.from(value, "base64url").toString("utf-8");
-  } catch {
-    return null;
-  }
-}
-
-function gmailPartText(part: InboundSignalJsonObject): string | null {
-  const mimeType = optionalInputString(part.mimeType, "payload.parts[].mimeType");
-  const body = optionalInputObject(part.body, "payload.parts[].body");
-  const bodyText = decodeBase64UrlText(
-    optionalInputString(body?.data, "payload.parts[].body.data"),
-  );
-  if (mimeType === "text/plain" && clean(bodyText)) return bodyText;
-
-  const parts = optionalInputArray(part.parts, "payload.parts[].parts");
-  for (const [index, rawPart] of (parts ?? []).entries()) {
-    const nested = optionalInputObject(rawPart, `payload.parts[].parts[${index}]`);
-    if (!nested) continue;
-    const text = gmailPartText(nested);
-    if (clean(text)) return text;
-  }
-  return null;
-}
-
-function gmailText(raw: InboundSignalJsonObject): string {
-  const explicitText = optionalInputString(raw.text, "text");
-  if (explicitText !== undefined) return explicitText;
-
-  const payload = optionalInputObject(raw.payload, "payload");
-  const body = optionalInputObject(payload?.body, "payload.body");
-  const bodyText = decodeBase64UrlText(
-    optionalInputString(body?.data, "payload.body.data"),
-  );
-  const cleanBodyText = clean(bodyText);
-  if (cleanBodyText) return cleanBodyText;
-
-  const parts = optionalInputArray(payload?.parts, "payload.parts");
-  for (const [index, rawPart] of (parts ?? []).entries()) {
-    const part = optionalInputObject(rawPart, `payload.parts[${index}]`);
-    if (!part) continue;
-    const text = gmailPartText(part);
-    const cleanText = clean(text);
-    if (cleanText) return cleanText;
-  }
-
-  return optionalInputString(raw.snippet, "snippet") ?? "";
-}
-
 function calendarActorInput(
   value: InboundSignalJsonValue | undefined,
   label: string,
@@ -425,10 +376,21 @@ function gmailBodyText(message: GoogleWorkspaceGmailMessage): string {
   ];
   const cc = clean(message.headers.cc);
   if (cc) lines.push(`Cc: ${cc}`);
-  const snippet = clean(message.snippet);
-  if (snippet) lines.push(`Snippet: ${snippet}`);
-  const body = clean(message.text);
-  if (body) lines.push("", body);
+  const body = message.body;
+  const status = body.status === "available" ? "Message body (plain text)" :
+    `Message body ${body.status}`;
+  lines.push("", `${status}:${body.reasons.length ? ` ${body.reasons.join(" ")}` : ""}`);
+  if (body.status !== "unavailable") {
+    lines.push(body.text);
+  } else if (message.snippet !== undefined) {
+    lines.push(
+      `Snippet (excerpt only${message.snippet.length > 2_000 ? "; truncated" : ""}):`,
+      message.snippet.slice(0, 2_000),
+    );
+  }
+  if (body.attachmentsExcluded) {
+    lines.push(`Attachments excluded from body: ${body.attachmentsExcluded} (contents not read).`);
+  }
   return lines.join("\n");
 }
 
@@ -489,6 +451,10 @@ export function googleWorkspaceGmailMessageFromInboundRequest(
 ): GoogleWorkspaceInboundInputResult<GoogleWorkspaceGmailMessage> {
   try {
     const message = inputEnvelope(raw, "message");
+    const explicitText = optionalInputString(message.text, "text");
+    const body: GmailBody = explicitText === undefined
+      ? decodeGmailBody(message.payload)
+      : { status: "available", text: explicitText, reasons: [], attachmentsExcluded: 0 };
     return {
       ok: true,
       value: {
@@ -500,7 +466,7 @@ export function googleWorkspaceGmailMessageFromInboundRequest(
         internalDate: optionalInputString(message.internalDate, "internalDate"),
         webLink: optionalInputString(message.webLink, "webLink"),
         headers: gmailHeaders(message),
-        text: gmailText(message),
+        body,
       },
     };
   } catch (err) {

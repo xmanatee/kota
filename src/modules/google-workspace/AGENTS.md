@@ -48,7 +48,9 @@ Values starting with `$` are resolved through the shared secret provider, so set
   Calendar and Drive. Reload creates a fresh cache; readiness always verifies
   credentials with a fresh refresh request. Tokens refresh before expiry.
 - Credentials are never logged or included in error messages.
-- Gmail message reading selects inline plain text through mixed and alternative
+- Gmail tools and Google-shaped inbound messages share the typed body decoder in
+  `gmail-message.ts`; consumers own presentation, and explicit normalized inbound
+  text retains precedence, including empty text. The decoder selects inline plain text through mixed and alternative
   MIME containers. Named or explicitly attached parts are excluded before
   traversal. Separately stored bytes and unsupported representations remain
   explicitly unavailable; snippets are labeled excerpts. Bound parsing and

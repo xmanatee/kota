@@ -147,39 +147,6 @@ describe("gmail_get_message: runner", () => {
     return makeGmailGetMessage(mockGetToken(), "me", http).runner({ id: "msg1" });
   }
 
-  it("reads a direct Unicode body and preserves an explicitly empty body", async () => {
-    for (const text of ["Delivery Thursday — café", ""]) {
-      const result = await readPayload(textPart(text));
-      expect(result.content).toContain(`Message body (plain text):\n${text}`);
-      expect(result.content).not.toContain("Snippet fallback");
-      expect(result.is_error).toBeUndefined();
-    }
-  });
-
-  it("reads nested alternatives once and excludes named, explicit and container attachments", async () => {
-    const result = await readPayload({
-      mimeType: "multipart/mixed",
-      parts: [
-        { ...textPart("Old delivery Tuesday"), filename: "old.txt" },
-        {
-          mimeType: "multipart/alternative",
-          parts: [
-            { mimeType: "text/html", body: { data: Buffer.from("<p>Delivery Thursday</p>").toString("base64url") } },
-            { mimeType: "multipart/mixed", parts: [textPart("Delivery Thursday")] },
-            textPart("Delivery Thursday"),
-          ],
-        },
-        { ...textPart("Old delivery Tuesday"), headers: [{ name: "CONTENT-DISPOSITION", value: "ATTACHMENT; filename=old.txt" }] },
-        { mimeType: "multipart/mixed", filename: "forwarded.mime", parts: [textPart("Old delivery Tuesday")] },
-      ],
-    });
-    expect(result.content.match(/Delivery Thursday/g)).toHaveLength(1);
-    expect(result.content).not.toContain("Tuesday");
-    expect(result.content).not.toContain("partial");
-    expect(result.content).toContain("Attachments excluded from body: 3");
-    expect(requestMock).toHaveBeenCalledTimes(1);
-  });
-
   it("preserves ordered mixed body segments and labels a missing segment as partial", async () => {
     const result = await readPayload({
       mimeType: "multipart/mixed",
@@ -193,61 +160,11 @@ describe("gmail_get_message: runner", () => {
     expect(requestMock).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    [{ mimeType: "text/plain", body: { attachmentId: "body-id", size: 20 } }, "stored separately"],
-    [{ mimeType: "text/html", body: { data: "PHA-aGk8L3A-" } }, "Unsupported body content"],
-    [{ mimeType: "text/plain", body: { data: "!!!" } }, "Malformed base64url"],
-    [{ mimeType: "text/plain", body: { data: "a" } }, "Malformed base64url"],
-    [{ mimeType: "text/plain", body: { data: "_w" } }, "Malformed UTF-8"],
-    [{ mimeType: "text/plain", body: { data: "aGk", size: 3 } }, "size does not match"],
-    [{ mimeType: "text/plain", body: { data: "aGk" }, headers: [{ name: "Content-Type", value: "text/plain; charset=iso-8859-1" }] }, "Unsupported body charset"],
-    [{ mimeType: "text/plain", body: { data: 12 } }, "Malformed MIME"],
-    [{ mimeType: "multipart/mixed", parts: "bad" }, "Malformed MIME"],
-    [{ mimeType: "multipart/mixed", parts: [] }, "Malformed multipart"],
-    [null, "Malformed MIME"],
-    [{ ...textPart("Tuesday"), filename: "old.txt" }, "No supported message body"],
-    [{ ...textPart("Tuesday"), headers: [{ name: "Content-Disposition", value: "inline; filename=old.txt" }] }, "No supported message body"],
-  ])("labels unavailable content without presenting the excerpt as a body: %j", async (payload, reason) => {
-    const result = await readPayload(payload);
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Message body unavailable");
-    expect(result.content).toContain(reason);
-    expect(result.content).toContain("Snippet fallback (excerpt only):\nOld delivery Tuesday");
-  });
-
   it("rejects malformed responses without throwing", async () => {
     stubFetch({ data: null });
     const result = await makeGmailGetMessage(mockGetToken(), "me", http).runner({ id: "msg1" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("malformed Gmail message response");
-  });
-
-  it("does not hide malformed alternatives behind a readable representation", async () => {
-    const result = await readPayload({ mimeType: "multipart/alternative", parts: [textPart("Hello"), null] });
-    expect(result.content).toContain("Message body partial");
-    expect(result.content).toContain("Malformed MIME");
-  });
-
-  it("bounds MIME depth and part count and reports omitted content", async () => {
-    let deep: unknown = textPart("Hidden body");
-    for (let i = 0; i < 30; i++) deep = { mimeType: "multipart/mixed", parts: [deep] };
-    const depthResult = await readPayload(deep);
-    expect(depthResult.is_error).toBe(true);
-    expect(depthResult.content).toContain("traversal limit");
-    const wideResult = await readPayload({ mimeType: "multipart/mixed", parts: Array.from({ length: 300 }, () => textPart("segment")) });
-    expect(wideResult.content).toContain("Message body partial");
-    expect(wideResult.content).toContain("traversal limit");
-    expect(wideResult.content.match(/segment/g)?.length).toBeLessThan(300);
-  });
-
-  it("labels decoding and rendered output limits", async () => {
-    const unavailable = await readPayload(textPart("x".repeat(60_000)));
-    expect(unavailable.content).toContain("Body decoding limit exceeded");
-    expect(unavailable.is_error).toBe(true);
-    const partial = await readPayload(textPart("x".repeat(40_000)));
-    expect(partial.content).toContain("Message body partial");
-    expect(partial.content).toContain("Body truncated by output limit");
-    expect(partial.content.length).toBeLessThan(33_000);
   });
 
   it("returns error on API failure", async () => {
