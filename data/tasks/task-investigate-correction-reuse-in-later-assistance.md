@@ -146,3 +146,5 @@ Only this research task's status and findings changed. Detailed source/probe
 provenance is retained in this run's `agent/correction-reuse-research.md` and
 `agent/contained-inspect-result.json`. The earlier preservation note is historical;
 this blocked disposition supersedes its proposed open-task handoff.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T02:46:12.959Z -->
