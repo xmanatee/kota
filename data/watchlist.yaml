@@ -4,6 +4,10 @@
 # Inaccessible sources remain listed for recovery, without inferred contents.
 
 resources:
+  - url: https://github.com/zhengkid/Dream-RSI
+    added: "2026-09-21"
+    refresh: weekly
+    notes: "From data/inbox/links.md and the linked Dream-RSI paper. Monitor release of executable exploration-policy replay, recorded discovery trees and fresh-rollout comparisons that could support an evidence-grounded KOTA policy study. The September 21 README still marks the full codebase and discovered programs as being prepared; paper results are not KOTA validation."
   - url: https://github.com/google/artemis
     added: "2026-09-15"
     refresh: weekly
@@ -448,9 +452,9 @@ resources:
     refresh: weekly
     notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
     snapshot:
-      fingerprint: sha256:c6298b4060da55c7d0e5c5df97f4b2a4
-      summary: "The README describes self-hosted research notebooks with multimodal source ingestion, full-text and vector search, context selection, citations, content transformations, multiple model providers, and a REST API."
-      last_seen_at: "2026-09-10T02:06:55.006Z"
+      fingerprint: sha256:9d565a126fbe22c860745b9128ee459d
+      summary: "The README describes self-hosted research notebooks, multimodal ingestion, full-text and vector search, selectable model context, citations, transformations and a REST API. It documents an encryption key for stored API keys and lists cross-notebook source reuse and bookmark integration as upcoming."
+      last_seen_at: "2026-09-21T03:06:14.487Z"
   - url: https://github.com/letta-ai/letta-code
     added: "2026-09-12"
     refresh: weekly
