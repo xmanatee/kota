@@ -8,6 +8,10 @@ resources:
     added: "2026-09-21"
     refresh: weekly
     notes: "Monitor document-conversion releases for page coverage, OCR selection and confidence reporting relevant to KOTA's read_document capability. The September 21 research lead in data/inbox/task-recognize-incomplete-pdf-reading.md asks whether mixed text/scanned PDFs yield an understandable partial-read outcome. Revisit with changes to coverage reporting or local setup requirements; external feature claims alone do not establish KOTA extraction quality."
+    snapshot:
+      fingerprint: sha256:81d276c011e2b0111067d5f7997d3037
+      summary: "The README describes multi-format document conversion, PDF layout and table understanding, OCR, local execution, structured exports, MCP and service interfaces. Its current feature list includes video transcription with keyframes, ODF, email, EPUB and Apple Pages parsing; model licenses are separate from the MIT code license."
+      last_seen_at: "2026-09-21T08:11:33.325Z"
   - url: https://github.com/zhengkid/Dream-RSI
     added: "2026-09-21"
     refresh: weekly
