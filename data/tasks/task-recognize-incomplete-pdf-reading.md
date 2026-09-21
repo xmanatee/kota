@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Can KOTA recognize an incompletely read PDF?
@@ -103,3 +103,62 @@ not proof of behavior across harnesses or of which tools a deployment admits.
 The preliminary inspection did not settle the product question; deeper coverage
 and session-capability investigation remains useful, so the task stays open.
 No PDF conversion, live session comparison or behavioral test ran in triage.
+
+## Builder Findings — September 21, 2026
+
+Run `2026-09-21T07-46-30-439Z-builder-3br1j7` inspected source revision
+`c65c95f4818b883a8b24728fe9dbe46f31a4b7fb`. Both `read_document` and the
+filesystem PDF reader expose aggregate text without page-coverage assessment;
+the conversational loop adds their results to model context. The filesystem
+image reader can carry rendered pages, but session admission, rendering/OCR
+availability and model image support still require live attribution. Maintained
+owner tests and the archived synthesis task do not establish the mixed-page
+outcome. No model failure or parser-adoption need is demonstrated.
+
+Prepared four invented PDFs and seven rendered pages: mixed text/scanned report,
+visually equivalent text-only report, introduction plus genuinely blank page,
+and standalone blank page. The provisional count is 24; the final count of 73
+appears only in the nonblank appendix. Auxiliary system PDFKit extraction reads
+the text-only appendix and returns empty text for both the scan and blank page;
+it is input validation, not production KOTA extraction. Renders were inspected.
+
+Twenty-one direct production tool-runner calls inside this builder sandbox
+returned 19 explicit missing-extractor PDF errors and two successful image-block
+results. Full-document, page-specific and character-limited requests were made,
+but parser unavailability prevented measuring coverage or truncation. Neither
+pdftotext/pdftoppm nor the Python fallback modules are available in this sandbox;
+two bounded isolated PyPDF2 setup attempts returned no matching distribution.
+These observations do not describe other deployments. The existing owner suites
+passed (2 files, 41 tests); their controlled subprocesses are not live model proof.
+
+Inputs, renders, prepared request, complete actual tool responses, environment
+and source attribution, setup logs and findings are retained under this run's
+`artifacts/pdf-reading/`, alongside the runtime-owned `agent/` directory.
+`findings.md` identifies the consumption and recovery owners and remaining proof.
+No production code, dependency, store or evaluation suite changed. No new task is
+justified before this task's remaining comparison; OCR benefit/cost is unmeasured.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An authorized supported KOTA session comparison of the retained PDF controls with a working extractor and attributable tools, model, results and answer or recovery, or an equivalent scoped capture/export.
+
+The path is an evidence-discovery hint, not a required capture location.
+
+An authorized supported KOTA session comparison of the retained controls, with a
+working PDF extractor and attributable admitted tools, model/harness, actual
+results and final answer or recovery. The current run invoked
+`pnpm kota eval contained '{"operation":"inspect"}'`; the trusted host returned
+an explicit error requiring `KOTA_EVAL_CONTAINED_PROFILES`. The exact response is
+retained in `artifacts/pdf-reading/host-inspection.txt`. This establishes missing
+evaluation grants, not missing host credentials or general host capability.
+
+Resume when the host supplies an appropriate contained model profile/scenario
+or equivalent authorized scoped session capture/export for these inputs. The
+worker cannot configure host grants. No particular artifact path or manual
+operator execution is required. Retain initial and recovered answers separately,
+keep observer ground truth out of fresh model sessions, and distinguish scan
+coverage from blank pages, explicit page ranges and character truncation. The
+live comparison and resulting grounded disposition remain unmet; source and
+local validation work above is complete and safe independently of this blocker.
