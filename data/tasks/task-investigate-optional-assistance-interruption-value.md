@@ -147,3 +147,5 @@ follow-up is established. Retained changes are limited to this task's findings
 and blocked state; runtime behavior is unchanged. Collection provenance is in
 this run's `agent/optional-assistance-review.md`. The task validator checks the
 edited queue contract; it cannot settle the research question.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T03:57:44.552Z -->
