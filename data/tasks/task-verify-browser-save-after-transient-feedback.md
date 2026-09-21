@@ -1,3 +1,7 @@
+---
+status: open
+priority: p3
+---
 # Can KOTA verify a browser save after its notification disappears?
 
 Explorer lead, September 21, 2026; a research question, not an observed defect.
@@ -45,3 +49,48 @@ First determine whether this comparison exposes a useful gap or whether existing
 tools and guidance suffice. No new runner, imported benchmark, continuous
 recording service or implementation task is prescribed. No KOTA browser/model
 observation ran in this discovery pass.
+
+## Outcome And Acceptance
+
+Determine whether existing KOTA browser assistance can distinguish a persisted
+save from a rejected save after brief feedback disappears, or report uncertainty
+accurately. No urgency was stated; p3 reflects exploratory work without a
+demonstrated defect.
+
+- Inspect maintained coverage, supported session/tool paths and available
+  retained evidence before deciding whether a new observation is needed.
+- If the question remains useful and unanswered, compare successful and rejected
+  saves on an invented form in an authorized disposable environment, including
+  persistent-feedback controls. Use existing supported tools first. Keep the
+  application, model and relevant conditions comparable and attribute any changes.
+- Separate independently verified application state, evidence actually returned
+  to the model, and its completion claim. Retain a transcript or equivalent
+  rendered evidence with the actual tools/model and feedback timing. Distinguish
+  missed observation from misinterpretation of available evidence; a successful
+  click alone does not establish a saved result. Keep observer-only ground truth
+  out of the assistant's input.
+- Record a grounded disposition: existing behavior suffices, no demonstrated
+  gap, further observation is not justified with a reason, or a concrete
+  deduplicated follow-up at the failing owner. If necessary observation requires
+  unavailable capability, retain completed investigation and identify the exact
+  external prerequisite under the task contract.
+
+## Triage Provenance
+
+Normalized from `data/inbox/task-verify-browser-save-after-transient-feedback.md`
+on September 21, 2026, preserving the Explorer capture above. All four linked
+sources were readable during triage. The paper's abstract and limitations,
+repository README, and Playwright event/actionability guidance support the
+research distinction; no external code or benchmark was executed.
+
+Local inspection confirmed the click acknowledgement and current-page
+observation tools described above, and mocked page boundaries in their two
+owner test files. This is source evidence, not browser/model behavior. The active
+queue scan found no task owning transient save feedback. The profile-persistence
+security task concerns saving authenticated browser state, not saving form data;
+it is not a hard predecessor for this disposable, unauthenticated comparison.
+Document/workbook investigations likewise retain their separate journeys.
+
+Coverage investigation can advance, so the task remains open. Other research
+tasks' observation blockers are not inherited without assessing this task's
+needs. No KOTA browser/model observation or behavioral test ran during triage.
