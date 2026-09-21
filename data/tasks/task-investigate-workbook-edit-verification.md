@@ -171,3 +171,5 @@ expected totals. Retain the real request/response and file delivery evidence.
 A handcrafted edit by the investigator alone would not establish the assistant
 journey, and a single successful example would not prove arbitrary-workbook
 fidelity.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T05:03:03.133Z -->
