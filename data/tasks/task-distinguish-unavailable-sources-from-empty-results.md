@@ -166,3 +166,5 @@ scoped empty conclusions and existing setup guidance without collecting secrets
 in chat. Do not prescribe call order or treat deterministic checks as answers.
 The original consumer acceptance remains unmet; safe retained changes are this
 task disposition and run evidence only.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T14:50:17.056Z -->
