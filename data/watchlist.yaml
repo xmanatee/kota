@@ -8,6 +8,10 @@ resources:
     added: "2026-09-21"
     refresh: weekly
     notes: "Owner capture: 'Links to consider and learn from...' in data/inbox/links.md, via https://paperswithcode.co/paper/2609.14858. Read https://arxiv.org/abs/2609.14858 and project README September 21: exploration policies replay recorded discovery trees without changing the coding agent. Monitor release of executable exploration-policy replay, recorded discovery trees, discovered programs and reproduction scripts, with fresh-rollout comparisons that could support an evidence-grounded KOTA policy study. The README still marks the full codebase and discovered programs as being prepared. Reported benchmark gains are not KOTA validation and do not authorize a new orchestration layer."
+    snapshot:
+      fingerprint: sha256:4377071ace7b9438bf9f39a9835525a9
+      summary: "The README describes replaying recorded discovery trees to revise exploration policies while keeping the underlying coding agent fixed. Its release table lists the paper and project page as available, with discovered programs, full codebase and reproduction scripts still being prepared."
+      last_seen_at: "2026-09-21T03:40:52.646Z"
   - url: https://institute.deepmind.com/
     added: "2026-09-21"
     refresh: weekly
