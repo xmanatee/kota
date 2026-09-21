@@ -4,6 +4,10 @@
 # Inaccessible sources remain listed for recovery, without inferred contents.
 
 resources:
+  - url: https://developers.google.com/workspace/release-notes
+    added: "2026-09-21"
+    refresh: weekly
+    notes: "Monitor first-party Workspace API and MCP release changes affecting KOTA's Gmail, Calendar and Drive capabilities, especially reply identity, document coverage, authorization and preview-to-GA availability. The September 21 reply investigation cites the Gmail threading guide and preview create_draft tool; future service changes may alter the available integration choices."
   - url: https://github.com/docling-project/docling
     added: "2026-09-21"
     refresh: weekly
