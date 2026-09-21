@@ -1,3 +1,7 @@
+---
+status: open
+priority: p3
+---
 # Can calendar creation recover safely when its response is lost?
 
 Explorer research lead, September 21, 2026. No duplicate event or deployed KOTA
@@ -5,7 +9,7 @@ failure was observed; this is an unresolved product question.
 
 Google's [create-events guide](https://developers.google.com/workspace/calendar/api/guides/create-events)
 recommends a client-supplied event ID to prevent duplicates when creation succeeds
-but the operation subsequently fails. Its [insert reference](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert)
+but the operation subsequently fails. Its [event resource reference](https://developers.google.com/workspace/calendar/api/v3/reference/events#id)
 defines calendar-local ID requirements and cautions that distributed collision
 detection is not guaranteed. Microsoft Graph instead exposes a client-supplied
 [`transactionId`](https://learn.microsoft.com/en-us/graph/api/resources/event?view=graph-rest-1.0)
@@ -38,7 +42,39 @@ Archived `task-add-generic-idempotency-and-dedupe-protocol` owns the shared
 primitive; `task-consolidate-core-workflow-runtime-verification` records
 fail-closed ambiguous-effect coverage. Reuse and assess those owners before
 proposing changes. Google Workspace creation/inbound tasks and the recently
-completed calendar pagination task address different boundaries. No active task
-or inbox item owns this specific question. No new store, retry loop, permanent
+completed calendar pagination task address different boundaries. At triage, no other active task
+or inbox item owned this specific question. No new store, retry loop, permanent
 fixture, live calendar write or additional approval step is prescribed. An
 evidence-grounded no-change disposition is a valid result.
+
+
+## Research Outcome And Acceptance
+
+Resolve whether the supported calendar-create journey lets a user understand
+an uncertain result and safely complete the same authorized request. This is a
+p3 investigation because the capture establishes a question, not an observed
+incident; no external prerequisite prevents source tracing and controlled local
+validation.
+
+- Trace the supported invocation through approval, execution, result reporting
+  and recovery, assessing maintained idempotency and ambiguous-effect evidence
+  before proposing changes.
+- Retain an inspectable user-facing transcript or equivalent runtime evidence
+  showing what the user learns and can safely do after a lost response. Separate
+  observed behavior from untested paths and provider guarantees from inference.
+- Establish how existing behavior distinguishes failure before submission,
+  uncertain completion and known completion, and retrying one operation from an
+  intentional second event with identical fields. Controlled HTTP outcomes may
+  supply missing evidence without a live calendar write.
+- Record an evidence-grounded disposition: existing behavior is adequate with
+  stated limits, or a concrete gap merits a scoped follow-up. This task does not
+  presume an implementation change or require a new recovery mechanism.
+
+## Triage Provenance
+
+Normalized from `data/inbox/task-recover-calendar-creation-after-lost-response.md`
+on September 21, 2026. The source question, repository revision and constraints
+above are preserved. Triage re-read the Google creation guide, insert reference,
+event resource reference and Microsoft event resource documentation; the ID
+constraints citation now points directly to Google's event resource. No live
+calendar write or end-to-end recovery probe was performed during triage.
