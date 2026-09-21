@@ -6,6 +6,11 @@ onboarding, cited systemic handoffs, and material durable guidance or policy cha
 - Read scoped guidance and the machine-owned resolved policy snapshot. Do not
   infer typed domains from directory names or use schedules, failures, or build
   volume as improvement evidence.
+- Guidance content reads, including fingerprinting, use the shared anchored
+  filesystem boundary. Only scope-relative evidence references without traversal
+  select guidance; other citations remain opaque evidence. Links never authorize
+  guidance reads. Unsafe reads fail collection before inputs or instruction
+  excerpts can be published.
 - Resolve scope-improvement posture from authoritative scope policy into the
   module's runtime config. Observe posture converts task proposals into owner
   questions; only build posture permits dispatcher to admit builder work.

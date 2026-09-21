@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { readAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
 import { readScopeImprovementConfigFromStateDir } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_CONFIG_FILE,
@@ -135,9 +136,17 @@ export function computeScopeContentFingerprint(
   ].sort((a, b) => a.localeCompare(b));
   const hash = createHash("sha256");
   for (const path of guidanceRefs) {
+    // Discovery's directory entries are not read authority: the file or an
+    // ancestor can have been replaced since enumeration.
+    const file = readAnchoredTextFile({
+      rootPath: workspaceRoot,
+      boundaryDir: workspaceRoot,
+      filePath: join(workspaceRoot, path),
+    });
+    if (file === null) throw new Error(`Scope guidance disappeared during fingerprinting: ${path}`);
     hash.update(path);
     hash.update("\0");
-    hash.update(readFileSync(join(workspaceRoot, path)));
+    hash.update(file.content);
     hash.update("\0");
   }
   hash.update("scope-improvement-config\0");

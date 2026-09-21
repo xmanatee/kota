@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Scope-improvement discovery reads attacker-selected files outside its scope with daemon filesystem authority. Root guidance symlinks are followed even though fingerprint discovery skips symlinks, and explicit evidenceRefs containing '..' generate outside-scope guidance paths. The collector returns up to 800 characters as instruction excerpts, which the workflow includes in its unredacted scope-improvement artifact.
 
@@ -130,3 +129,35 @@ excerpt:
 
 > const path = join(runDirPath, SCOPE_IMPROVEMENT_ARTIFACT);
 >   writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+
+
+## Resolution and verification
+
+Original priority: p1. Fixed in the scope-improver discovery and fingerprint
+owners. Both guidance content readers now use the shared descriptor-anchored
+filesystem boundary, which rejects leaf/ancestor symlinks and multiply linked
+files before reading their content. Guidance path derivation ignores absolute,
+traversal-bearing, and malformed references while preserving those references as
+opaque evidence, including progress-reviewer artifact citations. Ordinary root
+and nested guidance remains readable with the existing 800-character excerpts.
+Unsafe filesystem reads fail collection before inputs can reach artifact writing.
+
+Verification in builder run `2026-09-21T02-39-53-058Z-builder-lui28p`:
+
+- The new component tests exercise the public collector with real synthetic
+  files: automatic AGENTS.md/CLAUDE.md links, nested leaf links, a linked
+  ancestor, traversal references, a hard link, and contained guidance controls.
+  Before the fix, the initial rejection assertions failed for all 11 unsafe
+  cases while both normal controls passed. Final assertions preserve opaque
+  citations without allowing them to select guidance.
+- The selected owner portfolio passed: 88 tests in 11 files across scope-improver,
+  scope-improvement onboarding, dispatcher semantic reflection, and the shared
+  anchored filesystem batch and parent-race suites. This checks containment,
+  semantic handoff compatibility, normal discovery, and the reused race boundary.
+- `pnpm check:fast` passed (types, lint, task validation, generated bindings,
+  module admission); the production `pnpm build` passed. Final changed-file
+  Biome and diff whitespace checks also passed.
+
+No live daemon or real secret was accessed. These checks establish the filesystem
+boundary and its maintained consumers; the full deterministic portfolio and
+live model evaluations were not run. Runtime owns publication and deployment.

@@ -1,10 +1,7 @@
-import {
-  existsSync,
-  readFileSync,
-} from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, win32 } from "node:path";
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { readAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { improvementHandoffObservationSchema, improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
@@ -51,7 +48,13 @@ function changedFiles(trigger: WorkflowRunTrigger): string[] {
 function instructionPathsForFiles(files: readonly string[]): string[] {
   const paths = new Set(["AGENTS.md", "CLAUDE.md"]);
   for (const file of files) {
-    const parts = file.split("/").filter(Boolean);
+    const parts = file.split("/");
+    // Handoffs also carry opaque artifact citations. Preserve them as evidence,
+    // but only scope-relative paths without traversal can select guidance.
+    if (isAbsolute(file) || win32.isAbsolute(file) || file.includes("\\") || file.includes("\0") ||
+      parts.some((part) => !part || part === "." || part === "..")) {
+      continue;
+    }
     for (let i = 1; i < parts.length; i++) {
       paths.add(join(...parts.slice(0, i), "AGENTS.md"));
       paths.add(join(...parts.slice(0, i), "CLAUDE.md"));
@@ -63,9 +66,13 @@ function instructionPathsForFiles(files: readonly string[]): string[] {
 function readInstructions(workspaceRoot: string, files: readonly string[]): ScopeInstruction[] {
   const instructions: ScopeInstruction[] = [];
   for (const path of instructionPathsForFiles(files)) {
-    const fullPath = join(workspaceRoot, path);
-    if (!existsSync(fullPath)) continue;
-    const raw = readFileSync(fullPath, "utf-8").trim();
+    const file = readAnchoredTextFile({
+      rootPath: workspaceRoot,
+      boundaryDir: workspaceRoot,
+      filePath: join(workspaceRoot, path),
+    });
+    if (file === null) continue;
+    const raw = file.content.trim();
     instructions.push({ path, excerpt: raw.slice(0, 800) });
   }
   return instructions;
