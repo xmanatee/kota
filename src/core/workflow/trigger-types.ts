@@ -169,7 +169,8 @@ export type WorkflowTriggerInput = {
    * IANA timezone name for cron schedule evaluation (e.g. `"America/Los_Angeles"`).
    * When set, the cron expression is evaluated in the named timezone's wall-clock
    * time, so the workflow fires at the correct local time across daylight saving
-   * transitions. When omitted, UTC wall-clock time is used.
+   * transitions. Nonexistent local minutes are skipped; repeated minutes fire
+   * on both passes. When omitted, UTC wall-clock time is used.
    * Only valid when `schedule` is also set.
    */
   timezone?: string;

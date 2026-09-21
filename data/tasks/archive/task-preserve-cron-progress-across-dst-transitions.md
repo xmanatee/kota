@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Keep scheduled workflows responsive across missing and repeated local hours
 
@@ -68,3 +67,32 @@ Archived `task-workflow-cron-timezone` added timezone support but its retained
 test checks 09:00 across an offset change, outside missing/repeated hours.
 Archived `task-reject-misinterpreted-reminder-schedules` concerns reminder
 parsing and explicitly excludes workflow cron. No active task owns this repair.
+
+
+## Resolution
+
+The cron owner now advances in absolute time. Local-field skips are bounded to
+an hour and checked for offset changes; searches cross a changed offset minute
+by minute. Missing local minutes are skipped and both copies of repeated minutes
+match, as documented on the public timezone trigger contract. UTC defaults and
+existing field filters remain intact. One formatter is reused per search.
+
+Verification in builder run `2026-09-21T09-58-49-945Z-builder-nrj7qp`:
+
+- `pnpm check:fast` passed (types, lint, task validation, generated bindings and
+  module admission).
+- The selected cron, schedule-manager, validation and automation owner suites
+  passed all 91 tests. They cover strict chronological recurrence, half-hour and
+  skipped-date transitions, calendar filters, no-match termination, timer re-arming
+  and reload with unrelated schedules.
+- Retained `artifacts/cron-schedule-probe.mjs` and
+  `artifacts/cron-schedule-transcript.json` exercise the production manager in an
+  isolated child with controlled clock/timers and a real three-second deadline.
+  London setup took about 10 ms and skipped to the next valid day. New York fired
+  both 01:45 occurrences and reconciled correctly from within the second hour.
+  All 100 expected unrelated UTC deliveries arrived, with no overdue-fire churn.
+  The four-year no-match search returned null in about 186 ms. The transcript
+  retains source hashes, runtime versions, enqueue outcomes and schedule projections.
+
+Validation uses Node 22.19.0, ICU 77.1 and tzdata 2025b. No live daemon or model
+was involved; the full repository test portfolio was not run.

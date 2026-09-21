@@ -172,3 +172,44 @@ describe("getNextCronTime with timezone", () => {
     expect(getNextCronTime("0 9 * * *", from, "UTC")).not.toBeNull();
   });
 });
+
+describe("cron transition search", () => {
+  it.each([
+    ["30 1 * * *", "Europe/London", "2026-03-29T00:00:00Z", "2026-03-30T00:30:00.000Z"],
+    ["45 1 * * *", "America/New_York", "2026-11-01T06:31:00Z", "2026-11-01T06:45:00.000Z"],
+    // A rollback can make an earlier local minute the next absolute occurrence.
+    ["15 1 * * *", "America/New_York", "2026-11-01T05:45:00Z", "2026-11-01T06:15:00.000Z"],
+    ["45 1 * * *", "Australia/Lord_Howe", "2026-04-04T14:45:00Z", "2026-04-04T15:15:00.000Z"],
+    ["15 2 * * *", "Australia/Lord_Howe", "2026-10-03T14:00:00Z", "2026-10-04T15:15:00.000Z"],
+    // A date-line change skips a whole local date, not just an hour.
+    ["0 12 * * *", "Pacific/Apia", "2011-12-30T00:00:00Z", "2011-12-30T22:00:00.000Z"],
+    ["0 9 * * *", "Asia/Kathmandu", "2026-01-01T00:00:00Z", "2026-01-01T03:15:00.000Z"],
+  ])("finds the next %s in %s from %s", (expr, timezone, from, expected) => {
+    expect(getNextCronTime(expr, new Date(from), timezone)?.toISOString()).toBe(expected);
+  });
+
+  it("enumerates both repeated hours in absolute order, including sub-minute inputs", () => {
+    let from = new Date("2026-11-01T05:14:59.999Z");
+    for (const expected of [
+      "2026-11-01T05:15:00.000Z",
+      "2026-11-01T05:45:00.000Z",
+      "2026-11-01T06:15:00.000Z",
+      "2026-11-01T06:45:00.000Z",
+      "2026-11-02T06:15:00.000Z",
+    ]) {
+      const next = getNextCronTime("15,45 1 * * *", from, "America/New_York");
+      expect(next?.toISOString()).toBe(expected);
+      from = next!;
+    }
+  });
+
+  it("retains calendar filters and the bounded no-match result", () => {
+    const from = new Date("2026-01-01T00:00:00Z");
+    expect(getNextCronTime("0 9 29 2 *", from, "Europe/London")?.toISOString())
+      .toBe("2028-02-29T09:00:00.000Z");
+    // DOM and DOW must both match: June 1 is the next Monday falling on the 1st.
+    expect(getNextCronTime("0 9 1 * 1", from, "Europe/London")?.toISOString())
+      .toBe("2026-06-01T08:00:00.000Z");
+    expect(getNextCronTime("0 9 31 2 *", from, "Europe/London")).toBeNull();
+  });
+});

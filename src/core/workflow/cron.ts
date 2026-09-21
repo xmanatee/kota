@@ -100,16 +100,7 @@ type LocalParts = {
 };
 
 /** Extract wall-clock date/time components in the given IANA timezone. */
-function getLocalParts(date: Date, tz: string): LocalParts {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+function getLocalParts(date: Date, fmt: Intl.DateTimeFormat): LocalParts {
   const parts = Object.fromEntries(
     fmt.formatToParts(date)
       .filter((p) => p.type !== "literal")
@@ -138,35 +129,15 @@ function getUtcParts(date: Date): LocalParts {
   };
 }
 
-/**
- * Convert a wall-clock date/time in the given IANA timezone to a UTC Date.
- * Uses a single-pass offset approximation — correct except in rare edge cases
- * exactly at DST transitions (off by at most one hour, self-corrected by the
- * iteration in getNextCronTime).
- */
-function localTimeToUTC(
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
-  tz: string,
-): Date {
-  // Treat the local components as UTC to get an approximate timestamp
-  const approxMs = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const approxDate = new Date(approxMs);
-  // Get actual local components of that approximate UTC time in the target TZ
-  const lp = getLocalParts(approxDate, tz);
-  const lpMs = Date.UTC(lp.year, lp.month - 1, lp.dom, lp.hour, lp.minute, 0);
-  // Offset = UTC - local; corrected UTC = target local ms + offset
-  const offsetMs = approxMs - lpMs;
-  return new Date(approxMs + offsetMs);
+function localTimestamp(parts: LocalParts): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.dom, parts.hour, parts.minute);
 }
 
 /**
  * Compute the next fire time for a cron expression strictly after `from`.
  * When `timezone` is provided (IANA name), the expression is evaluated in that
  * timezone's wall-clock time. When omitted, UTC wall-clock time is used.
+ * Nonexistent local minutes are skipped; repeated minutes match on both passes.
  * Returns null if no match is found within 4 years.
  */
 export function getNextCronTime(expr: string, from: Date, timezone?: string): Date | null {
@@ -192,25 +163,49 @@ export function getNextCronTime(expr: string, from: Date, timezone?: string): Da
   const maxMs = from.getTime() + 4 * 365 * 24 * 60 * 60 * 1000;
   let cur = start;
 
-  const lp = (d: Date): LocalParts =>
-    timezone ? getLocalParts(d, timezone) : getUtcParts(d);
-
-  const mkDate = (y: number, mo: number, d: number, h: number, mi: number): Date =>
-    timezone
-      ? localTimeToUTC(y, mo, d, h, mi, timezone)
-      : new Date(Date.UTC(y, mo - 1, d, h, mi, 0, 0));
+  // Reuse one formatter for the entire bounded search.
+  const formatter = timezone && timezone !== "UTC"
+    ? new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+    : undefined;
 
   while (cur.getTime() <= maxMs) {
-    const { year, month, dom, dow, hour, minute } = lp(cur);
+    const local = formatter ? getLocalParts(cur, formatter) : getUtcParts(cur);
+    const { year, month, dom, dow, hour, minute } = local;
+
+    const advanceTowardLocalTime = (y: number, mo: number, d: number, h: number, mi: number): Date => {
+      const target = Date.UTC(y, mo - 1, d, h, mi);
+      if (!formatter) return new Date(target);
+
+      // Field skips are safe only inside a constant-offset interval. IANA zone
+      // transitions are separated by more than an hour, so compare offsets at
+      // most an hour apart. Across a change, walk absolute minutes instead:
+      // never invert an ambiguous/missing wall time or skip the repeated hour.
+      const currentMs = cur.getTime();
+      const localMs = localTimestamp(local);
+      const delta = Math.min(target - localMs, 60 * 60_000);
+      const candidate = new Date(currentMs + delta);
+      const candidateLocalMs = localTimestamp(getLocalParts(candidate, formatter));
+      return candidateLocalMs - localMs === delta
+        ? candidate
+        : new Date(currentMs + 60_000);
+    };
 
     if (!months.has(month)) {
       const nextMonth = month === 12 ? 1 : month + 1;
       const nextYear = month === 12 ? year + 1 : year;
-      cur = mkDate(nextYear, nextMonth, 1, 0, 0);
+      cur = advanceTowardLocalTime(nextYear, nextMonth, 1, 0, 0);
       continue;
     }
     if (!doms.has(dom) || !dows.has(dow)) {
-      cur = mkDate(year, month, dom + 1, 0, 0);
+      cur = advanceTowardLocalTime(year, month, dom + 1, 0, 0);
       continue;
     }
     if (!hours.has(hour)) {
@@ -218,9 +213,9 @@ export function getNextCronTime(expr: string, from: Date, timezone?: string): Da
         .filter((h) => h > hour)
         .sort((a, b) => a - b)[0];
       if (nextHour !== undefined) {
-        cur = mkDate(year, month, dom, nextHour, 0);
+        cur = advanceTowardLocalTime(year, month, dom, nextHour, 0);
       } else {
-        cur = mkDate(year, month, dom + 1, 0, 0);
+        cur = advanceTowardLocalTime(year, month, dom + 1, 0, 0);
       }
       continue;
     }
@@ -229,9 +224,9 @@ export function getNextCronTime(expr: string, from: Date, timezone?: string): Da
         .filter((m) => m > minute)
         .sort((a, b) => a - b)[0];
       if (nextMin !== undefined) {
-        cur = mkDate(year, month, dom, hour, nextMin);
+        cur = advanceTowardLocalTime(year, month, dom, hour, nextMin);
       } else {
-        cur = mkDate(year, month, dom, hour + 1, 0);
+        cur = advanceTowardLocalTime(year, month, dom, hour + 1, 0);
       }
       continue;
     }
