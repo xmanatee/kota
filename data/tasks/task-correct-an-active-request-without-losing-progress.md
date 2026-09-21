@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p3
 ---
 # Investigate correcting an active request without losing useful progress
@@ -82,3 +82,112 @@ and AgentGUI section 3.3 support the distinctions recorded here. The local busy
 rejection, cancellation route and mocked follow-up test were also inspected.
 No KOTA journey, model comparison, external benchmark or behavioral test ran
 during triage. Source accessibility does not establish product adequacy.
+
+## Investigation Findings
+
+September 21, 2026, builder run `2026-09-21T04-20-17-880Z-builder-ij70a7`,
+source revision `856b687bd774af2380bdfef5d50811e1d152085c`.
+
+The supported paths differ by client. Source review found:
+
+- Web `clients/web/src/components/chat/ChatArea.tsx` allows composing a draft
+  during streaming, but disables Send and ignores submission while `sending`.
+  `clients/web/src/api/client-chat.ts` has no cancel operation. Thus a draft
+  correction is not an accepted correction; it must be submitted after the
+  stream ends. This is source evidence, not a rendered observation.
+- Apple `clients/apple/Sources/KotaShared/ChatView.swift` disables the text
+  field and Send while streaming. React Native
+  `clients/mobile/src/screens/ChatDetailScreen.tsx` gates Send while streaming;
+  its Close action deletes the session. Neither inspected view offers the
+  daemon's cancel-without-closing action. Closing is not equivalent to
+  cancel-then-correct in the same live session.
+- ACP's `src/modules/agent-client-protocol/server.ts` handles `session/cancel`
+  and emits a cancelled stop reason; `daemon-adapter.ts` calls the daemon
+  cancellation route. A2A's `src/modules/a2a-channel/daemon-session-client.ts`
+  also calls that route for `tasks/cancel`. These maintained adapters prevent
+  generalizing the graphical-client limitation to all KOTA clients.
+
+The daemon owns acceptance and settlement. In
+`src/core/daemon/daemon-control-session-routes.ts`, cancellation returns 204
+after requesting abort, without awaiting the active send. In
+`daemon-chat-handlers.ts`, a new message is rejected with 409 while `busy`,
+and `busy` clears in the prior send's `finally` block. Cancellation acceptance,
+old-turn settlement, and acceptance of the correction are separate events.
+The correction can affect model work only after a subsequent send is accepted;
+204 alone does not establish this. Whether a client clearly exposes this
+interval remains an observation question.
+
+`src/core/loop/loop.ts` aborts active controllers without replacing the session.
+`loop-send.ts` checkpoints completed tool results and history during execution.
+Neither fact establishes rollback, preservation of every in-flight result, or
+successful reuse of unrelated work by the next model turn.
+
+Fresh limited checks:
+
+- `pnpm test:owner src/core/daemon/daemon-chat-pool.test.ts`: 12 passed,
+  including cancellation retaining the session with a mocked agent. This
+  distinguishes pool deletion from turn cancellation, not model correctness.
+- `pnpm test:protocol src/modules/agent-client-protocol/index.test.ts -t
+  'cancels an active prompt and returns the cancelled stop reason'`: one passed,
+  33 unselected. This checks the ACP cancellation projection against a fake
+  daemon, not the composed daemon/model journey.
+- `pnpm test:integration src/core/daemon/daemon-chat.integration.test.ts`:
+  14 failed at local listener setup (`listen EPERM`, `127.0.0.1`), with one
+  associated unhandled rejection. No HTTP behavior is claimed from that run.
+
+The supplied issue evidence contains an unrelated historical research-source
+capture, not an active-correction journey. The archived continuity task proves
+an aggregate visibility surface, not this interaction. The three research
+sources above were readable again; their control and timing distinctions
+remain useful, but add no local product evidence.
+
+Disposition: investigation incomplete. The graphical-client source gap is a
+candidate for the client/session owners to verify; no rendered client failure,
+corrected final report, preservation result, or general adequacy conclusion was
+established. No implementation task, new runner, fixture, or steering mechanism
+was created. This task continues to own the question; the adjacent correction-
+reuse and optional-assistance investigations remain separate.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/
+description: An attributable supported-client cancel-then-correct observation with final report and retained-work evidence, or an applicable host-authorized contained execution profile to collect it.
+
+The path is a discovery hint, not a required capture directory.
+
+The authorized native surface was queried with
+`pnpm kota eval contained '{"operation":"inspect"}'`. The host returned
+`is_error: true` and `Set KOTA_EVAL_CONTAINED_PROFILES in the trusted host environment`.
+No configured profile is exposed through that surface. Worker requests cannot
+configure host access. This does not imply absent host credentials, models,
+Docker, or client installations.
+
+Local alternatives also could not produce the missing observation: Playwright
+could not find its Chromium executable; web React/jsdom dependencies were not
+resolvable; the frozen dependency install encountered registry `EPERM` and was
+stopped; the HTTP check could not bind a listener. These are sandbox execution
+limitations, not failures of KOTA's correction behavior. No screenshot or
+rendered transcript was fabricated from source or mocked output.
+
+Resume through an applicable host-selected contained capability or an equivalent
+attributable export of an actual supported-client journey. Record the client
+and source revision, model/provider, session identity, tools/isolation, initial
+request, correction, abort acknowledgement, old-turn settlement and next-turn
+acceptance. For a local report, change September 1–7 to September 8–14 after
+unrelated useful work exists; inspect the final included records/totals and
+before/after evidence for that unrelated work. Check both removal of the old
+range and inclusion of the new range; distinguish an unchanged file from
+unnecessary recomputation using the available execution record. A client that
+cannot reach cancellation should have that failure rendered and attributed
+before proposing a deduplicated follow-up. Do not treat a close/delete action
+as preserved-session cancellation.
+
+A single observation can establish the local outcome; no comparison is yet
+required. If comparing later, an upfront final-request control tests the cost
+of changing intent, while withholding the correction tests response to missing
+information. Neither a model's self-report nor mocked transport proves success.
+
+Detailed collection results are retained in this run's
+`agent/active-correction-investigation.md`. Only this task's state and findings
+are retained repository changes; production behavior is unchanged.
