@@ -117,6 +117,26 @@ survey was freshly readable: sections III-D and IV distinguish selective
 feedback, complete decision opportunities and user burden. It offers comparison
 design guidance, not a KOTA outcome or a threshold to adopt.
 
+## Source retry — September 21
+
+Collector run `2026-09-21T03-57-38-513Z-research-source-collection-ea595p`
+called `web_fetch` for [Proactive Service Agents](https://arxiv.org/html/2609.03727v1)
+at `2026-09-21T03:58:17.663Z` and reported `readable`, with no tool error.
+Writer run `research-retry-child-35624e271a15092b59a1cd78` assessed the supplied
+opening excerpt only: the handoff is truncated at 12,000 of 107,473 characters,
+ending in section I-B. This retry does not freshly verify the later sections
+cited in the earlier reviews above. No browser or additional source call was made.
+
+The abstract and introduction frame silence, questions, assistance and action
+as alternatives whose value includes interruption and misunderstanding costs.
+They also warn that acceptance alone cannot establish deployment benefit.
+Against this task's acceptance criteria, that supports the existing comparison
+question but supplies no attributable KOTA interaction, observed timing defect
+or evidence that existing coverage is sufficient. The source is accessible;
+the remaining prerequisite is the authorized interaction evidence below.
+Keep this task blocked, with no implementation follow-up established by this
+retry. Earlier evidence and access observations were not rechecked.
+
 ## Blocked on
 
 kind: operator-capture
@@ -149,3 +169,5 @@ this run's `agent/optional-assistance-review.md`. The task validator checks the
 edited queue contract; it cannot settle the research question.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T03:57:44.552Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"c9d1d2adb0c983b8","attemptedAt":"2026-09-21T03:58:17.663Z","attempts":[{"url":"https://arxiv.org/html/2609.03727v1","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T03:58:17.663Z","tools":["web_fetch"],"outcome":"readable"}]} -->
