@@ -202,3 +202,5 @@ authorized paths. If extraction needs multiple calls, verify complete lengths
 and bytes; do not reconstruct from a truncated result. Scripted transport
 feasibility and model-selected behavior must be reported separately. Only an
 observed failing boundary should justify a deduplicated browser-owned follow-up.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T10:45:36.886Z -->
