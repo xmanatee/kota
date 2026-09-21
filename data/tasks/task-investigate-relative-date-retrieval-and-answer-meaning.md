@@ -125,6 +125,57 @@ disclosure remain unverified; DST transitions, Gmail exact-bound equality and
 sender-Date/receipt-time divergence were not tested. This evidence establishes a
 useful discriminating cohort, not completion or an observed KOTA answer defect.
 
+## Source Reassessment — September 21, 2026
+
+Collector run `2026-09-21T12-00-06-955Z-research-source-collection-k5su2g`
+returned readable `web_fetch` text for all five linked sources, with attempts
+from 12:02:27.811Z through 12:02:29.259Z. Research-retry child
+`research-retry-child-4342669d256305c88c96fbf2` assessed those supplied readings;
+it made no additional source calls. The task matched the collection handoff
+digest before editing.
+
+- The [repository overview](https://github.com/AndyFooBlah/agent-time-bench)
+  describes separate retrieval-bound and answer-rendering measurements across
+  100 mocked scenarios. This supports judging both surfaces in the investigation,
+  but its reported model gains do not measure KOTA. No published run data or
+  benchmark code was independently inspected here.
+- The [design](https://github.com/AndyFooBlah/agent-time-bench/blob/main/docs/design.md)
+  pins reference time, zone and locale and grades submitted bounds separately
+  from final text. Its mock half-open interval contract does not establish Gmail
+  query semantics or Calendar overlap behavior. It explicitly lacks DST-transition
+  coverage, so the task's untested DST limitation remains.
+- The [Gmail guide](https://developers.google.com/workspace/gmail/api/guides/filtering)
+  confirms date filtering through `q` on message/thread listing, with an
+  `after:2014/01/01 before:2014/02/01` example. It also distinguishes API behavior
+  from UI alias expansion and thread-wide search. This collected excerpt contains
+  no PST-midnight or epoch-seconds guidance: the earlier research claim above is
+  preserved as prior provenance, not freshly corroborated by this reading. It
+  supplies no live boundary observation or exact-bound equality evidence.
+- The [ground-truth policy](https://github.com/AndyFooBlah/agent-time-bench/blob/main/docs/ground-truth.md)
+  separates timezone facts, calendar conventions and conversational policy. It
+  describes hand-derived expectations, independent timezone checks and blind
+  audits, while deliberately keeping admissible ambiguous readings answer-invariant.
+  That design cannot settle this task's case where interpretations change the
+  selected records; independent expectations and a consequential ambiguity case
+  remain necessary. The claimed audit chain was read, not independently executed.
+- The [author account](https://andrewbrook.dev/writing/agents-and-time/)
+  reports tool-adoption lapses and answers mixing correct local weekdays with
+  incorrect UTC-derived dates. These motivate inspecting complete answers but
+  establish no KOTA defect. The author discloses limited personal review; regex
+  grading and English-only scenarios further limit transfer. The account says
+  all eight library bugs were fixed, whereas the repository overview says seven
+  of eight with issue #23 still open. This unresolved source discrepancy prevents
+  treating either summary as verified library correctness or an adoption basis.
+
+Disposition: retain `blocked` on the same operator-controlled consumer-evidence
+prerequisite below. Source access succeeded, but no new model session, actual
+model-selected arguments, selected records or final answers were supplied.
+The host evaluation setup was not rechecked in this retry. Existing adapter
+findings and the previously captured host diagnostic remain prior evidence;
+completion, promotion and a speculative implementation follow-up are unsupported.
+The original inbox lead has already been promoted and is absent from the inbox;
+no inbox status was changed.
+
 ## Blocked on
 
 kind: operator-capture
@@ -164,3 +215,5 @@ justified yet. Safe retained changes are limited to this task disposition and ru
 artifacts; the original acceptance remains unmet.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T11:59:42.529Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"bccf78be96f73ded","attemptedAt":"2026-09-21T12:02:29.259Z","attempts":[{"url":"https://github.com/AndyFooBlah/agent-time-bench","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T12:02:27.811Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/AndyFooBlah/agent-time-bench/blob/main/docs/design.md","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T12:02:28.180Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://developers.google.com/workspace/gmail/api/guides/filtering","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T12:02:28.817Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://github.com/AndyFooBlah/agent-time-bench/blob/main/docs/ground-truth.md","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T12:02:29.229Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://andrewbrook.dev/writing/agents-and-time/","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T12:02:29.259Z","tools":["web_fetch"],"outcome":"readable"}]} -->
