@@ -59,6 +59,45 @@ describe("ScheduleTriggerManager", () => {
   });
 
   it.each([
+    { timing: { schedule: "0 0 1 * *" }, fires: ["2026-02-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] },
+    { timing: { schedule: "0 0 1 1 *" }, fires: ["2027-01-01T00:00:00.000Z", "2028-01-01T00:00:00.000Z"] },
+    { timing: { intervalMs: 30 * 86_400_000 }, fires: ["2026-02-01T00:00:00.000Z", "2026-03-03T00:00:00.000Z"] },
+  ])("waits in bounded chunks without changing $timing deadlines or recurrence", ({ timing, fires }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-02T00:00:00Z"));
+    summary.workflows.report = {
+      lastCompletion: { runId: "previous", startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), status: "success" },
+    };
+    const timeout = vi.spyOn(globalThis, "setTimeout");
+    try {
+      manager.setup([makeDefinition("report", { event: "report.tick", cooldownMs: 0, ...timing })]);
+      for (const [index, fire] of fires.entries()) {
+        expect(manager.nextScheduledAt().get("report")).toBe(fire);
+        while (Date.parse(fire) - Date.now() > 2_147_483_647) {
+          const callsBefore = timeout.mock.calls.length;
+          vi.advanceTimersByTime(2_147_483_646);
+          expect(timeout).toHaveBeenCalledTimes(callsBefore);
+          vi.advanceTimersByTime(1);
+          expect(timeout).toHaveBeenCalledTimes(callsBefore + 1);
+          expect(enqueuedRuns).toHaveLength(index);
+          expect(manager.nextScheduledAt().get("report")).toBe(fire);
+        }
+        vi.advanceTimersByTime(Date.parse(fire) - Date.now() - 1);
+        expect(enqueuedRuns).toHaveLength(index);
+        vi.advanceTimersByTime(1);
+        expect(enqueuedRuns).toHaveLength(index + 1);
+        expect(enqueuedRuns[index].payload.scheduledAt).toBe(fire);
+      }
+      expect(startNextCount).toBe(2);
+      expect(timeout.mock.calls.every(([, delay]) => delay! > 0 && delay! <= 2_147_483_647)).toBe(true);
+      manager.clearAll();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  it.each([
     {
       timezone: "Europe/London", schedule: "30 1 * * *",
       start: "2026-03-29T00:00:00Z",
@@ -113,6 +152,8 @@ describe("ScheduleTriggerManager", () => {
     { before: { intervalMs: 60 * 60_000 }, after: { intervalMs: 2 * 60 * 60_000 }, next: "2026-09-21T10:00:00.000Z" },
     { before: { intervalMs: 60 * 60_000 }, after: { schedule: "0 10 * * *" }, next: "2026-09-21T10:00:00.000Z" },
     { before: { schedule: "0 9 * * *" }, after: { intervalMs: 2 * 60 * 60_000 }, next: "2026-09-21T10:00:00.000Z" },
+    { before: { schedule: "0 9 * * *" }, after: { schedule: "0 0 1 1 *" }, next: "2027-01-01T00:00:00.000Z" },
+    { before: { schedule: "0 0 1 1 *" }, after: { intervalMs: 2 * 60 * 60_000 }, next: "2026-09-21T10:00:00.000Z" },
   ])("replaces changed timing $before with $after", ({ before, after, next }) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T08:00:00Z"));
@@ -131,7 +172,7 @@ describe("ScheduleTriggerManager", () => {
     expect(Date.parse(manager.nextScheduledAt().get("report")!)).toBeGreaterThan(Date.now());
   });
 
-  it("preserves interval progress while refreshing payload, event and definition", () => {
+  it.each([60_000, 30 * 86_400_000])("preserves %i ms interval progress while refreshing payload, event and definition", (intervalMs) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T08:00:00Z"));
     const admitted: WorkflowDefinition[] = [];
@@ -139,28 +180,28 @@ describe("ScheduleTriggerManager", () => {
       admitted.push(definition);
       enqueuedRuns.push(run);
     }, () => {});
-    const original = makeDefinition("report", { event: "old.tick", cooldownMs: 0, intervalMs: 60_000, payload: { revision: "old" } });
+    const original = makeDefinition("report", { event: "old.tick", cooldownMs: 0, intervalMs, payload: { revision: "old" } });
     manager.setup([original]);
     vi.advanceTimersByTime(0);
     expect(admitted).toEqual([original]);
     vi.advanceTimersByTime(20_000);
-    const revised = makeDefinition("report", { event: "new.tick", cooldownMs: 0, intervalMs: 60_000, payload: { revision: "new", flag: false, count: 0 } });
+    const revised = makeDefinition("report", { event: "new.tick", cooldownMs: 0, intervalMs, payload: { revision: "new", flag: false, count: 0 } });
     manager.reconcile([revised]);
-    expect(manager.nextScheduledAt().get("report")).toBe("2026-09-21T08:01:00.000Z");
-    vi.advanceTimersByTime(40_000);
+    expect(manager.nextScheduledAt().get("report")).toBe(new Date(Date.parse("2026-09-21T08:00:00Z") + intervalMs).toISOString());
+    vi.advanceTimersByTime(intervalMs - 20_000);
     expect(admitted).toEqual([original, revised]);
     expect(enqueuedRuns.map((run) => [run.event, run.payload.revision])).toEqual([["old.tick", "old"], ["new.tick", "new"]]);
     expect(enqueuedRuns[1].payload).toMatchObject({ flag: false, count: 0 });
     manager.reconcile([makeDefinition("report", { ...revised.triggers[0], payload: undefined })]);
-    vi.advanceTimersByTime(60_000);
-    expect(enqueuedRuns[2].payload).toEqual({ scheduledAt: "2026-09-21T08:02:00.000Z" });
+    vi.advanceTimersByTime(intervalMs);
+    expect(enqueuedRuns[2].payload).toEqual({ scheduledAt: new Date().toISOString() });
   });
 
   it.each(["removed", "disabled", "event-only", "default-scope"] as const)("cancels %s schedules", (change) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T08:00:00Z"));
     manager = makeManager(false);
-    const original = makeDefinition("report", { event: "report.tick", cooldownMs: 0, schedule: "0 9 * * *" });
+    const original = makeDefinition("report", { event: "report.tick", cooldownMs: 0, schedule: "0 0 1 1 *" });
     manager.setup([original]);
     const revised = makeDefinition("report", {
       ...original.triggers[0],
@@ -170,7 +211,7 @@ describe("ScheduleTriggerManager", () => {
     if (change === "disabled") revised.enabled = false;
     manager.reconcile(change === "removed" ? [] : [revised]);
     expect(manager.nextScheduledAt().size).toBe(0);
-    vi.advanceTimersByTime(2 * 24 * 60 * 60_000);
+    vi.advanceTimersByTime(366 * 24 * 60 * 60_000);
     expect(enqueuedRuns).toEqual([]);
   });
 

@@ -60,7 +60,9 @@ export class ScheduleTriggerManager {
   ): void {
     const previous = this.timers.get(key);
     if (previous) clearTimeout(previous.timer);
-    const delay = Math.max(0, nextFireMs - Date.now());
+    // Node turns overflowing delays into 1 ms waits. Bound each wait while
+    // retaining the deadline for projection and the early-wakeup guard below.
+    const delay = Math.min(2_147_483_647, Math.max(0, nextFireMs - Date.now()));
     const timer = setTimeout(() => {
       if (this.isStopping() || this.timers.get(key)?.timer !== timer) return;
       const now = Date.now();

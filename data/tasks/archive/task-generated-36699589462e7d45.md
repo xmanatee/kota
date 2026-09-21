@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Keep distant workflow schedules dormant without timer overflow churn
 
@@ -60,3 +59,39 @@ Reproduce accepted distant cron and interval inputs with native Node timers and 
 Show that one existing schedule-owner path handles native delay bounds for all maintained scheduling callers, with no parallel scheduler, new configuration or duplicated timing authority. Re-run the retained probe and report observed timer behavior; preserve distinct recurrence and reload proofs without duplicating their catalogs.
 
 Record actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.
+
+## Completion evidence
+
+Implemented in `ScheduleTriggerManager.scheduleNextFire`: bound native waits to
+2,147,483,647 ms while preserving the actual deadline, callback identity guard,
+current definition refresh and existing early-wakeup re-arm. Startup, explicit
+and signal reload, reconciliation, recurrence and dispatch-window deferral all
+use that existing owner. Retired oversized waits without a parallel scheduler,
+new configuration or changes to unrelated timers.
+
+The reconstructed native Node probe measured monthly, annual and 30-day schedules
+at 48 timer creations and 48 overflow warnings per 60 ms before the change,
+versus one timer and zero warnings after. The daily control stayed at one timer
+and zero warnings. No early enqueue occurred and next-run projections stayed
+unchanged. The original cited probe file was unavailable at its recorded path.
+
+Controlled-time schedule tests establish bounded intermediate wakes, two single
+deliveries and recurrence, reload to/from distant deadlines, refreshed payloads
+and definitions, preserved progress and cancellation. Existing DST, dispatch-window,
+scope, validation and runtime admission checks remain passing. Six selected owner
+files passed (133 tests). `pnpm check:fast` passed.
+
+An isolated public-runtime transcript confirms dormant annual startup/reload,
+one near-interval durable admission with refreshed payload, return to the annual
+deadline, removal and shutdown. Execution was parked using the real coordinator.
+The attempted full execution probe failed because the run allocator could not
+bind local ports; a native localhost probe returned EPERM in this sandbox.
+The broader runtime-dispatch file likewise had 5 passes and 7 failures. Full
+inert-action execution is therefore not claimed; owner callback delivery plus
+real durable queue admission are the available scoped proof. No live-daemon or
+months-long observation is claimed.
+
+Run evidence: builder run `2026-09-21T11-27-01-081Z-builder-6weq01`, retained
+`artifacts/verification.md`, native before/after JSON, probe sources, public-runtime
+transcript, port diagnostic and verification logs. Related prior task provenance
+remains listed above; this completes only the native timer-bound follow-up.
