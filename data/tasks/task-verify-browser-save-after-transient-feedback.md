@@ -160,6 +160,41 @@ Selected commands, results and the launch reproducer are retained in this run's
 `artifacts/browser-save-investigation.md`. The only repository change is this
 task's investigation and blocked disposition; production behavior is unchanged.
 
+## Source retry — September 21, 2026
+
+Collector `2026-09-21T09-35-28-963Z-research-source-collection-t3mxqz`
+attempted the four citations with `web_fetch` at 09:37:22–23 UTC. This
+assessment uses its supplied readings; no additional source calls, browser/model
+comparison, or execution-readiness probe ran in this retry.
+
+- The [paper](https://arxiv.org/pdf/2606.29472) returned only
+  `Binary content: application/pdf (827.7 KB)` and a download suggestion, marked
+  as an error. No paper text was available in this attempt. This is a binary
+  handling limitation in the collected reading, not evidence of an auth wall,
+  rate limit, missing paper, or irrecoverability. Earlier recorded readings
+  remain historical provenance.
+- The [repository README](https://github.com/19PINE-AI/aoi) was readable. It
+  describes inter-action keyframe capture and persistent visual narration,
+  includes transient UI tasks, and cautions that component benefits vary by
+  model. This supports investigating lost feedback but does not establish a
+  KOTA defect or justify adopting continuous capture. Code, benchmark tasks,
+  and results files were not inspected or executed in this retry.
+- The [event guidance](https://playwright.dev/docs/events) was readable. Its
+  examples register waits before triggering actions and describe event
+  listeners. This supports the existing pre-action observation candidate;
+  whether KOTA assistance uses it successfully remains unobserved.
+- The [actionability guidance](https://playwright.dev/docs/actionability) was
+  readable. It describes interaction-readiness checks and retrying assertions.
+  For this task, readiness to click supplies no evidence that the application
+  persisted the requested value; the comparison still needs outcome readback
+  or another supported observation and an attributable completion claim.
+
+Disposition: retain `blocked` on the existing operator-capture prerequisite.
+Readable citations do not supply the missing application state, model-visible
+evidence, or assistant claim. The PDF's unread text in this attempt does not
+replace that execution blocker. No inbox status or prior investigation result
+changes, and no implementation follow-up is justified by these readings alone.
+
 ## Blocked on
 
 kind: operator-capture
@@ -200,3 +235,5 @@ new mechanism. One successful small comparison would establish feasibility
 under its recorded conditions, not reliability across arbitrary applications.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-21T09:34:57.007Z -->
+
+<!-- research-retry-attempt: {"fingerprint":"c2104052e7f82d9e","attemptedAt":"2026-09-21T09:37:23.699Z","attempts":[{"url":"https://arxiv.org/pdf/2606.29472","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T09:37:22.978Z","tools":["web_fetch"],"outcome":"unavailable"},{"url":"https://github.com/19PINE-AI/aoi","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T09:37:23.630Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://playwright.dev/docs/events","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T09:37:23.679Z","tools":["web_fetch"],"outcome":"readable"},{"url":"https://playwright.dev/docs/actionability","accessFingerprint":"9de0236be976b5fc","attemptedAt":"2026-09-21T09:37:23.699Z","tools":["web_fetch"],"outcome":"readable"}]} -->
