@@ -26,8 +26,17 @@ describe("MCP stdio stderr diagnostics", () => {
       function reply(id, result) { process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n"); }
       rl.on("line", (line) => {
         const msg = JSON.parse(line);
-        if (msg.method === "initialize") {
-          reply(msg.id, { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "stream-peer" } });
+        if (msg.method === "server/discover") {
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id,
+            error: { code: -32601, message: "Use initialize" } }) + "\\n");
+        } else if (msg.method === "initialize") {
+          reply(msg.id, { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stream-peer" } });
+        } else if (msg.method === "tools/list") {
+          reply(msg.id, { tools: [{ name: "write", description: "Write fixture stderr",
+            inputSchema: { type: "object", properties: {
+              bytes: { type: "array", items: { type: "integer" } }, end: { type: "boolean" },
+            }, additionalProperties: false },
+          }] });
         } else if (msg.method === "tools/call") {
           const args = msg.params.arguments;
           if (args.end) process.stderr.end();

@@ -1,12 +1,21 @@
 {
   "name": "kota",
   "version": "0.1.0",
-  "mcpName": "io.github.xmanatee/kota",
-  "packageManager": "pnpm@10.32.1",
   "description": "KOTA — a local-first agent automation runtime and operator control plane.",
+  "mcpName": "io.github.xmanatee/kota",
   "type": "module",
   "bin": {
     "kota": "./bin/kota.mjs"
+  },
+  "exports": {
+    "./module": {
+      "types": "./dist/module-api.d.ts",
+      "default": "./dist/module-api.js"
+    },
+    "./testing": {
+      "types": "./dist/core/workflow/testing/testing-api.d.ts",
+      "default": "./dist/core/workflow/testing/testing-api.js"
+    }
   },
   "imports": {
     "#core/*.js": {
@@ -22,50 +31,44 @@
       "default": "./dist/*.js"
     }
   },
-  "exports": {
-    "./module": {
-      "types": "./dist/module-api.d.ts",
-      "default": "./dist/module-api.js"
-    },
-    "./testing": {
-      "types": "./dist/core/workflow/testing/testing-api.d.ts",
-      "default": "./dist/core/workflow/testing/testing-api.js"
-    }
-  },
   "files": [
     "bin/",
     "dist/",
     "schema/*.json"
   ],
+  "packageManager": "pnpm@10.34.7",
   "scripts": {
     "dev": "node --conditions=source bin/kota-source.mjs",
     "build": "pnpm check:ui-bindings && rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.mjs",
+    "build:client-bindings": "pnpm build:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs",
+    "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
+    "build:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs",
     "prepack": "pnpm build",
     "typecheck": "pnpm typecheck:production && pnpm typecheck:tests",
     "typecheck:production": "tsc --noEmit -p tsconfig.build.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
-    "check": "pnpm check:fast && pnpm build && pnpm test",
-    "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks && pnpm check:client-bindings && pnpm check:modules",
-    "check:modules": "node --conditions=source --import tsx scripts/check-module-admission.mjs",
-    "test": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true",
-    "test:owner": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner",
-    "test:protocol": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=protocol",
-    "test:resilience": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=resilience",
-    "test:integration": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=integration",
-    "test:eval": "pnpm kota eval run",
-    "test:cli": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=cli",
-    "test:changed": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --changed",
-    "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run --configLoader runner --config vitest.preset-parity.config.ts",
     "lint": "biome check src/ && biome lint clients/mobile/src/daemon/",
     "lint:fix": "biome check --write src/ && biome lint clients/mobile/src/daemon/",
-    "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
-    "build:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs",
-    "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
-    "build:client-bindings": "pnpm build:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs",
+    "test": "node scripts/test.mjs --configLoader runner --silent=true --project=owner --project=protocol",
+    "test:integration": "node scripts/test.mjs --configLoader runner --silent=true --project=integration",
+    "test:all": "node scripts/test.mjs --configLoader runner --silent=true",
+    "test:changed": "node scripts/test.mjs --configLoader runner --silent=true --changed",
+    "test:cli": "node scripts/test.mjs --configLoader runner --silent=true --project=cli",
+    "test:eval": "pnpm kota eval run",
+    "test:owner": "node scripts/test.mjs --configLoader runner --silent=true --project=owner",
+    "test:preset-parity": "node scripts/test.mjs --configLoader runner --config vitest.preset-parity.config.ts",
+    "test:protocol": "node scripts/test.mjs --configLoader runner --silent=true --project=protocol",
+    "test:resilience": "node scripts/test.mjs --configLoader runner --silent=true --project=resilience",
+    "check": "pnpm check:fast && pnpm test:protocol",
+    "check:all": "pnpm check:fast && pnpm build && pnpm test:all",
+    "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks && pnpm check:client-bindings && pnpm check:modules",
+    "check:apple": "bash scripts/check-apple-client.sh",
     "check:client-bindings": "pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check",
-    "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
+    "check:modules": "node --conditions=source --import tsx scripts/check-module-admission.mjs",
+    "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
     "hooks:install": "node scripts/install-task-hook.mjs",
-    "kota": "node --conditions=source bin/kota-source.mjs"
+    "kota": "node --conditions=source bin/kota-source.mjs",
+    "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.58",
@@ -91,6 +94,9 @@
     "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
+  "optionalDependencies": {
+    "playwright": "^1.60.0"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",
     "@opentelemetry/sdk-trace-base": "^2.10.0",
@@ -100,8 +106,5 @@
     "ts-json-schema-generator": "^2.9.0",
     "tsx": "^4.23.12",
     "vitest": "^4.1.0"
-  },
-  "optionalDependencies": {
-    "playwright": "^1.60.0"
   }
 }

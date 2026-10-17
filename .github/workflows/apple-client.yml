@@ -1,84 +1,48 @@
-name: Apple clients
-
-on:
+name: 'CI: Apple contracts'
+'on':
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - 'clients/apple/**'
-      - 'clients/conformance/**'
-      - 'schema/ui-surface.schema.json'
-      - 'scripts/generate-ui-surface-bindings.mjs'
-      - 'scripts/ui-surface-*.mjs'
-      - 'scripts/ui-surface-typescript-runtime.template'
-      - 'src/core/daemon/ui-surface.ts'
-      - '.github/workflows/apple-client.yml'
+      - clients/apple/**
+      - clients/conformance/**
+      - schema/ui-surface.schema.json
+      - scripts/generate-ui-surface-bindings.mjs
+      - scripts/ui-surface-*.mjs
+      - scripts/ui-surface-typescript-runtime.template
+      - src/core/daemon/ui-surface.ts
+      - .github/workflows/apple-client.yml
   pull_request:
     paths:
-      - 'clients/apple/**'
-      - 'clients/conformance/**'
-      - 'schema/ui-surface.schema.json'
-      - 'scripts/generate-ui-surface-bindings.mjs'
-      - 'scripts/ui-surface-*.mjs'
-      - 'scripts/ui-surface-typescript-runtime.template'
-      - 'src/core/daemon/ui-surface.ts'
-      - '.github/workflows/apple-client.yml'
-
+      - clients/apple/**
+      - clients/conformance/**
+      - schema/ui-surface.schema.json
+      - scripts/generate-ui-surface-bindings.mjs
+      - scripts/ui-surface-*.mjs
+      - scripts/ui-surface-typescript-runtime.template
+      - src/core/daemon/ui-surface.ts
+      - .github/workflows/apple-client.yml
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: clients/apple
-
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  build-and-test:
-    runs-on: macos-14
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          version: 10.32.1
-
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
         with:
-          node-version: 22
+          version: 10.34.7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
           cache: pnpm
-
-      - name: Install generator dependencies
-        working-directory: .
+      - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check generated contract bindings
-        working-directory: .
+      - name: Check generated bindings
         run: pnpm check:ui-bindings
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Check generated contract bindings
-        working-directory: .
-        run: node scripts/generate-ui-surface-bindings.mjs --check
-
-      - name: Cache Swift build
-        uses: actions/cache@v4
-        with:
-          path: clients/apple/.build
-          key: ${{ runner.os }}-swift-${{ hashFiles('clients/apple/Package.swift', 'clients/apple/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-swift-
-
-      - name: Build (macOS)
-        run: swift build
-
-      - name: Test (macOS)
-        run: swift test
-
-      - name: Build KotaiOS for iOS Simulator
-        run: xcodebuild build -scheme KotaiOS -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/ios
-
-      - name: Test on iOS Simulator
-        run: xcodebuild test -scheme KotaApple-Package -destination 'platform=iOS Simulator,name=iPhone 15' -derivedDataPath .build/ios

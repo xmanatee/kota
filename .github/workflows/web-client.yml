@@ -1,64 +1,59 @@
-name: Web client
-
-on:
+name: 'CI: web'
+'on':
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - 'clients/web/**'
-      - 'clients/shared/**'
-      - 'clients/conformance/**'
-      - 'schema/ui-surface.schema.json'
-      - 'scripts/generate-ui-surface-bindings.mjs'
-      - 'scripts/ui-surface-*.mjs'
-      - 'scripts/ui-surface-typescript-runtime.template'
-      - 'src/core/daemon/ui-surface.ts'
-      - '.github/workflows/web-client.yml'
+      - clients/web/**
+      - clients/shared/**
+      - clients/conformance/**
+      - schema/ui-surface.schema.json
+      - scripts/generate-ui-surface-bindings.mjs
+      - scripts/ui-surface-*.mjs
+      - scripts/ui-surface-typescript-runtime.template
+      - src/core/daemon/ui-surface.ts
+      - .github/workflows/web-client.yml
   pull_request:
     paths:
-      - 'clients/web/**'
-      - 'clients/shared/**'
-      - 'clients/conformance/**'
-      - 'schema/ui-surface.schema.json'
-      - 'scripts/generate-ui-surface-bindings.mjs'
-      - 'scripts/ui-surface-*.mjs'
-      - 'scripts/ui-surface-typescript-runtime.template'
-      - 'src/core/daemon/ui-surface.ts'
-      - '.github/workflows/web-client.yml'
-
+      - clients/web/**
+      - clients/shared/**
+      - clients/conformance/**
+      - schema/ui-surface.schema.json
+      - scripts/generate-ui-surface-bindings.mjs
+      - scripts/ui-surface-*.mjs
+      - scripts/ui-surface-typescript-runtime.template
+      - src/core/daemon/ui-surface.ts
+      - .github/workflows/web-client.yml
 permissions:
   contents: read
-
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: clients/web
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          version: 10.32.1
-
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
         with:
-          node-version: 22
+          version: 10.34.7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
           cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            clients/web/pnpm-lock.yaml
-
-      - name: Install generator dependencies
-        working-directory: .
+      - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check generated contract bindings
-        working-directory: .
+      - name: Check generated bindings
         run: pnpm check:ui-bindings
-
       - name: Install client dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Validate client
-        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
+        working-directory: clients/web
+      - name: Check
+        run: pnpm check
+        working-directory: clients/web
+      - name: Build
+        run: pnpm build
+        working-directory: clients/web

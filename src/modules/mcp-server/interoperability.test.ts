@@ -213,6 +213,6 @@ describe("MCP production client/server interoperability", () => {
 		await client.connect();
 		await client.listTools();
 
-		await expect(client.callTool("oversized_result", {})).rejects.toThrow(/exceeded \d+ bytes/i);
+		await expect(client.callTool("oversized_result", { value: "oversized" })).rejects.toThrow(/exceeded \d+ bytes/i);
 	}, 20_000);
 });

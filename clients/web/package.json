@@ -1,16 +1,19 @@
 {
   "name": "@kota/web",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "test": "vitest run",
-    "preview": "vite preview"
+    "test:watch": "vitest",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "check:all": "pnpm check && pnpm build"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.75.5",

@@ -1,16 +1,20 @@
 {
   "name": "kota-mobile",
   "version": "1.0.0",
+  "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "bundle:android": "expo export --platform android",
-    "evidence:android-server": "node scripts/android-ui-evidence-server.mjs",
+    "build": "expo export --platform android --output-dir dist",
     "typecheck": "node scripts/typecheck.mjs",
-    "test": "jest"
+    "test": "jest --ci",
+    "test:watch": "jest --watch",
+    "check": "pnpm typecheck && pnpm test",
+    "check:all": "pnpm check && pnpm build",
+    "android": "expo start --android",
+    "evidence:android-server": "node scripts/android-ui-evidence-server.mjs",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.2.0",
@@ -38,6 +42,5 @@
     "jest-expo": "~52.0.6",
     "react-test-renderer": "18.3.1",
     "typescript": "^5.3.3"
-  },
-  "private": true
+  }
 }

@@ -33,10 +33,18 @@ per-change paperwork, source keywords, artifact shapes or test quotas.
 The configured portfolios in `vitest.config.ts` have explicit, non-overlapping
 membership. `pnpm check:fast` is the deterministic static gate. Select affected
 owner, protocol, resilience, integration or CLI tests for behavioral feedback.
-`pnpm test:eval` runs live evaluations; `pnpm test:preset-parity` runs the live composed daemon parity journey. `pnpm check` adds the production
-build and all deterministic partitions for broad/high-risk or release confidence;
+`pnpm test:eval` runs live evaluations; `pnpm test:preset-parity` runs the live composed daemon parity journey. `pnpm test` runs owner and protocol tests locally. `pnpm check` combines the
+static gate with the bounded `test:protocol` portfolio for CI feedback; it does
+not claim to run the larger owner, resilience, integration or CLI portfolios.
+`pnpm check:all` runs the production build and all deterministic partitions locally
+for broad/high-risk or release confidence;
 ordinary tests and checks exclude live model evaluation.
 
+Use each React client’s `pnpm check` and `pnpm build` for fast validation. Run
+`pnpm check:all` in that client for complete local checks. Apple compilation and
+simulator tests run locally with `pnpm check:apple`, not in GitHub Actions.
+It selects an available iPhone simulator; `KOTA_IOS_TEST_DESTINATION` can select
+a specific Xcode destination.
 Build and test native clients when their source or shared contracts change.
 Changed-file selection needs judgment about schema, configuration and transitive
 runtime effects. Keep security and restart scenarios with their owning portfolio.

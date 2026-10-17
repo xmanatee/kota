@@ -198,10 +198,11 @@ describe("SharedUiSurface interactions", () => {
   it("submits an explicit daemon-host path for Add Scope", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        ok: true,
-        message: "Operation operation-1 succeeded; workflow-ready=false.",
-      }),
+      json: () =>
+        Promise.resolve({
+          ok: true,
+          message: "Operation operation-1 succeeded; workflow-ready=false.",
+        }),
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const addAction = {
@@ -210,14 +211,20 @@ describe("SharedUiSurface interactions", () => {
       scopeId: operatorSurface.scopeId,
       label: "Add scope",
       effect: "write",
-      operation: { kind: "client-namespace", namespace: "scopes", method: "addOnboarding" },
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "addOnboarding",
+      },
       parameters: {
-        fields: [{
-          id: "directoryRoot",
-          label: "Daemon host folder",
-          input: "path",
-          required: true,
-        }],
+        fields: [
+          {
+            id: "directoryRoot",
+            label: "Daemon host folder",
+            input: "path",
+            required: true,
+          },
+        ],
         schema: {
           type: "object",
           required: ["directoryRoot"],
@@ -246,12 +253,14 @@ describe("SharedUiSurface interactions", () => {
       surfaceId: "scopes",
       extensionId: "core.scopes",
       title: "Scopes",
-      nodes: [{
-        kind: "form",
-        title: "Add Scope",
-        fields: addAction.parameters.fields,
-        submit: addAction,
-      }],
+      nodes: [
+        {
+          kind: "form",
+          title: "Add Scope",
+          fields: addAction.parameters.fields,
+          submit: addAction,
+        },
+      ],
       actions: [addAction],
     };
     renderSurface(surface);
@@ -261,23 +270,29 @@ describe("SharedUiSurface interactions", () => {
       target: { value: "/srv/operator-selected" },
     });
     fireEvent.click(within(form).getByRole("button", { name: "Add scope" }));
-    expect(within(form).getByRole("alert")).toHaveTextContent("daemon-owned onboarding plan");
-    const confirm = within(form).getAllByRole("button", { name: "Add scope" }).at(-1);
+    expect(within(form).getByRole("alert")).toHaveTextContent(
+      "daemon-owned onboarding plan",
+    );
+    const confirm = within(form)
+      .getAllByRole("button", { name: "Add scope" })
+      .at(-1);
     if (!confirm) throw new Error("missing Add Scope confirmation");
     fireEvent.click(confirm);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/ui/actions/execute",
-      expect.objectContaining({
-        body: JSON.stringify({
-          scopeId: operatorSurface.scopeId,
-          surfaceId: "scopes",
-          actionId: "scope.onboarding.apply",
-          parameters: { directoryRoot: "/srv/operator-selected" },
-          confirmed: true,
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/ui/actions/execute",
+        expect.objectContaining({
+          body: JSON.stringify({
+            scopeId: operatorSurface.scopeId,
+            surfaceId: "scopes",
+            actionId: "scope.onboarding.apply",
+            parameters: { directoryRoot: "/srv/operator-selected" },
+            confirmed: true,
+          }),
         }),
-      }),
-    ));
+      ),
+    );
   });
 
   it("submits an unconfirmed graph-declared form", async () => {
