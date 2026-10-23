@@ -1,6 +1,7 @@
 {
   "name": "kota",
   "version": "0.1.0",
+  "private": true,
   "description": "KOTA — a local-first agent automation runtime and operator control plane.",
   "mcpName": "io.github.xmanatee/kota",
   "type": "module",

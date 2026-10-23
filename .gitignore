@@ -15,3 +15,6 @@ deploy/telegram-assistant/.env
 .claude/worktrees/
 __pycache__/
 *.tsbuildinfo
+
+# Finder metadata
+.DS_Store
