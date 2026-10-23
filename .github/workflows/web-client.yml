@@ -16,20 +16,6 @@ name: 'CI: web'
       - scripts/ui-surface-typescript-runtime.template
       - src/core/daemon/ui-surface.ts
       - .github/workflows/web-client.yml
-  pull_request:
-    paths:
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - clients/web/**
-      - clients/shared/**
-      - clients/conformance/**
-      - schema/ui-surface.schema.json
-      - scripts/generate-ui-surface-bindings.mjs
-      - scripts/ui-surface-*.mjs
-      - scripts/ui-surface-typescript-runtime.template
-      - src/core/daemon/ui-surface.ts
-      - .github/workflows/web-client.yml
 permissions:
   contents: read
 env:
@@ -37,7 +23,7 @@ env:
   DO_NOT_TRACK: '1'
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-24.04

@@ -1,11 +1,5 @@
 name: CI
 'on':
-  pull_request:
-    paths-ignore:
-      - clients/**
-      - .github/workflows/apple-client.yml
-      - .github/workflows/mobile-client.yml
-      - .github/workflows/web-client.yml
   push:
     branches:
       - main
@@ -19,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-24.04

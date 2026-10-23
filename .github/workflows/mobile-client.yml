@@ -16,20 +16,6 @@ name: 'CI: mobile'
       - scripts/ui-surface-typescript-runtime.template
       - src/core/daemon/ui-surface.ts
       - .github/workflows/mobile-client.yml
-  pull_request:
-    paths:
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - clients/mobile/**
-      - clients/shared/**
-      - clients/conformance/**
-      - schema/ui-surface.schema.json
-      - scripts/generate-ui-surface-bindings.mjs
-      - scripts/ui-surface-*.mjs
-      - scripts/ui-surface-typescript-runtime.template
-      - src/core/daemon/ui-surface.ts
-      - .github/workflows/mobile-client.yml
 permissions:
   contents: read
 env:
@@ -38,7 +24,7 @@ env:
   EXPO_NO_TELEMETRY: '1'
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-24.04

@@ -12,21 +12,11 @@ name: 'CI: Apple contracts'
       - scripts/ui-surface-typescript-runtime.template
       - src/core/daemon/ui-surface.ts
       - .github/workflows/apple-client.yml
-  pull_request:
-    paths:
-      - clients/apple/**
-      - clients/conformance/**
-      - schema/ui-surface.schema.json
-      - scripts/generate-ui-surface-bindings.mjs
-      - scripts/ui-surface-*.mjs
-      - scripts/ui-surface-typescript-runtime.template
-      - src/core/daemon/ui-surface.ts
-      - .github/workflows/apple-client.yml
 permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-24.04
