@@ -1,0 +1,9 @@
+# This client owns its installation and lockfile independently of the daemon.
+packages:
+  - .
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+dangerouslyAllowAllBuilds: false
+strictDepBuilds: false
+allowBuilds: {}

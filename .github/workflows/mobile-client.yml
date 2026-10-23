@@ -4,6 +4,9 @@ name: 'CI: mobile'
     branches:
       - main
     paths:
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - clients/mobile/**
       - clients/shared/**
       - clients/conformance/**
@@ -15,6 +18,9 @@ name: 'CI: mobile'
       - .github/workflows/mobile-client.yml
   pull_request:
     paths:
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - clients/mobile/**
       - clients/shared/**
       - clients/conformance/**
@@ -26,6 +32,10 @@ name: 'CI: mobile'
       - .github/workflows/mobile-client.yml
 permissions:
   contents: read
+env:
+  CI: 'true'
+  DO_NOT_TRACK: '1'
+  EXPO_NO_TELEMETRY: '1'
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -44,6 +54,9 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            clients/mobile/pnpm-lock.yaml
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
       - name: Check generated bindings

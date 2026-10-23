@@ -4,6 +4,9 @@ name: 'CI: web'
     branches:
       - main
     paths:
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - clients/web/**
       - clients/shared/**
       - clients/conformance/**
@@ -15,6 +18,9 @@ name: 'CI: web'
       - .github/workflows/web-client.yml
   pull_request:
     paths:
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - clients/web/**
       - clients/shared/**
       - clients/conformance/**
@@ -26,6 +32,9 @@ name: 'CI: web'
       - .github/workflows/web-client.yml
 permissions:
   contents: read
+env:
+  CI: 'true'
+  DO_NOT_TRACK: '1'
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -44,6 +53,9 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            clients/web/pnpm-lock.yaml
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
       - name: Check generated bindings
